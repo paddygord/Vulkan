@@ -38,44 +38,44 @@
 // Macro to check and display Vulkan return results
 #define VK_CHECK_RESULT(f)																				\
 {																										\
-	VkResult res = (f);																					\
-	if (res != VK_SUCCESS)																				\
+	vk::Result res = (f);																					\
+	if (res != vk::Result::eSuccess)																				\
 	{																									\
-		std::cout << "Fatal : VkResult is \"" << vkTools::errorString(res) << "\" in " << __FILE__ << " at line " << __LINE__ << std::endl; \
-		assert(res == VK_SUCCESS);																		\
+		std::cout << "Fatal : vk::Result is \"" << vkTools::errorString(res) << "\" in " << __FILE__ << " at line " << __LINE__ << std::endl; \
+		assert(res == vk::Result::eSuccess);																		\
 	}																									\
 }																										\
 
 namespace vkTools
 {
 	// Check if extension is globally available
-	VkBool32 checkGlobalExtensionPresent(const char* extensionName);
+	vk::Bool32 checkGlobalExtensionPresent(const char* extensionName);
 	// Check if extension is present on the given device
-	VkBool32 checkDeviceExtensionPresent(VkPhysicalDevice physicalDevice, const char* extensionName);
+	vk::Bool32 checkDeviceExtensionPresent(vk::PhysicalDevice physicalDevice, const char* extensionName);
 	// Return string representation of a vulkan error string
-	std::string errorString(VkResult errorCode);
-	// Asserts and outputs the error message if the result is not VK_SUCCESS
-	VkResult checkResult(VkResult result);
+	std::string errorString(vk::Result errorCode);
+	// Asserts and outputs the error message if the result is not vk::Result::eSuccess
+	vk::Result checkResult(vk::Result result);
 
 	// Selected a suitable supported depth format starting with 32 bit down to 16 bit
 	// Returns false if none of the depth formats in the list is supported by the device
-	VkBool32 getSupportedDepthFormat(VkPhysicalDevice physicalDevice, VkFormat *depthFormat);
+	vk::Bool32 getSupportedDepthFormat(vk::PhysicalDevice physicalDevice, vk::Format *depthFormat);
 
 	// Put an image memory barrier for setting an image layout on the sub resource into the given command buffer
 	void setImageLayout(
-		VkCommandBuffer cmdbuffer,
-		VkImage image,
-		VkImageAspectFlags aspectMask,
-		VkImageLayout oldImageLayout,
-		VkImageLayout newImageLayout,
-		VkImageSubresourceRange subresourceRange);
+		vk::CommandBuffer cmdbuffer,
+		vk::Image image,
+		vk::ImageAspectFlags aspectMask,
+		vk::ImageLayout oldImageLayout,
+		vk::ImageLayout newImageLayout,
+		vk::ImageSubresourceRange subresourceRange);
 	// Uses a fixed sub resource layout with first mip level and layer
 	void setImageLayout(
-		VkCommandBuffer cmdbuffer, 
-		VkImage image, 
-		VkImageAspectFlags aspectMask, 
-		VkImageLayout oldImageLayout, 
-		VkImageLayout newImageLayout);
+		vk::CommandBuffer cmdbuffer, 
+		vk::Image image, 
+		vk::ImageAspectFlags aspectMask, 
+		vk::ImageLayout oldImageLayout, 
+		vk::ImageLayout newImageLayout);
 
 	// Display error message and exit on fatal error
 	void exitFatal(std::string message, std::string caption);
@@ -86,200 +86,200 @@ namespace vkTools
 
 	// Load a SPIR-V shader
 #if defined(__ANDROID__)
-	VkShaderModule loadShader(AAssetManager* assetManager, const char *fileName, VkDevice device, VkShaderStageFlagBits stage);
+	vk::ShaderModule loadShader(AAssetManager* assetManager, const char *fileName, vk::Device device, vk::ShaderStageFlagBits stage);
 #else
-	VkShaderModule loadShader(const char *fileName, VkDevice device, VkShaderStageFlagBits stage);
+	vk::ShaderModule loadShader(const char *fileName, vk::Device device, vk::ShaderStageFlagBits stage);
 #endif
 
 	// Load a GLSL shader
 	// Note : Only for testing purposes, support for directly feeding GLSL shaders into Vulkan
 	// may be dropped at some point	
-	VkShaderModule loadShaderGLSL(const char *fileName, VkDevice device, VkShaderStageFlagBits stage);
+	vk::ShaderModule loadShaderGLSL(const char *fileName, vk::Device device, vk::ShaderStageFlagBits stage);
 
 	// Returns a pre-present image memory barrier
 	// Transforms the image's layout from color attachment to present khr
-	VkImageMemoryBarrier prePresentBarrier(VkImage presentImage);
+	vk::ImageMemoryBarrier prePresentBarrier(vk::Image presentImage);
 
 	// Returns a post-present image memory barrier
 	// Transforms the image's layout back from present khr to color attachment
-	VkImageMemoryBarrier postPresentBarrier(VkImage presentImage);
+	vk::ImageMemoryBarrier postPresentBarrier(vk::Image presentImage);
 
 	// Contains all vulkan objects
 	// required for a uniform data object
 	struct UniformData 
 	{
-		VkBuffer buffer;
-		VkDeviceMemory memory;
-		VkDescriptorBufferInfo descriptor;
+		vk::Buffer buffer;
+		vk::DeviceMemory memory;
+		vk::DescriptorBufferInfo descriptor;
 		uint32_t allocSize;
 		void* mapped = nullptr;
 	};
 
 	// Destroy (and free) Vulkan resources used by a uniform data structure
-	void destroyUniformData(VkDevice device, vkTools::UniformData *uniformData);
+	void destroyUniformData(vk::Device device, vkTools::UniformData *uniformData);
 
 	// Contains often used vulkan object initializers
 	// Save lot of VK_STRUCTURE_TYPE assignments
 	// Some initializers are parameterized for convenience
 	namespace initializers
 	{
-		VkMemoryAllocateInfo memoryAllocateInfo();
+		vk::MemoryAllocateInfo memoryAllocateInfo();
 
-		VkCommandBufferAllocateInfo commandBufferAllocateInfo(
-			VkCommandPool commandPool,
-			VkCommandBufferLevel level,
+		vk::CommandBufferAllocateInfo commandBufferAllocateInfo(
+			vk::CommandPool commandPool,
+			vk::CommandBufferLevel level,
 			uint32_t bufferCount);
 
-		VkCommandPoolCreateInfo commandPoolCreateInfo();
-		VkCommandBufferBeginInfo commandBufferBeginInfo();
-		VkCommandBufferInheritanceInfo commandBufferInheritanceInfo();
+		vk::CommandPoolCreateInfo commandPoolCreateInfo();
+		vk::CommandBufferBeginInfo commandBufferBeginInfo();
+		vk::CommandBufferInheritanceInfo commandBufferInheritanceInfo();
 
-		VkRenderPassBeginInfo renderPassBeginInfo();
-		VkRenderPassCreateInfo renderPassCreateInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo();
+		vk::RenderPassCreateInfo renderPassCreateInfo();
 
-		VkImageMemoryBarrier imageMemoryBarrier();
-		VkBufferMemoryBarrier bufferMemoryBarrier();
-		VkMemoryBarrier memoryBarrier();
+		vk::ImageMemoryBarrier imageMemoryBarrier();
+		vk::BufferMemoryBarrier bufferMemoryBarrier();
+		vk::MemoryBarrier memoryBarrier();
 
-		VkImageCreateInfo imageCreateInfo();
-		VkSamplerCreateInfo samplerCreateInfo();
-		VkImageViewCreateInfo imageViewCreateInfo();
+		vk::ImageCreateInfo imageCreateInfo();
+		vk::SamplerCreateInfo samplerCreateInfo();
+		vk::ImageViewCreateInfo imageViewCreateInfo();
 
-		VkFramebufferCreateInfo framebufferCreateInfo();
+		vk::FramebufferCreateInfo framebufferCreateInfo();
 
-		VkSemaphoreCreateInfo semaphoreCreateInfo();
-		VkFenceCreateInfo fenceCreateInfo(VkFenceCreateFlags flags);
-		VkEventCreateInfo eventCreateInfo();
+		vk::SemaphoreCreateInfo semaphoreCreateInfo();
+		vk::FenceCreateInfo fenceCreateInfo(vk::FenceCreateFlags flags = vk::FenceCreateFlags());
+		vk::EventCreateInfo eventCreateInfo();
 
-		VkSubmitInfo submitInfo();
+		vk::SubmitInfo submitInfo();
 
-		VkViewport viewport(
+		vk::Viewport viewport(
 			float width, 
 			float height, 
 			float minDepth, 
 			float maxDepth);
 
-		VkRect2D rect2D(
+		vk::Rect2D rect2D(
 			int32_t width,
 			int32_t height,
 			int32_t offsetX,
 			int32_t offsetY);
 
-		VkBufferCreateInfo bufferCreateInfo();
+		vk::BufferCreateInfo bufferCreateInfo();
 
-		VkBufferCreateInfo bufferCreateInfo(
-			VkBufferUsageFlags usage, 
-			VkDeviceSize size);
+		vk::BufferCreateInfo bufferCreateInfo(
+			vk::BufferUsageFlags usage, 
+			vk::DeviceSize size);
 
-		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo(
+		vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo(
 			uint32_t poolSizeCount,
-			VkDescriptorPoolSize* pPoolSizes,
+			vk::DescriptorPoolSize* pPoolSizes,
 			uint32_t maxSets);
 
-		VkDescriptorPoolSize descriptorPoolSize(
-			VkDescriptorType type,
+		vk::DescriptorPoolSize descriptorPoolSize(
+			vk::DescriptorType type,
 			uint32_t descriptorCount);
 
-		VkDescriptorSetLayoutBinding descriptorSetLayoutBinding(
-			VkDescriptorType type, 
-			VkShaderStageFlags stageFlags, 
+		vk::DescriptorSetLayoutBinding descriptorSetLayoutBinding(
+			vk::DescriptorType type, 
+			vk::ShaderStageFlags stageFlags, 
 			uint32_t binding);
 
-		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo(
-			const VkDescriptorSetLayoutBinding* pBindings,
+		vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo(
+			const vk::DescriptorSetLayoutBinding* pBindings,
 			uint32_t bindingCount);
 
-		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo(
-			const VkDescriptorSetLayout* pSetLayouts,
+		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo(
+			const vk::DescriptorSetLayout* pSetLayouts,
 			uint32_t setLayoutCount	);
 
-		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo(
-			VkDescriptorPool descriptorPool,
-			const VkDescriptorSetLayout* pSetLayouts,
+		vk::DescriptorSetAllocateInfo descriptorSetAllocateInfo(
+			vk::DescriptorPool descriptorPool,
+			const vk::DescriptorSetLayout* pSetLayouts,
 			uint32_t descriptorSetCount);
 
-		VkDescriptorImageInfo descriptorImageInfo(
-			VkSampler sampler,
-			VkImageView imageView,
-			VkImageLayout imageLayout);
+		vk::DescriptorImageInfo descriptorImageInfo(
+			vk::Sampler sampler,
+			vk::ImageView imageView,
+			vk::ImageLayout imageLayout);
 
-		VkWriteDescriptorSet writeDescriptorSet(
-			VkDescriptorSet dstSet, 
-			VkDescriptorType type, 
+		vk::WriteDescriptorSet writeDescriptorSet(
+			vk::DescriptorSet dstSet, 
+			vk::DescriptorType type, 
 			uint32_t binding, 
-			VkDescriptorBufferInfo* bufferInfo);
+			vk::DescriptorBufferInfo* bufferInfo);
 
-		VkWriteDescriptorSet writeDescriptorSet(
-			VkDescriptorSet dstSet, 
-			VkDescriptorType type, 
+		vk::WriteDescriptorSet writeDescriptorSet(
+			vk::DescriptorSet dstSet, 
+			vk::DescriptorType type, 
 			uint32_t binding, 
-			VkDescriptorImageInfo* imageInfo);
+			vk::DescriptorImageInfo* imageInfo);
 
-		VkVertexInputBindingDescription vertexInputBindingDescription(
+		vk::VertexInputBindingDescription vertexInputBindingDescription(
 			uint32_t binding, 
 			uint32_t stride, 
-			VkVertexInputRate inputRate);
+			vk::VertexInputRate inputRate);
 
-		VkVertexInputAttributeDescription vertexInputAttributeDescription(
+		vk::VertexInputAttributeDescription vertexInputAttributeDescription(
 			uint32_t binding,
 			uint32_t location,
-			VkFormat format,
+			vk::Format format,
 			uint32_t offset);
 
-		VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo();
+		vk::PipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo();
 
-		VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo(
-			VkPrimitiveTopology topology,
-			VkPipelineInputAssemblyStateCreateFlags flags,
-			VkBool32 primitiveRestartEnable);
+		vk::PipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo(
+			vk::PrimitiveTopology topology,
+			vk::PipelineInputAssemblyStateCreateFlags flags= vk::PipelineInputAssemblyStateCreateFlags(),
+			vk::Bool32 primitiveRestartEnable = VK_FALSE);
 
-		VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo(
-			VkPolygonMode polygonMode,
-			VkCullModeFlags cullMode,
-			VkFrontFace frontFace,
-			VkPipelineRasterizationStateCreateFlags flags);
+		vk::PipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo(
+			vk::PolygonMode polygonMode,
+			vk::CullModeFlags cullMode,
+			vk::FrontFace frontFace,
+			vk::PipelineRasterizationStateCreateFlags flags = vk::PipelineRasterizationStateCreateFlags());
 
-		VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState(
-			VkColorComponentFlags colorWriteMask,
-			VkBool32 blendEnable);
+		vk::PipelineColorBlendAttachmentState pipelineColorBlendAttachmentState(
+			vk::ColorComponentFlags colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+			vk::Bool32 blendEnable = VK_FALSE);
 
-		VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo(
+		vk::PipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo(
 			uint32_t attachmentCount,
-			const VkPipelineColorBlendAttachmentState* pAttachments);
+			const vk::PipelineColorBlendAttachmentState* pAttachments);
 
-		VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo(
-			VkBool32 depthTestEnable,
-			VkBool32 depthWriteEnable,
-			VkCompareOp depthCompareOp);
+		vk::PipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo(
+			vk::Bool32 depthTestEnable,
+			vk::Bool32 depthWriteEnable,
+			vk::CompareOp depthCompareOp);
 
-		VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo(
+		vk::PipelineViewportStateCreateInfo pipelineViewportStateCreateInfo(
 			uint32_t viewportCount,
 			uint32_t scissorCount,
-			VkPipelineViewportStateCreateFlags flags);
+			vk::PipelineViewportStateCreateFlags flags = vk::PipelineViewportStateCreateFlags());
 
-		VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo(
-			VkSampleCountFlagBits rasterizationSamples,
-			VkPipelineMultisampleStateCreateFlags flags);
+		vk::PipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo(
+			vk::SampleCountFlagBits rasterizationSamples,
+			vk::PipelineMultisampleStateCreateFlags flags = vk::PipelineMultisampleStateCreateFlags());
 
-		VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo(
-			const VkDynamicState *pDynamicStates,
+		vk::PipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo(
+			const vk::DynamicState *pDynamicStates,
 			uint32_t dynamicStateCount,
-			VkPipelineDynamicStateCreateFlags flags);
+			vk::PipelineDynamicStateCreateFlags flags = vk::PipelineDynamicStateCreateFlags());
 
-		VkPipelineTessellationStateCreateInfo pipelineTessellationStateCreateInfo(
+		vk::PipelineTessellationStateCreateInfo pipelineTessellationStateCreateInfo(
 			uint32_t patchControlPoints);
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo(
-			VkPipelineLayout layout,
-			VkRenderPass renderPass,
-			VkPipelineCreateFlags flags);
+		vk::GraphicsPipelineCreateInfo pipelineCreateInfo(
+			vk::PipelineLayout layout,
+			vk::RenderPass renderPass,
+			vk::PipelineCreateFlags flags = vk::PipelineCreateFlags());
 
-		VkComputePipelineCreateInfo computePipelineCreateInfo(
-			VkPipelineLayout layout,
-			VkPipelineCreateFlags flags);
+		vk::ComputePipelineCreateInfo computePipelineCreateInfo(
+			vk::PipelineLayout layout,
+			vk::PipelineCreateFlags flags);
 
-		VkPushConstantRange pushConstantRange(
-			VkShaderStageFlags stageFlags,
+		vk::PushConstantRange pushConstantRange(
+			vk::ShaderStageFlags stageFlags,
 			uint32_t size,
 			uint32_t offset);
 	}

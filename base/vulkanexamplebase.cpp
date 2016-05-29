@@ -239,7 +239,7 @@ void VulkanExampleBase::prepare()
 {
 	if (enableValidation)
 	{
-		vkDebug::setupDebugging(instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning, VK_NULL_HANDLE);
+		vkDebug::setupDebugging(instance, (VkDebugReportFlagsEXT)(vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning), VK_NULL_HANDLE);
 	}
 	if (enableDebugMarkers)
 	{

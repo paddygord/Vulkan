@@ -72,33 +72,26 @@ public:
 	{
 		// Create surface depending on OS
 #ifdef _WIN32
-		vk::Win32SurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = vk::StructureType::eWin32SurfaceCreateInfoKHR;
+		vk::Win32SurfaceCreateInfoKHR surfaceCreateInfo;
 		surfaceCreateInfo.hinstance = (HINSTANCE)platformHandle;
 		surfaceCreateInfo.hwnd = (HWND)platformWindow;
-		surface = instance.createWin32SurfaceKHR(surfaceCreateInfo, nullptr);
+		surface = instance.createWin32SurfaceKHR(surfaceCreateInfo);
 #else
 #ifdef __ANDROID__
-		vk::AndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = vk::StructureType::eAndroidSurfaceCreateInfoKHR;
+		vk::AndroidSurfaceCreateInfoKHR surfaceCreateInfo;
 		surfaceCreateInfo.window = window;
-		surface = instance.createAndroidSurfaceKHR(surfaceCreateInfo, NULL);
+		surface = instance.createAndroidSurfaceKHR(surfaceCreateInfo);
 #else
-		vk::XcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = vk::StructureType::eXcbSurfaceCreateInfoKHR;
+		vk::XcbSurfaceCreateInfoKHR surfaceCreateInfo;
 		surfaceCreateInfo.connection = connection;
 		surfaceCreateInfo.window = window;
-		surface = instance.createXcbSurfaceKHR(surfaceCreateInfo, nullptr);
+		surface = instance.createXcbSurfaceKHR(surfaceCreateInfo);
 #endif
 #endif
 
 		// Get available queue family properties
-		uint32_t queueCount;
-		
-		assert(queueCount >= 1);
-
-		std::vector<vk::QueueFamilyProperties> queueProps(queueCount);
-		queueProps = physicalDevice.getQueueFamilyProperties();
+		std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();
+		auto queueCount = queueProps.size();
 
 		// Iterate over each queue to learn whether it supports presenting:
 		// Find a queue with present support
@@ -159,14 +152,9 @@ public:
 		queueNodeIndex = graphicsQueueNodeIndex;
 
 		// Get list of supported surface formats
-		uint32_t formatCount;
-		
-		
-		assert(formatCount > 0);
+		std::vector<vk::SurfaceFormatKHR> surfaceFormats = physicalDevice.getSurfaceFormatsKHR(surface);
+		auto formatCount = surfaceFormats.size();
 
-		std::vector<vk::SurfaceFormatKHR> surfaceFormats(formatCount);
-		surfaceFormats = physicalDevice.getSurfaceFormatsKHR(surface);
-		
 
 		// If the surface format list only includes one entry with vk::Format::eUndefined,
 		// there is no preferered format, so we assume vk::Format::eB8G8R8A8Unorm
@@ -199,22 +187,12 @@ public:
 		vk::SwapchainKHR oldSwapchain = swapChain;
 
 		// Get physical device surface properties and formats
-		vk::SurfaceCapabilitiesKHR surfCaps;
-		surfCaps = physicalDevice.getSurfaceCapabilitiesKHR(surface).value;
-		
-
+		vk::SurfaceCapabilitiesKHR surfCaps = physicalDevice.getSurfaceCapabilitiesKHR(surface).value;
 		// Get available present modes
-		uint32_t presentModeCount;
-		
-		
-		assert(presentModeCount > 0);
+		std::vector<vk::PresentModeKHR> presentModes = physicalDevice.getSurfacePresentModesKHR(surface);
+		auto presentModeCount = presentModes.size();
 
-		std::vector<vk::PresentModeKHR> presentModes(presentModeCount);
-
-		presentModes = physicalDevice.getSurfacePresentModesKHR(surface);
-		
-
-		vk::Extent2D swapchainExtent = {};
+		vk::Extent2D swapchainExtent;
 		// width and height are either both -1, or both not -1.
 		if (surfCaps.currentExtent.width == -1)
 		{
@@ -263,7 +241,7 @@ public:
 			preTransform = surfCaps.currentTransform;
 		}
 
-		vk::SwapchainCreateInfoKHR swapchainCI = {};
+		vk::SwapchainCreateInfoKHR swapchainCI;
 		swapchainCI.sType = vk::StructureType::eSwapchainCreateInfoKHR;
 		swapchainCI.pNext = NULL;
 		swapchainCI.surface = surface;
@@ -297,20 +275,15 @@ public:
 		}
 
 		
-		
-
 		// Get the swap chain images
-		images.resize(imageCount);
 		images = device.getSwapchainImagesKHR(swapChain);
-		
+		imageCount = images.size();
 
 		// Get the swap chain buffers containing the image and imageview
 		buffers.resize(imageCount);
 		for (uint32_t i = 0; i < imageCount; i++)
 		{
-			vk::ImageViewCreateInfo colorAttachmentView = {};
-			colorAttachmentView.sType = vk::StructureType::eImageViewCreateInfo;
-			colorAttachmentView.pNext = NULL;
+			vk::ImageViewCreateInfo colorAttachmentView;
 			colorAttachmentView.format = colorFormat;
 			colorAttachmentView.components = {
 				vk::ComponentSwizzle::eR,
@@ -353,9 +326,7 @@ public:
 	// Present the current image to the queue
 	vk::Result queuePresent(vk::Queue queue, uint32_t currentBuffer)
 	{
-		vk::PresentInfoKHR presentInfo = {};
-		presentInfo.sType = vk::StructureType::ePresentInfoKHR;
-		presentInfo.pNext = NULL;
+		vk::PresentInfoKHR presentInfo;
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = &swapChain;
 		presentInfo.pImageIndices = &currentBuffer;
@@ -365,9 +336,7 @@ public:
 	// Present the current image to the queue
 	vk::Result queuePresent(vk::Queue queue, uint32_t currentBuffer, vk::Semaphore waitSemaphore)
 	{
-		vk::PresentInfoKHR presentInfo = {};
-		presentInfo.sType = vk::StructureType::ePresentInfoKHR;
-		presentInfo.pNext = NULL;
+		vk::PresentInfoKHR presentInfo;
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = &swapChain;
 		presentInfo.pImageIndices = &currentBuffer;

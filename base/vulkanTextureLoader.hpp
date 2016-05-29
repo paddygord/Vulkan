@@ -9,6 +9,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#pragma warning(disable: 4996 4244 4267)
 #include <gli/gli.hpp>
 #include "vulkantools.h"
 
