@@ -259,9 +259,7 @@ public:
 		
 
 		// Create image view
-		vk::ImageViewCreateInfo view = {};
-		view.sType = vk::StructureType::eImageViewCreateInfo;
-		view.pNext = NULL;
+		vk::ImageViewCreateInfo view;
 		view.image;
 		view.viewType = vk::ImageViewType::e2D;
 		view.format = format;
@@ -431,18 +429,17 @@ public:
 		colorReferences.push_back({ 1, vk::ImageLayout::eColorAttachmentOptimal });
 		colorReferences.push_back({ 2, vk::ImageLayout::eColorAttachmentOptimal });
 
-		vk::AttachmentReference depthReference = {};
+		vk::AttachmentReference depthReference;
 		depthReference.attachment = 3;
 		depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		vk::SubpassDescription subpass = {};
+		vk::SubpassDescription subpass;
 		subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
 		subpass.pColorAttachments = colorReferences.data();
 		subpass.colorAttachmentCount = colorReferences.size();
 		subpass.pDepthStencilAttachment = &depthReference;
 
-		vk::RenderPassCreateInfo renderPassInfo = {};
-		renderPassInfo.sType = vk::StructureType::eRenderPassCreateInfo;
+		vk::RenderPassCreateInfo renderPassInfo;
 		renderPassInfo.pAttachments = attachmentDescs.data();
 		renderPassInfo.attachmentCount = attachmentDescs.size();
 		renderPassInfo.subpassCount = 1;
@@ -458,9 +455,7 @@ public:
 		// depth
 		attachments[3] = offScreenFrameBuf.depth.view;
 
-		vk::FramebufferCreateInfo fbufCreateInfo = {};
-		fbufCreateInfo.sType = vk::StructureType::eFramebufferCreateInfo;
-		fbufCreateInfo.pNext = NULL;
+		vk::FramebufferCreateInfo fbufCreateInfo;
 		fbufCreateInfo.renderPass = offScreenFrameBuf.renderPass;
 		fbufCreateInfo.pAttachments = attachments.data();
 		fbufCreateInfo.attachmentCount = attachments.size();
