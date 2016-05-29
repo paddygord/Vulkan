@@ -298,7 +298,7 @@ public:
 		tex->width = OFFSCREEN_DIM;
 		tex->height = OFFSCREEN_DIM;
 
-		vk::ImageCreateInfo imageCreateInfo = vkTools::initializers::imageCreateInfo();
+		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = OFFSCREEN_FORMAT;
 		imageCreateInfo.extent = { OFFSCREEN_DIM, OFFSCREEN_DIM, 1 };
@@ -311,7 +311,7 @@ public:
 		// Texture will be sampled in a shader and is also the blit destination
 		imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
 
-		vk::MemoryAllocateInfo memAllocInfo = vkTools::initializers::memoryAllocateInfo();
+		vk::MemoryAllocateInfo memAllocInfo;
 		vk::MemoryRequirements memReqs;
 
 		tex->image = device.createImage(imageCreateInfo, nullptr);
@@ -331,7 +331,7 @@ public:
 			tex->imageLayout);
 
 		// Create sampler
-		vk::SamplerCreateInfo sampler = vkTools::initializers::samplerCreateInfo();
+		vk::SamplerCreateInfo sampler;
 		sampler.magFilter = OFFSCREEN_FILTER;
 		sampler.minFilter = OFFSCREEN_FILTER;
 		sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
@@ -347,7 +347,7 @@ public:
 		tex->sampler = device.createSampler(sampler, nullptr);
 
 		// Create image view
-		vk::ImageViewCreateInfo view = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo view;
 		view.image;
 		view.viewType = vk::ImageViewType::e2D;
 		view.format = OFFSCREEN_FORMAT;
@@ -370,7 +370,7 @@ public:
 		assert(validDepthFormat);
 
 		// Color attachment
-		vk::ImageCreateInfo image = vkTools::initializers::imageCreateInfo();
+		vk::ImageCreateInfo image;
 		image.imageType = vk::ImageType::e2D;
 		image.format = OFFSCREEN_FORMAT;
 		image.extent.width = offScreenFrameBuf.width;
@@ -383,7 +383,7 @@ public:
 		// Image of the framebuffer is blit source
 		image.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc;
 
-		vk::ImageViewCreateInfo colorImageView = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo colorImageView;
 		colorImageView.viewType = vk::ImageViewType::e2D;
 		colorImageView.format = OFFSCREEN_FORMAT;
 		colorImageView.subresourceRange = {};
@@ -414,7 +414,7 @@ public:
 		image.format = fbDepthFormat;
 		image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
 
-		vk::ImageViewCreateInfo depthStencilView = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo depthStencilView;
 		depthStencilView.viewType = vk::ImageViewType::e2D;
 		depthStencilView.format = fbDepthFormat;
 		depthStencilView.subresourceRange = {};
@@ -445,7 +445,7 @@ public:
 		attachments[0] = offScreenFrameBuf.color.view;
 		attachments[1] = offScreenFrameBuf.depth.view;
 
-		vk::FramebufferCreateInfo fbufCreateInfo = vkTools::initializers::framebufferCreateInfo();
+		vk::FramebufferCreateInfo fbufCreateInfo;
 		fbufCreateInfo.renderPass = renderPass;
 		fbufCreateInfo.attachmentCount = 2;
 		fbufCreateInfo.pAttachments = attachments;
@@ -467,13 +467,13 @@ public:
 	// Command buffer for rendering color only scene for glow
 	void buildOffscreenCommandBuffer()
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[0].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 0.0f } };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.framebuffer = offScreenFrameBuf.frameBuffer;
 		renderPassBeginInfo.renderArea.extent.width = offScreenFrameBuf.width;
@@ -734,13 +734,13 @@ public:
 
 	void buildCommandBuffers()
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
@@ -843,7 +843,7 @@ public:
 		vertices.attributeDescriptions[3] =
 			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
 
-		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
 		vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
 		vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();

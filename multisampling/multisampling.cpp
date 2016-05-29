@@ -125,7 +125,7 @@ public:
 		assert(colorSampleCount >= requiredSamples && depthSampleCount >= requiredSamples);
 
 		// Color target
-		vk::ImageCreateInfo info = vkTools::initializers::imageCreateInfo();
+		vk::ImageCreateInfo info;
 		info.imageType = vk::ImageType::e2D;
 		info.format = colorformat;
 		info.extent.width = width;
@@ -144,7 +144,7 @@ public:
 
 		vk::MemoryRequirements memReqs;
 		memReqs = device.getImageMemoryRequirements(multisampleTarget.color.image);
-		vk::MemoryAllocateInfo memAlloc = vkTools::initializers::memoryAllocateInfo();
+		vk::MemoryAllocateInfo memAlloc;
 		memAlloc.allocationSize = memReqs.size;
 		// We prefer a lazily allocated memory type
 		// This means that the memory get allocated when the implementation sees fit, e.g. when first using the images
@@ -158,7 +158,7 @@ public:
 		device.bindImageMemory(multisampleTarget.color.image, multisampleTarget.color.memory, 0);
 
 		// Create image view for the MSAA target
-		vk::ImageViewCreateInfo viewInfo = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo viewInfo;
 		viewInfo.image = multisampleTarget.color.image;
 		viewInfo.viewType = vk::ImageViewType::e2D;
 		viewInfo.format = colorformat;
@@ -190,7 +190,7 @@ public:
 		multisampleTarget.depth.image = device.createImage(info, nullptr);
 
 		memReqs = device.getImageMemoryRequirements(multisampleTarget.depth.image);
-		memAlloc = vkTools::initializers::memoryAllocateInfo();
+		memAlloc;
 		memAlloc.allocationSize = memReqs.size;
 		lazyMemType = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eLazilyAllocated, &memAlloc.memoryTypeIndex);
 		if (!lazyMemType)
@@ -290,7 +290,7 @@ public:
 		subpass.pResolveAttachments = resolveReferences.data();
 		subpass.pDepthStencilAttachment = &depthReference;
 
-		vk::RenderPassCreateInfo renderPassInfo = vkTools::initializers::renderPassCreateInfo();
+		vk::RenderPassCreateInfo renderPassInfo;
 		renderPassInfo.attachmentCount = attachments.size();
 		renderPassInfo.pAttachments = attachments.data();
 		renderPassInfo.subpassCount = 1;
@@ -360,7 +360,7 @@ public:
 
 		flushSetupCommandBuffer();
 
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[3];
 		// Clear to a white background for higher contrast
@@ -368,7 +368,7 @@ public:
 		clearValues[1].color = { std::array<float, 4> { 1.0f, 1.0f, 1.0f, 1.0f } };
 		clearValues[2].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.extent.width = width;
 		renderPassBeginInfo.renderArea.extent.height = height;
@@ -460,7 +460,7 @@ public:
 		vertices.attributeDescriptions[3] =
 			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
 
-		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
 		vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
 		vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();

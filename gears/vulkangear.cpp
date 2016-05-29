@@ -184,7 +184,7 @@ void VulkanGear::generate(float inner_radius, float outer_radius, float width, i
 	int vertexBufferSize = vBuffer.size() * sizeof(Vertex);
 	int indexBufferSize = iBuffer.size() * sizeof(uint32_t);
 
-	vk::MemoryAllocateInfo memAlloc = vkTools::initializers::memoryAllocateInfo();
+	vk::MemoryAllocateInfo memAlloc;
 	vk::MemoryRequirements memReqs;
 
 	void *data;
@@ -281,7 +281,7 @@ void VulkanGear::setupDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLa
 void VulkanGear::prepareUniformBuffer()
 {
 	// Vertex shader uniform buffer block
-	vk::MemoryAllocateInfo allocInfo = vkTools::initializers::memoryAllocateInfo();
+	vk::MemoryAllocateInfo allocInfo;
 	vk::MemoryRequirements memReqs;
 
 	vk::BufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eUniformBuffer, sizeof(ubo));

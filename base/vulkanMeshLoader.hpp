@@ -128,7 +128,7 @@ namespace vkMeshLoader
 				binding++;
 			}
 
-			vertexInputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+			vertexInputState = vk::PipelineVertexInputStateCreateInfo();
 			vertexInputState.vertexBindingDescriptionCount = 1;
 			vertexInputState.pVertexBindingDescriptions = &bindingDescription;
 			vertexInputState.vertexAttributeDescriptionCount = attributeDescriptions.size();
@@ -397,7 +397,7 @@ public:
 		vk::Buffer &buffer, 
 		vk::DeviceMemory &memory)
 	{
-		vk::MemoryAllocateInfo memAllocInfo = vkTools::initializers::memoryAllocateInfo();	
+		vk::MemoryAllocateInfo memAllocInfo;	
 		vk::MemoryRequirements memReqs;
 
 		vk::BufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(usageFlags, size);
@@ -567,10 +567,10 @@ public:
 				meshBuffer->indices.mem);
 
 			// Copy from staging buffers
-			vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+			vk::CommandBufferBeginInfo cmdBufInfo;
 			copyCmd.begin(cmdBufInfo);
 
-			vk::BufferCopy copyRegion = {};
+			vk::BufferCopy copyRegion;
 
 			copyRegion.size = meshBuffer->vertices.size;
 			copyCmd.copyBuffer(vertexStaging.buffer, meshBuffer->vertices.buf, copyRegion);
@@ -580,7 +580,7 @@ public:
 
 			copyCmd.end();
 
-			vk::SubmitInfo submitInfo = {};
+			vk::SubmitInfo submitInfo;
 			submitInfo.sType = vk::StructureType::eSubmitInfo;
 			submitInfo.commandBufferCount = 1;
 			submitInfo.pCommandBuffers = &copyCmd;

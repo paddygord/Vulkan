@@ -12,8 +12,7 @@ void VulkanExampleBase::createInstance(bool enableValidation)
 {
 	this->enableValidation = enableValidation;
 
-	vk::ApplicationInfo appInfo = {};
-	appInfo.sType = vk::StructureType::eApplicationInfo;
+	vk::ApplicationInfo appInfo;
 	appInfo.pApplicationName = name.c_str();
 	appInfo.pEngineName = name.c_str();
 	appInfo.apiVersion = VK_API_VERSION_1_0;
@@ -29,9 +28,7 @@ void VulkanExampleBase::createInstance(bool enableValidation)
 	enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
 #endif
 
-	vk::InstanceCreateInfo instanceCreateInfo = {};
-	instanceCreateInfo.sType = vk::StructureType::eInstanceCreateInfo;
-	instanceCreateInfo.pNext = NULL;
+	vk::InstanceCreateInfo instanceCreateInfo;
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 	if (enabledExtensions.size() > 0)
 	{
@@ -53,13 +50,9 @@ void VulkanExampleBase::createInstance(bool enableValidation)
 void VulkanExampleBase::createDevice(vk::DeviceQueueCreateInfo requestedQueues, bool enableValidation)
 {
 	std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-
-	vk::DeviceCreateInfo deviceCreateInfo = {};
-	deviceCreateInfo.sType = vk::StructureType::eDeviceCreateInfo;
-	deviceCreateInfo.pNext = NULL;
+	vk::DeviceCreateInfo deviceCreateInfo;
 	deviceCreateInfo.queueCreateInfoCount = 1;
 	deviceCreateInfo.pQueueCreateInfos = &requestedQueues;
-	deviceCreateInfo.pEnabledFeatures = NULL;
 
 	// enable the debug marker extension if it is present (likely meaning a debugging tool is present)
 	if (vkTools::checkDeviceExtensionPresent(physicalDevice, VK_EXT_DEBUG_MARKER_EXTENSION_NAME))
@@ -119,25 +112,24 @@ void VulkanExampleBase::createCommandBuffers()
 	// frame buffer inside their render pass info
 	// so for static usage withouth having to rebuild
 	// them each frame, we use one per frame buffer
-	vk::CommandBufferAllocateInfo cmdBufAllocateInfo =
-		vkTools::initializers::commandBufferAllocateInfo(
-			cmdPool,
-			vk::CommandBufferLevel::ePrimary,
-			(uint32_t)swapChain.imageCount);
+	vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+	cmdBufAllocateInfo.commandPool = cmdPool;
 
+	// 2 extra command buffers for submitting present barriers
+	cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount + 2;
 	drawCmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
-
-	// Command buffers for submitting present barriers
-	cmdBufAllocateInfo.commandBufferCount = 1;
 	// Pre present
-	prePresentCmdBuffer = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
+	prePresentCmdBuffer = drawCmdBuffers[cmdBufAllocateInfo.commandBufferCount - 1];
 	// Post present
-	postPresentCmdBuffer = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
+	postPresentCmdBuffer = drawCmdBuffers[cmdBufAllocateInfo.commandBufferCount - 2];
+
+	// Now fix the primary draw buffer container size
+	drawCmdBuffers.resize(cmdBufAllocateInfo.commandBufferCount - 2);
 }
 
 void VulkanExampleBase::destroyCommandBuffers()
 {
-	device.freeCommandBuffers(cmdPool, (uint32_t)drawCmdBuffers.size(), drawCmdBuffers.data());
+	device.freeCommandBuffers(cmdPool, drawCmdBuffers);
 	device.freeCommandBuffers(cmdPool, prePresentCmdBuffer);
 	device.freeCommandBuffers(cmdPool, postPresentCmdBuffer);
 }
@@ -147,21 +139,14 @@ void VulkanExampleBase::createSetupCommandBuffer()
 	if (setupCmdBuffer)
 	{
 		device.freeCommandBuffers(cmdPool, setupCmdBuffer);
-		setupCmdBuffer; // todo : check if still necessary
+		setupCmdBuffer = vk::CommandBuffer(); // todo : check if still necessary
 	}
 
-	vk::CommandBufferAllocateInfo cmdBufAllocateInfo =
-		vkTools::initializers::commandBufferAllocateInfo(
-			cmdPool,
-			vk::CommandBufferLevel::ePrimary,
-			1);
-
+	vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+	cmdBufAllocateInfo.commandPool = cmdPool;
+	cmdBufAllocateInfo.commandBufferCount = 1;
 	setupCmdBuffer = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
-
-	vk::CommandBufferBeginInfo cmdBufInfo = {};
-	cmdBufInfo.sType = vk::StructureType::eCommandBufferBeginInfo;
-
-	setupCmdBuffer.begin(cmdBufInfo);
+	setupCmdBuffer.begin(vk::CommandBufferBeginInfo());
 }
 
 void VulkanExampleBase::flushSetupCommandBuffer()
@@ -171,41 +156,36 @@ void VulkanExampleBase::flushSetupCommandBuffer()
 
 	setupCmdBuffer.end();
 
-	vk::SubmitInfo submitInfo = {};
-	submitInfo.sType = vk::StructureType::eSubmitInfo;
+	vk::SubmitInfo submitInfo;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &setupCmdBuffer;
-
 	queue.submit(submitInfo, vk::Fence());
 	queue.waitIdle();
 
 	device.freeCommandBuffers(cmdPool, setupCmdBuffer);
-	setupCmdBuffer; 
+	setupCmdBuffer = vk::CommandBuffer();
 }
 
 vk::CommandBuffer VulkanExampleBase::createCommandBuffer(vk::CommandBufferLevel level, bool begin)
 {
 	vk::CommandBuffer cmdBuffer;
-
-	vk::CommandBufferAllocateInfo cmdBufAllocateInfo =
-		vkTools::initializers::commandBufferAllocateInfo(
-			cmdPool,
-			level,
-			1);
+	vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+	cmdBufAllocateInfo.commandPool = cmdPool;
+	cmdBufAllocateInfo.level = level;
+	cmdBufAllocateInfo.commandBufferCount = 1;
 
 	cmdBuffer = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
 
 	// If requested, also start the new command buffer
 	if (begin)
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
-		cmdBuffer.begin(cmdBufInfo);
+		cmdBuffer.begin(vk::CommandBufferBeginInfo());
 	}
 
 	return cmdBuffer;
 }
 
-void VulkanExampleBase::flushCommandBuffer(vk::CommandBuffer commandBuffer, vk::Queue queue, bool free)
+void VulkanExampleBase::flushCommandBuffer(vk::CommandBuffer& commandBuffer, const vk::Queue& queue, bool free)
 {
 	if (!commandBuffer)
 	{
@@ -214,25 +194,22 @@ void VulkanExampleBase::flushCommandBuffer(vk::CommandBuffer commandBuffer, vk::
 	
 	commandBuffer.end();
 
-	vk::SubmitInfo submitInfo = {};
-	submitInfo.sType = vk::StructureType::eSubmitInfo;
+	vk::SubmitInfo submitInfo;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
-
-	queue.submit(submitInfo, VK_NULL_HANDLE);
+	queue.submit(submitInfo, vk::Fence());
 	queue.waitIdle();
 
 	if (free)
 	{
 		device.freeCommandBuffers(cmdPool, commandBuffer);
+		commandBuffer = vk::CommandBuffer();
 	}
 }
 
 void VulkanExampleBase::createPipelineCache()
 {
-	vk::PipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-	pipelineCacheCreateInfo.sType = vk::StructureType::ePipelineCacheCreateInfo;
-	pipelineCache = device.createPipelineCache(pipelineCacheCreateInfo, nullptr);
+	 pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
 }
 
 void VulkanExampleBase::prepare()
@@ -282,10 +259,9 @@ void VulkanExampleBase::prepare()
 	}
 }
 
-vk::PipelineShaderStageCreateInfo VulkanExampleBase::loadShader(std::string fileName, vk::ShaderStageFlagBits stage)
+vk::PipelineShaderStageCreateInfo VulkanExampleBase::loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage)
 {
-	vk::PipelineShaderStageCreateInfo shaderStage = {};
-	shaderStage.sType = vk::StructureType::ePipelineShaderStageCreateInfo;
+	vk::PipelineShaderStageCreateInfo shaderStage;
 	shaderStage.stage = stage;
 #if defined(__ANDROID__)
 	shaderStage.module = vkTools::loadShader(androidApp->activity->assetManager, fileName.c_str(), device, stage);
@@ -298,27 +274,29 @@ vk::PipelineShaderStageCreateInfo VulkanExampleBase::loadShader(std::string file
 	return shaderStage;
 }
 
+void VulkanExampleBase::copyToMemory(const vk::DeviceMemory & memory, void* data, size_t size, size_t offset) {
+	void *mapped = device.mapMemory(memory, offset, size, vk::MemoryMapFlags());
+	memcpy(mapped, data, size);
+	device.unmapMemory(memory);
+}
+
 vk::Bool32 VulkanExampleBase::createBuffer(vk::BufferUsageFlags usageFlags, vk::MemoryPropertyFlags memoryPropertyFlags, vk::DeviceSize size, void * data, vk::Buffer & buffer, vk::DeviceMemory & memory)
 {
-	vk::MemoryRequirements memReqs;
-	vk::MemoryAllocateInfo memAlloc = vkTools::initializers::memoryAllocateInfo();
-	vk::BufferCreateInfo bufferCreateInfo = vkTools::initializers::bufferCreateInfo(usageFlags, size);
-
+	vk::BufferCreateInfo bufferCreateInfo;
+	bufferCreateInfo.usage = usageFlags;
+	bufferCreateInfo.size = size;
 	buffer = device.createBuffer(bufferCreateInfo, nullptr);
 
-	memReqs = device.getBufferMemoryRequirements(buffer);
+	vk::MemoryRequirements memReqs = device.getBufferMemoryRequirements(buffer);
+	vk::MemoryAllocateInfo memAlloc;
 	memAlloc.allocationSize = memReqs.size;
 	memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, memoryPropertyFlags);
-	memory = device.allocateMemory(memAlloc, nullptr);
+	memory = device.allocateMemory(memAlloc);
 	if (data != nullptr)
 	{
-		void *mapped;
-		mapped = device.mapMemory(memory, 0, size, vk::MemoryMapFlags());
-		memcpy(mapped, data, size);
-		device.unmapMemory(memory);
+		copyToMemory(memory, data, size);
 	}
 	device.bindBufferMemory(buffer, memory, 0);
-
 	return true;
 }
 
@@ -360,9 +338,9 @@ vk::Bool32 VulkanExampleBase::createBuffer(vk::BufferUsageFlags usage, vk::Memor
 }
 
 void VulkanExampleBase::loadMesh(
-	std::string filename,
+	const std::string& filename,
 	vkMeshLoader::MeshBuffer * meshBuffer,
-	std::vector<vkMeshLoader::VertexLayout> vertexLayout,
+	const std::vector<vkMeshLoader::VertexLayout>& vertexLayout,
 	float scale)
 {
 	VulkanMeshLoader *mesh = new VulkanMeshLoader();
@@ -574,18 +552,16 @@ void VulkanExampleBase::renderLoop()
 #endif
 }
 
-void VulkanExampleBase::submitPrePresentBarrier(vk::Image image)
+void VulkanExampleBase::submitPrePresentBarrier(const vk::Image& image)
 {
-	vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+	vk::CommandBufferBeginInfo cmdBufInfo;
 
 	prePresentCmdBuffer.begin(cmdBufInfo);
 
-	vk::ImageMemoryBarrier prePresentBarrier = vkTools::initializers::imageMemoryBarrier();
+	vk::ImageMemoryBarrier prePresentBarrier;
 	prePresentBarrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
 	prePresentBarrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
 	prePresentBarrier.newLayout = vk::ImageLayout::ePresentSrcKHR;
-	prePresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	prePresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	prePresentBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 	prePresentBarrier.image = image;
 
@@ -593,25 +569,23 @@ void VulkanExampleBase::submitPrePresentBarrier(vk::Image image)
 
 	prePresentCmdBuffer.end();
 
-	vk::SubmitInfo submitInfo = vkTools::initializers::submitInfo();
+	vk::SubmitInfo submitInfo;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &prePresentCmdBuffer;
 
 	queue.submit(submitInfo, VK_NULL_HANDLE);
 }
 
-void VulkanExampleBase::submitPostPresentBarrier(vk::Image image)
+void VulkanExampleBase::submitPostPresentBarrier(const vk::Image& image)
 {
-	vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+	vk::CommandBufferBeginInfo cmdBufInfo;
 
 	postPresentCmdBuffer.begin(cmdBufInfo);
 
-	vk::ImageMemoryBarrier postPresentBarrier = vkTools::initializers::imageMemoryBarrier();
+	vk::ImageMemoryBarrier postPresentBarrier;
 	postPresentBarrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
 	postPresentBarrier.oldLayout = vk::ImageLayout::ePresentSrcKHR;
 	postPresentBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
-	postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	postPresentBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 	postPresentBarrier.image = image;
 
@@ -619,7 +593,7 @@ void VulkanExampleBase::submitPostPresentBarrier(vk::Image image)
 
 	postPresentCmdBuffer.end();
 
-	vk::SubmitInfo submitInfo = vkTools::initializers::submitInfo();
+	vk::SubmitInfo submitInfo;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &postPresentCmdBuffer;
 
@@ -627,10 +601,10 @@ void VulkanExampleBase::submitPostPresentBarrier(vk::Image image)
 }
 
 vk::SubmitInfo VulkanExampleBase::prepareSubmitInfo(
-	std::vector<vk::CommandBuffer> commandBuffers,
+	const std::vector<vk::CommandBuffer>& commandBuffers,
 	vk::PipelineStageFlags *pipelineStages)
 {
-	vk::SubmitInfo submitInfo = vkTools::initializers::submitInfo();
+	vk::SubmitInfo submitInfo;
 	submitInfo.pWaitDstStageMask = pipelineStages;
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = &semaphores.presentComplete;
@@ -852,8 +826,7 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 
 	// Vulkan device
 	std::array<float, 1> queuePriorities = { 0.0f };
-	vk::DeviceQueueCreateInfo queueCreateInfo = {};
-	queueCreateInfo.sType = vk::StructureType::eDeviceQueueCreateInfo;
+	vk::DeviceQueueCreateInfo queueCreateInfo;
 	queueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
 	queueCreateInfo.queueCount = 1;
 	queueCreateInfo.pQueuePriorities = queuePriorities.data();
@@ -878,7 +851,7 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 	swapChain.connect(instance, physicalDevice, device);
 
 	// Create synchronization objects
-	vk::SemaphoreCreateInfo semaphoreCreateInfo = vkTools::initializers::semaphoreCreateInfo();
+	vk::SemaphoreCreateInfo semaphoreCreateInfo;
 	// Create a semaphore used to synchronize image presentation
 	// Ensures that the image is displayed before we start submitting new commands to the queu
 	semaphores.presentComplete = device.createSemaphore(semaphoreCreateInfo, nullptr);
@@ -893,7 +866,7 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 	// Set up submit info structure
 	// Semaphores will stay the same during application lifetime
 	// Command buffer submission info is set by each example
-	submitInfo = vkTools::initializers::submitInfo();
+	submitInfo = vk::SubmitInfo();
 	submitInfo.pWaitDstStageMask = &submitPipelineStages;
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = &semaphores.presentComplete;
@@ -1406,7 +1379,7 @@ void VulkanExampleBase::buildCommandBuffers()
 	// Can be overriden in derived class
 }
 
-vk::Bool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, uint32_t * typeIndex)
+vk::Bool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties, uint32_t * typeIndex)
 {
 	for (uint32_t i = 0; i < 32; i++)
 	{
@@ -1423,7 +1396,7 @@ vk::Bool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, vk::MemoryPropert
 	return false;
 }
 
-uint32_t VulkanExampleBase::getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties)
+uint32_t VulkanExampleBase::getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties)
 {
 	uint32_t result = 0;
 	if (!getMemoryType(typeBits, properties, &result)) {
@@ -1434,8 +1407,7 @@ uint32_t VulkanExampleBase::getMemoryType(uint32_t typeBits, vk::MemoryPropertyF
 
 void VulkanExampleBase::createCommandPool()
 {
-	vk::CommandPoolCreateInfo cmdPoolInfo = {};
-	cmdPoolInfo.sType = vk::StructureType::eCommandPoolCreateInfo;
+	vk::CommandPoolCreateInfo cmdPoolInfo;
 	cmdPoolInfo.queueFamilyIndex = swapChain.queueNodeIndex;
 	cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
 	cmdPool = device.createCommandPool(cmdPoolInfo, nullptr);
@@ -1443,7 +1415,7 @@ void VulkanExampleBase::createCommandPool()
 
 void VulkanExampleBase::setupDepthStencil()
 {
-	vk::ImageCreateInfo image = {};
+	vk::ImageCreateInfo image;
 	image.imageType = vk::ImageType::e2D;
 	image.format = depthFormat;
 	image.extent = { width, height, 1 };
@@ -1453,14 +1425,14 @@ void VulkanExampleBase::setupDepthStencil()
 	image.tiling = vk::ImageTiling::eOptimal;
 	image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferSrc;
 
-	vk::MemoryAllocateInfo mem_alloc = {};
+	vk::MemoryAllocateInfo mem_alloc;
 	mem_alloc.allocationSize = 0;
 	mem_alloc.memoryTypeIndex = 0;
 
-	vk::ImageViewCreateInfo depthStencilView = {};
+	vk::ImageViewCreateInfo depthStencilView;
 	depthStencilView.viewType = vk::ImageViewType::e2D;
 	depthStencilView.format = depthFormat;
-	depthStencilView.subresourceRange = {};
+	depthStencilView.subresourceRange;
 	depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
 	depthStencilView.subresourceRange.baseMipLevel = 0;
 	depthStencilView.subresourceRange.levelCount = 1;
@@ -1494,7 +1466,7 @@ void VulkanExampleBase::setupFrameBuffer()
 	// Depth/Stencil attachment is the same for all frame buffers
 	attachments[1] = depthStencil.view;
 
-	vk::FramebufferCreateInfo frameBufferCreateInfo = {};
+	vk::FramebufferCreateInfo frameBufferCreateInfo;
 	frameBufferCreateInfo.renderPass = renderPass;
 	frameBufferCreateInfo.attachmentCount = 2;
 	frameBufferCreateInfo.pAttachments = attachments;
@@ -1513,56 +1485,41 @@ void VulkanExampleBase::setupFrameBuffer()
 
 void VulkanExampleBase::setupRenderPass()
 {
-	vk::AttachmentDescription attachments[2] = {};
+	vk::AttachmentDescription attachments[2];
 
 	// Color attachment
 	attachments[0].format = colorformat;
-	attachments[0].samples = vk::SampleCountFlagBits::e1;
 	attachments[0].loadOp = vk::AttachmentLoadOp::eClear;
 	attachments[0].storeOp = vk::AttachmentStoreOp::eStore;
-	attachments[0].stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-	attachments[0].stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
 	attachments[0].initialLayout = vk::ImageLayout::eColorAttachmentOptimal;
 	attachments[0].finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
 
 	// Depth attachment
 	attachments[1].format = depthFormat;
-	attachments[1].samples = vk::SampleCountFlagBits::e1;
 	attachments[1].loadOp = vk::AttachmentLoadOp::eClear;
 	attachments[1].storeOp = vk::AttachmentStoreOp::eStore;
-	attachments[1].stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-	attachments[1].stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
 	attachments[1].initialLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 	attachments[1].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-	vk::AttachmentReference colorReference = {};
+	vk::AttachmentReference colorReference;
 	colorReference.attachment = 0;
 	colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
-	vk::AttachmentReference depthReference = {};
+	vk::AttachmentReference depthReference;
 	depthReference.attachment = 1;
 	depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-	vk::SubpassDescription subpass = {};
+	vk::SubpassDescription subpass;
 	subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-	subpass.inputAttachmentCount = 0;
-	subpass.pInputAttachments = NULL;
 	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &colorReference;
-	subpass.pResolveAttachments = NULL;
 	subpass.pDepthStencilAttachment = &depthReference;
-	subpass.preserveAttachmentCount = 0;
-	subpass.pPreserveAttachments = NULL;
 
-	vk::RenderPassCreateInfo renderPassInfo = {};
-	renderPassInfo.sType = vk::StructureType::eRenderPassCreateInfo;
-	renderPassInfo.pNext = NULL;
+	vk::RenderPassCreateInfo renderPassInfo;
 	renderPassInfo.attachmentCount = 2;
 	renderPassInfo.pAttachments = attachments;
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
-	renderPassInfo.dependencyCount = 0;
-	renderPassInfo.pDependencies = NULL;
 
 	renderPass = device.createRenderPass(renderPassInfo, nullptr);
 }
@@ -1603,7 +1560,7 @@ void VulkanExampleBase::windowResize()
 	buildCommandBuffers();
 
 	queue.waitIdle();
-	vkDeviceWaitIdle(device);
+	device.waitIdle();
 
 	if (enableTextOverlay)
 	{

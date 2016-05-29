@@ -206,7 +206,7 @@ public:
 		offScreenFrameBuf.textureTarget.width = width;
 		offScreenFrameBuf.textureTarget.height = height;
 
-		vk::ImageCreateInfo imageCreateInfo = vkTools::initializers::imageCreateInfo();
+		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = format;
 		imageCreateInfo.extent = { width, height, 1 };
@@ -219,7 +219,7 @@ public:
 		imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 		imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
 
-		vk::MemoryAllocateInfo memAllocInfo = vkTools::initializers::memoryAllocateInfo();
+		vk::MemoryAllocateInfo memAllocInfo;
 		vk::MemoryRequirements memReqs;
 
 		offScreenFrameBuf.textureTarget.image = device.createImage(imageCreateInfo, nullptr);
@@ -242,7 +242,7 @@ public:
 		VulkanExampleBase::flushCommandBuffer(layoutCmd, queue, true);
 
 		// Create sampler
-		vk::SamplerCreateInfo sampler = vkTools::initializers::samplerCreateInfo();
+		vk::SamplerCreateInfo sampler;
 		sampler.magFilter = TEX_FILTER;
 		sampler.minFilter = TEX_FILTER;
 		sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
@@ -257,7 +257,7 @@ public:
 		offScreenFrameBuf.textureTarget.sampler = device.createSampler(sampler, nullptr);
 
 		// Create image view
-		vk::ImageViewCreateInfo view = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo view;
 		view.viewType = vk::ImageViewType::e2D;
 		view.format = format;
 		view.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
@@ -309,7 +309,7 @@ public:
 		subpass.pColorAttachments = &colorReference;
 		subpass.pDepthStencilAttachment = &depthReference;
 
-		vk::RenderPassCreateInfo renderPassCreateInfo = vkTools::initializers::renderPassCreateInfo();
+		vk::RenderPassCreateInfo renderPassCreateInfo;
 		renderPassCreateInfo.attachmentCount = 2;
 		renderPassCreateInfo.pAttachments = attDesc;
 		renderPassCreateInfo.subpassCount = 1;
@@ -326,7 +326,7 @@ public:
 		vk::Format fbColorFormat = FB_COLOR_FORMAT;
 
 		// Color attachment
-		vk::ImageCreateInfo image = vkTools::initializers::imageCreateInfo();
+		vk::ImageCreateInfo image;
 		image.imageType = vk::ImageType::e2D;
 		image.format = fbColorFormat;
 		image.extent.width = offScreenFrameBuf.width;
@@ -338,10 +338,10 @@ public:
 		// Image of the framebuffer is blit source
 		image.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc;
 
-		vk::MemoryAllocateInfo memAlloc = vkTools::initializers::memoryAllocateInfo();
+		vk::MemoryAllocateInfo memAlloc;
 		vk::MemoryRequirements memReqs;
 
-		vk::ImageViewCreateInfo colorImageView = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo colorImageView;
 		colorImageView.viewType = vk::ImageViewType::e2D;
 		colorImageView.format = fbColorFormat;
 		colorImageView.subresourceRange = {};
@@ -374,7 +374,7 @@ public:
 		image.format = DEPTH_FORMAT;
 		image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferSrc;
 
-		vk::ImageViewCreateInfo depthStencilView = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo depthStencilView;
 		depthStencilView.viewType = vk::ImageViewType::e2D;
 		depthStencilView.format = DEPTH_FORMAT;
 		depthStencilView.subresourceRange = {};
@@ -410,7 +410,7 @@ public:
 		setupOffScreenRenderPass();
 
 		// Create frame buffer
-		vk::FramebufferCreateInfo fbufCreateInfo = vkTools::initializers::framebufferCreateInfo();
+		vk::FramebufferCreateInfo fbufCreateInfo;
 		fbufCreateInfo.renderPass = offScreenFrameBuf.renderPass; 
 		fbufCreateInfo.attachmentCount = 2;
 		fbufCreateInfo.pAttachments = attachments;
@@ -432,16 +432,16 @@ public:
 		}
 
 		// Create a semaphore used to synchronize offscreen rendering and usage
-		vk::SemaphoreCreateInfo semaphoreCreateInfo = vkTools::initializers::semaphoreCreateInfo();
+		vk::SemaphoreCreateInfo semaphoreCreateInfo;
 		offscreenSemaphore = device.createSemaphore(semaphoreCreateInfo, nullptr);
 
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[0].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 1.0f } };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = offScreenFrameBuf.renderPass;
 		renderPassBeginInfo.framebuffer = offScreenFrameBuf.frameBuffer;
 		renderPassBeginInfo.renderArea.offset.x = 0;
@@ -481,13 +481,13 @@ public:
 
 	void buildCommandBuffers()
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
@@ -641,7 +641,7 @@ public:
 		vertices.attributeDescriptions[3] =
 			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
 
-		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
 		vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
 		vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();

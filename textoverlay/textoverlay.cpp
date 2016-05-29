@@ -190,7 +190,7 @@ public:
 		buffer = device.createBuffer(bufferInfo, nullptr);
 
 		vk::MemoryRequirements memReqs;
-		vk::MemoryAllocateInfo allocInfo = vkTools::initializers::memoryAllocateInfo();
+		vk::MemoryAllocateInfo allocInfo;
 
 		memReqs = device.getBufferMemoryRequirements(buffer);
 		allocInfo.allocationSize = memReqs.size;
@@ -200,7 +200,7 @@ public:
 		device.bindBufferMemory(buffer, memory, 0);
 
 		// Font texture
-		vk::ImageCreateInfo imageInfo = vkTools::initializers::imageCreateInfo();
+		vk::ImageCreateInfo imageInfo;
 		imageInfo.imageType = vk::ImageType::e2D;
 		imageInfo.format = vk::Format::eR8Unorm;
 		imageInfo.extent.width = STB_FONT_WIDTH;
@@ -230,7 +230,7 @@ public:
 			vk::Buffer buffer;
 		} stagingBuffer;
 
-		vk::BufferCreateInfo bufferCreateInfo = vkTools::initializers::bufferCreateInfo();
+		vk::BufferCreateInfo bufferCreateInfo;
 		bufferCreateInfo.size = allocInfo.allocationSize;
 		bufferCreateInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
 		bufferCreateInfo.sharingMode = vk::SharingMode::eExclusive;
@@ -257,7 +257,7 @@ public:
 		cmdBufAllocateInfo.commandBufferCount = 1;
 		copyCmd = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
 	
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 		copyCmd.begin(cmdBufInfo);
 
 		// Prepare for transfer
@@ -288,7 +288,7 @@ public:
 
 		copyCmd.end();
 
-		vk::SubmitInfo submitInfo = vkTools::initializers::submitInfo();
+		vk::SubmitInfo submitInfo;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &copyCmd;
 
@@ -300,7 +300,7 @@ public:
 		device.destroyBuffer(stagingBuffer.buffer, nullptr);
 
 
-		vk::ImageViewCreateInfo imageViewInfo = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo imageViewInfo;
 		imageViewInfo.image = image;
 		imageViewInfo.viewType = vk::ImageViewType::e2D;
 		imageViewInfo.format = imageInfo.format;
@@ -310,7 +310,7 @@ public:
 		view = device.createImageView(imageViewInfo, nullptr);
 
 		// Sampler
-		vk::SamplerCreateInfo samplerInfo = vkTools::initializers::samplerCreateInfo();
+		vk::SamplerCreateInfo samplerInfo;
 		samplerInfo.magFilter = vk::Filter::eLinear;
 		samplerInfo.minFilter = vk::Filter::eLinear;
 		samplerInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
@@ -418,7 +418,7 @@ public:
 		// UV
 		vertexAttribs[1] = vkTools::initializers::vertexInputAttributeDescription(1, 1, vk::Format::eR32G32Sfloat, sizeof(glm::vec2));
 
-		vk::PipelineVertexInputStateCreateInfo inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		vk::PipelineVertexInputStateCreateInfo inputState = vk::PipelineVertexInputStateCreateInfo();
 		inputState.vertexBindingDescriptionCount = vertexBindings.size();
 		inputState.pVertexBindingDescriptions = vertexBindings.data();
 		inputState.vertexAttributeDescriptionCount = vertexAttribs.size();
@@ -584,12 +584,12 @@ public:
 	// Needs to be called by the application
 	void updateCommandBuffers()
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[1].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 0.0f } };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.extent.width = *frameBufferWidth;
 		renderPassBeginInfo.renderArea.extent.height = *frameBufferHeight;
@@ -716,14 +716,14 @@ public:
 
 	void buildCommandBuffers()
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[3];
 
 		clearValues[0].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 1.0f } };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.extent.width = width;
 		renderPassBeginInfo.renderArea.extent.height = height;
@@ -878,7 +878,7 @@ public:
 		vertices.attributeDescriptions[3] =
 			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
 
-		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
 		vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
 		vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();

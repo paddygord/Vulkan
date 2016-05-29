@@ -95,7 +95,7 @@ namespace vkTools
 		vk::ImageSubresourceRange subresourceRange)
 	{
 		// Create an image barrier object
-		vk::ImageMemoryBarrier imageMemoryBarrier = vkTools::initializers::imageMemoryBarrier();
+		vk::ImageMemoryBarrier imageMemoryBarrier;
 		imageMemoryBarrier.oldLayout = oldImageLayout;
 		imageMemoryBarrier.newLayout = newImageLayout;
 		imageMemoryBarrier.image = image;
@@ -317,12 +317,10 @@ namespace vkTools
 
 	vk::ImageMemoryBarrier prePresentBarrier(vk::Image presentImage)
 	{
-		vk::ImageMemoryBarrier imageMemoryBarrier = vkTools::initializers::imageMemoryBarrier();
+		vk::ImageMemoryBarrier imageMemoryBarrier;
 		imageMemoryBarrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
 		imageMemoryBarrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
 		imageMemoryBarrier.newLayout = vk::ImageLayout::ePresentSrcKHR;
-		imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 		imageMemoryBarrier.image = presentImage;
 		return imageMemoryBarrier;
@@ -330,12 +328,10 @@ namespace vkTools
 
 	vk::ImageMemoryBarrier postPresentBarrier(vk::Image presentImage)
 	{
-		vk::ImageMemoryBarrier imageMemoryBarrier = vkTools::initializers::imageMemoryBarrier();
+		vk::ImageMemoryBarrier imageMemoryBarrier;
 		imageMemoryBarrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
 		imageMemoryBarrier.oldLayout = vk::ImageLayout::ePresentSrcKHR;
 		imageMemoryBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
-		imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 		imageMemoryBarrier.image = presentImage;
 		return imageMemoryBarrier;
@@ -352,14 +348,6 @@ namespace vkTools
 	}
 }
 
-vk::MemoryAllocateInfo vkTools::initializers::memoryAllocateInfo()
-{
-	vk::MemoryAllocateInfo memAllocInfo;
-	memAllocInfo.allocationSize = 0;
-	memAllocInfo.memoryTypeIndex = 0;
-	return memAllocInfo;
-}
-
 vk::CommandBufferAllocateInfo vkTools::initializers::commandBufferAllocateInfo(vk::CommandPool commandPool, vk::CommandBufferLevel level, uint32_t bufferCount)
 {
 	vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
@@ -369,101 +357,11 @@ vk::CommandBufferAllocateInfo vkTools::initializers::commandBufferAllocateInfo(v
 	return commandBufferAllocateInfo;
 }
 
-vk::CommandPoolCreateInfo vkTools::initializers::commandPoolCreateInfo()
-{
-	vk::CommandPoolCreateInfo cmdPoolCreateInfo;
-	return cmdPoolCreateInfo;
-}
-
-vk::CommandBufferBeginInfo vkTools::initializers::commandBufferBeginInfo()
-{
-	vk::CommandBufferBeginInfo cmdBufferBeginInfo;
-	return cmdBufferBeginInfo;
-}
-
-vk::CommandBufferInheritanceInfo vkTools::initializers::commandBufferInheritanceInfo()
-{
-	vk::CommandBufferInheritanceInfo cmdBufferInheritanceInfo;
-	return cmdBufferInheritanceInfo;
-}
-
-vk::RenderPassBeginInfo vkTools::initializers::renderPassBeginInfo()
-{
-	vk::RenderPassBeginInfo renderPassBeginInfo;
-	return renderPassBeginInfo;
-}
-
-vk::RenderPassCreateInfo vkTools::initializers::renderPassCreateInfo()
-{
-	vk::RenderPassCreateInfo renderPassCreateInfo;
-	return renderPassCreateInfo;
-}
-
-vk::ImageMemoryBarrier vkTools::initializers::imageMemoryBarrier()
-{
-	vk::ImageMemoryBarrier imageMemoryBarrier;
-	return imageMemoryBarrier;
-}
-
-vk::BufferMemoryBarrier vkTools::initializers::bufferMemoryBarrier()
-{
-	vk::BufferMemoryBarrier bufferMemoryBarrier;
-	return bufferMemoryBarrier;
-}
-
-vk::MemoryBarrier vkTools::initializers::memoryBarrier()
-{
-	vk::MemoryBarrier memoryBarrier;
-	return memoryBarrier;
-}
-
-vk::ImageCreateInfo vkTools::initializers::imageCreateInfo()
-{
-	vk::ImageCreateInfo imageCreateInfo;
-	return imageCreateInfo;
-}
-
-vk::SamplerCreateInfo vkTools::initializers::samplerCreateInfo()
-{
-	vk::SamplerCreateInfo samplerCreateInfo;
-	return samplerCreateInfo;
-}
-
-vk::ImageViewCreateInfo vkTools::initializers::imageViewCreateInfo()
-{
-	vk::ImageViewCreateInfo imageViewCreateInfo;
-	return imageViewCreateInfo;
-}
-
-vk::FramebufferCreateInfo vkTools::initializers::framebufferCreateInfo()
-{
-	vk::FramebufferCreateInfo framebufferCreateInfo;
-	return framebufferCreateInfo;
-}
-
-vk::SemaphoreCreateInfo vkTools::initializers::semaphoreCreateInfo()
-{
-	vk::SemaphoreCreateInfo semaphoreCreateInfo;
-	return semaphoreCreateInfo;
-}
-
 vk::FenceCreateInfo vkTools::initializers::fenceCreateInfo(vk::FenceCreateFlags flags)
 {
 	vk::FenceCreateInfo fenceCreateInfo;
 	fenceCreateInfo.flags = flags;
 	return fenceCreateInfo;
-}
-
-vk::EventCreateInfo vkTools::initializers::eventCreateInfo()
-{
-	vk::EventCreateInfo eventCreateInfo;
-	return eventCreateInfo;
-}
-
-vk::SubmitInfo vkTools::initializers::submitInfo()
-{
-	vk::SubmitInfo submitInfo;
-	return submitInfo;
 }
 
 vk::Viewport vkTools::initializers::viewport(
@@ -494,12 +392,6 @@ vk::Rect2D vkTools::initializers::rect2D(
 	return rect2D;
 }
 
-vk::BufferCreateInfo vkTools::initializers::bufferCreateInfo()
-{
-	vk::BufferCreateInfo bufCreateInfo;
-	return bufCreateInfo;
-}
-
 vk::BufferCreateInfo vkTools::initializers::bufferCreateInfo(
 	vk::BufferUsageFlags usage, 
 	vk::DeviceSize size)
@@ -516,8 +408,6 @@ vk::DescriptorPoolCreateInfo vkTools::initializers::descriptorPoolCreateInfo(
 	uint32_t maxSets)
 {
 	vk::DescriptorPoolCreateInfo descriptorPoolInfo;
-	descriptorPoolInfo.sType = vk::StructureType::eDescriptorPoolCreateInfo;
-	descriptorPoolInfo.pNext = NULL;
 	descriptorPoolInfo.poolSizeCount = poolSizeCount;
 	descriptorPoolInfo.pPoolSizes = pPoolSizes;
 	descriptorPoolInfo.maxSets = maxSets;
@@ -645,12 +535,6 @@ vk::VertexInputAttributeDescription vkTools::initializers::vertexInputAttributeD
 	vInputAttribDescription.format = format;
 	vInputAttribDescription.offset = offset;
 	return vInputAttribDescription;
-}
-
-vk::PipelineVertexInputStateCreateInfo vkTools::initializers::pipelineVertexInputStateCreateInfo()
-{
-	vk::PipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo;
-	return pipelineVertexInputStateCreateInfo;
 }
 
 vk::PipelineInputAssemblyStateCreateInfo vkTools::initializers::pipelineInputAssemblyStateCreateInfo(

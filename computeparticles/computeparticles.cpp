@@ -131,13 +131,13 @@ public:
 			createCommandBuffers();
 		}
 
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
@@ -157,7 +157,7 @@ public:
 
 			// Add memory barrier to ensure that the (rendering) vertex shader operations have finished
 			// Required as the compute shader will overwrite the vertex buffer data
-			vk::BufferMemoryBarrier bufferBarrier = vkTools::initializers::bufferMemoryBarrier();
+			vk::BufferMemoryBarrier bufferBarrier;
 			// Vertex shader invocations have finished reading from the buffer
 			bufferBarrier.srcAccessMask = vk::AccessFlagBits::eVertexAttributeRead;
 			// Compute shader buffer read and write
@@ -284,7 +284,7 @@ public:
 			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32A32Sfloat, 4 * sizeof(float));
 
 		// Assign to vertex buffer
-		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
 		vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
 		vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();

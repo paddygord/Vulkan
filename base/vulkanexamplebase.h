@@ -246,8 +246,8 @@ public:
 	virtual void buildCommandBuffers();
 
 	// Get memory type for a given memory allocation (flags and bits)
-	vk::Bool32 getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, uint32_t *typeIndex);
-	uint32_t getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties);
+	vk::Bool32 getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties, uint32_t *typeIndex);
+	uint32_t getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties = vk::MemoryPropertyFlags());
 
 	// Creates a new (graphics) command pool object storing command buffers
 	void createCommandPool();
@@ -282,7 +282,7 @@ public:
 	vk::CommandBuffer createCommandBuffer(vk::CommandBufferLevel level, bool begin);
 	// End the command buffer, submit it to the queue and free (if requested)
 	// Note : Waits for the queue to become idle
-	void flushCommandBuffer(vk::CommandBuffer commandBuffer, vk::Queue queue, bool free);
+	void flushCommandBuffer(vk::CommandBuffer& commandBuffer, const vk::Queue& queue, bool free);
 
 	// Create a cache pool for rendering pipelines
 	void createPipelineCache();
@@ -291,7 +291,7 @@ public:
 	virtual void prepare();
 
 	// Load a SPIR-V shader
-	vk::PipelineShaderStageCreateInfo loadShader(std::string fileName, vk::ShaderStageFlagBits stage);
+	vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage);
 	
 	// Create a buffer, fill it with data (if != NULL) and bind buffer memory
 	vk::Bool32 createBuffer(
@@ -326,11 +326,22 @@ public:
 		vk::DeviceMemory &memory,
 		vk::DescriptorBufferInfo &descriptor);
 
+	void copyToMemory(const vk::DeviceMemory &memory, void* data, size_t size, size_t offset = 0);
+
+	template<typename T>
+	void copyToMemory(const vk::DeviceMemory &memory, const T& data, size_t offset = 0) {
+		copyToMemory(memory, data.data(), sizeof(T), offset);
+	}
+
+	template<typename T>
+	void copyToMemory(const vk::DeviceMemory &memory, const std::vector<T>& data, size_t offset = 0) {
+		copyToMemory(memory, data.data(), data.size() * sizeof(T), offset);
+	}
 	// Load a mesh (using ASSIMP) and create vulkan vertex and index buffers with given vertex layout
 	void loadMesh(
-		std::string fiename,
+		const std::string& fiename,
 		vkMeshLoader::MeshBuffer *meshBuffer,
-		std::vector<vkMeshLoader::VertexLayout> vertexLayout,
+		const std::vector<vkMeshLoader::VertexLayout>& vertexLayout,
 		float scale);
 
 	// Start the main render loop
@@ -338,16 +349,16 @@ public:
 
 	// Submit a pre present image barrier to the queue
 	// Transforms the (framebuffer) image layout from color attachment to present(khr) for presenting to the swap chain
-	void submitPrePresentBarrier(vk::Image image);
+	void submitPrePresentBarrier(const vk::Image& image);
 
 	// Submit a post present image barrier to the queue
 	// Transforms the (framebuffer) image layout back from present(khr) to color attachment layout
-	void submitPostPresentBarrier(vk::Image image);
+	void submitPostPresentBarrier(const vk::Image& image);
 
 	// Prepare a submit info structure containing
 	// semaphores and submit buffer info for vkQueueSubmit
 	vk::SubmitInfo prepareSubmitInfo(
-		std::vector<vk::CommandBuffer> commandBuffers,
+		const std::vector<vk::CommandBuffer>& commandBuffers,
 		vk::PipelineStageFlags *pipelineStages);
 
 	void updateTextOverlay();

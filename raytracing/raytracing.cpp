@@ -120,7 +120,7 @@ public:
 		tex->width = width;
 		tex->height = height;
 
-		vk::ImageCreateInfo imageCreateInfo = vkTools::initializers::imageCreateInfo();
+		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = format;
 		imageCreateInfo.extent = { width, height, 1 };
@@ -134,7 +134,7 @@ public:
 			vk::ImageUsageFlagBits::eSampled | 
 			vk::ImageUsageFlagBits::eStorage;
 
-		vk::MemoryAllocateInfo memAllocInfo = vkTools::initializers::memoryAllocateInfo();
+		vk::MemoryAllocateInfo memAllocInfo;
 		vk::MemoryRequirements memReqs;
 
 		tex->image = device.createImage(imageCreateInfo, nullptr);
@@ -152,7 +152,7 @@ public:
 			tex->imageLayout);
 
 		// Create sampler
-		vk::SamplerCreateInfo sampler = vkTools::initializers::samplerCreateInfo();
+		vk::SamplerCreateInfo sampler;
 		sampler.magFilter = vk::Filter::eLinear;
 		sampler.minFilter = vk::Filter::eLinear;
 		sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
@@ -168,7 +168,7 @@ public:
 		tex->sampler = device.createSampler(sampler, nullptr);
 
 		// Create image view
-		vk::ImageViewCreateInfo view = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo view;
 		view.viewType = vk::ImageViewType::e2D;
 		view.format = format;
 		view.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
@@ -186,14 +186,14 @@ public:
 			createCommandBuffers();
 		}
 
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
 		clearValues[0].color = { std::array<float, 4> {0.0f, 0.0f, 0.2f, 0.0f} };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
@@ -201,8 +201,6 @@ public:
 		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-
-		vk::Result err;
 
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
@@ -255,7 +253,7 @@ public:
 
 	void buildComputeCommandBuffer()
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 		computeCmdBuffer.begin(cmdBufInfo);
 		computeCmdBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipelines.compute);
 		computeCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, computePipelineLayout, 0, computeDescriptorSet, nullptr);
@@ -265,8 +263,6 @@ public:
 
 	void draw()
 	{
-		vk::Result err;
-
 		// Get next image in the swap chain (back/front buffer)
 		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
 		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
@@ -283,7 +279,7 @@ public:
 		
 
 		// Compute
-		vk::SubmitInfo computeSubmitInfo = vkTools::initializers::submitInfo();
+		vk::SubmitInfo computeSubmitInfo;
 		computeSubmitInfo.commandBufferCount = 1;
 		computeSubmitInfo.pCommandBuffers = &computeCmdBuffer;
 
@@ -340,7 +336,7 @@ public:
 			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32Sfloat, sizeof(float) * 3);
 
 		// Assign to vertex buffer
-		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
 		vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
 		vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
@@ -422,8 +418,6 @@ public:
 
 	void preparePipelines()
 	{
-		vk::Result err;
-
 		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
 			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
 

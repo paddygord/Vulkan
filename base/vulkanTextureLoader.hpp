@@ -117,11 +117,11 @@ namespace vkTools
 			// limited amount of formats and features (mip maps, cubemaps, arrays, etc.)
 			vk::Bool32 useStaging = !forceLinear;
 
-			vk::MemoryAllocateInfo memAllocInfo = vkTools::initializers::memoryAllocateInfo();
+			vk::MemoryAllocateInfo memAllocInfo;
 			vk::MemoryRequirements memReqs;
 
 			// Use a separate command buffer for texture loading
-			vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+			vk::CommandBufferBeginInfo cmdBufInfo;
 			cmdBuffer.begin(cmdBufInfo);
 
 			if (useStaging)
@@ -130,13 +130,13 @@ namespace vkTools
 				vk::Buffer stagingBuffer;
 				vk::DeviceMemory stagingMemory;
 
-				vk::BufferCreateInfo bufferCreateInfo = vkTools::initializers::bufferCreateInfo();
+				vk::BufferCreateInfo bufferCreateInfo;
 				bufferCreateInfo.size = tex2D.size();
 				// This buffer is used as a transfer source for the buffer copy
 				bufferCreateInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
 				bufferCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 
-				stagingBuffer = device.createBuffer(bufferCreateInfo, nullptr);
+				stagingBuffer = device.createBuffer(bufferCreateInfo);
 
 				// Get memory requirements for the staging buffer (alignment, memory type bits)
 				memReqs = device.getBufferMemoryRequirements(stagingBuffer);
@@ -145,7 +145,7 @@ namespace vkTools
 				// Get memory type index for a host visible buffer
 				memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
 
-				stagingMemory = device.allocateMemory(memAllocInfo, nullptr);
+				stagingMemory = device.allocateMemory(memAllocInfo);
 				device.bindBufferMemory(stagingBuffer, stagingMemory, 0);
 
 				// Copy texture data into staging buffer
@@ -175,7 +175,7 @@ namespace vkTools
 				}
 
 				// Create optimal tiled target image
-				vk::ImageCreateInfo imageCreateInfo = vkTools::initializers::imageCreateInfo();
+				vk::ImageCreateInfo imageCreateInfo;
 				imageCreateInfo.imageType = vk::ImageType::e2D;
 				imageCreateInfo.format = format;
 				imageCreateInfo.mipLevels = texture->mipLevels;
@@ -188,14 +188,14 @@ namespace vkTools
 				imageCreateInfo.extent = { texture->width, texture->height, 1 };
 				imageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 
-				texture->image = device.createImage(imageCreateInfo, nullptr);
+				texture->image = device.createImage(imageCreateInfo);
 
 				memReqs = device.getImageMemoryRequirements(texture->image);
 
 				memAllocInfo.allocationSize = memReqs.size;
 
 				memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-				texture->deviceMemory = device.allocateMemory(memAllocInfo, nullptr);
+				texture->deviceMemory = device.allocateMemory(memAllocInfo);
 				device.bindImageMemory(texture->image, texture->deviceMemory, 0);
 
 				vk::ImageSubresourceRange subresourceRange = {};
@@ -232,10 +232,10 @@ namespace vkTools
 
 				// Create a fence to make sure that the copies have finished before continuing
 				vk::Fence copyFence;
-				vk::FenceCreateInfo fenceCreateInfo = vkTools::initializers::fenceCreateInfo();
-				copyFence = device.createFence(fenceCreateInfo, nullptr);
+				vk::FenceCreateInfo fenceCreateInfo;
+				copyFence = device.createFence(fenceCreateInfo);
 
-				vk::SubmitInfo submitInfo = vkTools::initializers::submitInfo();
+				vk::SubmitInfo submitInfo;
 				submitInfo.commandBufferCount = 1;
 				submitInfo.pCommandBuffers = &cmdBuffer;
 
@@ -243,11 +243,11 @@ namespace vkTools
 
 				device.waitForFences(copyFence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
 
-				device.destroyFence(copyFence, nullptr);
+				device.destroyFence(copyFence);
 
 				// Clean up staging resources
-				device.freeMemory(stagingMemory, nullptr);
-				device.destroyBuffer(stagingBuffer, nullptr);
+				device.freeMemory(stagingMemory);
+				device.destroyBuffer(stagingBuffer);
 			}
 			else
 			{
@@ -261,7 +261,7 @@ namespace vkTools
 				vk::Image mappableImage;
 				vk::DeviceMemory mappableMemory;
 
-				vk::ImageCreateInfo imageCreateInfo = vkTools::initializers::imageCreateInfo();
+				vk::ImageCreateInfo imageCreateInfo;
 				imageCreateInfo.imageType = vk::ImageType::e2D;
 				imageCreateInfo.format = format;
 				imageCreateInfo.extent = { texture->width, texture->height, 1 };
@@ -274,7 +274,7 @@ namespace vkTools
 				imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
 
 				// Load mip map level 0 to linear tiling image
-				mappableImage = device.createImage(imageCreateInfo, nullptr);
+				mappableImage = device.createImage(imageCreateInfo);
 
 				// Get memory requirements for this image 
 				// like size and alignment
@@ -286,7 +286,7 @@ namespace vkTools
 				memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
 
 				// Allocate host memory
-				mappableMemory = device.allocateMemory(memAllocInfo, nullptr);
+				mappableMemory = device.allocateMemory(memAllocInfo);
 
 				// Bind allocated image for use
 				device.bindImageMemory(mappableImage, mappableMemory, 0);
@@ -331,8 +331,7 @@ namespace vkTools
 
 				vk::Fence nullFence = { VK_NULL_HANDLE };
 
-				vk::SubmitInfo submitInfo = vkTools::initializers::submitInfo();
-				submitInfo.waitSemaphoreCount = 0;
+				vk::SubmitInfo submitInfo;
 				submitInfo.commandBufferCount = 1;
 				submitInfo.pCommandBuffers = &cmdBuffer;
 
@@ -358,7 +357,7 @@ namespace vkTools
 			sampler.maxAnisotropy = 8;
 			sampler.anisotropyEnable = VK_TRUE;
 			sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-			texture->sampler = device.createSampler(sampler, nullptr);
+			texture->sampler = device.createSampler(sampler);
 			
 			// Create image view
 			// Textures are not directly accessed by the shaders and
@@ -376,16 +375,16 @@ namespace vkTools
 			// Only set mip map count if optimal tiling is used
 			view.subresourceRange.levelCount = (useStaging) ? texture->mipLevels : 1;
 			view.image = texture->image;
-			texture->view = device.createImageView(view, nullptr);
+			texture->view = device.createImageView(view);
 		}
 
 		// Clean up vulkan resources used by a texture object
 		void destroyTexture(VulkanTexture texture)
 		{
-			device.destroyImageView(texture.view, nullptr);
-			device.destroyImage(texture.image, nullptr);
-			device.destroySampler(texture.sampler, nullptr);
-			device.freeMemory(texture.deviceMemory, nullptr);
+			device.destroyImageView(texture.view);
+			device.destroyImage(texture.image);
+			device.destroySampler(texture.sampler);
+			device.freeMemory(texture.deviceMemory);
 		}
 
 		VulkanTextureLoader(vk::PhysicalDevice physicalDevice, vk::Device device, vk::Queue queue, vk::CommandPool cmdPool)
@@ -440,20 +439,20 @@ namespace vkTools
 			texture->width = (uint32_t)texCube[0].dimensions().x;
 			texture->height = (uint32_t)texCube[0].dimensions().y;
 
-			vk::MemoryAllocateInfo memAllocInfo = vkTools::initializers::memoryAllocateInfo();
+			vk::MemoryAllocateInfo memAllocInfo;
 			vk::MemoryRequirements memReqs;
 
 			// Create a host-visible staging buffer that contains the raw image data
 			vk::Buffer stagingBuffer;
 			vk::DeviceMemory stagingMemory;
 
-			vk::BufferCreateInfo bufferCreateInfo = vkTools::initializers::bufferCreateInfo();
+			vk::BufferCreateInfo bufferCreateInfo;
 			bufferCreateInfo.size = texCube.size();
 			// This buffer is used as a transfer source for the buffer copy
 			bufferCreateInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
 			bufferCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 
-			stagingBuffer = device.createBuffer(bufferCreateInfo, nullptr);
+			stagingBuffer = device.createBuffer(bufferCreateInfo);
 
 			// Get memory requirements for the staging buffer (alignment, memory type bits)
 			memReqs = device.getBufferMemoryRequirements(stagingBuffer);
@@ -462,7 +461,7 @@ namespace vkTools
 			// Get memory type index for a host visible buffer
 			memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
 
-			stagingMemory = device.allocateMemory(memAllocInfo, nullptr);
+			stagingMemory = device.allocateMemory(memAllocInfo);
 			device.bindBufferMemory(stagingBuffer, stagingMemory, 0);
 
 			// Copy texture data into staging buffer
@@ -482,7 +481,7 @@ namespace vkTools
 			bufferCopyRegion.imageExtent.depth = 1;
 
 			// Create optimal tiled target image
-			vk::ImageCreateInfo imageCreateInfo = vkTools::initializers::imageCreateInfo();
+			vk::ImageCreateInfo imageCreateInfo;
 			imageCreateInfo.imageType = vk::ImageType::e2D;
 			imageCreateInfo.format = format;
 			imageCreateInfo.mipLevels = 1;
@@ -498,17 +497,17 @@ namespace vkTools
 			// This flag is required for cube map images
 			imageCreateInfo.flags = vk::ImageCreateFlagBits::eCubeCompatible;
 
-			texture->image = device.createImage(imageCreateInfo, nullptr);
+			texture->image = device.createImage(imageCreateInfo);
 
 			memReqs = device.getImageMemoryRequirements(texture->image);
 
 			memAllocInfo.allocationSize = memReqs.size;
 			memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-			texture->deviceMemory = device.allocateMemory(memAllocInfo, nullptr);
+			texture->deviceMemory = device.allocateMemory(memAllocInfo);
 			device.bindImageMemory(texture->image, texture->deviceMemory, 0);
 
-			vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+			vk::CommandBufferBeginInfo cmdBufInfo;
 			cmdBuffer.begin(cmdBufInfo);
 
 			// Image barrier for optimal image (target)
@@ -544,10 +543,10 @@ namespace vkTools
 
 			// Create a fence to make sure that the copies have finished before continuing
 			vk::Fence copyFence;
-			vk::FenceCreateInfo fenceCreateInfo = vkTools::initializers::fenceCreateInfo();
-			copyFence = device.createFence(fenceCreateInfo, nullptr);
+			vk::FenceCreateInfo fenceCreateInfo;
+			copyFence = device.createFence(fenceCreateInfo);
 
-			vk::SubmitInfo submitInfo = vkTools::initializers::submitInfo();
+			vk::SubmitInfo submitInfo;
 			submitInfo.commandBufferCount = 1;
 			submitInfo.pCommandBuffers = &cmdBuffer;
 
@@ -555,10 +554,10 @@ namespace vkTools
 
 			device.waitForFences(copyFence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
 
-			device.destroyFence(copyFence, nullptr);
+			device.destroyFence(copyFence);
 
 			// Create sampler
-			vk::SamplerCreateInfo sampler = vkTools::initializers::samplerCreateInfo();
+			vk::SamplerCreateInfo sampler;
 			sampler.magFilter = vk::Filter::eLinear;
 			sampler.minFilter = vk::Filter::eLinear;
 			sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
@@ -571,10 +570,10 @@ namespace vkTools
 			sampler.minLod = 0.0f;
 			sampler.maxLod = 0.0f;
 			sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-			texture->sampler = device.createSampler(sampler, nullptr);
+			texture->sampler = device.createSampler(sampler);
 
 			// Create image view
-			vk::ImageViewCreateInfo view = vkTools::initializers::imageViewCreateInfo();
+			vk::ImageViewCreateInfo view;
 			view.image;
 			view.viewType = vk::ImageViewType::eCube;
 			view.format = format;
@@ -582,11 +581,11 @@ namespace vkTools
 			view.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 			view.subresourceRange.layerCount = 6;
 			view.image = texture->image;
-			texture->view = device.createImageView(view, nullptr);
+			texture->view = device.createImageView(view);
 
 			// Clean up staging resources
-			device.freeMemory(stagingMemory, nullptr);
-			device.destroyBuffer(stagingBuffer, nullptr);
+			device.freeMemory(stagingMemory);
+			device.destroyBuffer(stagingBuffer);
 		}
 
 		// Load an array texture (single file)
@@ -619,20 +618,20 @@ namespace vkTools
 			texture->height = tex2DArray.dimensions().y;
 			texture->layerCount = tex2DArray.layers();
 
-			vk::MemoryAllocateInfo memAllocInfo = vkTools::initializers::memoryAllocateInfo();
+			vk::MemoryAllocateInfo memAllocInfo;
 			vk::MemoryRequirements memReqs;
 
 			// Create a host-visible staging buffer that contains the raw image data
 			vk::Buffer stagingBuffer;
 			vk::DeviceMemory stagingMemory;
 
-			vk::BufferCreateInfo bufferCreateInfo = vkTools::initializers::bufferCreateInfo();
+			vk::BufferCreateInfo bufferCreateInfo;
 			bufferCreateInfo.size = tex2DArray.size();
 			// This buffer is used as a transfer source for the buffer copy
 			bufferCreateInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
 			bufferCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 
-			stagingBuffer = device.createBuffer(bufferCreateInfo, nullptr);
+			stagingBuffer = device.createBuffer(bufferCreateInfo);
 
 			// Get memory requirements for the staging buffer (alignment, memory type bits)
 			memReqs = device.getBufferMemoryRequirements(stagingBuffer);
@@ -641,7 +640,7 @@ namespace vkTools
 			// Get memory type index for a host visible buffer
 			memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
 
-			stagingMemory = device.allocateMemory(memAllocInfo, nullptr);
+			stagingMemory = device.allocateMemory(memAllocInfo);
 			device.bindBufferMemory(stagingBuffer, stagingMemory, 0);
 
 			// Copy texture data into staging buffer
@@ -701,7 +700,7 @@ namespace vkTools
 			}
 
 			// Create optimal tiled target image
-			vk::ImageCreateInfo imageCreateInfo = vkTools::initializers::imageCreateInfo();
+			vk::ImageCreateInfo imageCreateInfo;
 			imageCreateInfo.imageType = vk::ImageType::e2D;
 			imageCreateInfo.format = format;
 			imageCreateInfo.mipLevels = 1;
@@ -714,17 +713,17 @@ namespace vkTools
 			imageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 			imageCreateInfo.arrayLayers = texture->layerCount;
 
-			texture->image = device.createImage(imageCreateInfo, nullptr);
+			texture->image = device.createImage(imageCreateInfo);
 
 			memReqs = device.getImageMemoryRequirements(texture->image);
 
 			memAllocInfo.allocationSize = memReqs.size;
 			memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-			texture->deviceMemory = device.allocateMemory(memAllocInfo, nullptr);
+			texture->deviceMemory = device.allocateMemory(memAllocInfo);
 			device.bindImageMemory(texture->image, texture->deviceMemory, 0);
 
-			vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+			vk::CommandBufferBeginInfo cmdBufInfo;
 			cmdBuffer.begin(cmdBufInfo);
 
 			// Image barrier for optimal image (target)
@@ -760,10 +759,10 @@ namespace vkTools
 
 			// Create a fence to make sure that the copies have finished before continuing
 			vk::Fence copyFence;
-			vk::FenceCreateInfo fenceCreateInfo = vkTools::initializers::fenceCreateInfo();
-			copyFence = device.createFence(fenceCreateInfo, nullptr);
+			vk::FenceCreateInfo fenceCreateInfo;
+			copyFence = device.createFence(fenceCreateInfo);
 
-			vk::SubmitInfo submitInfo = vkTools::initializers::submitInfo();
+			vk::SubmitInfo submitInfo;
 			submitInfo.commandBufferCount = 1;
 			submitInfo.pCommandBuffers = &cmdBuffer;
 
@@ -771,10 +770,10 @@ namespace vkTools
 
 			device.waitForFences(copyFence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
 
-			device.destroyFence(copyFence, nullptr);
+			device.destroyFence(copyFence);
 
 			// Create sampler
-			vk::SamplerCreateInfo sampler = vkTools::initializers::samplerCreateInfo();
+			vk::SamplerCreateInfo sampler;
 			sampler.magFilter = vk::Filter::eLinear;
 			sampler.minFilter = vk::Filter::eLinear;
 			sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
@@ -787,10 +786,10 @@ namespace vkTools
 			sampler.minLod = 0.0f;
 			sampler.maxLod = 0.0f;
 			sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-			texture->sampler = device.createSampler(sampler, nullptr);
+			texture->sampler = device.createSampler(sampler);
 
 			// Create image view
-			vk::ImageViewCreateInfo view = vkTools::initializers::imageViewCreateInfo();
+			vk::ImageViewCreateInfo view;
 			view.image;
 			view.viewType = vk::ImageViewType::e2DArray;
 			view.format = format;
@@ -798,11 +797,11 @@ namespace vkTools
 			view.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 			view.subresourceRange.layerCount = texture->layerCount;
 			view.image = texture->image;
-			texture->view = device.createImageView(view, nullptr);
+			texture->view = device.createImageView(view);
 
 			// Clean up staging resources
-			device.freeMemory(stagingMemory, nullptr);
-			device.destroyBuffer(stagingBuffer, nullptr);
+			device.freeMemory(stagingMemory);
+			device.destroyBuffer(stagingBuffer);
 		}
 
 

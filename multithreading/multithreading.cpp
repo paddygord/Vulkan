@@ -198,7 +198,7 @@ public:
 			ThreadData *thread = &threadData[i];
 			
 			// Create one command pool for each thread
-			vk::CommandPoolCreateInfo cmdPoolInfo = vkTools::initializers::commandPoolCreateInfo();
+			vk::CommandPoolCreateInfo cmdPoolInfo;
 			cmdPoolInfo.queueFamilyIndex = swapChain.queueNodeIndex;
 			cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
 			thread->commandPool = device.createCommandPool(cmdPoolInfo);
@@ -287,7 +287,7 @@ public:
 			return;
 		}
 
-		vk::CommandBufferBeginInfo commandBufferBeginInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo commandBufferBeginInfo;
 		commandBufferBeginInfo.flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue;
 		commandBufferBeginInfo.pInheritanceInfo = &inheritanceInfo;
 
@@ -336,7 +336,7 @@ public:
 	void updateSecondaryCommandBuffer(vk::CommandBufferInheritanceInfo inheritanceInfo)
 	{
 		// Secondary command buffer for the sky sphere
-		vk::CommandBufferBeginInfo commandBufferBeginInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo commandBufferBeginInfo;
 		commandBufferBeginInfo.flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue;
 		commandBufferBeginInfo.pInheritanceInfo = &inheritanceInfo;
 
@@ -373,14 +373,14 @@ public:
 	// lat submitted to the queue for rendering
 	void updateCommandBuffers(vk::Framebuffer frameBuffer)
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
 		clearValues[0].color = { std::array<float, 4> {0.0f, 0.0f, 0.2f, 0.0f} };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
@@ -398,7 +398,7 @@ public:
 		primaryCommandBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eSecondaryCommandBuffers);
 
 		// Inheritance info for the secondary command buffers
-		vk::CommandBufferInheritanceInfo inheritanceInfo = vkTools::initializers::commandBufferInheritanceInfo();
+		vk::CommandBufferInheritanceInfo inheritanceInfo;
 		inheritanceInfo.renderPass = renderPass;
 		// Secondary command buffer also use the currently active framebuffer
 		inheritanceInfo.framebuffer = frameBuffer;
@@ -493,7 +493,7 @@ public:
 		vertices.attributeDescriptions[2] =
 			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 6);
 
-		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
 		vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
 		vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();

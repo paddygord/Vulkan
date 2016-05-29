@@ -127,14 +127,14 @@ public:
 		cubeMap.width = texCube[0].dimensions().x;
 		cubeMap.height = texCube[0].dimensions().y;
 
-		vk::MemoryAllocateInfo memAllocInfo = vkTools::initializers::memoryAllocateInfo();
+		vk::MemoryAllocateInfo memAllocInfo;
 		vk::MemoryRequirements memReqs;
 
 		// Create a host-visible staging buffer that contains the raw image data
 		vk::Buffer stagingBuffer;
 		vk::DeviceMemory stagingMemory;
 
-		vk::BufferCreateInfo bufferCreateInfo = vkTools::initializers::bufferCreateInfo();
+		vk::BufferCreateInfo bufferCreateInfo;
 		bufferCreateInfo.size = texCube.size();
 		// This buffer is used as a transfer source for the buffer copy
 		bufferCreateInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
@@ -169,7 +169,7 @@ public:
 		bufferCopyRegion.imageExtent.depth = 1;
 
 		// Create optimal tiled target image
-		vk::ImageCreateInfo imageCreateInfo = vkTools::initializers::imageCreateInfo();
+		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = format;
 		imageCreateInfo.mipLevels = 1;
@@ -229,7 +229,7 @@ public:
 		VulkanExampleBase::flushCommandBuffer(copyCmd, queue, true);
 
 		// Create sampler
-		vk::SamplerCreateInfo sampler = vkTools::initializers::samplerCreateInfo();
+		vk::SamplerCreateInfo sampler;
 		sampler.magFilter = vk::Filter::eLinear;
 		sampler.minFilter = vk::Filter::eLinear;
 		sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
@@ -245,7 +245,7 @@ public:
 		cubeMap.sampler = device.createSampler(sampler, nullptr);
 
 		// Create image view
-		vk::ImageViewCreateInfo view = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo view;
 		// Cube map view type
 		view.viewType = vk::ImageViewType::eCube;
 		view.format = format;
@@ -263,13 +263,13 @@ public:
 
 	void buildCommandBuffers()
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
@@ -362,7 +362,7 @@ public:
 		vertices.attributeDescriptions[2] =
 			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 5);
 
-		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
 		vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
 		vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();

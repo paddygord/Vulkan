@@ -123,35 +123,12 @@ namespace vkTools
 	// Some initializers are parameterized for convenience
 	namespace initializers
 	{
-		vk::MemoryAllocateInfo memoryAllocateInfo();
-
 		vk::CommandBufferAllocateInfo commandBufferAllocateInfo(
 			vk::CommandPool commandPool,
 			vk::CommandBufferLevel level,
 			uint32_t bufferCount);
 
-		vk::CommandPoolCreateInfo commandPoolCreateInfo();
-		vk::CommandBufferBeginInfo commandBufferBeginInfo();
-		vk::CommandBufferInheritanceInfo commandBufferInheritanceInfo();
-
-		vk::RenderPassBeginInfo renderPassBeginInfo();
-		vk::RenderPassCreateInfo renderPassCreateInfo();
-
-		vk::ImageMemoryBarrier imageMemoryBarrier();
-		vk::BufferMemoryBarrier bufferMemoryBarrier();
-		vk::MemoryBarrier memoryBarrier();
-
-		vk::ImageCreateInfo imageCreateInfo();
-		vk::SamplerCreateInfo samplerCreateInfo();
-		vk::ImageViewCreateInfo imageViewCreateInfo();
-
-		vk::FramebufferCreateInfo framebufferCreateInfo();
-
-		vk::SemaphoreCreateInfo semaphoreCreateInfo();
-		vk::FenceCreateInfo fenceCreateInfo(vk::FenceCreateFlags flags = vk::FenceCreateFlags());
-		vk::EventCreateInfo eventCreateInfo();
-
-		vk::SubmitInfo submitInfo();
+		vk::FenceCreateInfo fenceCreateInfo(vk::FenceCreateFlags flags);
 
 		vk::Viewport viewport(
 			float width, 
@@ -164,8 +141,6 @@ namespace vkTools
 			int32_t height,
 			int32_t offsetX,
 			int32_t offsetY);
-
-		vk::BufferCreateInfo bufferCreateInfo();
 
 		vk::BufferCreateInfo bufferCreateInfo(
 			vk::BufferUsageFlags usage, 
@@ -225,8 +200,6 @@ namespace vkTools
 			uint32_t location,
 			vk::Format format,
 			uint32_t offset);
-
-		vk::PipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo();
 
 		vk::PipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo(
 			vk::PrimitiveTopology topology,

@@ -162,14 +162,14 @@ public:
 
 	void buildCommandBuffers()
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
 		clearValues[0].color = { std::array<float, 4> {0.0f, 0.0f, 0.0f, 0.0f} };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
@@ -370,7 +370,7 @@ public:
 
 		// Create a custom sampler to be used with the particle textures
 		// Create sampler
-		vk::SamplerCreateInfo samplerCreateInfo = vkTools::initializers::samplerCreateInfo();
+		vk::SamplerCreateInfo samplerCreateInfo;
 		samplerCreateInfo.magFilter = vk::Filter::eLinear;
 		samplerCreateInfo.minFilter = vk::Filter::eLinear;
 		samplerCreateInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
@@ -426,7 +426,7 @@ public:
 		particles.attributeDescriptions.push_back(
 			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 5, vk::Format::eR32Sint, sizeof(float) * 11));
 
-		particles.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		particles.inputState = vk::PipelineVertexInputStateCreateInfo();
 		particles.inputState.vertexBindingDescriptionCount = particles.bindingDescriptions.size();
 		particles.inputState.pVertexBindingDescriptions = particles.bindingDescriptions.data();
 		particles.inputState.vertexAttributeDescriptionCount = particles.attributeDescriptions.size();
