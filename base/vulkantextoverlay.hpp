@@ -679,7 +679,7 @@ public:
 
 	void reallocateCommandBuffers()
 	{
-		device.freeCommandBuffers(commandPool, cmdBuffers.size(), cmdBuffers.data());
+		device.freeCommandBuffers(commandPool, cmdBuffers);
 
 		vk::CommandBufferAllocateInfo cmdBufAllocateInfo =
 			vkTools::initializers::commandBufferAllocateInfo(

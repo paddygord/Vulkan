@@ -59,9 +59,9 @@ private:
 	// fps timer (one second interval)
 	float fpsTimer = 0.0f;
 	// Create application wide Vulkan instance
-	VkResult createInstance(bool enableValidation);
+	void createInstance(bool enableValidation);
 	// Create logical Vulkan device based on physical device
-	VkResult createDevice(VkDeviceQueueCreateInfo requestedQueues, bool enableValidation);
+	void createDevice(vk::DeviceQueueCreateInfo requestedQueues, bool enableValidation);
 	// Get window title with example name, device, et.
 	std::string getWindowTitle();
 	// Destination dimensions for resizing the window
@@ -76,60 +76,60 @@ protected:
 	uint32_t frameCounter = 0;
 	uint32_t lastFPS = 0;
 	// Vulkan instance, stores all per-application states
-	VkInstance instance;
+	vk::Instance instance;
 	// Physical device (GPU) that Vulkan will ise
-	VkPhysicalDevice physicalDevice;
+	vk::PhysicalDevice physicalDevice;
 	// Stores physical device properties (for e.g. checking device limits)
-	VkPhysicalDeviceProperties deviceProperties;
+	vk::PhysicalDeviceProperties deviceProperties;
 	// Stores phyiscal device features (for e.g. checking if a feature is available)
-	VkPhysicalDeviceFeatures deviceFeatures;
+	vk::PhysicalDeviceFeatures deviceFeatures;
 	// Stores all available memory (type) properties for the physical device
-	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
+	vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
 	// Logical device, application's view of the physical device (GPU)
-	VkDevice device;
+	vk::Device device;
 	// Handle to the device graphics queue that command buffers are submitted to
-	VkQueue queue;
+	vk::Queue queue;
 	// Color buffer format
-	VkFormat colorformat = VK_FORMAT_B8G8R8A8_UNORM;
+	vk::Format colorformat = vk::Format::eB8G8R8A8Unorm;
 	// Depth buffer format
 	// Depth format is selected during Vulkan initialization
-	VkFormat depthFormat;
+	vk::Format depthFormat;
 	// Command buffer pool
-	VkCommandPool cmdPool;
+	vk::CommandPool cmdPool;
 	// Command buffer used for setup
-	VkCommandBuffer setupCmdBuffer = VK_NULL_HANDLE;
+	vk::CommandBuffer setupCmdBuffer;
 	// Command buffer for submitting a post present image barrier
-	VkCommandBuffer postPresentCmdBuffer = VK_NULL_HANDLE;
+	vk::CommandBuffer postPresentCmdBuffer;
 	// Command buffer for submitting a pre present image barrier
-	VkCommandBuffer prePresentCmdBuffer = VK_NULL_HANDLE;
+	vk::CommandBuffer prePresentCmdBuffer;
 	// Pipeline stage flags for the submit info structure
-	VkPipelineStageFlags submitPipelineStages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	vk::PipelineStageFlags submitPipelineStages = vk::PipelineStageFlagBits::eBottomOfPipe;
 	// Contains command buffers and semaphores to be presented to the queue
-	VkSubmitInfo submitInfo;
+	vk::SubmitInfo submitInfo;
 	// Command buffers used for rendering
-	std::vector<VkCommandBuffer> drawCmdBuffers;
+	std::vector<vk::CommandBuffer> drawCmdBuffers;
 	// Global render pass for frame buffer writes
-	VkRenderPass renderPass;
+	vk::RenderPass renderPass;
 	// List of available frame buffers (same as number of swap chain images)
-	std::vector<VkFramebuffer>frameBuffers;
+	std::vector<vk::Framebuffer>frameBuffers;
 	// Active frame buffer index
 	uint32_t currentBuffer = 0;
 	// Descriptor set pool
-	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+	vk::DescriptorPool descriptorPool;
 	// List of shader modules created (stored for cleanup)
-	std::vector<VkShaderModule> shaderModules;
+	std::vector<vk::ShaderModule> shaderModules;
 	// Pipeline cache object
-	VkPipelineCache pipelineCache;
+	vk::PipelineCache pipelineCache;
 	// Wraps the swap chain to present images (framebuffers) to the windowing system
 	VulkanSwapChain swapChain;
 	// Synchronization semaphores
 	struct {
 		// Swap chain image presentation
-		VkSemaphore presentComplete;
+		vk::Semaphore presentComplete;
 		// Command buffer submission and execution
-		VkSemaphore renderComplete;
+		vk::Semaphore renderComplete;
 		// Text overlay submission and execution
-		VkSemaphore textOverlayComplete;
+		vk::Semaphore textOverlayComplete;
 	} semaphores;
 	// Simple texture loader
 	vkTools::VulkanTextureLoader *textureLoader = nullptr;
@@ -140,7 +140,7 @@ public:
 	uint32_t width = 1280;
 	uint32_t height = 720;
 
-	VkClearColorValue defaultClearColor = { { 0.025f, 0.025f, 0.025f, 1.0f } };
+	vk::ClearColorValue defaultClearColor = { std::array<float, 4> { 0.025f, 0.025f, 0.025f, 1.0f } };
 
 	float zoom = 0;
 
@@ -169,9 +169,9 @@ public:
 
 	struct 
 	{
-		VkImage image;
-		VkDeviceMemory mem;
-		VkImageView view;
+		vk::Image image;
+		vk::DeviceMemory mem;
+		vk::ImageView view;
 	} depthStencil;
 
 	// Gamepad state (only one pad supported)
@@ -246,8 +246,8 @@ public:
 	virtual void buildCommandBuffers();
 
 	// Get memory type for a given memory allocation (flags and bits)
-	VkBool32 getMemoryType(uint32_t typeBits, VkFlags properties, uint32_t *typeIndex);
-	uint32_t getMemoryType(uint32_t typeBits, VkFlags properties);
+	vk::Bool32 getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, uint32_t *typeIndex);
+	uint32_t getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties);
 
 	// Creates a new (graphics) command pool object storing command buffers
 	void createCommandPool();
@@ -279,10 +279,10 @@ public:
 
 	// Command buffer creation
 	// Creates and returns a new command buffer
-	VkCommandBuffer createCommandBuffer(VkCommandBufferLevel level, bool begin);
+	vk::CommandBuffer createCommandBuffer(vk::CommandBufferLevel level, bool begin);
 	// End the command buffer, submit it to the queue and free (if requested)
 	// Note : Waits for the queue to become idle
-	void flushCommandBuffer(VkCommandBuffer commandBuffer, VkQueue queue, bool free);
+	void flushCommandBuffer(vk::CommandBuffer commandBuffer, vk::Queue queue, bool free);
 
 	// Create a cache pool for rendering pipelines
 	void createPipelineCache();
@@ -291,40 +291,40 @@ public:
 	virtual void prepare();
 
 	// Load a SPIR-V shader
-	VkPipelineShaderStageCreateInfo loadShader(std::string fileName, VkShaderStageFlagBits stage);
+	vk::PipelineShaderStageCreateInfo loadShader(std::string fileName, vk::ShaderStageFlagBits stage);
 	
 	// Create a buffer, fill it with data (if != NULL) and bind buffer memory
-	VkBool32 createBuffer(
-		VkBufferUsageFlags usageFlags,
-		VkMemoryPropertyFlags memoryPropertyFlags,
-		VkDeviceSize size,
+	vk::Bool32 createBuffer(
+		vk::BufferUsageFlags usageFlags,
+		vk::MemoryPropertyFlags memoryPropertyFlags,
+		vk::DeviceSize size,
 		void *data,
-		VkBuffer *buffer,
-		VkDeviceMemory *memory);
+		vk::Buffer &buffer,
+		vk::DeviceMemory &memory);
 	// This version always uses HOST_VISIBLE memory
-	VkBool32 createBuffer(
-		VkBufferUsageFlags usage,
-		VkDeviceSize size,
+	vk::Bool32 createBuffer(
+		vk::BufferUsageFlags usage,
+		vk::DeviceSize size,
 		void *data,
-		VkBuffer *buffer,
-		VkDeviceMemory *memory);
+		vk::Buffer &buffer,
+		vk::DeviceMemory &memory);
 	// Overload that assigns buffer info to descriptor
-	VkBool32 createBuffer(
-		VkBufferUsageFlags usage,
-		VkDeviceSize size,
+	vk::Bool32 createBuffer(
+		vk::BufferUsageFlags usage,
+		vk::DeviceSize size,
 		void *data,
-		VkBuffer *buffer,
-		VkDeviceMemory *memory,
-		VkDescriptorBufferInfo *descriptor);
+		vk::Buffer &buffer,
+		vk::DeviceMemory &memory,
+		vk::DescriptorBufferInfo &descriptor);
 	// Overload to pass memory property flags
-	VkBool32 createBuffer(
-		VkBufferUsageFlags usage,
-		VkMemoryPropertyFlags memoryPropertyFlags,
-		VkDeviceSize size,
+	vk::Bool32 createBuffer(
+		vk::BufferUsageFlags usage,
+		vk::MemoryPropertyFlags memoryPropertyFlags,
+		vk::DeviceSize size,
 		void *data,
-		VkBuffer *buffer,
-		VkDeviceMemory *memory,
-		VkDescriptorBufferInfo *descriptor);
+		vk::Buffer &buffer,
+		vk::DeviceMemory &memory,
+		vk::DescriptorBufferInfo &descriptor);
 
 	// Load a mesh (using ASSIMP) and create vulkan vertex and index buffers with given vertex layout
 	void loadMesh(
@@ -338,17 +338,17 @@ public:
 
 	// Submit a pre present image barrier to the queue
 	// Transforms the (framebuffer) image layout from color attachment to present(khr) for presenting to the swap chain
-	void submitPrePresentBarrier(VkImage image);
+	void submitPrePresentBarrier(vk::Image image);
 
 	// Submit a post present image barrier to the queue
 	// Transforms the (framebuffer) image layout back from present(khr) to color attachment layout
-	void submitPostPresentBarrier(VkImage image);
+	void submitPostPresentBarrier(vk::Image image);
 
 	// Prepare a submit info structure containing
 	// semaphores and submit buffer info for vkQueueSubmit
-	VkSubmitInfo prepareSubmitInfo(
-		std::vector<VkCommandBuffer> commandBuffers,
-		VkPipelineStageFlags *pipelineStages);
+	vk::SubmitInfo prepareSubmitInfo(
+		std::vector<vk::CommandBuffer> commandBuffers,
+		vk::PipelineStageFlags *pipelineStages);
 
 	void updateTextOverlay();
 
