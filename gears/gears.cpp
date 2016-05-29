@@ -28,19 +28,19 @@ class VulkanExample : public VulkanExampleBase
 {
 public:
 	struct {
-		VkPipelineVertexInputStateCreateInfo inputState;
-		std::vector<VkVertexInputBindingDescription> bindingDescriptions;
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+		vk::PipelineVertexInputStateCreateInfo inputState;
+		std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
+		std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
 	} vertices;
 
 	struct {
-		VkPipeline solid;
+		vk::Pipeline solid;
 	} pipelines;
 
 	std::vector<VulkanGear*> gears;
 
-	VkPipelineLayout pipelineLayout;
-	VkDescriptorSetLayout descriptorSetLayout;
+	vk::PipelineLayout pipelineLayout;
+	vk::DescriptorSetLayout descriptorSetLayout;
 
 	VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
 	{
@@ -54,10 +54,10 @@ public:
 	{
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
-		vkDestroyPipeline(device, pipelines.solid, nullptr);
+		device.destroyPipeline(pipelines.solid, nullptr);
 
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout, nullptr);
+		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
 
 		for (auto& gear : gears)
 		{
@@ -67,13 +67,13 @@ public:
 
 	void buildCommandBuffers()
 	{
-		VkCommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
 
-		VkClearValue clearValues[2];
+		vk::ClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		VkRenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
@@ -82,53 +82,41 @@ public:
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
 
-		VkResult err;
-
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
 			// Set target frame buffer
 			renderPassBeginInfo.framebuffer = frameBuffers[i];
 
-			err = vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo);
-			assert(!err);
+			drawCmdBuffers[i].begin(cmdBufInfo);
+			
 
-			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
-			VkViewport viewport = vkTools::initializers::viewport(
-				(float)width,
-				(float)height,
-				0.0f,
-				1.0f);
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			vk::Viewport viewport = vkTools::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+			drawCmdBuffers[i].setViewport(0, viewport);
 
-			VkRect2D scissor = vkTools::initializers::rect2D(
-				width,
-				height,
-				0,
-				0);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
+			vk::Rect2D scissor = vkTools::initializers::rect2D(width, height, 0, 0);
+			drawCmdBuffers[i].setScissor(0, scissor);
 
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.solid);
+			drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
 
 			for (auto& gear : gears)
 			{
 				gear->draw(drawCmdBuffers[i], pipelineLayout);
 			}
 
-			vkCmdEndRenderPass(drawCmdBuffers[i]);
+			drawCmdBuffers[i].endRenderPass();
 
-			err = vkEndCommandBuffer(drawCmdBuffers[i]);
-			assert(!err);
+			drawCmdBuffers[i].end();
+			
 		}
 	}
 
 	void draw()
 	{
-		VkResult err;
-
 		// Get next image in the swap chain (back/front buffer)
-		err = swapChain.acquireNextImage(semaphores.presentComplete, &currentBuffer);
-		assert(!err);
+		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
+		
 
 		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
 
@@ -137,16 +125,16 @@ public:
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
 
 		// Submit to queue
-		err = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-		assert(!err);
+		queue.submit(submitInfo, VK_NULL_HANDLE);
+		
 
 		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
 
-		err = swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-		assert(!err);
+		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
+		
 
-		err = vkQueueWaitIdle(queue);
-		assert(!err);
+		queue.waitIdle();
+		
 	}
 
 	void prepareVertices()
@@ -189,35 +177,20 @@ public:
 		// Binding and attribute descriptions are shared across all gears
 		vertices.bindingDescriptions.resize(1);
 		vertices.bindingDescriptions[0] =
-			vkTools::initializers::vertexInputBindingDescription(
-				VERTEX_BUFFER_BIND_ID,
-				sizeof(Vertex),
-				VK_VERTEX_INPUT_RATE_VERTEX);
+			vkTools::initializers::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex);
 
 		// Attribute descriptions
 		// Describes memory layout and shader positions
 		vertices.attributeDescriptions.resize(3);
 		// Location 0 : Position
 		vertices.attributeDescriptions[0] =
-			vkTools::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				0,
-				VK_FORMAT_R32G32B32_SFLOAT,
-				0);
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
 		// Location 1 : Normal
 		vertices.attributeDescriptions[1] =
-			vkTools::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				1,
-				VK_FORMAT_R32G32B32_SFLOAT,
-				sizeof(float) * 3);
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
 		// Location 2 : Color
 		vertices.attributeDescriptions[2] =
-			vkTools::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				2,
-				VK_FORMAT_R32G32B32_SFLOAT,
-				sizeof(float) * 6);
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 6);
 
 		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -229,48 +202,40 @@ public:
 	void setupDescriptorPool()
 	{
 		// One UBO for each gears
-		std::vector<VkDescriptorPoolSize> poolSizes =
+		std::vector<vk::DescriptorPoolSize> poolSizes =
 		{
-			vkTools::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3),
+			vkTools::initializers::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 3),
 		};
 
-		VkDescriptorPoolCreateInfo descriptorPoolInfo =
-			vkTools::initializers::descriptorPoolCreateInfo(
-				poolSizes.size(),
-				poolSizes.data(),
-				// Three descriptor sets (for each gear)
+		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
+			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), // Three descriptor sets (for each gear)
 				3);
 
-		VkResult vkRes = vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool);
-		assert(!vkRes);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
 	}
 
 	void setupDescriptorSetLayout()
 	{
-		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings =
+		std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
 		{
 			// Binding 0 : Vertex shader uniform buffer
 			vkTools::initializers::descriptorSetLayoutBinding(
-				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-				VK_SHADER_STAGE_VERTEX_BIT,
+				vk::DescriptorType::eUniformBuffer,
+				vk::ShaderStageFlagBits::eVertex,
 				0)
 		};
 
-		VkDescriptorSetLayoutCreateInfo descriptorLayout =
-			vkTools::initializers::descriptorSetLayoutCreateInfo(
-				setLayoutBindings.data(),
-				setLayoutBindings.size());
+		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
+			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		VkResult err = vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout);
-		assert(!err);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		
 
-		VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-			vkTools::initializers::pipelineLayoutCreateInfo(
-				&descriptorSetLayout,
-				1);
+		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
+			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		err = vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout);
-		assert(!err);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		
 	}
 
 	void setupDescriptorSets()
@@ -283,65 +248,43 @@ public:
 
 	void preparePipelines()
 	{
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
-			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(
-				VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-				0,
-				VK_FALSE);
+		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
+			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
 
-		VkPipelineRasterizationStateCreateInfo rasterizationState =
-			vkTools::initializers::pipelineRasterizationStateCreateInfo(
-				VK_POLYGON_MODE_FILL,
-				VK_CULL_MODE_NONE,
-				VK_FRONT_FACE_CLOCKWISE,
-				0);
+		vk::PipelineRasterizationStateCreateInfo rasterizationState =
+			vkTools::initializers::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eNone, vk::FrontFace::eClockwise);
 
-		VkPipelineColorBlendAttachmentState blendAttachmentState =
-			vkTools::initializers::pipelineColorBlendAttachmentState(
-				0xf,
-				VK_FALSE);
+		vk::PipelineColorBlendAttachmentState blendAttachmentState =
+			vkTools::initializers::pipelineColorBlendAttachmentState();
 
-		VkPipelineColorBlendStateCreateInfo colorBlendState =
-			vkTools::initializers::pipelineColorBlendStateCreateInfo(
-				1,
-				&blendAttachmentState);
+		vk::PipelineColorBlendStateCreateInfo colorBlendState =
+			vkTools::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
 
-		VkPipelineDepthStencilStateCreateInfo depthStencilState =
-			vkTools::initializers::pipelineDepthStencilStateCreateInfo(
-				VK_TRUE,
-				VK_TRUE,
-				VK_COMPARE_OP_LESS_OR_EQUAL);
+		vk::PipelineDepthStencilStateCreateInfo depthStencilState =
+			vkTools::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
 
-		VkPipelineViewportStateCreateInfo viewportState =
-			vkTools::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
+		vk::PipelineViewportStateCreateInfo viewportState =
+			vkTools::initializers::pipelineViewportStateCreateInfo(1, 1);
 
-		VkPipelineMultisampleStateCreateInfo multisampleState =
-			vkTools::initializers::pipelineMultisampleStateCreateInfo(
-				VK_SAMPLE_COUNT_1_BIT,
-				0);
+		vk::PipelineMultisampleStateCreateInfo multisampleState =
+			vkTools::initializers::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
 
-		std::vector<VkDynamicState> dynamicStateEnables = {
-			VK_DYNAMIC_STATE_VIEWPORT,
-			VK_DYNAMIC_STATE_SCISSOR
+		std::vector<vk::DynamicState> dynamicStateEnables = {
+			vk::DynamicState::eViewport,
+			vk::DynamicState::eScissor
 		};
-		VkPipelineDynamicStateCreateInfo dynamicState =
-			vkTools::initializers::pipelineDynamicStateCreateInfo(
-				dynamicStateEnables.data(),
-				dynamicStateEnables.size(),
-				0);
+		vk::PipelineDynamicStateCreateInfo dynamicState =
+			vkTools::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
 
 		// Solid rendering pipeline
 		// Load shaders
-		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
+		std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-		shaderStages[0] = loadShader(getAssetPath() + "shaders/gears.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShader(getAssetPath() + "shaders/gears.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		shaderStages[0] = loadShader(getAssetPath() + "shaders/gears.vert.spv", vk::ShaderStageFlagBits::eVertex);
+		shaderStages[1] = loadShader(getAssetPath() + "shaders/gears.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-			vkTools::initializers::pipelineCreateInfo(
-				pipelineLayout,
-				renderPass,
-				0);
+		vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
+			vkTools::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
 
 		pipelineCreateInfo.pVertexInputState = &vertices.inputState;
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -354,8 +297,7 @@ public:
 		pipelineCreateInfo.stageCount = shaderStages.size();
 		pipelineCreateInfo.pStages = shaderStages.data();
 
-		VkResult err = vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.solid);
-		assert(!err);
+		pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
 	}
 
 	void updateUniformBuffers()

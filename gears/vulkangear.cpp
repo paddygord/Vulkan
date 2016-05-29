@@ -28,7 +28,7 @@ void VulkanGear::newFace(std::vector<uint32_t> *iBuffer, int a, int b, int c)
 	iBuffer->push_back(c);
 }
 
-VulkanGear::VulkanGear(VkDevice device, VulkanExampleBase *example)
+VulkanGear::VulkanGear(vk::Device device, VulkanExampleBase *example)
 {
 	this->device = device;
 	this->exampleBase = example;
@@ -37,14 +37,14 @@ VulkanGear::VulkanGear(VkDevice device, VulkanExampleBase *example)
 VulkanGear::~VulkanGear()
 {
 	// Clean up vulkan resources
-	vkDestroyBuffer(device, uniformData.buffer, nullptr);
-	vkFreeMemory(device, uniformData.memory, nullptr);
+	device.destroyBuffer(uniformData.buffer, nullptr);
+	device.freeMemory(uniformData.memory, nullptr);
 
-	vkDestroyBuffer(device, vertexBuffer.buf, nullptr);
-	vkFreeMemory(device, vertexBuffer.mem, nullptr);
+	device.destroyBuffer(vertexBuffer.buf, nullptr);
+	device.freeMemory(vertexBuffer.mem, nullptr);
 
-	vkDestroyBuffer(device, indexBuffer.buf, nullptr);
-	vkFreeMemory(device, indexBuffer.mem, nullptr);
+	device.destroyBuffer(indexBuffer.buf, nullptr);
+	device.freeMemory(indexBuffer.mem, nullptr);
 }
 
 void VulkanGear::generate(float inner_radius, float outer_radius, float width, int teeth, float tooth_depth, glm::vec3 color, glm::vec3 pos, float rotSpeed, float rotOffset)
@@ -184,55 +184,54 @@ void VulkanGear::generate(float inner_radius, float outer_radius, float width, i
 	int vertexBufferSize = vBuffer.size() * sizeof(Vertex);
 	int indexBufferSize = iBuffer.size() * sizeof(uint32_t);
 
-	VkMemoryAllocateInfo memAlloc = vkTools::initializers::memoryAllocateInfo();
-	VkMemoryRequirements memReqs;
+	vk::MemoryAllocateInfo memAlloc = vkTools::initializers::memoryAllocateInfo();
+	vk::MemoryRequirements memReqs;
 
-	VkResult err;
 	void *data;
 
 	// Generate vertex buffer
-	VkBufferCreateInfo vBufferInfo = vkTools::initializers::bufferCreateInfo(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBufferSize);
-	err = vkCreateBuffer(device, &vBufferInfo, nullptr, &vertexBuffer.buf);
-	assert(!err);
-	vkGetBufferMemoryRequirements(device, vertexBuffer.buf, &memReqs);
+	vk::BufferCreateInfo vBufferInfo = vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eVertexBuffer, vertexBufferSize);
+	vertexBuffer.buf = device.createBuffer(vBufferInfo, nullptr);
+	
+	memReqs = device.getBufferMemoryRequirements(vertexBuffer.buf);
 	memAlloc.allocationSize = memReqs.size;
-	exampleBase->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
-	err = vkAllocateMemory(device, &memAlloc, nullptr, &vertexBuffer.mem);
-	assert(!err);
-	err = vkMapMemory(device, vertexBuffer.mem, 0, vertexBufferSize, 0, &data);
-	assert(!err);
+	exampleBase->getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible, &memAlloc.memoryTypeIndex);
+	vertexBuffer.mem = device.allocateMemory(memAlloc, nullptr);
+	
+	data = device.mapMemory(vertexBuffer.mem, 0, vertexBufferSize, vk::MemoryMapFlags());
+	
 	memcpy(data, vBuffer.data(), vertexBufferSize);
-	vkUnmapMemory(device, vertexBuffer.mem);
-	err = vkBindBufferMemory(device, vertexBuffer.buf, vertexBuffer.mem, 0);
-	assert(!err);
+	device.unmapMemory(vertexBuffer.mem);
+	device.bindBufferMemory(vertexBuffer.buf, vertexBuffer.mem, 0);
+	
 
 	// Generate index buffer
-	VkBufferCreateInfo iBufferInfo = vkTools::initializers::bufferCreateInfo(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize);
-	err = vkCreateBuffer(device, &iBufferInfo, nullptr, &indexBuffer.buf);
-	assert(!err);
-	vkGetBufferMemoryRequirements(device, indexBuffer.buf, &memReqs);
+	vk::BufferCreateInfo iBufferInfo = vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eIndexBuffer, indexBufferSize);
+	indexBuffer.buf = device.createBuffer(iBufferInfo, nullptr);
+	
+	memReqs = device.getBufferMemoryRequirements(indexBuffer.buf);
 	memAlloc.allocationSize = memReqs.size;
-	exampleBase->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
-	err = vkAllocateMemory(device, &memAlloc, nullptr, &indexBuffer.mem);
-	assert(!err);
-	err = vkMapMemory(device, indexBuffer.mem, 0, indexBufferSize, 0, &data);
-	assert(!err);
+	exampleBase->getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible, &memAlloc.memoryTypeIndex);
+	indexBuffer.mem = device.allocateMemory(memAlloc, nullptr);
+	
+	data = device.mapMemory(indexBuffer.mem, 0, indexBufferSize, vk::MemoryMapFlags());
+	
 	memcpy(data, iBuffer.data(), indexBufferSize);
-	vkUnmapMemory(device, indexBuffer.mem);
-	err = vkBindBufferMemory(device, indexBuffer.buf, indexBuffer.mem, 0);
-	assert(!err);
+	device.unmapMemory(indexBuffer.mem);
+	device.bindBufferMemory(indexBuffer.buf, indexBuffer.mem, 0);
+	
 	indexBuffer.count = iBuffer.size();
 
 	prepareUniformBuffer();
 }
 
-void VulkanGear::draw(VkCommandBuffer cmdbuffer, VkPipelineLayout pipelineLayout)
+void VulkanGear::draw(vk::CommandBuffer cmdbuffer, vk::PipelineLayout pipelineLayout)
 {
-	VkDeviceSize offsets[1] = { 0 };
-	vkCmdBindDescriptorSets(cmdbuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
-	vkCmdBindVertexBuffers(cmdbuffer, 0, 1, &vertexBuffer.buf, offsets);
-	vkCmdBindIndexBuffer(cmdbuffer, indexBuffer.buf, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdDrawIndexed(cmdbuffer, indexBuffer.count, 1, 0, 0, 1);
+	vk::DeviceSize offsets = 0;
+	cmdbuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+	cmdbuffer.bindVertexBuffers(0, vertexBuffer.buf, offsets);
+	cmdbuffer.bindIndexBuffer(indexBuffer.buf, 0, vk::IndexType::eUint32);
+	cmdbuffer.drawIndexed(indexBuffer.count, 1, 0, 0, 1);
 }
 
 void VulkanGear::updateUniformBuffer(glm::mat4 perspective, glm::vec3 rotation, float zoom, float timer)
@@ -259,56 +258,43 @@ void VulkanGear::updateUniformBuffer(glm::mat4 perspective, glm::vec3 rotation, 
 	ubo.lightPos.x = sin(glm::radians(timer)) * 8.0f;
 	ubo.lightPos.z = cos(glm::radians(timer)) * 8.0f;
 
-	uint8_t *pData;
-	VkResult err = vkMapMemory(device, uniformData.memory, 0, sizeof(ubo), 0, (void **)&pData);
-	assert(!err);
+	void *pData = device.mapMemory(uniformData.memory, 0, sizeof(ubo), vk::MemoryMapFlags());
+	
 	memcpy(pData, &ubo, sizeof(ubo));
-	vkUnmapMemory(device, uniformData.memory);
+	device.unmapMemory(uniformData.memory);
 }
 
-void VulkanGear::setupDescriptorSet(VkDescriptorPool pool, VkDescriptorSetLayout descriptorSetLayout)
+void VulkanGear::setupDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout descriptorSetLayout)
 {
-	VkDescriptorSetAllocateInfo allocInfo =
-		vkTools::initializers::descriptorSetAllocateInfo(
-			pool,
-			&descriptorSetLayout,
-			1);
+	vk::DescriptorSetAllocateInfo allocInfo =
+		vkTools::initializers::descriptorSetAllocateInfo(pool, &descriptorSetLayout, 1);
 
-	VkResult vkRes = vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet);
-	assert(!vkRes);
+	descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
 
 	// Binding 0 : Vertex shader uniform buffer
-	VkWriteDescriptorSet writeDescriptorSet =
-		vkTools::initializers::writeDescriptorSet(
-			descriptorSet,
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			0,
-			&uniformData.descriptor);
+	vk::WriteDescriptorSet writeDescriptorSet =
+		vkTools::initializers::writeDescriptorSet(descriptorSet, vk::DescriptorType::eUniformBuffer, 0, &uniformData.descriptor);
 
-	vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, NULL);
+	device.updateDescriptorSets(writeDescriptorSet, nullptr);
 }
 
 void VulkanGear::prepareUniformBuffer()
 {
-	VkResult err;
-
 	// Vertex shader uniform buffer block
-	VkMemoryAllocateInfo allocInfo = vkTools::initializers::memoryAllocateInfo();
-	VkMemoryRequirements memReqs;
+	vk::MemoryAllocateInfo allocInfo = vkTools::initializers::memoryAllocateInfo();
+	vk::MemoryRequirements memReqs;
 
-	VkBufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-		sizeof(ubo));
+	vk::BufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eUniformBuffer, sizeof(ubo));
 
-	err = vkCreateBuffer(device, &bufferInfo, nullptr, &uniformData.buffer);
-	assert(!err);
-	vkGetBufferMemoryRequirements(device, uniformData.buffer, &memReqs);
+	uniformData.buffer = device.createBuffer(bufferInfo, nullptr);
+	
+	memReqs = device.getBufferMemoryRequirements(uniformData.buffer);
 	allocInfo.allocationSize = memReqs.size;
-	exampleBase->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &allocInfo.memoryTypeIndex);
-	err = vkAllocateMemory(device, &allocInfo, nullptr, &uniformData.memory);
-	assert(!err);
-	err = vkBindBufferMemory(device, uniformData.buffer, uniformData.memory, 0);
-	assert(!err);
+	exampleBase->getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible, &allocInfo.memoryTypeIndex);
+	uniformData.memory = device.allocateMemory(allocInfo, nullptr);
+	
+	device.bindBufferMemory(uniformData.buffer, uniformData.memory, 0);
+	
 
 	uniformData.descriptor.buffer = uniformData.buffer;
 	uniformData.descriptor.offset = 0;

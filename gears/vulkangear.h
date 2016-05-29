@@ -56,7 +56,7 @@ private:
 		glm::vec3 lightPos;
 	};
 
-	VkDevice device;
+	vk::Device device;
 
 	// Reference to example for getting memory types
 	VulkanExampleBase *exampleBase;
@@ -68,13 +68,13 @@ private:
 
 	struct
 	{
-		VkBuffer buf;
-		VkDeviceMemory mem;
+		vk::Buffer buf;
+		vk::DeviceMemory mem;
 	} vertexBuffer;
 
 	struct {
-		VkBuffer buf;
-		VkDeviceMemory mem;
+		vk::Buffer buf;
+		vk::DeviceMemory mem;
 		uint32_t count;
 	} indexBuffer;
 
@@ -86,14 +86,14 @@ private:
 
 	void prepareUniformBuffer();
 public:
-	VkDescriptorSet descriptorSet;
+	vk::DescriptorSet descriptorSet;
 
-	void draw(VkCommandBuffer cmdbuffer, VkPipelineLayout pipelineLayout);
+	void draw(vk::CommandBuffer cmdbuffer, vk::PipelineLayout pipelineLayout);
 	void updateUniformBuffer(glm::mat4 perspective, glm::vec3 rotation, float zoom, float timer);
 
-	void setupDescriptorSet(VkDescriptorPool pool, VkDescriptorSetLayout descriptorSetLayout);
+	void setupDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout descriptorSetLayout);
 
-	VulkanGear(VkDevice device, VulkanExampleBase *example);
+	VulkanGear(vk::Device device, VulkanExampleBase *example);
 	~VulkanGear();
 
 	void generate(float inner_radius, float outer_radius, float width, int teeth, float tooth_depth, glm::vec3 color, glm::vec3 pos, float rotSpeed, float rotOffset);

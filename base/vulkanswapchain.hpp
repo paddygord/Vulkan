@@ -277,7 +277,7 @@ public:
 		
 		// Get the swap chain images
 		images = device.getSwapchainImagesKHR(swapChain);
-		imageCount = images.size();
+		imageCount = (uint32_t)images.size();
 
 		// Get the swap chain buffers containing the image and imageview
 		buffers.resize(imageCount);

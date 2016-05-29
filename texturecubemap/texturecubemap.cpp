@@ -287,10 +287,10 @@ public:
 
 			drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
-			vk::Viewport viewport = vkTools::initializers::viewport((float)width,	(float)height, 0.0f, 1.0f);
+			vk::Viewport viewport = vkTools::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 			drawCmdBuffers[i].setViewport(0, viewport);
 
-			vk::Rect2D scissor = vkTools::initializers::rect2D(width,	height,	0, 0);
+			vk::Rect2D scissor = vkTools::initializers::rect2D(width, height, 0, 0);
 			drawCmdBuffers[i].setScissor(0, scissor);
 
 			vk::DeviceSize offsets = 0;
@@ -347,35 +347,20 @@ public:
 		// Binding description
 		vertices.bindingDescriptions.resize(1);
 		vertices.bindingDescriptions[0] =
-			vkTools::initializers::vertexInputBindingDescription(
-				VERTEX_BUFFER_BIND_ID,
-				vkMeshLoader::vertexSize(vertexLayout),
-				vk::VertexInputRate::eVertex);
+			vkTools::initializers::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkMeshLoader::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
 
 		// Attribute descriptions
 		// Describes memory layout and shader positions
 		vertices.attributeDescriptions.resize(3);
 		// Location 0 : Position
 		vertices.attributeDescriptions[0] =
-			vkTools::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				0,
-				vk::Format::eR32G32B32Sfloat,
-				0);
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
 		// Location 1 : Normal
 		vertices.attributeDescriptions[1] =
-			vkTools::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				1,
-				vk::Format::eR32G32B32Sfloat,
-				sizeof(float) * 3);
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
 		// Location 2 : Texture coordinates
 		vertices.attributeDescriptions[2] =
-			vkTools::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				2,
-				vk::Format::eR32G32Sfloat,
-				sizeof(float) * 5);
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 5);
 
 		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -393,10 +378,7 @@ public:
 		};
 
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo = 
-			vkTools::initializers::descriptorPoolCreateInfo(
-				poolSizes.size(),
-				poolSizes.data(),
-				2);
+			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
 
 		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
 	}
@@ -418,16 +400,12 @@ public:
 		};
 
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout = 
-			vkTools::initializers::descriptorSetLayoutCreateInfo(
-				setLayoutBindings.data(),
-				setLayoutBindings.size());
+			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
 		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-			vkTools::initializers::pipelineLayoutCreateInfo(
-				&descriptorSetLayout,
-				1);
+			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
 		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
 	}
@@ -436,16 +414,10 @@ public:
 	{
 		// Image descriptor for the cube map texture
 		vk::DescriptorImageInfo cubeMapDescriptor =
-			vkTools::initializers::descriptorImageInfo(
-				cubeMap.sampler,
-				cubeMap.view,
-				vk::ImageLayout::eGeneral);
+			vkTools::initializers::descriptorImageInfo(cubeMap.sampler, cubeMap.view, vk::ImageLayout::eGeneral);
 
 		vk::DescriptorSetAllocateInfo allocInfo =
-			vkTools::initializers::descriptorSetAllocateInfo(
-				descriptorPool,
-				&descriptorSetLayout,
-				1);
+			vkTools::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
 
 		// 3D object descriptor set
 		descriptorSets.object = device.allocateDescriptorSets(allocInfo)[0];
@@ -491,28 +463,19 @@ public:
 	void preparePipelines()
 	{
 		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(
-				vk::PrimitiveTopology::eTriangleList);
+			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList);
 
 		vk::PipelineRasterizationStateCreateInfo rasterizationState =
-			vkTools::initializers::pipelineRasterizationStateCreateInfo(
-				vk::PolygonMode::eFill,
-				vk::CullModeFlagBits::eNone,
-				vk::FrontFace::eCounterClockwise);
+			vkTools::initializers::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eNone, vk::FrontFace::eCounterClockwise);
 
 		vk::PipelineColorBlendAttachmentState blendAttachmentState =
 			vkTools::initializers::pipelineColorBlendAttachmentState();
 
 		vk::PipelineColorBlendStateCreateInfo colorBlendState =
-			vkTools::initializers::pipelineColorBlendStateCreateInfo(
-				1, 
-				&blendAttachmentState);
+			vkTools::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
 
 		vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-			vkTools::initializers::pipelineDepthStencilStateCreateInfo(
-				VK_TRUE,
-				VK_FALSE,
-				vk::CompareOp::eLessOrEqual);
+			vkTools::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_FALSE, vk::CompareOp::eLessOrEqual);
 
 		vk::PipelineViewportStateCreateInfo viewportState =
 			vkTools::initializers::pipelineViewportStateCreateInfo(1, 1);
@@ -524,9 +487,7 @@ public:
 			vk::DynamicState::eScissor
 		};
 		vk::PipelineDynamicStateCreateInfo dynamicState =
-			vkTools::initializers::pipelineDynamicStateCreateInfo(
-				dynamicStateEnables.data(),
-				dynamicStateEnables.size());
+			vkTools::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
 
 		// Skybox pipeline (background cube)
 		std::array<vk::PipelineShaderStageCreateInfo,2> shaderStages;
@@ -535,9 +496,7 @@ public:
 		shaderStages[1] = loadShader(getAssetPath() + "shaders/cubemap/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
 		vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-			vkTools::initializers::pipelineCreateInfo(
-				pipelineLayout,
-				renderPass);
+			vkTools::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
 
 		pipelineCreateInfo.pVertexInputState = &vertices.inputState;
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -562,9 +521,8 @@ public:
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
-		// 3D objact 
-		createBuffer(
-			vk::BufferUsageFlagBits::eUniformBuffer,
+		// 3D objact
+		createBuffer(vk::BufferUsageFlagBits::eUniformBuffer,
 			sizeof(uboVS),
 			&uboVS,
 			uniformData.objectVS.buffer,
@@ -572,8 +530,7 @@ public:
 			uniformData.objectVS.descriptor);
 
 		// Skybox
-		createBuffer(
-			vk::BufferUsageFlagBits::eUniformBuffer,
+		createBuffer(vk::BufferUsageFlagBits::eUniformBuffer,
 			sizeof(uboVS),
 			&uboVS,
 			uniformData.skyboxVS.buffer,

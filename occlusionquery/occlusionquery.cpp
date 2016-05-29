@@ -36,9 +36,9 @@ class VulkanExample : public VulkanExampleBase
 {
 public:
 	struct {
-		VkPipelineVertexInputStateCreateInfo inputState;
-		std::vector<VkVertexInputBindingDescription> bindingDescriptions;
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+		vk::PipelineVertexInputStateCreateInfo inputState;
+		std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
+		std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
 	} vertices;
 
 	struct {
@@ -61,29 +61,29 @@ public:
 	} uboVS;
 
 	struct {
-		VkPipeline solid;
-		VkPipeline occluder;
+		vk::Pipeline solid;
+		vk::Pipeline occluder;
 		// Pipeline with basic shaders used for occlusion pass
-		VkPipeline simple;
+		vk::Pipeline simple;
 	} pipelines;
 
 	struct {
-		VkDescriptorSet teapot;
-		VkDescriptorSet sphere;
+		vk::DescriptorSet teapot;
+		vk::DescriptorSet sphere;
 	} descriptorSets;
 
-	VkPipelineLayout pipelineLayout;
-	VkDescriptorSet descriptorSet;
-	VkDescriptorSetLayout descriptorSetLayout;
+	vk::PipelineLayout pipelineLayout;
+	vk::DescriptorSet descriptorSet;
+	vk::DescriptorSetLayout descriptorSetLayout;
 
 	// Stores occlusion query results
 	struct {
-		VkBuffer buffer;
-		VkDeviceMemory memory;
+		vk::Buffer buffer;
+		vk::DeviceMemory memory;
 	} queryResult;
 
 	// Pool that stores all occlusion queries
-	VkQueryPool queryPool;
+	vk::QueryPool queryPool;
 
 	// Passed query samples
 	uint64_t passedSamples[2] = { 1,1 };
@@ -104,17 +104,17 @@ public:
 	{
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
-		vkDestroyPipeline(device, pipelines.solid, nullptr);
-		vkDestroyPipeline(device, pipelines.occluder, nullptr);
-		vkDestroyPipeline(device, pipelines.simple, nullptr);
+		device.destroyPipeline(pipelines.solid, nullptr);
+		device.destroyPipeline(pipelines.occluder, nullptr);
+		device.destroyPipeline(pipelines.simple, nullptr);
 
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout, nullptr);
+		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
 
-		vkDestroyQueryPool(device, queryPool, nullptr);
+		device.destroyQueryPool(queryPool, nullptr);
 
-		vkDestroyBuffer(device, queryResult.buffer, nullptr);
-		vkFreeMemory(device, queryResult.memory, nullptr);
+		device.destroyBuffer(queryResult.buffer, nullptr);
+		device.freeMemory(queryResult.memory, nullptr);
 
 		vkTools::destroyUniformData(device, &uniformData.vsScene);
 		vkTools::destroyUniformData(device, &uniformData.sphere);
@@ -131,58 +131,57 @@ public:
 	{
 		uint32_t bufSize = 2 * sizeof(uint64_t);
 
-		VkMemoryRequirements memReqs;
-		VkMemoryAllocateInfo memAlloc = vkTools::initializers::memoryAllocateInfo();
-		VkBufferCreateInfo bufferCreateInfo = 
-			vkTools::initializers::bufferCreateInfo(
-				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
-				bufSize);
+		vk::MemoryRequirements memReqs;
+		vk::MemoryAllocateInfo memAlloc = vkTools::initializers::memoryAllocateInfo();
+		vk::BufferCreateInfo bufferCreateInfo = 
+			vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst, bufSize);
 
 		// Results are saved in a host visible buffer for easy access by the application
-		VK_CHECK_RESULT(vkCreateBuffer(device, &bufferCreateInfo, nullptr, &queryResult.buffer));
-		vkGetBufferMemoryRequirements(device, queryResult.buffer, &memReqs);
+		queryResult.buffer = device.createBuffer(bufferCreateInfo, nullptr);
+		memReqs = device.getBufferMemoryRequirements(queryResult.buffer);
 		memAlloc.allocationSize = memReqs.size;
-		memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &queryResult.memory));
-		VK_CHECK_RESULT(vkBindBufferMemory(device, queryResult.buffer, queryResult.memory, 0));
+		memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
+		queryResult.memory = device.allocateMemory(memAlloc, nullptr);
+		device.bindBufferMemory(queryResult.buffer, queryResult.memory, 0);
 
 		// Create query pool
-		VkQueryPoolCreateInfo queryPoolInfo = {};
-		queryPoolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+		vk::QueryPoolCreateInfo queryPoolInfo = {};
+		queryPoolInfo.sType = vk::StructureType::eQueryPoolCreateInfo;
 		// Query pool will be created for occlusion queries
-		queryPoolInfo.queryType = VK_QUERY_TYPE_OCCLUSION;
+		queryPoolInfo.queryType = vk::QueryType::eOcclusion;
 		queryPoolInfo.queryCount = 2;
 
-		VK_CHECK_RESULT(vkCreateQueryPool(device, &queryPoolInfo, NULL, &queryPool));
+		queryPool = device.createQueryPool(queryPoolInfo, NULL);
 	}
 
 	// Retrieves the results of the occlusion queries submitted to the command buffer
 	void getQueryResults()
 	{
 		// We use vkGetQueryResults to copy the results into a host visible buffer
-		vkGetQueryPoolResults(
-			device, 
-			queryPool,
-			0,
-			2,
-			sizeof(passedSamples),
-			passedSamples,
+		// you can use vk::QueryResultFlagBits::eWithAvailability
+			// which also returns the state of the result (ready) in the result
+		device.getQueryPoolResults(
+			queryPool, 
+			0, 
+			2, 
+			sizeof(passedSamples), 
+			passedSamples, 
 			sizeof(uint64_t),
 			// Store results a 64 bit values and wait until the results have been finished
 			// If you don't want to wait, you can use VK_QUERY_RESULT_WITH_AVAILABILITY_BIT
 			// which also returns the state of the result (ready) in the result
-			VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+			vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
 	}
 
 	void buildCommandBuffers()
 	{
-		VkCommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
 
-		VkClearValue clearValues[2];
+		vk::ClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		VkRenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.offset.x = 0;
 		renderPassBeginInfo.renderArea.offset.y = 0;
@@ -196,108 +195,94 @@ public:
 			// Set target frame buffer
 			renderPassBeginInfo.framebuffer = frameBuffers[i];
 
-			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
+			drawCmdBuffers[i].begin(cmdBufInfo);
 
 			// Reset query pool
 			// Must be done outside of render pass
-			vkCmdResetQueryPool(drawCmdBuffers[i], queryPool, 0, 2);
+			drawCmdBuffers[i].resetQueryPool(queryPool, 0, 2);
 
-			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
-			VkViewport viewport = vkTools::initializers::viewport(
-				(float)width,
-				(float)height,
-				0.0f,
-				1.0f);
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			vk::Viewport viewport = vkTools::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+			drawCmdBuffers[i].setViewport(0, viewport);
 
-			VkRect2D scissor = vkTools::initializers::rect2D(
-				width,
-				height,
-				0,
-				0);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
+			vk::Rect2D scissor = vkTools::initializers::rect2D(width, height, 0, 0);
+			drawCmdBuffers[i].setScissor(0, scissor);
 
-			VkDeviceSize offsets[1] = { 0 };
+			vk::DeviceSize offsets = 0;
 
 			glm::mat4 modelMatrix = glm::mat4();
 
 			// Occlusion pass
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.simple);
+			drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.simple);
 
 			// Occluder first
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &meshes.plane.vertices.buf, offsets);
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], meshes.plane.indices.buf, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(drawCmdBuffers[i], meshes.plane.indexCount, 1, 0, 0, 0);
+			drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+			drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buf, offsets);
+			drawCmdBuffers[i].bindIndexBuffer(meshes.plane.indices.buf, 0, vk::IndexType::eUint32);
+			drawCmdBuffers[i].drawIndexed(meshes.plane.indexCount, 1, 0, 0, 0);
 
 			// Teapot
-			vkCmdBeginQuery(drawCmdBuffers[i], queryPool, 0, VK_FLAGS_NONE);
+			drawCmdBuffers[i].beginQuery(queryPool, 0, vk::QueryControlFlags());
 
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.teapot, 0, NULL);
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &meshes.teapot.vertices.buf, offsets);
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], meshes.teapot.indices.buf, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(drawCmdBuffers[i], meshes.teapot.indexCount, 1, 0, 0, 0);
+			drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.teapot, nullptr);
+			drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buf, offsets);
+			drawCmdBuffers[i].bindIndexBuffer(meshes.teapot.indices.buf, 0, vk::IndexType::eUint32);
+			drawCmdBuffers[i].drawIndexed(meshes.teapot.indexCount, 1, 0, 0, 0);
 
-			vkCmdEndQuery(drawCmdBuffers[i], queryPool, 0);
+			drawCmdBuffers[i].endQuery(queryPool, 0);
 
 			// Sphere
-			vkCmdBeginQuery(drawCmdBuffers[i], queryPool, 1, VK_FLAGS_NONE);
+			drawCmdBuffers[i].beginQuery(queryPool, 1, vk::QueryControlFlags());
 
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.sphere, 0, NULL);
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &meshes.sphere.vertices.buf, offsets);
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], meshes.sphere.indices.buf, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(drawCmdBuffers[i], meshes.sphere.indexCount, 1, 0, 0, 0);
+			drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sphere, nullptr);
+			drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buf, offsets);
+			drawCmdBuffers[i].bindIndexBuffer(meshes.sphere.indices.buf, 0, vk::IndexType::eUint32);
+			drawCmdBuffers[i].drawIndexed(meshes.sphere.indexCount, 1, 0, 0, 0);
 
-			vkCmdEndQuery(drawCmdBuffers[i], queryPool, 1);
+			drawCmdBuffers[i].endQuery(queryPool, 1);
 
 			// Visible pass
 			// Clear color and depth attachments
-			VkClearAttachment clearAttachments[2] = {};
-
-			clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			std::array<vk::ClearAttachment, 2> clearAttachments;
+			clearAttachments[0].aspectMask = vk::ImageAspectFlagBits::eColor;
 			clearAttachments[0].clearValue.color = defaultClearColor;
 			clearAttachments[0].colorAttachment = 0;
 
-			clearAttachments[1].aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			clearAttachments[1].aspectMask = vk::ImageAspectFlagBits::eDepth;
 			clearAttachments[1].clearValue.depthStencil = { 1.0f, 0 };
 
-			VkClearRect clearRect = {};
+			vk::ClearRect clearRect = {};
 			clearRect.layerCount = 1;
 			clearRect.rect.offset = { 0, 0 };
 			clearRect.rect.extent = { width, height };
 
-			vkCmdClearAttachments(
-				drawCmdBuffers[i],
-				2,
-				clearAttachments,
-				1,
-				&clearRect);
+			drawCmdBuffers[i].clearAttachments(clearAttachments, clearRect);
 
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.solid);
+			drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
 
 			// Teapot
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.teapot, 0, NULL);
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &meshes.teapot.vertices.buf, offsets);
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], meshes.teapot.indices.buf, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(drawCmdBuffers[i], meshes.teapot.indexCount, 1, 0, 0, 0);
+			drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.teapot, nullptr);
+			drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buf, offsets);
+			drawCmdBuffers[i].bindIndexBuffer(meshes.teapot.indices.buf, 0, vk::IndexType::eUint32);
+			drawCmdBuffers[i].drawIndexed(meshes.teapot.indexCount, 1, 0, 0, 0);
 
 			// Sphere
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.sphere, 0, NULL);
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &meshes.sphere.vertices.buf, offsets);
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], meshes.sphere.indices.buf, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(drawCmdBuffers[i], meshes.sphere.indexCount, 1, 0, 0, 0);
+			drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sphere, nullptr);
+			drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buf, offsets);
+			drawCmdBuffers[i].bindIndexBuffer(meshes.sphere.indices.buf, 0, vk::IndexType::eUint32);
+			drawCmdBuffers[i].drawIndexed(meshes.sphere.indexCount, 1, 0, 0, 0);
 
 			// Occluder
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.occluder);
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &meshes.plane.vertices.buf, offsets);
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], meshes.plane.indices.buf, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(drawCmdBuffers[i], meshes.plane.indexCount, 1, 0, 0, 0);
+			drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.occluder);
+			drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+			drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buf, offsets);
+			drawCmdBuffers[i].bindIndexBuffer(meshes.plane.indices.buf, 0, vk::IndexType::eUint32);
+			drawCmdBuffers[i].drawIndexed(meshes.plane.indexCount, 1, 0, 0, 0);
 
-			vkCmdEndRenderPass(drawCmdBuffers[i]);
+			drawCmdBuffers[i].endRenderPass();
 
-			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
+			drawCmdBuffers[i].end();
 		}
 	}
 
@@ -307,7 +292,7 @@ public:
 
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+		queue.submit(submitInfo, VK_NULL_HANDLE);
 
 		// Read query results for displaying in next frame
 		getQueryResults();
@@ -327,35 +312,20 @@ public:
 		// Binding description
 		vertices.bindingDescriptions.resize(1);
 		vertices.bindingDescriptions[0] =
-			vkTools::initializers::vertexInputBindingDescription(
-				VERTEX_BUFFER_BIND_ID,
-				vkMeshLoader::vertexSize(vertexLayout),
-				VK_VERTEX_INPUT_RATE_VERTEX);
+			vkTools::initializers::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkMeshLoader::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
 
 		// Attribute descriptions
 		// Describes memory layout and shader positions
 		vertices.attributeDescriptions.resize(3);
 		// Location 0 : Position
 		vertices.attributeDescriptions[0] =
-			vkTools::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				0,
-				VK_FORMAT_R32G32B32_SFLOAT,
-				0);
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
 		// Location 1 : Normal
 		vertices.attributeDescriptions[1] =
-			vkTools::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				1,
-				VK_FORMAT_R32G32B32_SFLOAT,
-				sizeof(float) * 3);
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
 		// Location 3 : Color
 		vertices.attributeDescriptions[2] =
-			vkTools::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				2,
-				VK_FORMAT_R32G32B32_SFLOAT,
-				sizeof(float) * 6);
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 6);
 
 		vertices.inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -366,144 +336,112 @@ public:
 
 	void setupDescriptorPool()
 	{
-		std::vector<VkDescriptorPoolSize> poolSizes =
+		std::vector<vk::DescriptorPoolSize> poolSizes =
 		{
 			// One uniform buffer block for each mesh
-			vkTools::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3)
+			vkTools::initializers::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 3)
 		};
 
-		VkDescriptorPoolCreateInfo descriptorPoolInfo =
-			vkTools::initializers::descriptorPoolCreateInfo(
-				poolSizes.size(),
-				poolSizes.data(),
-				3);
+		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
+			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 3);
 
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
 	}
 
 	void setupDescriptorSetLayout()
 	{
-		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings =
+		std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
 		{
 			// Binding 0 : Vertex shader uniform buffer
 			vkTools::initializers::descriptorSetLayoutBinding(
-				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-				VK_SHADER_STAGE_VERTEX_BIT,
+				vk::DescriptorType::eUniformBuffer,
+				vk::ShaderStageFlagBits::eVertex,
 				0)
 		};
 
-		VkDescriptorSetLayoutCreateInfo descriptorLayout =
-			vkTools::initializers::descriptorSetLayoutCreateInfo(
-				setLayoutBindings.data(),
-				setLayoutBindings.size());
+		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
+			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
 
-		VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-			vkTools::initializers::pipelineLayoutCreateInfo(
-				&descriptorSetLayout,
-				1);
+		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
+			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
 	}
 
 	void setupDescriptorSets()
 	{
-		VkDescriptorSetAllocateInfo allocInfo =
-			vkTools::initializers::descriptorSetAllocateInfo(
-				descriptorPool,
-				&descriptorSetLayout,
-				1);
+		vk::DescriptorSetAllocateInfo allocInfo =
+			vkTools::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
 
 		// Occluder (plane)
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
+		descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
 
-		std::vector<VkWriteDescriptorSet> writeDescriptorSets =
+		std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
 		{
 			// Binding 0 : Vertex shader uniform buffer
 			vkTools::initializers::writeDescriptorSet(
 				descriptorSet,
-				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				vk::DescriptorType::eUniformBuffer,
 				0,
 				&uniformData.vsScene.descriptor)
 		};
 
-		vkUpdateDescriptorSets(device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+		device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
 
 		// Teapot
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets.teapot));
+		descriptorSets.teapot = device.allocateDescriptorSets(allocInfo)[0];
 		writeDescriptorSets[0].dstSet = descriptorSets.teapot;
 		writeDescriptorSets[0].pBufferInfo = &uniformData.teapot.descriptor;
-		vkUpdateDescriptorSets(device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+		device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
 
 		// Sphere
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets.sphere));
+		descriptorSets.sphere = device.allocateDescriptorSets(allocInfo)[0];
 		writeDescriptorSets[0].dstSet = descriptorSets.sphere;
 		writeDescriptorSets[0].pBufferInfo = &uniformData.sphere.descriptor;
-		vkUpdateDescriptorSets(device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+		device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
 	}
 
 	void preparePipelines()
 	{
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
-			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(
-				VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-				0,
-				VK_FALSE);
+		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
+			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
 
-		VkPipelineRasterizationStateCreateInfo rasterizationState =
-			vkTools::initializers::pipelineRasterizationStateCreateInfo(
-				VK_POLYGON_MODE_FILL,
-				VK_CULL_MODE_BACK_BIT,
-				VK_FRONT_FACE_CLOCKWISE,
-				0);
+		vk::PipelineRasterizationStateCreateInfo rasterizationState =
+			vkTools::initializers::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise);
 
-		VkPipelineColorBlendAttachmentState blendAttachmentState =
-			vkTools::initializers::pipelineColorBlendAttachmentState(
-				0xf,
-				VK_FALSE);
+		vk::PipelineColorBlendAttachmentState blendAttachmentState =
+			vkTools::initializers::pipelineColorBlendAttachmentState();
 
-		VkPipelineColorBlendStateCreateInfo colorBlendState =
-			vkTools::initializers::pipelineColorBlendStateCreateInfo(
-				1,
-				&blendAttachmentState);
+		vk::PipelineColorBlendStateCreateInfo colorBlendState =
+			vkTools::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
 
-		VkPipelineDepthStencilStateCreateInfo depthStencilState =
-			vkTools::initializers::pipelineDepthStencilStateCreateInfo(
-				VK_TRUE,
-				VK_TRUE,
-				VK_COMPARE_OP_LESS_OR_EQUAL);
+		vk::PipelineDepthStencilStateCreateInfo depthStencilState =
+			vkTools::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
 
-		VkPipelineViewportStateCreateInfo viewportState =
-			vkTools::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
+		vk::PipelineViewportStateCreateInfo viewportState =
+			vkTools::initializers::pipelineViewportStateCreateInfo(1, 1);
 
-		VkPipelineMultisampleStateCreateInfo multisampleState =
-			vkTools::initializers::pipelineMultisampleStateCreateInfo(
-				VK_SAMPLE_COUNT_1_BIT,
-				0);
+		vk::PipelineMultisampleStateCreateInfo multisampleState =
+			vkTools::initializers::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
 
-		std::vector<VkDynamicState> dynamicStateEnables = {
-			VK_DYNAMIC_STATE_VIEWPORT,
-			VK_DYNAMIC_STATE_SCISSOR
+		std::vector<vk::DynamicState> dynamicStateEnables = {
+			vk::DynamicState::eViewport,
+			vk::DynamicState::eScissor
 		};
-		VkPipelineDynamicStateCreateInfo dynamicState =
-			vkTools::initializers::pipelineDynamicStateCreateInfo(
-				dynamicStateEnables.data(),
-				dynamicStateEnables.size(),
-				0);
+		vk::PipelineDynamicStateCreateInfo dynamicState =
+			vkTools::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
 
 		// Solid rendering pipeline
 		// Load shaders
-		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
+		std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-		shaderStages[0] = loadShader(getAssetPath() + "shaders/occlusionquery/mesh.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShader(getAssetPath() + "shaders/occlusionquery/mesh.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		shaderStages[0] = loadShader(getAssetPath() + "shaders/occlusionquery/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
+		shaderStages[1] = loadShader(getAssetPath() + "shaders/occlusionquery/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-			vkTools::initializers::pipelineCreateInfo(
-				pipelineLayout,
-				renderPass,
-				0);
+		vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
+			vkTools::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
 
 		pipelineCreateInfo.pVertexInputState = &vertices.inputState;
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -516,57 +454,54 @@ public:
 		pipelineCreateInfo.stageCount = shaderStages.size();
 		pipelineCreateInfo.pStages = shaderStages.data();
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.solid));
+		pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
 
 		// Basic pipeline for coloring occluded objects
-		shaderStages[0] = loadShader(getAssetPath() + "shaders/occlusionquery/simple.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShader(getAssetPath() + "shaders/occlusionquery/simple.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		rasterizationState.cullMode = VK_CULL_MODE_NONE;
+		shaderStages[0] = loadShader(getAssetPath() + "shaders/occlusionquery/simple.vert.spv", vk::ShaderStageFlagBits::eVertex);
+		shaderStages[1] = loadShader(getAssetPath() + "shaders/occlusionquery/simple.frag.spv", vk::ShaderStageFlagBits::eFragment);
+		rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.simple));
+		pipelines.simple = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
 
 		// Visual pipeline for the occluder
-		shaderStages[0] = loadShader(getAssetPath() + "shaders/occlusionquery/occluder.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShader(getAssetPath() + "shaders/occlusionquery/occluder.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		shaderStages[0] = loadShader(getAssetPath() + "shaders/occlusionquery/occluder.vert.spv", vk::ShaderStageFlagBits::eVertex);
+		shaderStages[1] = loadShader(getAssetPath() + "shaders/occlusionquery/occluder.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
 		// Enable blending
 		blendAttachmentState.blendEnable = VK_TRUE;
-		blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-		blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
-		blendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+		blendAttachmentState.colorBlendOp = vk::BlendOp::eAdd;
+		blendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eSrcColor;
+		blendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcColor;
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.occluder));
+		pipelines.occluder = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms
 	void prepareUniformBuffers()
 	{
 		// Vertex shader uniform buffer block
-		createBuffer(
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		createBuffer(vk::BufferUsageFlagBits::eUniformBuffer,
 			sizeof(uboVS),
 			&uboVS,
-			&uniformData.vsScene.buffer,
-			&uniformData.vsScene.memory,
-			&uniformData.vsScene.descriptor);
+			uniformData.vsScene.buffer,
+			uniformData.vsScene.memory,
+			uniformData.vsScene.descriptor);
 
 		// Teapot
-		createBuffer(
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		createBuffer(vk::BufferUsageFlagBits::eUniformBuffer,
 			sizeof(uboVS),
 			&uboVS,
-			&uniformData.teapot.buffer,
-			&uniformData.teapot.memory,
-			&uniformData.teapot.descriptor);
+			uniformData.teapot.buffer,
+			uniformData.teapot.memory,
+			uniformData.teapot.descriptor);
 
 		// Sphere
-		createBuffer(
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		createBuffer(vk::BufferUsageFlagBits::eUniformBuffer,
 			sizeof(uboVS),
 			&uboVS,
-			&uniformData.sphere.buffer,
-			&uniformData.sphere.memory,
-			&uniformData.sphere.descriptor);
+			uniformData.sphere.buffer,
+			uniformData.sphere.memory,
+			uniformData.sphere.descriptor);
 
 		updateUniformBuffers();
 	}
@@ -584,29 +519,29 @@ public:
 
 		uboVS.model = viewMatrix * rotMatrix;
 
-		uint8_t *pData;
+		;
 
 		// Occluder
 		uboVS.visible = 1.0f;
-		VK_CHECK_RESULT(vkMapMemory(device, uniformData.vsScene.memory, 0, sizeof(uboVS), 0, (void **)&pData));
+		void *pData = device.mapMemory(uniformData.vsScene.memory, 0, sizeof(uboVS), vk::MemoryMapFlags());
 		memcpy(pData, &uboVS, sizeof(uboVS));
-		vkUnmapMemory(device, uniformData.vsScene.memory);
+		device.unmapMemory(uniformData.vsScene.memory);
 
 		// Teapot
 		// Toggle color depending on visibility
 		uboVS.visible = (passedSamples[0] > 0) ? 1.0f : 0.0f;
 		uboVS.model = viewMatrix * rotMatrix * glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -10.0f));
-		VK_CHECK_RESULT(vkMapMemory(device, uniformData.teapot.memory, 0, sizeof(uboVS), 0, (void **)&pData));
+		pData = device.mapMemory(uniformData.teapot.memory, 0, sizeof(uboVS), vk::MemoryMapFlags());
 		memcpy(pData, &uboVS, sizeof(uboVS));
-		vkUnmapMemory(device, uniformData.teapot.memory);
+		device.unmapMemory(uniformData.teapot.memory);
 
 		// Sphere
 		// Toggle color depending on visibility
 		uboVS.visible = (passedSamples[1] > 0) ? 1.0f : 0.0f;
 		uboVS.model = viewMatrix * rotMatrix * glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 10.0f));
-		VK_CHECK_RESULT(vkMapMemory(device, uniformData.sphere.memory, 0, sizeof(uboVS), 0, (void **)&pData));
+		pData = device.mapMemory(uniformData.sphere.memory, 0, sizeof(uboVS), vk::MemoryMapFlags());
 		memcpy(pData, &uboVS, sizeof(uboVS));
-		vkUnmapMemory(device, uniformData.sphere.memory);
+		device.unmapMemory(uniformData.sphere.memory);
 	}
 
 	void prepare()
