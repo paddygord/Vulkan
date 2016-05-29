@@ -16,6 +16,7 @@
 #include <sstream>
 #include <iomanip>
 
+#include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 #include "vulkantools.h"
 #include "vulkandebug.h"
@@ -38,32 +39,32 @@
 class VulkanTextOverlay
 {
 private:
-	VkPhysicalDevice physicalDevice;
-	VkDevice device;
-	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
-	VkQueue queue;
-	VkFormat colorFormat;
-	VkFormat depthFormat;
+	vk::PhysicalDevice physicalDevice;
+	vk::Device device;
+	vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
+	vk::Queue queue;
+	vk::Format colorFormat;
+	vk::Format depthFormat;
 
 	uint32_t *frameBufferWidth;
 	uint32_t *frameBufferHeight;
 
-	VkSampler sampler;
-	VkImage image;
-	VkImageView view;
-	VkBuffer buffer;
-	VkDeviceMemory memory;
-	VkDeviceMemory imageMemory;
-	VkDescriptorPool descriptorPool;
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorSet descriptorSet;
-	VkPipelineLayout pipelineLayout;
-	VkPipelineCache pipelineCache;
-	VkPipeline pipeline;
-	VkRenderPass renderPass;
-	VkCommandPool commandPool;
-	std::vector<VkFramebuffer*> frameBuffers;
-	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+	vk::Sampler sampler;
+	vk::Image image;
+	vk::ImageView view;
+	vk::Buffer buffer;
+	vk::DeviceMemory memory;
+	vk::DeviceMemory imageMemory;
+	vk::DescriptorPool descriptorPool;
+	vk::DescriptorSetLayout descriptorSetLayout;
+	vk::DescriptorSet descriptorSet;
+	vk::PipelineLayout pipelineLayout;
+	vk::PipelineCache pipelineCache;
+	vk::Pipeline pipeline;
+	vk::RenderPass renderPass;
+	vk::CommandPool commandPool;
+	std::vector<vk::Framebuffer*> frameBuffers;
+	std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
 
 	// Pointer to mapped vertex buffer
 	glm::vec4 *mapped = nullptr;
@@ -72,7 +73,7 @@ private:
 	uint32_t numLetters;
 
 	// Try to find appropriate memory type for a memory allocation
-	uint32_t getMemoryType(uint32_t typeBits, VkFlags properties)
+	uint32_t getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties)
 	{
 		for (uint32_t i = 0; i < 32; i++)
 		{
@@ -96,18 +97,18 @@ public:
 	bool visible = true;
 	bool invalidated = false;
 
-	std::vector<VkCommandBuffer> cmdBuffers;
+	std::vector<vk::CommandBuffer> cmdBuffers;
 
 	VulkanTextOverlay(
-		VkPhysicalDevice physicalDevice,
-		VkDevice device,
-		VkQueue queue,
-		std::vector<VkFramebuffer> &framebuffers,
-		VkFormat colorformat,
-		VkFormat depthformat,
+		vk::PhysicalDevice physicalDevice,
+		vk::Device device,
+		vk::Queue queue,
+		std::vector<vk::Framebuffer> &framebuffers,
+		vk::Format colorformat,
+		vk::Format depthformat,
 		uint32_t *framebufferwidth,
 		uint32_t *framebufferheight,
-		std::vector<VkPipelineShaderStageCreateInfo> shaderstages)
+		std::vector<vk::PipelineShaderStageCreateInfo> shaderstages)
 	{
 		this->physicalDevice = physicalDevice;
 		this->device = device;
@@ -126,7 +127,7 @@ public:
 		this->frameBufferWidth = framebufferwidth;
 		this->frameBufferHeight = framebufferheight;
 
-		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &deviceMemoryProperties);
+		deviceMemoryProperties = physicalDevice.getMemoryProperties();
 		cmdBuffers.resize(framebuffers.size());
 		prepareResources();
 		prepareRenderPass();
@@ -136,20 +137,20 @@ public:
 	~VulkanTextOverlay()
 	{
 		// Free up all Vulkan resources requested by the text overlay
-		vkDestroySampler(device, sampler, nullptr);
-		vkDestroyImage(device, image, nullptr);
-		vkDestroyImageView(device, view, nullptr);
-		vkDestroyBuffer(device, buffer, nullptr);
-		vkFreeMemory(device, memory, nullptr);
-		vkFreeMemory(device, imageMemory, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyPipelineCache(device, pipelineCache, nullptr);
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyRenderPass(device, renderPass, nullptr);
-		vkFreeCommandBuffers(device, commandPool, cmdBuffers.size(), cmdBuffers.data());
-		vkDestroyCommandPool(device, commandPool, nullptr);
+		device.destroySampler(sampler, nullptr);
+		device.destroyImage(image, nullptr);
+		device.destroyImageView(view, nullptr);
+		device.destroyBuffer(buffer, nullptr);
+		device.freeMemory(memory, nullptr);
+		device.freeMemory(imageMemory, nullptr);
+		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyDescriptorPool(descriptorPool, nullptr);
+		device.destroyPipelineLayout(pipelineLayout, nullptr);
+		device.destroyPipelineCache(pipelineCache, nullptr);
+		device.destroyPipeline(pipeline, nullptr);
+		device.destroyRenderPass(renderPass, nullptr);
+		device.freeCommandBuffers(commandPool, cmdBuffers.size(), cmdBuffers.data());
+		device.destroyCommandPool(commandPool, nullptr);
 	}
 
 	// Prepare all vulkan resources required to render the font
@@ -162,304 +163,295 @@ public:
 		// Command buffer
 
 		// Pool
-		VkCommandPoolCreateInfo cmdPoolInfo = {};
-		cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		vk::CommandPoolCreateInfo cmdPoolInfo = {};
+		cmdPoolInfo.sType = vk::StructureType::eCommandPoolCreateInfo;
 		cmdPoolInfo.queueFamilyIndex = 0; // todo : pass from example base / swap chain
-		cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-		VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &commandPool));
+		cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+		commandPool = device.createCommandPool(cmdPoolInfo, nullptr);
 
-		VkCommandBufferAllocateInfo cmdBufAllocateInfo =
+		vk::CommandBufferAllocateInfo cmdBufAllocateInfo =
 			vkTools::initializers::commandBufferAllocateInfo(
 				commandPool,
-				VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+				vk::CommandBufferLevel::ePrimary,
 				(uint32_t)cmdBuffers.size());
 
-		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, cmdBuffers.data()));
+		cmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
 
 		// Vertex buffer
-		VkDeviceSize bufferSize = MAX_CHAR_COUNT * sizeof(glm::vec4);
+		vk::DeviceSize bufferSize = MAX_CHAR_COUNT * sizeof(glm::vec4);
 
-		VkBufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, bufferSize);
-		VK_CHECK_RESULT(vkCreateBuffer(device, &bufferInfo, nullptr, &buffer));
+		vk::BufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eVertexBuffer, bufferSize);
+		buffer = device.createBuffer(bufferInfo, nullptr);
 
-		VkMemoryRequirements memReqs;
-		VkMemoryAllocateInfo allocInfo = vkTools::initializers::memoryAllocateInfo();
+		vk::MemoryRequirements memReqs;
+		vk::MemoryAllocateInfo allocInfo = vkTools::initializers::memoryAllocateInfo();
 
-		vkGetBufferMemoryRequirements(device, buffer, &memReqs);
+		memReqs = device.getBufferMemoryRequirements(buffer);
 		allocInfo.allocationSize = memReqs.size;
-		allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
 
-		VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &memory));
-		VK_CHECK_RESULT(vkBindBufferMemory(device, buffer, memory, 0));
+		memory = device.allocateMemory(allocInfo, nullptr);
+		device.bindBufferMemory(buffer, memory, 0);
 
 		// Font texture
-		VkImageCreateInfo imageInfo = vkTools::initializers::imageCreateInfo();
-		imageInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageInfo.format = VK_FORMAT_R8_UNORM;
+		vk::ImageCreateInfo imageInfo = vkTools::initializers::imageCreateInfo();
+		imageInfo.imageType = vk::ImageType::e2D;
+		imageInfo.format = vk::Format::eR8Unorm;
 		imageInfo.extent.width = STB_FONT_WIDTH;
 		imageInfo.extent.height = STB_FONT_HEIGHT;
 		imageInfo.extent.depth = 1;
 		imageInfo.mipLevels = 1;
 		imageInfo.arrayLayers = 1;
-		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		imageInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+		imageInfo.samples = vk::SampleCountFlagBits::e1;
+		imageInfo.tiling = vk::ImageTiling::eOptimal;
+		imageInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+		imageInfo.sharingMode = vk::SharingMode::eExclusive;
+		imageInfo.initialLayout = vk::ImageLayout::ePreinitialized;
 
-		VK_CHECK_RESULT(vkCreateImage(device, &imageInfo, nullptr, &image));
+		image = device.createImage(imageInfo, nullptr);
 
 		allocInfo.allocationSize = STB_FONT_WIDTH * STB_NUM_CHARS;
-		allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-		VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, image, imageMemory, 0));
+		imageMemory = device.allocateMemory(allocInfo, nullptr);
+		device.bindImageMemory(image, imageMemory, 0);
 
 		// Staging
 
 		struct {
-			VkDeviceMemory memory;
-			VkBuffer buffer;
+			vk::DeviceMemory memory;
+			vk::Buffer buffer;
 		} stagingBuffer;
 
-		VkBufferCreateInfo bufferCreateInfo = vkTools::initializers::bufferCreateInfo();
+		vk::BufferCreateInfo bufferCreateInfo = vkTools::initializers::bufferCreateInfo();
 		bufferCreateInfo.size = allocInfo.allocationSize;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		bufferCreateInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
+		bufferCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 
-		VK_CHECK_RESULT(vkCreateBuffer(device, &bufferCreateInfo, nullptr, &stagingBuffer.buffer));
+		stagingBuffer.buffer = device.createBuffer(bufferCreateInfo, nullptr);
 
 		// Get memory requirements for the staging buffer (alignment, memory type bits)
-		vkGetBufferMemoryRequirements(device, stagingBuffer.buffer, &memReqs);
+		memReqs = device.getBufferMemoryRequirements(stagingBuffer.buffer);
 
 		allocInfo.allocationSize = memReqs.size;
 		// Get memory type index for a host visible buffer
-		allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
 
-		VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &stagingBuffer.memory));
-		VK_CHECK_RESULT(vkBindBufferMemory(device, stagingBuffer.buffer, stagingBuffer.memory, 0));
+		stagingBuffer.memory = device.allocateMemory(allocInfo, nullptr);
+		device.bindBufferMemory(stagingBuffer.buffer, stagingBuffer.memory, 0);
 
-		uint8_t *data;
-		VK_CHECK_RESULT(vkMapMemory(device, stagingBuffer.memory, 0, allocInfo.allocationSize, 0, (void **)&data));
+		void *data = device.mapMemory(stagingBuffer.memory, 0, allocInfo.allocationSize, vk::MemoryMapFlags());
 		memcpy(data, &font24pixels[0][0], STB_FONT_WIDTH * STB_FONT_HEIGHT);
-		vkUnmapMemory(device, stagingBuffer.memory);
+		device.unmapMemory(stagingBuffer.memory);
 
 		// Copy to image
 
-		VkCommandBuffer copyCmd;
+		vk::CommandBuffer copyCmd;
 		cmdBufAllocateInfo.commandBufferCount = 1;
-		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &copyCmd));
+		copyCmd = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
 
-		VkCommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
-		VK_CHECK_RESULT(vkBeginCommandBuffer(copyCmd, &cmdBufInfo));
+		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		copyCmd.begin(cmdBufInfo);
 
 		// Prepare for transfer
 		vkTools::setImageLayout(
 			copyCmd,
 			image,
-			VK_IMAGE_ASPECT_COLOR_BIT,
-			VK_IMAGE_LAYOUT_PREINITIALIZED,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+			vk::ImageAspectFlagBits::eColor,
+			vk::ImageLayout::ePreinitialized,
+			vk::ImageLayout::eTransferDstOptimal);
 
-		VkBufferImageCopy bufferCopyRegion = {};
-		bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		vk::BufferImageCopy bufferCopyRegion = {};
+		bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 		bufferCopyRegion.imageSubresource.mipLevel = 0;
 		bufferCopyRegion.imageSubresource.layerCount = 1;
 		bufferCopyRegion.imageExtent.width = STB_FONT_WIDTH;
 		bufferCopyRegion.imageExtent.height = STB_FONT_HEIGHT;
 		bufferCopyRegion.imageExtent.depth = 1;
 
-		vkCmdCopyBufferToImage(
-			copyCmd,
-			stagingBuffer.buffer,
-			image,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			1,
-			&bufferCopyRegion
-			);
+		copyCmd.copyBufferToImage(stagingBuffer.buffer, image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegion);
 
 		// Prepare for shader read
 		vkTools::setImageLayout(
 			copyCmd,
 			image,
-			VK_IMAGE_ASPECT_COLOR_BIT,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			vk::ImageAspectFlagBits::eColor,
+			vk::ImageLayout::eTransferDstOptimal,
+			vk::ImageLayout::eShaderReadOnlyOptimal);
 
-		VK_CHECK_RESULT(vkEndCommandBuffer(copyCmd));
+		copyCmd.end();
 
-		VkSubmitInfo submitInfo = vkTools::initializers::submitInfo();
+		vk::SubmitInfo submitInfo = vkTools::initializers::submitInfo();
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &copyCmd;
 
-		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-		VK_CHECK_RESULT(vkQueueWaitIdle(queue));
+		queue.submit(submitInfo, VK_NULL_HANDLE);
+		queue.waitIdle();
 
-		vkFreeCommandBuffers(device, commandPool, 1, &copyCmd);
-		vkFreeMemory(device, stagingBuffer.memory, nullptr);
-		vkDestroyBuffer(device, stagingBuffer.buffer, nullptr);
+		device.freeCommandBuffers(commandPool, copyCmd);
+		device.freeMemory(stagingBuffer.memory, nullptr);
+		device.destroyBuffer(stagingBuffer.buffer, nullptr);
 
 
-		VkImageViewCreateInfo imageViewInfo = vkTools::initializers::imageViewCreateInfo();
+		vk::ImageViewCreateInfo imageViewInfo = vkTools::initializers::imageViewCreateInfo();
 		imageViewInfo.image = image;
-		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewInfo.viewType = vk::ImageViewType::e2D;
 		imageViewInfo.format = imageInfo.format;
-		imageViewInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,	VK_COMPONENT_SWIZZLE_A };
-		imageViewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		imageViewInfo.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB,	vk::ComponentSwizzle::eA };
+		imageViewInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 
-		VK_CHECK_RESULT(vkCreateImageView(device, &imageViewInfo, nullptr, &view));
+		view = device.createImageView(imageViewInfo, nullptr);
 
 		// Sampler
-		VkSamplerCreateInfo samplerInfo = vkTools::initializers::samplerCreateInfo();
-		samplerInfo.magFilter = VK_FILTER_LINEAR;
-		samplerInfo.minFilter = VK_FILTER_LINEAR;
-		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		vk::SamplerCreateInfo samplerInfo = vkTools::initializers::samplerCreateInfo();
+		samplerInfo.magFilter = vk::Filter::eLinear;
+		samplerInfo.minFilter = vk::Filter::eLinear;
+		samplerInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
+		samplerInfo.addressModeU = vk::SamplerAddressMode::eRepeat;
+		samplerInfo.addressModeV = vk::SamplerAddressMode::eRepeat;
+		samplerInfo.addressModeW = vk::SamplerAddressMode::eRepeat;
 		samplerInfo.mipLodBias = 0.0f;
-		samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
+		samplerInfo.compareOp = vk::CompareOp::eNever;
 		samplerInfo.minLod = 0.0f;
 		samplerInfo.maxLod = 1.0f;
-		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device, &samplerInfo, nullptr, &sampler));
+		samplerInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
+		sampler = device.createSampler(samplerInfo, nullptr);
 
 		// Descriptor
 		// Font uses a separate descriptor pool
-		std::array<VkDescriptorPoolSize, 1> poolSizes;
-		poolSizes[0] = vkTools::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1);
+		std::array<vk::DescriptorPoolSize, 1> poolSizes;
+		poolSizes[0] = vkTools::initializers::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 1);
 
-		VkDescriptorPoolCreateInfo descriptorPoolInfo =
+		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
 			vkTools::initializers::descriptorPoolCreateInfo(
 				poolSizes.size(),
 				poolSizes.data(),
 				1);
 
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
 
 		// Descriptor set layout
-		std::array<VkDescriptorSetLayoutBinding, 1> setLayoutBindings;
-		setLayoutBindings[0] = vkTools::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+		std::array<vk::DescriptorSetLayoutBinding, 1> setLayoutBindings;
+		setLayoutBindings[0] = vkTools::initializers::descriptorSetLayoutBinding(vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 0);
 
-		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo =
+		vk::DescriptorSetLayoutCreateInfo descriptorSetLayoutInfo =
 			vkTools::initializers::descriptorSetLayoutCreateInfo(
 				setLayoutBindings.data(),
 				setLayoutBindings.size());
 
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutInfo, nullptr, &descriptorSetLayout));
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorSetLayoutInfo, nullptr);
 
 		// Pipeline layout
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo =
+		vk::PipelineLayoutCreateInfo pipelineLayoutInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(
 				&descriptorSetLayout,
 				1);
 
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+		pipelineLayout = device.createPipelineLayout(pipelineLayoutInfo, nullptr);
 
 		// Descriptor set
-		VkDescriptorSetAllocateInfo descriptorSetAllocInfo =
+		vk::DescriptorSetAllocateInfo descriptorSetAllocInfo =
 			vkTools::initializers::descriptorSetAllocateInfo(
 				descriptorPool,
 				&descriptorSetLayout,
 				1);
 
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorSetAllocInfo, &descriptorSet));
+		descriptorSet = device.allocateDescriptorSets(descriptorSetAllocInfo)[0];
 
-		VkDescriptorImageInfo texDescriptor =
+		vk::DescriptorImageInfo texDescriptor =
 			vkTools::initializers::descriptorImageInfo(
 				sampler,
 				view,
-				VK_IMAGE_LAYOUT_GENERAL);
+				vk::ImageLayout::eGeneral);
 
-		std::array<VkWriteDescriptorSet, 1> writeDescriptorSets;
-		writeDescriptorSets[0] = vkTools::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &texDescriptor);
-		vkUpdateDescriptorSets(device, writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+		std::array<vk::WriteDescriptorSet, 1> writeDescriptorSets;
+		writeDescriptorSets[0] = vkTools::initializers::writeDescriptorSet(descriptorSet, vk::DescriptorType::eCombinedImageSampler, 0, &texDescriptor);
+		device.updateDescriptorSets(writeDescriptorSets, nullptr);
 
 		// Pipeline cache
-		VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-		pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-		VK_CHECK_RESULT(vkCreatePipelineCache(device, &pipelineCacheCreateInfo, nullptr, &pipelineCache));
+		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+		pipelineCacheCreateInfo.sType = vk::StructureType::ePipelineCacheCreateInfo;
+		pipelineCache = device.createPipelineCache(pipelineCacheCreateInfo, nullptr);
 	}
 
 	// Prepare a separate pipeline for the font rendering decoupled from the main application
 	void preparePipeline()
 	{
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
-			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(
-				VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
-				0,
-				VK_FALSE);
+		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
+			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleStrip);
 
-		VkPipelineRasterizationStateCreateInfo rasterizationState =
+		vk::PipelineRasterizationStateCreateInfo rasterizationState =
 			vkTools::initializers::pipelineRasterizationStateCreateInfo(
-				VK_POLYGON_MODE_FILL,
-				VK_CULL_MODE_BACK_BIT,
-				VK_FRONT_FACE_CLOCKWISE,
-				0);
+				vk::PolygonMode::eFill,
+				vk::CullModeFlagBits::eBack,
+				vk::FrontFace::eClockwise);
 
 		// Enable blending
-		VkPipelineColorBlendAttachmentState blendAttachmentState =
-			vkTools::initializers::pipelineColorBlendAttachmentState(0xf, VK_TRUE);
+		vk::ColorComponentFlags allFlags(
+			vk::ColorComponentFlagBits::eR |
+			vk::ColorComponentFlagBits::eG |
+			vk::ColorComponentFlagBits::eB |
+			vk::ColorComponentFlagBits::eA);
 
-		blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		blendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-		blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-		blendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		vk::PipelineColorBlendAttachmentState blendAttachmentState =
+			vkTools::initializers::pipelineColorBlendAttachmentState(allFlags, VK_TRUE);
 
-		VkPipelineColorBlendStateCreateInfo colorBlendState =
+		blendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eOne;
+		blendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eOne;
+		blendAttachmentState.colorBlendOp = vk::BlendOp::eAdd;
+		blendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eOne;
+		blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eOne;
+		blendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
+		blendAttachmentState.colorWriteMask = allFlags;
+
+		vk::PipelineColorBlendStateCreateInfo colorBlendState =
 			vkTools::initializers::pipelineColorBlendStateCreateInfo(
 				1,
 				&blendAttachmentState);
 
-		VkPipelineDepthStencilStateCreateInfo depthStencilState =
+		vk::PipelineDepthStencilStateCreateInfo depthStencilState =
 			vkTools::initializers::pipelineDepthStencilStateCreateInfo(
 				VK_FALSE,
 				VK_FALSE,
-				VK_COMPARE_OP_LESS_OR_EQUAL);
+				vk::CompareOp::eLessOrEqual);
 
-		VkPipelineViewportStateCreateInfo viewportState =
-			vkTools::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
+		vk::PipelineViewportStateCreateInfo viewportState =
+			vkTools::initializers::pipelineViewportStateCreateInfo(1, 1);
 
-		VkPipelineMultisampleStateCreateInfo multisampleState =
+		vk::PipelineMultisampleStateCreateInfo multisampleState =
 			vkTools::initializers::pipelineMultisampleStateCreateInfo(
-				VK_SAMPLE_COUNT_1_BIT,
-				0);
+				vk::SampleCountFlagBits::e1);
 
-		std::vector<VkDynamicState> dynamicStateEnables = {
-			VK_DYNAMIC_STATE_VIEWPORT,
-			VK_DYNAMIC_STATE_SCISSOR
+		std::vector<vk::DynamicState> dynamicStateEnables = {
+			vk::DynamicState::eViewport,
+			vk::DynamicState::eScissor
 		};
 
-		VkPipelineDynamicStateCreateInfo dynamicState =
+		vk::PipelineDynamicStateCreateInfo dynamicState =
 			vkTools::initializers::pipelineDynamicStateCreateInfo(
 				dynamicStateEnables.data(),
-				dynamicStateEnables.size(),
-				0);
+				dynamicStateEnables.size());
 
-		std::array<VkVertexInputBindingDescription, 2> vertexBindings = {};
-		vertexBindings[0] = vkTools::initializers::vertexInputBindingDescription(0, sizeof(glm::vec4), VK_VERTEX_INPUT_RATE_VERTEX);
-		vertexBindings[1] = vkTools::initializers::vertexInputBindingDescription(1, sizeof(glm::vec4), VK_VERTEX_INPUT_RATE_VERTEX);
+		std::array<vk::VertexInputBindingDescription, 2> vertexBindings = {};
+		vertexBindings[0] = vkTools::initializers::vertexInputBindingDescription(0, sizeof(glm::vec4), vk::VertexInputRate::eVertex);
+		vertexBindings[1] = vkTools::initializers::vertexInputBindingDescription(1, sizeof(glm::vec4), vk::VertexInputRate::eVertex);
 
-		std::array<VkVertexInputAttributeDescription, 2> vertexAttribs = {};
+		std::array<vk::VertexInputAttributeDescription, 2> vertexAttribs = {};
 		// Position
-		vertexAttribs[0] = vkTools::initializers::vertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32_SFLOAT, 0);
+		vertexAttribs[0] = vkTools::initializers::vertexInputAttributeDescription(0, 0, vk::Format::eR32G32Sfloat, 0);
 		// UV
-		vertexAttribs[1] = vkTools::initializers::vertexInputAttributeDescription(1, 1, VK_FORMAT_R32G32_SFLOAT, sizeof(glm::vec2));
+		vertexAttribs[1] = vkTools::initializers::vertexInputAttributeDescription(1, 1, vk::Format::eR32G32Sfloat, sizeof(glm::vec2));
 
-		VkPipelineVertexInputStateCreateInfo inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
+		vk::PipelineVertexInputStateCreateInfo inputState = vkTools::initializers::pipelineVertexInputStateCreateInfo();
 		inputState.vertexBindingDescriptionCount = vertexBindings.size();
 		inputState.pVertexBindingDescriptions = vertexBindings.data();
 		inputState.vertexAttributeDescriptionCount = vertexAttribs.size();
 		inputState.pVertexAttributeDescriptions = vertexAttribs.data();
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo =
+		vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
 			vkTools::initializers::pipelineCreateInfo(
 				pipelineLayout,
-				renderPass,
-				0);
+				renderPass);
 
 		pipelineCreateInfo.pVertexInputState = &inputState;
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -472,46 +464,45 @@ public:
 		pipelineCreateInfo.stageCount = shaderStages.size();
 		pipelineCreateInfo.pStages = shaderStages.data();
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipeline));
+		pipeline = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
 	}
 
 	// Prepare a separate render pass for rendering the text as an overlay
 	void prepareRenderPass()
 	{
-		VkAttachmentDescription attachments[2] = {};
+		vk::AttachmentDescription attachments[2] = {};
 
 		// Color attachment
 		attachments[0].format = colorFormat;
-		attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+		attachments[0].samples = vk::SampleCountFlagBits::e1;
 		// Don't clear the framebuffer (like the renderpass from the example does)
-		attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachments[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		attachments[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		attachments[0].loadOp = vk::AttachmentLoadOp::eLoad;
+		attachments[0].storeOp = vk::AttachmentStoreOp::eStore;
+		attachments[0].stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+		attachments[0].stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+		attachments[0].initialLayout = vk::ImageLayout::eColorAttachmentOptimal;
+		attachments[0].finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
 
 		// Depth attachment
 		attachments[1].format = depthFormat;
-		attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
-		attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachments[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		attachments[1].samples = vk::SampleCountFlagBits::e1;
+		attachments[1].loadOp = vk::AttachmentLoadOp::eDontCare;
+		attachments[1].storeOp = vk::AttachmentStoreOp::eDontCare;
+		attachments[1].stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+		attachments[1].stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+		attachments[1].initialLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+		attachments[1].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		VkAttachmentReference colorReference = {};
+		vk::AttachmentReference colorReference = {};
 		colorReference.attachment = 0;
-		colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
-		VkAttachmentReference depthReference = {};
+		vk::AttachmentReference depthReference = {};
 		depthReference.attachment = 1;
-		depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		VkSubpassDescription subpass = {};
-		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpass.flags = 0;
+		vk::SubpassDescription subpass = {};
+		subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
 		subpass.inputAttachmentCount = 0;
 		subpass.pInputAttachments = NULL;
 		subpass.colorAttachmentCount = 1;
@@ -521,9 +512,7 @@ public:
 		subpass.preserveAttachmentCount = 0;
 		subpass.pPreserveAttachments = NULL;
 
-		VkRenderPassCreateInfo renderPassInfo = {};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.pNext = NULL;
+		vk::RenderPassCreateInfo renderPassInfo = {};
 		renderPassInfo.attachmentCount = 2;
 		renderPassInfo.pAttachments = attachments;
 		renderPassInfo.subpassCount = 1;
@@ -531,13 +520,13 @@ public:
 		renderPassInfo.dependencyCount = 0;
 		renderPassInfo.pDependencies = NULL;
 
-		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
+		renderPass = device.createRenderPass(renderPassInfo, nullptr);
 	}
 
 	// Map buffer 
 	void beginTextUpdate()
 	{
-		VK_CHECK_RESULT(vkMapMemory(device, memory, 0, VK_WHOLE_SIZE, 0, (void **)&mapped));
+		mapped = (glm::vec4*)device.mapMemory(memory, 0, VK_WHOLE_SIZE, vk::MemoryMapFlags());
 		numLetters = 0;
 	}
 
@@ -613,7 +602,7 @@ public:
 	// Unmap buffer and update command buffers
 	void endTextUpdate()
 	{
-		vkUnmapMemory(device, memory);
+		device.unmapMemory(memory);
 		mapped = nullptr;
 		updateCommandBuffers();
 	}
@@ -621,12 +610,12 @@ public:
 	// Needs to be called by the application
 	void updateCommandBuffers()
 	{
-		VkCommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+		vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
 
-		VkClearValue clearValues[1];
-		clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
+		vk::ClearValue clearValues[1];
+		clearValues[0].color = { std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 0.0f } };
 
-		VkRenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
+		vk::RenderPassBeginInfo renderPassBeginInfo = vkTools::initializers::renderPassBeginInfo();
 		renderPassBeginInfo.renderPass = renderPass;
 		renderPassBeginInfo.renderArea.extent.width = *frameBufferWidth;
 		renderPassBeginInfo.renderArea.extent.height = *frameBufferHeight;
@@ -637,45 +626,45 @@ public:
 		{
 			renderPassBeginInfo.framebuffer = *frameBuffers[i];
 
-			VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffers[i], &cmdBufInfo));
+			cmdBuffers[i].begin(cmdBufInfo);
 
 			if (vkDebug::DebugMarker::active)
 			{
 				vkDebug::DebugMarker::beginRegion(cmdBuffers[i], "Text overlay", glm::vec4(1.0f, 0.94f, 0.3f, 1.0f));
 			}
 
-			vkCmdBeginRenderPass(cmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			cmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
-			VkViewport viewport = vkTools::initializers::viewport((float)*frameBufferWidth, (float)*frameBufferHeight, 0.0f, 1.0f);
-			vkCmdSetViewport(cmdBuffers[i], 0, 1, &viewport);
+			vk::Viewport viewport = vkTools::initializers::viewport((float)*frameBufferWidth, (float)*frameBufferHeight, 0.0f, 1.0f);
+			cmdBuffers[i].setViewport(0, viewport);
 
-			VkRect2D scissor = vkTools::initializers::rect2D(*frameBufferWidth, *frameBufferHeight, 0, 0);
-			vkCmdSetScissor(cmdBuffers[i], 0, 1, &scissor);
+			vk::Rect2D scissor = vkTools::initializers::rect2D(*frameBufferWidth, *frameBufferHeight, 0, 0);
+			cmdBuffers[i].setScissor(0, scissor);
 			
-			vkCmdBindPipeline(cmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-			vkCmdBindDescriptorSets(cmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
+			cmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+			cmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
-			VkDeviceSize offsets = 0;
-			vkCmdBindVertexBuffers(cmdBuffers[i], 0, 1, &buffer, &offsets);
-			vkCmdBindVertexBuffers(cmdBuffers[i], 1, 1, &buffer, &offsets);
+			vk::DeviceSize offsets = 0;
+			cmdBuffers[i].bindVertexBuffers(0, buffer, offsets);
+			cmdBuffers[i].bindVertexBuffers(1, buffer, offsets);
 			for (uint32_t j = 0; j < numLetters; j++)
 			{
-				vkCmdDraw(cmdBuffers[i], 4, 1, j * 4, 0);
+				cmdBuffers[i].draw(4, 1, j * 4, 0);
 			}
 
-			vkCmdEndRenderPass(cmdBuffers[i]);
+			cmdBuffers[i].endRenderPass();
 
 			if (vkDebug::DebugMarker::active)
 			{
 				vkDebug::DebugMarker::endRegion(cmdBuffers[i]);
 			}
 
-			VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffers[i]));
+			cmdBuffers[i].end();
 		}
 	}
 
 	// Submit the text command buffers to a queue
-	void submit(VkQueue queue, uint32_t bufferindex, VkSubmitInfo submitInfo)
+	void submit(vk::Queue queue, uint32_t bufferindex, vk::SubmitInfo submitInfo)
 	{
 		if (!visible)
 		{
@@ -685,20 +674,20 @@ public:
 		submitInfo.pCommandBuffers = &cmdBuffers[bufferindex];
 		submitInfo.commandBufferCount = 1;
 
-		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+		queue.submit(submitInfo, VK_NULL_HANDLE);
 	}
 
 	void reallocateCommandBuffers()
 	{
-		vkFreeCommandBuffers(device, commandPool, cmdBuffers.size(), cmdBuffers.data());
+		device.freeCommandBuffers(commandPool, cmdBuffers.size(), cmdBuffers.data());
 
-		VkCommandBufferAllocateInfo cmdBufAllocateInfo =
+		vk::CommandBufferAllocateInfo cmdBufAllocateInfo =
 			vkTools::initializers::commandBufferAllocateInfo(
 				commandPool,
-				VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+				vk::CommandBufferLevel::ePrimary,
 				(uint32_t)cmdBuffers.size());
 
-		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, cmdBuffers.data()));
+		cmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
 	}
 
 };
