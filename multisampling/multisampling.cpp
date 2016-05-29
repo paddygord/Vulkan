@@ -407,7 +407,7 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		vkTools::checkResult(swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer));
+		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
 
 		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
 
@@ -420,7 +420,7 @@ public:
 
 		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
 
-		vkTools::checkResult(swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete));
+		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
 
 		queue.waitIdle();
 	}

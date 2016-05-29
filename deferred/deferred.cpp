@@ -384,9 +384,7 @@ public:
 		// Depth attachment
 
 		// Find a suitable depth format
-		vk::Format attDepthFormat;
-		vk::Bool32 validDepthFormat = vkTools::getSupportedDepthFormat(physicalDevice, &attDepthFormat);
-		assert(validDepthFormat);
+		vk::Format attDepthFormat  = vkTools::getSupportedDepthFormat(physicalDevice);;
 
 		createAttachment(
 			attDepthFormat,

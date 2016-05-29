@@ -154,8 +154,6 @@ public:
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
 
-		vk::Result err;
-
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
 			// Set target frame buffer
@@ -358,8 +356,6 @@ public:
 
 	void preparePipelines()
 	{
-		vk::Result err;
-
 		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
 			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::ePatchList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
 

@@ -11,15 +11,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\base\vulkandebug.cpp" />
-    <ClCompile Include="..\base\vulkanexamplebase.cpp" />
-    <ClCompile Include="..\base\vulkantools.cpp" />
     <ClCompile Include="parallaxmapping.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\base\vulkandebug.h" />
-    <ClInclude Include="..\base\vulkanexamplebase.h" />
-    <ClInclude Include="..\base\vulkantools.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3DB08441-72C9-4172-8BA9-ECEE032387BA}</ProjectGuid>

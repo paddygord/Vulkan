@@ -39,23 +39,7 @@ namespace vkTools
 		return false;
 	}
 
-	std::string errorString(vk::Result errorCode)
-	{
-		return vk::to_string(errorCode);
-	}
-
-	vk::Result checkResult(vk::Result result)
-	{
-		if (result != vk::Result::eSuccess)
-		{
-			std::string errorMsg = "Fatal : vk::Result returned " + errorString(result) + "!";
-			std::cout << errorMsg << std::endl;
-			assert(result == vk::Result::eSuccess);
-		}
-		return result;
-	}
-
-	vk::Bool32 getSupportedDepthFormat(vk::PhysicalDevice physicalDevice, vk::Format *depthFormat)
+	vk::Format getSupportedDepthFormat(vk::PhysicalDevice physicalDevice)
 	{
 		// Since all depth formats may be optional, we need to find a suitable depth format to use
 		// Start with the highest precision packed format
@@ -74,12 +58,11 @@ namespace vkTools
 			// Format must support depth stencil attachment for optimal tiling
 			if (formatProps.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment)
 			{
-				*depthFormat = format;
-				return true;
+				return format;
 			}
 		}
 
-		return false;
+		throw std::runtime_error("No supported depth format");
 	}
 
 	// Create an image memory barrier for changing the layout of
@@ -197,7 +180,6 @@ namespace vkTools
 	{
 		vk::ImageSubresourceRange subresourceRange;
 		subresourceRange.aspectMask = aspectMask;
-		subresourceRange.baseMipLevel = 0;
 		subresourceRange.levelCount = 1;
 		subresourceRange.layerCount = 1;
 		setImageLayout(cmdbuffer, image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);

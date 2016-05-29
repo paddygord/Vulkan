@@ -186,7 +186,6 @@ public:
 			renderPassBeginInfo.framebuffer = frameBuffers[i];
 
 			drawCmdBuffers[i].begin(cmdBufInfo);
-			
 
 			drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
@@ -409,22 +408,45 @@ public:
 		// Describes memory layout and shader positions
 		// Location 0 : Position
 		particles.attributeDescriptions.push_back(
-			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32A32Sfloat, 0));
+			vkTools::initializers::vertexInputAttributeDescription(
+				VERTEX_BUFFER_BIND_ID, 
+				0, 
+				vk::Format::eR32G32B32A32Sfloat, 
+				0));
 		// Location 1 : Color
 		particles.attributeDescriptions.push_back(
-			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32A32Sfloat, sizeof(float) * 4));
+			vkTools::initializers::vertexInputAttributeDescription(
+				VERTEX_BUFFER_BIND_ID, 
+				1, 
+				vk::Format::eR32G32B32A32Sfloat, 
+				sizeof(float) * 4));
 		// Location 2 : Alpha
 		particles.attributeDescriptions.push_back(
-			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32Sfloat, sizeof(float) * 8));
+			vkTools::initializers::vertexInputAttributeDescription(
+				VERTEX_BUFFER_BIND_ID, 
+				2, 
+				vk::Format::eR32Sfloat, 
+				sizeof(float) * 8));
 		// Location 3 : Size
 		particles.attributeDescriptions.push_back(
-			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32Sfloat, sizeof(float) * 9));
+			vkTools::initializers::vertexInputAttributeDescription(
+				VERTEX_BUFFER_BIND_ID, 
+				3, 
+				vk::Format::eR32Sfloat, 
+				sizeof(float) * 9));
 		// Location 4 : Rotation
 		particles.attributeDescriptions.push_back(
-			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 4, vk::Format::eR32Sfloat, sizeof(float) * 10));
+			vkTools::initializers::vertexInputAttributeDescription(
+				VERTEX_BUFFER_BIND_ID, 
+				4, 
+				vk::Format::eR32Sfloat, 
+				sizeof(float) * 10));
 		// Location 5 : Type
 		particles.attributeDescriptions.push_back(
-			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 5, vk::Format::eR32Sint, sizeof(float) * 11));
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 
+				5, 
+				vk::Format::eR32Sint, 
+				sizeof(float) * 11));
 
 		particles.inputState = vk::PipelineVertexInputStateCreateInfo();
 		particles.inputState.vertexBindingDescriptionCount = particles.bindingDescriptions.size();

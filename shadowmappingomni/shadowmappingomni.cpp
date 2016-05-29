@@ -176,8 +176,6 @@ public:
 
 	void prepareCubeMap()
 	{
-		vk::Result err;
-
 		shadowCubeMap.width = TEX_DIM;
 		shadowCubeMap.height = TEX_DIM;
 		
@@ -296,11 +294,7 @@ public:
 		vk::Format fbColorFormat = FB_COLOR_FORMAT;
 
 		// Find a suitable depth format
-		vk::Format fbDepthFormat;
-		vk::Bool32 validDepthFormat = vkTools::getSupportedDepthFormat(physicalDevice, &fbDepthFormat);
-		assert(validDepthFormat);
-
-		vk::Result err;
+		vk::Format fbDepthFormat = vkTools::getSupportedDepthFormat(physicalDevice);
 
 		createSetupCommandBuffer();
 
@@ -513,8 +507,6 @@ public:
 	// Command buffer for rendering and copying all cube map faces
 	void buildOffscreenCommandBuffer()
 	{
-		vk::Result err;
-
 		// Create separate command buffer for offscreen 
 		// rendering
 		if (!offScreenCmdBuffer)
@@ -594,8 +586,6 @@ public:
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
 
-		vk::Result err;
-
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
 			renderPassBeginInfo.framebuffer = frameBuffers[i];
@@ -639,8 +629,6 @@ public:
 
 	void draw()
 	{
-		vk::Result err;
-
 		// Get next image in the swap chain (back/front buffer)
 		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
 		

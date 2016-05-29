@@ -11,17 +11,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\base\vulkandebug.cpp" />
-    <ClCompile Include="..\base\vulkanexamplebase.cpp" />
-    <ClCompile Include="..\base\vulkantools.cpp" />
     <ClCompile Include="multithreading.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\base\frustum.hpp" />
     <ClInclude Include="..\base\threadpool.hpp" />
-    <ClInclude Include="..\base\vulkandebug.h" />
-    <ClInclude Include="..\base\vulkanexamplebase.h" />
-    <ClInclude Include="..\base\vulkantools.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{F5703C3C-F495-4D5C-BAA5-A90C4E20C7B7}</ProjectGuid>

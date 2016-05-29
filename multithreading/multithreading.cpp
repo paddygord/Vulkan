@@ -443,7 +443,7 @@ public:
 
                 void draw()
                 {
-                                VulkanExampleBase::prepareFrame();
+                                prepareFrame();
 
                                 updateCommandBuffers(frameBuffers[currentBuffer]);
 
@@ -460,11 +460,10 @@ public:
                                 } while (fenceRes == vk::Result::eTimeout);
                                 vkTools::checkResult(fenceRes);
                                 VK_CHECK_RESULT(fenceRes);
-                                vkResetFences(device, 1, &renderFence);
+                                device.resetFences(renderFence);
 
-                                VulkanExampleBase::submitFrame();
+                                submitFrame();
                 }
-
 
 	void loadMeshes()
 	{

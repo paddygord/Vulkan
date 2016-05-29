@@ -6,6 +6,8 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
+#define BUILD_DEMO_LIB 1
+
 #include "vulkanexamplebase.h"
 
 void VulkanExampleBase::createInstance(bool enableValidation)
@@ -845,8 +847,7 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 	queue = device.getQueue(graphicsQueueIndex, 0);
 
 	// Find a suitable depth format
-	vk::Bool32 validDepthFormat = vkTools::getSupportedDepthFormat(physicalDevice, &depthFormat);
-	assert(validDepthFormat);
+	depthFormat = vkTools::getSupportedDepthFormat(physicalDevice);
 
 	swapChain.connect(instance, physicalDevice, device);
 

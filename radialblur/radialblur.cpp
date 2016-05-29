@@ -264,9 +264,7 @@ public:
 		vk::Format fbColorFormat = FB_COLOR_FORMAT;
 
 		// Find a suitable depth format
-		vk::Format fbDepthFormat;
-		vk::Bool32 validDepthFormat = vkTools::getSupportedDepthFormat(physicalDevice, &fbDepthFormat);
-		assert(validDepthFormat);
+		vk::Format fbDepthFormat  = vkTools::getSupportedDepthFormat(physicalDevice);
 
 		// Color attachment
 		vk::ImageCreateInfo image;

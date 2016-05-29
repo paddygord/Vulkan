@@ -41,7 +41,7 @@
 	vk::Result res = (f);																					\
 	if (res != vk::Result::eSuccess)																				\
 	{																									\
-		std::cout << "Fatal : vk::Result is \"" << vkTools::errorString(res) << "\" in " << __FILE__ << " at line " << __LINE__ << std::endl; \
+		std::cout << "Fatal : vk::Result is \"" << vk::to_string(res) << "\" in " << __FILE__ << " at line " << __LINE__ << std::endl; \
 		assert(res == vk::Result::eSuccess);																		\
 	}																									\
 }																										\
@@ -52,14 +52,9 @@ namespace vkTools
 	vk::Bool32 checkGlobalExtensionPresent(const char* extensionName);
 	// Check if extension is present on the given device
 	vk::Bool32 checkDeviceExtensionPresent(vk::PhysicalDevice physicalDevice, const char* extensionName);
-	// Return string representation of a vulkan error string
-	std::string errorString(vk::Result errorCode);
-	// Asserts and outputs the error message if the result is not vk::Result::eSuccess
-	vk::Result checkResult(vk::Result result);
-
 	// Selected a suitable supported depth format starting with 32 bit down to 16 bit
 	// Returns false if none of the depth formats in the list is supported by the device
-	vk::Bool32 getSupportedDepthFormat(vk::PhysicalDevice physicalDevice, vk::Format *depthFormat);
+	vk::Format getSupportedDepthFormat(vk::PhysicalDevice physicalDevice);
 
 	// Put an image memory barrier for setting an image layout on the sub resource into the given command buffer
 	void setImageLayout(
@@ -82,7 +77,7 @@ namespace vkTools
 	// Load a text file (e.g. GLGL shader) into a std::string
 	std::string readTextFile(const char *fileName);
 	// Load a binary file into a buffer (e.g. SPIR-V)
-	char *readBinaryFile(const char *filename, size_t *psize);
+	void readBinaryFile(const char *filename, std::vector<uint8_t>& output);
 
 	// Load a SPIR-V shader
 #if defined(__ANDROID__)

@@ -9,6 +9,9 @@
 #pragma once
 
 #ifdef _WIN32
+#ifndef BUILD_DEMO_LIB
+#pragma comment(lib, "../bin/base.lib")
+#endif
 #pragma comment(linker, "/subsystem:windows")
 #include <windows.h>
 #include <fcntl.h>
