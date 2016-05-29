@@ -23,6 +23,7 @@
 #endif
 
 #include "vulkan/vulkan.h"
+#include "vulkantools.h"
 
 #include <assimp/Importer.hpp> 
 #include <assimp/scene.h>     
@@ -51,8 +52,8 @@ namespace vkMeshLoader
 
 	struct MeshBufferInfo 
 	{
-		VkBuffer buf = VK_NULL_HANDLE;
-		VkDeviceMemory mem = VK_NULL_HANDLE;
+		vk::Buffer buf;
+		vk::DeviceMemory mem;
 		size_t size = 0;
 	};
 
@@ -90,22 +91,22 @@ namespace vkMeshLoader
 	public:
 		MeshBuffer buffers;
 
-		VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-		VkPipeline pipeline = VK_NULL_HANDLE;
-		VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+		vk::PipelineLayout pipelineLayout;
+		vk::Pipeline pipeline;
+		vk::DescriptorSet descriptorSet;
 
 		uint32_t vertexBufferBinding = 0;
 
-		VkPipelineVertexInputStateCreateInfo vertexInputState;
-		VkVertexInputBindingDescription bindingDescription;
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+		vk::PipelineVertexInputStateCreateInfo vertexInputState;
+		vk::VertexInputBindingDescription bindingDescription;
+		std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
 
 		void setupVertexInputState(std::vector<vkMeshLoader::VertexLayout> layout)
 		{
 			bindingDescription = vkTools::initializers::vertexInputBindingDescription(
 				vertexBufferBinding,
 				vertexSize(layout),
-				VK_VERTEX_INPUT_RATE_VERTEX);
+				vk::VertexInputRate::eVertex);
 
 			attributeDescriptions.clear();
 			uint32_t offset = 0;
@@ -113,7 +114,7 @@ namespace vkMeshLoader
 			for (auto& layoutDetail : layout)
 			{
 				// Format (layout)
-				VkFormat format = (layoutDetail == VERTEX_LAYOUT_UV) ? VK_FORMAT_R32G32_SFLOAT : VK_FORMAT_R32G32B32_SFLOAT;
+				vk::Format format = (layoutDetail == VERTEX_LAYOUT_UV) ? vk::Format::eR32G32Sfloat : vk::Format::eR32G32B32Sfloat;
 
 				attributeDescriptions.push_back(
 					vkTools::initializers::vertexInputAttributeDescription(
@@ -134,31 +135,30 @@ namespace vkMeshLoader
 			vertexInputState.pVertexAttributeDescriptions = attributeDescriptions.data();
 		}
 
-		void drawIndexed(VkCommandBuffer cmdBuffer)
+		void drawIndexed(vk::CommandBuffer cmdBuffer)
 		{
-			VkDeviceSize offsets[1] = { 0 };
-			if (pipeline != VK_NULL_HANDLE)
+			if (pipeline)
 			{
-				vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+				cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 			}
-			if ((pipelineLayout != VK_NULL_HANDLE) && (descriptorSet != VK_NULL_HANDLE))
+			if ((pipelineLayout) && (descriptorSet))
 			{
-				vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
+				cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 			}
-			vkCmdBindVertexBuffers(cmdBuffer, vertexBufferBinding, 1, &buffers.vertices.buf, offsets);
-			vkCmdBindIndexBuffer(cmdBuffer, buffers.indices.buf, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(cmdBuffer, buffers.indexCount, 1, 0, 0, 0);
+			cmdBuffer.bindVertexBuffers(vertexBufferBinding, buffers.vertices.buf, vk::DeviceSize());
+			cmdBuffer.bindIndexBuffer(buffers.indices.buf, 0, vk::IndexType::eUint32);
+			cmdBuffer.drawIndexed(buffers.indexCount, 1, 0, 0, 0);
 		}
 	};
 
-	static void freeMeshBufferResources(VkDevice device, vkMeshLoader::MeshBuffer *meshBuffer)
+	static void freeMeshBufferResources(vk::Device device, vkMeshLoader::MeshBuffer *meshBuffer)
 	{
-		vkDestroyBuffer(device, meshBuffer->vertices.buf, nullptr);
-		vkFreeMemory(device, meshBuffer->vertices.mem, nullptr);
-		if (meshBuffer->indices.buf != VK_NULL_HANDLE)
+		device.destroyBuffer(meshBuffer->vertices.buf, nullptr);
+		device.freeMemory(meshBuffer->vertices.mem, nullptr);
+		if (meshBuffer->indices.buf)
 		{
-			vkDestroyBuffer(device, meshBuffer->indices.buf, nullptr);
-			vkFreeMemory(device, meshBuffer->indices.mem, nullptr);
+			device.destroyBuffer(meshBuffer->indices.buf, nullptr);
+			device.freeMemory(meshBuffer->indices.mem, nullptr);
 		}
 	}
 }
@@ -197,7 +197,7 @@ private:
 		std::vector<unsigned int> Indices;
 	};
 
-	VkBool32 getMemoryType(VkPhysicalDeviceMemoryProperties deviceMemoryProperties, uint32_t typeBits, VkMemoryPropertyFlags properties)
+	vk::Bool32 getMemoryType(vk::PhysicalDeviceMemoryProperties deviceMemoryProperties, uint32_t typeBits, vk::MemoryPropertyFlags properties)
 	{
 		for (uint32_t i = 0; i < 32; i++)
 		{
@@ -234,20 +234,20 @@ public:
 	// Optional
 	struct
 	{
-		VkBuffer buf;
-		VkDeviceMemory mem;
+		vk::Buffer buf;
+		vk::DeviceMemory mem;
 	} vertexBuffer;
 
 	struct {
-		VkBuffer buf;
-		VkDeviceMemory mem;
+		vk::Buffer buf;
+		vk::DeviceMemory mem;
 		uint32_t count;
 	} indexBuffer;
 
-	VkPipelineVertexInputStateCreateInfo vi;
-	std::vector<VkVertexInputBindingDescription> bindingDescriptions;
-	std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
-	VkPipeline pipeline;
+	vk::PipelineVertexInputStateCreateInfo vi;
+	std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
+	std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
+	vk::Pipeline pipeline;
 
 	Assimp::Importer Importer;
 	const aiScene* pScene;
@@ -380,48 +380,48 @@ public:
 	}
 
 	// Clean up vulkan resources used by a mesh
-	static void freeVulkanResources(VkDevice device, VulkanMeshLoader *mesh)
+	static void freeVulkanResources(vk::Device device, VulkanMeshLoader *mesh)
 	{
-		vkDestroyBuffer(device, mesh->vertexBuffer.buf, nullptr);
-		vkFreeMemory(device, mesh->vertexBuffer.mem, nullptr);
-		vkDestroyBuffer(device, mesh->indexBuffer.buf, nullptr);
-		vkFreeMemory(device, mesh->indexBuffer.mem, nullptr);
+		device.destroyBuffer(mesh->vertexBuffer.buf, nullptr);
+		device.freeMemory(mesh->vertexBuffer.mem, nullptr);
+		device.destroyBuffer(mesh->indexBuffer.buf, nullptr);
+		device.freeMemory(mesh->indexBuffer.mem, nullptr);
 	}
 
-	VkResult createBuffer(
-		VkDevice device, 
-		VkPhysicalDeviceMemoryProperties deviceMemoryProperties,
-		VkBufferUsageFlags usageFlags, 
-		VkMemoryPropertyFlags memoryPropertyFlags, 
-		VkDeviceSize size, 
-		VkBuffer *buffer, 
-		VkDeviceMemory *memory)
+	vk::Result createBuffer(
+		vk::Device device, 
+		vk::PhysicalDeviceMemoryProperties deviceMemoryProperties,
+		vk::BufferUsageFlags usageFlags, 
+		vk::MemoryPropertyFlags memoryPropertyFlags, 
+		vk::DeviceSize size, 
+		vk::Buffer &buffer, 
+		vk::DeviceMemory &memory)
 	{
-		VkMemoryAllocateInfo memAllocInfo = vkTools::initializers::memoryAllocateInfo();	
-		VkMemoryRequirements memReqs;
+		vk::MemoryAllocateInfo memAllocInfo = vkTools::initializers::memoryAllocateInfo();	
+		vk::MemoryRequirements memReqs;
 
-		VkBufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(usageFlags, size);
-		VK_CHECK_RESULT(vkCreateBuffer(device, &bufferInfo, nullptr, buffer));
-		vkGetBufferMemoryRequirements(device, *buffer, &memReqs);
+		vk::BufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(usageFlags, size);
+		buffer = device.createBuffer(bufferInfo, nullptr);
+		memReqs = device.getBufferMemoryRequirements(buffer);
 		memAllocInfo.allocationSize = memReqs.size;
 		memAllocInfo.memoryTypeIndex = getMemoryType(deviceMemoryProperties, memReqs.memoryTypeBits, memoryPropertyFlags);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, memory));
-		VK_CHECK_RESULT(vkBindBufferMemory(device, *buffer, *memory, 0));
+		memory = device.allocateMemory(memAllocInfo, nullptr);
+		device.bindBufferMemory(buffer, memory, 0);
 
-		return VK_SUCCESS;
+		return vk::Result::eSuccess;
 	}
 
 	// Create vertex and index buffer with given layout
 	// Note : Only does staging if a valid command buffer and transfer queue are passed
 	void createBuffers(
-		VkDevice device,
-		VkPhysicalDeviceMemoryProperties deviceMemoryProperties,
+		vk::Device device,
+		vk::PhysicalDeviceMemoryProperties deviceMemoryProperties,
 		vkMeshLoader::MeshBuffer *meshBuffer,
 		std::vector<vkMeshLoader::VertexLayout> layout,
 		float scale,
 		bool useStaging,
-		VkCommandBuffer copyCmd,
-		VkQueue copyQueue)
+		vk::CommandBuffer copyCmd,
+		vk::Queue copyQueue)
 	{
 		std::vector<float> vertexBuffer;
 		for (int m = 0; m < m_Entries.size(); m++)
@@ -509,99 +509,89 @@ public:
 		void* data;
 
 		// Use staging buffer to move vertex and index buffer to device local memory
-		if (useStaging && copyQueue != VK_NULL_HANDLE && copyCmd != VK_NULL_HANDLE)
+		if (useStaging && copyQueue && copyCmd)
 		{
 			// Create staging buffers
 			struct {
-				VkBuffer buffer;
-				VkDeviceMemory memory;
+				vk::Buffer buffer;
+				vk::DeviceMemory memory;
 			} vertexStaging, indexStaging;
 
 			// Vertex buffer
 			createBuffer(
 				device,
 				deviceMemoryProperties,
-				VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+				vk::BufferUsageFlagBits::eTransferSrc,
+				vk::MemoryPropertyFlagBits::eHostVisible,
 				meshBuffer->vertices.size,
-				&vertexStaging.buffer,
-				&vertexStaging.memory);
+				vertexStaging.buffer,
+				vertexStaging.memory);
 
-			VK_CHECK_RESULT(vkMapMemory(device, vertexStaging.memory, 0, VK_WHOLE_SIZE, 0, &data));
+			data = device.mapMemory(vertexStaging.memory, 0, VK_WHOLE_SIZE, vk::MemoryMapFlags());
 			memcpy(data, vertexBuffer.data(), meshBuffer->vertices.size);
-			vkUnmapMemory(device, vertexStaging.memory);
+			device.unmapMemory(vertexStaging.memory);
 
 			// Index buffer
 			createBuffer(
 				device,
 				deviceMemoryProperties,
-				VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+				vk::BufferUsageFlagBits::eTransferSrc,
+				vk::MemoryPropertyFlagBits::eHostVisible,
 				meshBuffer->indices.size,
-				&indexStaging.buffer,
-				&indexStaging.memory);
+				indexStaging.buffer,
+				indexStaging.memory);
 
-			VK_CHECK_RESULT(vkMapMemory(device, indexStaging.memory, 0, VK_WHOLE_SIZE, 0, &data));
+			data = device.mapMemory(indexStaging.memory, 0, VK_WHOLE_SIZE, vk::MemoryMapFlags());
 			memcpy(data, indexBuffer.data(), meshBuffer->indices.size);
-			vkUnmapMemory(device, indexStaging.memory);
+			device.unmapMemory(indexStaging.memory);
 
 			// Create device local target buffers
 			// Vertex buffer
 			createBuffer(
 				device,
 				deviceMemoryProperties,
-				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+				vk::MemoryPropertyFlagBits::eDeviceLocal,
 				meshBuffer->vertices.size,
-				&meshBuffer->vertices.buf,
-				&meshBuffer->vertices.mem);
+				meshBuffer->vertices.buf,
+				meshBuffer->vertices.mem);
 
 			// Index buffer
 			createBuffer(
 				device,
 				deviceMemoryProperties,
-				VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+				vk::MemoryPropertyFlagBits::eDeviceLocal,
 				meshBuffer->indices.size,
-				&meshBuffer->indices.buf,
-				&meshBuffer->indices.mem);
+				meshBuffer->indices.buf,
+				meshBuffer->indices.mem);
 
 			// Copy from staging buffers
-			VkCommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
-			VK_CHECK_RESULT(vkBeginCommandBuffer(copyCmd, &cmdBufInfo));
+			vk::CommandBufferBeginInfo cmdBufInfo = vkTools::initializers::commandBufferBeginInfo();
+			copyCmd.begin(cmdBufInfo);
 
-			VkBufferCopy copyRegion = {};
+			vk::BufferCopy copyRegion = {};
 
 			copyRegion.size = meshBuffer->vertices.size;
-			vkCmdCopyBuffer(
-				copyCmd,
-				vertexStaging.buffer,
-				meshBuffer->vertices.buf,
-				1,
-				&copyRegion);
+			copyCmd.copyBuffer(vertexStaging.buffer, meshBuffer->vertices.buf, copyRegion);
 
 			copyRegion.size = meshBuffer->indices.size;
-			vkCmdCopyBuffer(
-				copyCmd,
-				indexStaging.buffer,
-				meshBuffer->indices.buf,
-				1,
-				&copyRegion);
+			copyCmd.copyBuffer(indexStaging.buffer, meshBuffer->indices.buf, copyRegion);
 
-			VK_CHECK_RESULT(vkEndCommandBuffer(copyCmd));
+			copyCmd.end();
 
-			VkSubmitInfo submitInfo = {};
-			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			vk::SubmitInfo submitInfo = {};
+			submitInfo.sType = vk::StructureType::eSubmitInfo;
 			submitInfo.commandBufferCount = 1;
 			submitInfo.pCommandBuffers = &copyCmd;
 
-			VK_CHECK_RESULT(vkQueueSubmit(copyQueue, 1, &submitInfo, VK_NULL_HANDLE));
-			VK_CHECK_RESULT(vkQueueWaitIdle(copyQueue));
+			copyQueue.submit(submitInfo, VK_NULL_HANDLE);
+			copyQueue.waitIdle();
 
-			vkDestroyBuffer(device, vertexStaging.buffer, nullptr);
-			vkFreeMemory(device, vertexStaging.memory, nullptr);
-			vkDestroyBuffer(device, indexStaging.buffer, nullptr);
-			vkFreeMemory(device, indexStaging.memory, nullptr);
+			device.destroyBuffer(vertexStaging.buffer, nullptr);
+			device.freeMemory(vertexStaging.memory, nullptr);
+			device.destroyBuffer(indexStaging.buffer, nullptr);
+			device.freeMemory(indexStaging.memory, nullptr);
 		}
 		else
 		{
@@ -609,36 +599,36 @@ public:
 			createBuffer(
 				device,
 				deviceMemoryProperties,
-				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+				vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+				vk::MemoryPropertyFlagBits::eHostVisible,
 				meshBuffer->vertices.size,
-				&meshBuffer->vertices.buf,
-				&meshBuffer->vertices.mem);
+				meshBuffer->vertices.buf,
+				meshBuffer->vertices.mem);
 
-			VK_CHECK_RESULT(vkMapMemory(device, meshBuffer->vertices.mem, 0, meshBuffer->vertices.size, 0, &data));
+			data = device.mapMemory(meshBuffer->vertices.mem, 0, meshBuffer->vertices.size, vk::MemoryMapFlags());
 			memcpy(data, vertexBuffer.data(), meshBuffer->vertices.size);
-			vkUnmapMemory(device, meshBuffer->vertices.mem);
+			device.unmapMemory(meshBuffer->vertices.mem);
 
 			// Generate index buffer
 			createBuffer(
 				device,
 				deviceMemoryProperties,
-				VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+				vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+				vk::MemoryPropertyFlagBits::eHostVisible,
 				meshBuffer->indices.size,
-				&meshBuffer->indices.buf,
-				&meshBuffer->indices.mem);
+				meshBuffer->indices.buf,
+				meshBuffer->indices.mem);
 
-			VK_CHECK_RESULT(vkMapMemory(device, meshBuffer->indices.mem, 0, meshBuffer->indices.size, 0, &data));
+			data = device.mapMemory(meshBuffer->indices.mem, 0, meshBuffer->indices.size, vk::MemoryMapFlags());
 			memcpy(data, indexBuffer.data(), meshBuffer->indices.size);
-			vkUnmapMemory(device, meshBuffer->indices.mem);
+			device.unmapMemory(meshBuffer->indices.mem);
 		}
 	}
 
 	// Create vertex and index buffer with given layout
 	void createVulkanBuffers(
-		VkDevice device, 
-		VkPhysicalDeviceMemoryProperties deviceMemoryProperties,
+		vk::Device device, 
+		vk::PhysicalDeviceMemoryProperties deviceMemoryProperties,
 		vkMeshLoader::MeshBuffer *meshBuffer, 
 		std::vector<vkMeshLoader::VertexLayout> layout, 
 		float scale)
