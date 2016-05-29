@@ -276,7 +276,7 @@ namespace vkTools
 
 		vk::ComputePipelineCreateInfo computePipelineCreateInfo(
 			vk::PipelineLayout layout,
-			vk::PipelineCreateFlags flags);
+			vk::PipelineCreateFlags flags = vk::PipelineCreateFlags());
 
 		vk::PushConstantRange pushConstantRange(
 			vk::ShaderStageFlags stageFlags,
