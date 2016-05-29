@@ -1,6 +1,6 @@
 # Vulkan examples and demos
 
-<img src="./images/vulkanlogoscene.png" alt="Vulkan demo scene" height="256px">
+<img src="./documentation/images/vulkanlogoscene.png" alt="Vulkan demo scene" height="256px">
 
 Assorted C++ examples for [Vulkan(tm)](https://www.khronos.org/vulkan/), the new graphics and compute API from Khronos.
 
@@ -8,18 +8,18 @@ Assorted C++ examples for [Vulkan(tm)](https://www.khronos.org/vulkan/), the new
 
 The repository contains everything required to compile and build the examples on Windows, Linux and Android. All required dependencies are included.
 
-## <img src="./images/windowslogo.png" alt="" height="32px"> Windows
+## <img src="./documentation/images/windowslogo.png" alt="" height="32px"> Windows
 A Visual Studio solution file for compiling all examples is included with the repository, examples will compile with VS2015 out of the box.
 
 If you're using a different IDE or compiler you can use the provided CMakeLists.txt for use with [CMake](https://cmake.org) to generate a build configuration for your toolchain.
 
-## <img src="./images/linuxlogo.png" alt="" height="32px"> Linux
+## <img src="./documentation/images/linuxlogo.png" alt="" height="32px"> Linux
 
 Use the provided the provided CMakeLists.txt for use with [CMake](https://cmake.org) to generate a build configuration for your favorite IDE or compiler.
 
 Note that you need [assimp](https://github.com/assimp/assimp) in order to compile the examples for Linux. Either compile and install from the repository, or install libassimp-dev. The examples require at least version 3.2.
 
-## <img src="./images/androidlogo.png" alt="" height="32px"> [Android](android/)
+## <img src="./documentation/images/androidlogo.png" alt="" height="32px"> [Android](android/)
 
 Building on Android is done using the [Android NDK](http://developer.android.com/tools/sdk/ndk/index.html) and requires a device that supports Vulkan. Please see the [Android readme](./android/README.md) on how to build and deploy the examples.
 

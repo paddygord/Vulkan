@@ -248,7 +248,7 @@ public:
 		swapchainCI.minImageCount = desiredNumberOfSwapchainImages;
 		swapchainCI.imageFormat = colorFormat;
 		swapchainCI.imageColorSpace = colorSpace;
-		swapchainCI.imageExtent = { swapchainExtent.width, swapchainExtent.height };
+		swapchainCI.imageExtent = vk::Extent2D { swapchainExtent.width, swapchainExtent.height };
 		swapchainCI.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
 		swapchainCI.preTransform = preTransform;
 		swapchainCI.imageArrayLayers = 1;

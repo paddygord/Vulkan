@@ -185,7 +185,7 @@ namespace vkTools
 				imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
 				imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 				imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
-				imageCreateInfo.extent = { texture->width, texture->height, 1 };
+				imageCreateInfo.extent = vk::Extent3D { texture->width, texture->height, 1 };
 				imageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 
 				texture->image = device.createImage(imageCreateInfo);
@@ -264,7 +264,7 @@ namespace vkTools
 				vk::ImageCreateInfo imageCreateInfo;
 				imageCreateInfo.imageType = vk::ImageType::e2D;
 				imageCreateInfo.format = format;
-				imageCreateInfo.extent = { texture->width, texture->height, 1 };
+                                imageCreateInfo.extent = vk::Extent3D { texture->width, texture->height, 1 };
 				imageCreateInfo.mipLevels = 1;
 				imageCreateInfo.arrayLayers = 1;
 				imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
@@ -490,7 +490,7 @@ namespace vkTools
 			imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
 			imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 			imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
-			imageCreateInfo.extent = { texture->width, texture->height, 1 };
+                        imageCreateInfo.extent = vk::Extent3D { texture->width, texture->height, 1 };
 			imageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 			// Cube faces count as array layers in Vulkan
 			imageCreateInfo.arrayLayers = 6;
@@ -709,7 +709,7 @@ namespace vkTools
 			imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
 			imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 			imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
-			imageCreateInfo.extent = { texture->width, texture->height, 1 };
+                        imageCreateInfo.extent = vk::Extent3D { texture->width, texture->height, 1 };
 			imageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 			imageCreateInfo.arrayLayers = texture->layerCount;
 

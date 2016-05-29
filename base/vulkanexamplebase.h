@@ -9,9 +9,6 @@
 #pragma once
 
 #ifdef _WIN32
-#ifndef BUILD_DEMO_LIB
-#pragma comment(lib, "../bin/base.lib")
-#endif
 #pragma comment(linker, "/subsystem:windows")
 #include <windows.h>
 #include <fcntl.h>
@@ -25,16 +22,29 @@
 #include <xcb/xcb.h>
 #endif
 
-#include <iostream>
-#include <chrono>
+#include <assert.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <string>
 #include <array>
+#include <chrono>
+#include <iostream>
+#include <iomanip>
+#include <random>
+#include <string>
+#include <sstream>
+#include <thread>
+#include <vector>
 
-#include "vulkan/vulkan.h"
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
+
+#include <vulkan/vulkan.h>
 
 #include "vulkantools.h"
 #include "vulkandebug.h"

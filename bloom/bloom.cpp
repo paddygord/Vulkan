@@ -6,18 +6,6 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <vector>
-
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
-#include <vulkan/vulkan.h>
 #include "vulkanexamplebase.h"
 
 #define VERTEX_BUFFER_BIND_ID 0
@@ -215,7 +203,7 @@ public:
 		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = format;
-		imageCreateInfo.extent = { width, height, 1 };
+		imageCreateInfo.extent = vk::Extent3D { width, height, 1 };
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
@@ -396,7 +384,7 @@ public:
 
 		// Horizontal blur
 		vk::ClearValue clearValues[2];
-		clearValues[0].color = { std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 1.0f } };
+		clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -451,7 +439,6 @@ public:
 		imgBlit.srcSubresource.baseArrayLayer = 0;
 		imgBlit.srcSubresource.layerCount = 1;
 
-		imgBlit.srcOffsets[0] = { 0, 0, 0 };
 		imgBlit.srcOffsets[1].x = offScreenFrameBuf.width;
 		imgBlit.srcOffsets[1].y = offScreenFrameBuf.height;
 		imgBlit.srcOffsets[1].z = 1;
@@ -461,7 +448,6 @@ public:
 		imgBlit.dstSubresource.baseArrayLayer = 0;
 		imgBlit.dstSubresource.layerCount = 1;
 
-		imgBlit.dstOffsets[0] = { 0, 0, 0 };
 		imgBlit.dstOffsets[1].x = offScreenFrameBuf.textureTarget.width;
 		imgBlit.dstOffsets[1].y = offScreenFrameBuf.textureTarget.height;
 		imgBlit.dstOffsets[1].z = 1;

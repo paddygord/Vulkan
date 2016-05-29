@@ -613,7 +613,7 @@ public:
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[1];
-		clearValues[0].color = { std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 0.0f } };
+                clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
