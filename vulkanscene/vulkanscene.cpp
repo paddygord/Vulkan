@@ -12,8 +12,7 @@
 
 #include "vulkanexamplebase.h"
 
-#define VERTEX_BUFFER_BIND_ID 0
-#define ENABLE_VALIDATION false
+static std::vector<std::string> names { "logos", "background", "models", "skybox" };
 
 class VulkanExample : public VulkanExampleBase
 {
@@ -21,7 +20,6 @@ public:
 
 	struct DemoMeshes
 	{
-		std::vector<std::string> names{ "logos", "background", "models", "skybox" };
 		vk::PipelineVertexInputStateCreateInfo inputState;
 		std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
 		std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
@@ -125,8 +123,6 @@ public:
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
 
-		vk::Result err;
-
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
 			renderPassBeginInfo.framebuffer = frameBuffers[i];
@@ -162,8 +158,6 @@ public:
 
 	void draw()
 	{
-		vk::Result err;
-
 		// Get next image in the swap chain (back/front buffer)
 		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
 		
@@ -219,9 +213,6 @@ public:
 		meshList.push_back(demoMeshes.logos);
 		meshList.push_back(demoMeshes.background);
 		meshList.push_back(demoMeshes.models);
-
-		vk::MemoryAllocateInfo memAlloc;
-		vk::MemoryRequirements memReqs;
 
 		// todo : Use mesh function for loading
 		float scale = 1.0f;
@@ -381,25 +372,29 @@ public:
 
 	void preparePipelines()
 	{
-		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList);
+		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
+                inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleList;
+                vk::PipelineRasterizationStateCreateInfo rasterizationState;
+                rasterizationState.polygonMode = vk::PolygonMode::eFill;
+                rasterizationState.cullMode = vk::CullModeFlagBits::eBack;
+                rasterizationState.frontFace = vk::FrontFace::eClockwise;
+                vk::PipelineColorBlendAttachmentState blendAttachmentState;
+                blendAttachmentState.colorWriteMask = vkTools::initializers::fullColorWriteMask();
 
-		vk::PipelineRasterizationStateCreateInfo rasterizationState =
-			vkTools::initializers::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise);
+                vk::PipelineColorBlendStateCreateInfo colorBlendState;
+                colorBlendState.attachmentCount = 1;
+                colorBlendState.pAttachments = &blendAttachmentState;
 
-		vk::PipelineColorBlendAttachmentState blendAttachmentState =
-			vkTools::initializers::pipelineColorBlendAttachmentState();
+                vk::PipelineDepthStencilStateCreateInfo depthStencilState;
+                depthStencilState.depthTestEnable = VK_TRUE;
+                depthStencilState.depthWriteEnable = VK_TRUE;
+                depthStencilState.depthCompareOp = vk::CompareOp::eLessOrEqual;
 
-		vk::PipelineColorBlendStateCreateInfo colorBlendState =
-			vkTools::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
+                vk::PipelineViewportStateCreateInfo viewportState;
+                viewportState.scissorCount = 1;
+                viewportState.viewportCount = 1;
 
-		vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-			vkTools::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
-
-		vk::PipelineViewportStateCreateInfo viewportState =
-			vkTools::initializers::pipelineViewportStateCreateInfo(1, 1);
-
-		vk::PipelineMultisampleStateCreateInfo multisampleState;
+                //vk::PipelineMultisampleStateCreateInfo multisampleState;
 
 		std::vector<vk::DynamicState> dynamicStateEnables = {
 			vk::DynamicState::eViewport,
@@ -421,7 +416,7 @@ public:
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
 		pipelineCreateInfo.pRasterizationState = &rasterizationState;
 		pipelineCreateInfo.pColorBlendState = &colorBlendState;
-		pipelineCreateInfo.pMultisampleState = &multisampleState;
+		//pipelineCreateInfo.pMultisampleState = &multisampleState;
 		pipelineCreateInfo.pViewportState = &viewportState;
 		pipelineCreateInfo.pDepthStencilState = &depthStencilState;
 		pipelineCreateInfo.pDynamicState = &dynamicState;

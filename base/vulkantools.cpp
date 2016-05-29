@@ -547,6 +547,10 @@ vk::PipelineRasterizationStateCreateInfo vkTools::initializers::pipelineRasteriz
 	return pipelineRasterizationStateCreateInfo;
 }
 
+vk::ColorComponentFlags vkTools::initializers::fullColorWriteMask() {
+        return vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+}
+
 vk::PipelineColorBlendAttachmentState vkTools::initializers::pipelineColorBlendAttachmentState(
 	vk::ColorComponentFlags colorWriteMask,
 	vk::Bool32 blendEnable)

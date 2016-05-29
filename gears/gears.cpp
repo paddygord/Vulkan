@@ -11,8 +11,6 @@
 #include "vulkangear.h"
 #include "vulkanexamplebase.h"
 
-#define VERTEX_BUFFER_BIND_ID 0
-#define ENABLE_VALIDATION false
 
 class VulkanExample : public VulkanExampleBase
 {

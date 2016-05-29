@@ -207,8 +207,10 @@ namespace vkTools
 			vk::FrontFace frontFace,
 			vk::PipelineRasterizationStateCreateFlags flags = vk::PipelineRasterizationStateCreateFlags());
 
+                vk::ColorComponentFlags fullColorWriteMask();
+
 		vk::PipelineColorBlendAttachmentState pipelineColorBlendAttachmentState(
-			vk::ColorComponentFlags colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+                        vk::ColorComponentFlags colorWriteMask = fullColorWriteMask(),
 			vk::Bool32 blendEnable = VK_FALSE);
 
 		vk::PipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo(

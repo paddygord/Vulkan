@@ -10,8 +10,6 @@
 
 #include "vulkanexamplebase.h"
 
-#define VERTEX_BUFFER_BIND_ID 0
-#define ENABLE_VALIDATION false
 #if defined(__ANDROID__)
 // Lower particle count on Android for performance reasons
 #define PARTICLE_COUNT 64 * 1024

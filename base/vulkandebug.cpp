@@ -8,6 +8,7 @@
 
 #include "vulkandebug.h"
 #include <iostream>
+#include <sstream>
 
 namespace vkDebug
 {
@@ -36,28 +37,25 @@ namespace vkDebug
 		const char* pMsg,
 		void* pUserData)
 	{
-		char *message = (char *)malloc(strlen(pMsg) + 100);
-
-		assert(message);
-
-		if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
+		std::string message;
 		{
-			std::cout << "ERROR: " << "[" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << "\n";
-		}
-		else
-			if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT)
-			{
-				// Uncomment to see warnings
-				//std::cout << "WARNING: " << "[" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << "\n";
-			}
-			else
-			{
+			std::stringstream buf;
+			if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
+				buf << "ERROR: ";
+			} else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) {
+				buf << "WARNING: ";
+			} else {
 				return false;
 			}
+			buf << "[" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg;
+			message = buf.str();
+		}
 
-		fflush(stdout);
-
-		free(message);
+		std::cout << message << std::endl;
+#ifdef _MSC_VER 
+		OutputDebugStringA(message.c_str());
+		OutputDebugStringA("\n");
+#endif
 		return false;
 	}
 

@@ -9,8 +9,6 @@
 #include "vulkanexamplebase.h"
 #include "../external/stb/stb_font_consolas_24_latin1.inl"
 
-#define VERTEX_BUFFER_BIND_ID 0
-#define ENABLE_VALIDATION false
 
 // Vertex layout for this example
 std::vector<vkMeshLoader::VertexLayout> vertexLayout =

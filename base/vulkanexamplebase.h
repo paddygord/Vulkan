@@ -62,6 +62,10 @@
 #define GAMEPAD_BUTTON_R1 0x1005
 #define GAMEPAD_BUTTON_START 0x1006
 
+#define VERTEX_BUFFER_BIND_ID 0
+#define INSTANCE_BUFFER_BIND_ID 1
+#define ENABLE_VALIDATION true
+
 class VulkanExampleBase
 {
 private:	

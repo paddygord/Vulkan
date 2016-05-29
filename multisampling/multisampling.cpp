@@ -8,8 +8,6 @@
 
 #include "vulkanexamplebase.h"
 
-#define VERTEX_BUFFER_BIND_ID 0
-#define ENABLE_VALIDATION false
 #define SAMPLE_COUNT vk::SampleCountFlagBits::e4
 
 struct {

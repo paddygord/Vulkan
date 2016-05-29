@@ -8,9 +8,6 @@
 
 #include "vulkanexamplebase.h"
 
-#define VERTEX_BUFFER_BIND_ID 0
-#define ENABLE_VALIDATION false
-
 // Texture properties
 #define TEX_DIM 256
 #define TEX_FORMAT vk::Format::eR8G8B8A8Unorm
