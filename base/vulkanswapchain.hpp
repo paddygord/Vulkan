@@ -291,13 +291,12 @@ public:
 		// Get the swap chain images
 		images = device.getSwapchainImagesKHR(swapChain);
 		imageCount = (uint32_t)images.size();
+
 		// Get the swap chain buffers containing the image and imageview
 		buffers.resize(imageCount);
 		for (uint32_t i = 0; i < imageCount; i++) {
 			buffers[i].image = images[i];
-			// Transform images from initial (undefined) to present layout
-			colorAttachmentView.image = buffers[i].image;
-			buffers[i].view = device.createImageView(colorAttachmentView);
+			buffers[i].view = device.createImageView(colorAttachmentView.setImage(images[i]));
 		}
 	}
 
