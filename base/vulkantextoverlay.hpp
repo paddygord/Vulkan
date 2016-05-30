@@ -611,7 +611,7 @@ public:
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[1];
-                clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
+		clearValues[0].color = vkTools::initializers::clearColor( { 0.0f, 0.0f, 0.0f, 0.0f } );
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;

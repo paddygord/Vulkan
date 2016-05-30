@@ -1,42 +1,29 @@
-# Vulkan examples and demos
+# C++ Vulkan examples and demos
 
 <img src="./documentation/images/vulkanlogoscene.png" alt="Vulkan demo scene" height="256px">
+
+This is a fork of [Sascha Willems](https://github.com/SaschaWillems) excellent Vulkan examples page with some modifications.  
+
+* All of the code except for the VulkanDebug stuff has been ported to use the [nVidia VKCPP wrapper](https://github.com/nvpro-pipeline/vkcpp)
+* Project files for Visual Studio have been removed in favor of a pure CMake based system
+* Binary files have been removed in favor of CMake external projects
+* A number of fixes to bugs that prevent the original examples from running on Visual Studio 2012 have been fixed
+
+## Known issues
+
+* I've only tested so far on Windows using Visual Studio 2012 and Visual Studio 2015.  
+* Executing from the debugger works, but running the executables directly requires that they be copied to a bin folder in the root of source folder
+* I'm still cleaning up after the migration to VKCPP so the code isn't as clean as it could be.  Lots of unnecessary function parameters and structure assignments remain
 
 Assorted C++ examples for [Vulkan(tm)](https://www.khronos.org/vulkan/), the new graphics and compute API from Khronos.
 
 # Building
 
-The repository contains everything required to compile and build the examples on Windows, Linux and Android. All required dependencies are included.
+Use the provided CMakeLists.txt for use with [CMake](https://cmake.org) to generate a build configuration for your toolchain.
 
-## <img src="./documentation/images/windowslogo.png" alt="" height="32px"> Windows
-A Visual Studio solution file for compiling all examples is included with the repository, examples will compile with VS2015 out of the box.
+# Examples 
 
-If you're using a different IDE or compiler you can use the provided CMakeLists.txt for use with [CMake](https://cmake.org) to generate a build configuration for your toolchain.
-
-## <img src="./documentation/images/linuxlogo.png" alt="" height="32px"> Linux
-
-Use the provided the provided CMakeLists.txt for use with [CMake](https://cmake.org) to generate a build configuration for your favorite IDE or compiler.
-
-Note that you need [assimp](https://github.com/assimp/assimp) in order to compile the examples for Linux. Either compile and install from the repository, or install libassimp-dev. The examples require at least version 3.2.
-
-## <img src="./documentation/images/androidlogo.png" alt="" height="32px"> [Android](android/)
-
-Building on Android is done using the [Android NDK](http://developer.android.com/tools/sdk/ndk/index.html) and requires a device that supports Vulkan. Please see the [Android readme](./android/README.md) on how to build and deploy the examples.
-
-## Binaries
-
-Precompiled binaries for Windows (x64), Linux (x64) and Android can be [found here](http://vulkan.gpuinfo.org/examples.php). I'll try keep them up-to-date with the repository.
-
-Note that these only contain the binaries, you still need the repository for the data (shaders, models, textures) and put the binaries into to bin subfolder. Except for Android, where all required assets are stored inside of the apk.
-
-## Additional documentation
-
-Additional documentation for several base classes and some Presentations can be found [in this directory](./documentation/additionaldocs.md).
-
-### Presentations
-- [From OpenGL to Vulkan (Khronos Meetup Munich, 2016-04-08)](./documentation/Khronos_meetup_munich_fromGLtoVulkan.pdf)
-
-# Examples
+This information comes from the [original repository readme](https://github.com/SaschaWillems/Vulkan/blob/master/README.md)
 
 ## [Triangle](triangle/)
 <img src="./documentation/screenshots/basic_triangle.png" height="96px" align="right">
@@ -247,7 +234,10 @@ More of a playground than an actual example. Renders multiple meshes with differ
 
 <br>
 
-## Credits
+# Credits
+
+This information comes from the [original repository readme](https://github.com/SaschaWillems/Vulkan/blob/master/README.md)
+
 Thanks to the authors of these libraries :
 - [OpenGL Mathematics (GLM)](https://github.com/g-truc/glm)
 - [OpenGL Image (GLI)](https://github.com/g-truc/gli)
