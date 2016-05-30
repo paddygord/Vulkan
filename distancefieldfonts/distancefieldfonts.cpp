@@ -76,7 +76,7 @@ public:
 		glm::mat4 model;
 	} uboVS;
 
-	struct {
+	struct UboFS {
 		glm::vec4 outlineColor = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 		float outlineWidth = 0.6f;
 		float outline = true;

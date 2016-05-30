@@ -196,9 +196,9 @@ public:
 
 	// Gamepad state (only one pad supported)
 
-	struct
+	struct GamePadState
 	{
-		struct
+		struct Axes
 		{
 			float x = 0.0f;
 			float y = 0.0f;

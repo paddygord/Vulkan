@@ -50,7 +50,7 @@ public:
 
 	vkTools::UniformData computeStorageBuffer;
 
-	struct {
+	struct ComputeUbo {
 		float deltaT;
 		float destX;
 		float destY;

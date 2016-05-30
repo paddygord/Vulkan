@@ -38,7 +38,7 @@ public:
 		glm::mat4 model;
 	} uboVS;
 
-	struct {
+	struct Pipelines {
 		vk::Pipeline postCompute;
 		// Compute pipelines are separated from 
 		// graphics pipelines in Vulkan
@@ -566,7 +566,6 @@ public:
 
 			pipelines.compute.push_back(pipeline);
 		}
-		pipelines.computeIndex = 0;
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms

@@ -39,7 +39,7 @@ public:
 		vkTools::UniformData sphere;
 	} uniformData;
 
-	struct {
+	struct UboVS {
 		glm::mat4 projection;
 		glm::mat4 model;
 		glm::vec4 lightPos = glm::vec4(10.0f, 10.0f, 10.0f, 1.0f);

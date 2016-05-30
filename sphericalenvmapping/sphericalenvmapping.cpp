@@ -43,12 +43,12 @@ public:
 		vkTools::UniformData vertexShader;
 	} uniformData;
 
-	struct {
+	struct UboVS {
 		glm::mat4 projection;
 		glm::mat4 model;
 		glm::mat4 normal;
 		glm::mat4 view;
-		int32_t texIndex = 0;
+		uint32_t texIndex { 0 };
 	} uboVS;
 
 	struct {

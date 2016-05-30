@@ -51,11 +51,11 @@ public:
 			glm::mat4 projection;
 			glm::mat4 model;
 			glm::mat4 normal;
-			glm::vec4 lightPos = glm::vec4(0.0, 0.0, 0.0, 0.0);
+			glm::vec4 lightPos;
 			glm::vec4 cameraPos;
 		} vertexShader;
 
-		struct {
+		struct FragmentShader {
 			// Scale and bias control the parallax offset effect
 			// They need to be tweaked for each material
 			// Getting them wrong destroys the depth effect

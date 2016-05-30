@@ -39,11 +39,11 @@ public:
 
 	vkTools::UniformData uniformDataTC, uniformDataTE;
 
-	struct {
+	struct UboTC {
 		float tessLevel = 8.0;
 	} uboTC;
 
-	struct {
+	struct UboTE {
 		glm::mat4 projection;
 		glm::mat4 model;
 		glm::vec4 lightPos = glm::vec4(0.0, -25.0, 0.0, 0.0);

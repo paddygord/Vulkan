@@ -41,11 +41,11 @@ public:
 	
 	vkTools::UniformData uniformDataTC, uniformDataTE;
 
-	struct {
+	struct UboTC {
 		float tessLevel = 3.0f;
 	} uboTC;
 
-	struct {
+	struct UboTE {
 		glm::mat4 projection;
 		glm::mat4 model;
 		float tessAlpha = 1.0f;

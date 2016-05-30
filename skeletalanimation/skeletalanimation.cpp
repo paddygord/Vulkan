@@ -343,7 +343,7 @@ public:
 		vkTools::UniformData floor;
 	} uniformData;
 
-	struct {
+	struct UboVS {
 		glm::mat4 projection;
 		glm::mat4 model;
 		glm::mat4 bones[MAX_BONES];
@@ -351,7 +351,7 @@ public:
 		glm::vec4 viewPos;
 	} uboVS;
 
-	struct {
+	struct UboFloor {
 		glm::mat4 projection;
 		glm::mat4 model;
 		glm::vec4 lightPos = glm::vec4(0.0, 0.0f, -25.0f, 1.0);

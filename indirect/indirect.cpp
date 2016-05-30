@@ -44,14 +44,14 @@ public:
 	};
 
 	// Contains the instanced data
-	struct {
+	struct InstanceBuffer {
 		vk::Buffer buffer;
 		vk::DeviceMemory memory;
 		size_t size = 0;
 		vk::DescriptorBufferInfo descriptor;
 	} instanceBuffer;
 
-	struct {
+	struct UboVS {
 		glm::mat4 projection;
 		glm::mat4 view;
 		float time = 0.0f;

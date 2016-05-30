@@ -34,12 +34,12 @@ public:
 
 	vkTools::UniformData uniformDataCompute;
 
-	struct {
+	struct UboCompute {
 		glm::vec3 lightPos;
 		// Aspect ratio of the viewport
 		float aspectRatio;
 		glm::vec4 fogColor = glm::vec4(0.0f);
-		struct {
+		struct Camera {
 			glm::vec3 pos = glm::vec3(0.0f, 1.5f, 4.0f);
 			glm::vec3 lookat = glm::vec3(0.0f, 0.5f, 0.0f);
 			float fov = 10.0f;

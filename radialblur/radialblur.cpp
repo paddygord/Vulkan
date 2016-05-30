@@ -60,7 +60,7 @@ public:
 		glm::mat4 model;
 	} uboQuadVS;
 
-	struct {
+	struct UboQuadFS {
 		int32_t texWidth = TEX_DIM;
 		int32_t texHeight = TEX_DIM;
 		float radialBlurScale = 0.25f;
