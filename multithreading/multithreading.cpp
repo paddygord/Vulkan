@@ -145,7 +145,6 @@ public:
 		{
 			device.freeCommandBuffers(thread.commandPool, thread.commandBuffer.size(), thread.commandBuffer.data());
 			device.destroyCommandPool(thread.commandPool);
-			vkMeshLoader::freeMeshBufferResources(device, &thread.mesh);
 		}
 
 		device.destroyFence(renderFence);
@@ -197,33 +196,34 @@ public:
 				        vk::CommandBufferLevel::eSecondary,
 				        thread->commandBuffer.size());
 			thread->commandBuffer = device.allocateCommandBuffers(secondaryCmdBufAllocateInfo);
+			thread->mesh = meshes.ufo;
 
-			// Unique vertex and index buffers per thread
-                                                createBuffer(
-                                                        vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
-                                                        meshes.ufo.vertices.size,
-                                                        nullptr,
-                                                        thread->mesh.vertices.buf,
-                                                        thread->mesh.vertices.mem);
-                                                createBuffer(vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst,
-                                                                meshes.ufo.indices.size,
-                                                                nullptr,
-                                                                thread->mesh.indices.buf,
-                                                                thread->mesh.indices.mem);
+			//// Unique vertex and index buffers per thread
+			//createBuffer(
+			//	vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+			//	meshes.ufo.vertices.size,
+			//	nullptr,
+			//	thread->mesh.vertices.buf,
+			//	thread->mesh.vertices.mem);
+			//createBuffer(vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+			//	meshes.ufo.indices.size,
+			//	nullptr,
+			//	thread->mesh.indices.buf,
+			//	thread->mesh.indices.mem);
 
-			// Copy from mesh buffer
-			vk::BufferCopy copyRegion;
+			//// Copy from mesh buffer
+			//vk::BufferCopy copyRegion;
 
-			// Vertex buffer
-			copyRegion.size = meshes.ufo.vertices.size;
-			setupCmdBuffer.copyBuffer(meshes.ufo.vertices.buf, thread->mesh.vertices.buf, copyRegion);
-			// Index buffer
-			copyRegion.size = meshes.ufo.indices.size;
-			setupCmdBuffer.copyBuffer(meshes.ufo.indices.buf, thread->mesh.indices.buf, copyRegion);
+			//// Vertex buffer
+			//copyRegion.size = meshes.ufo.vertices.size;
+			//setupCmdBuffer.copyBuffer(meshes.ufo.vertices.buf, thread->mesh.vertices.buf, copyRegion);
+			//// Index buffer
+			//copyRegion.size = meshes.ufo.indices.size;
+			//setupCmdBuffer.copyBuffer(meshes.ufo.indices.buf, thread->mesh.indices.buf, copyRegion);
 
-			// todo : staging
+			//// todo : staging
 
-			thread->mesh.indexCount = meshes.ufo.indexCount;
+			//thread->mesh.indexCount = meshes.ufo.indexCount;
 
 			thread->pushConstBlock.resize(numObjectsPerThread);
 			thread->objectData.resize(numObjectsPerThread);
@@ -595,63 +595,4 @@ public:
 	}
 };
 
-VulkanExample *vulkanExample;
-
-#if defined(_WIN32)
-LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-	if (vulkanExample != NULL)
-	{
-		vulkanExample->handleMessages(hWnd, uMsg, wParam, lParam);
-	}
-	return (DefWindowProc(hWnd, uMsg, wParam, lParam));
-}
-#elif defined(__linux__) && !defined(__ANDROID__)
-static void handleEvent(const xcb_generic_event_t *event)
-{
-	if (vulkanExample != NULL)
-	{
-		vulkanExample->handleEvent(event);
-	}
-}
-#endif
-
-// Main entry point
-#if defined(_WIN32)
-// Windows entry point
-int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
-#elif defined(__ANDROID__)
-// Android entry point
-void android_main(android_app* state)
-#elif defined(__linux__)
-// Linux entry point
-int main(const int argc, const char *argv[])
-#endif
-{
-#if defined(__ANDROID__)
-	// Removing this may cause the compiler to omit the main entry point 
-	// which would make the application crash at start
-	app_dummy();
-#endif
-	vulkanExample = new VulkanExample();
-#if defined(_WIN32)
-	vulkanExample->setupWindow(hInstance, WndProc);
-#elif defined(__ANDROID__)
-	// Attach vulkan example to global android application state
-	state->userData = vulkanExample;
-	state->onAppCmd = VulkanExample::handleAppCommand;
-	state->onInputEvent = VulkanExample::handleAppInput;
-	vulkanExample->androidApp = state;
-#elif defined(__linux__)
-	vulkanExample->setupWindow();
-#endif
-#if !defined(__ANDROID__)
-	vulkanExample->initSwapchain();
-	vulkanExample->prepare();
-#endif
-	vulkanExample->renderLoop();
-	delete(vulkanExample);
-#if !defined(__ANDROID__)
-	return 0;
-#endif
-}
+RUN_EXAMPLE(VulkanExample)

@@ -8,6 +8,8 @@
 
 #include "vulkanexamplebase.h"
 
+VulkanExampleBase* VulkanExampleBase::EXAMPLE_INSTANCE = nullptr;
+
 void VulkanExampleBase::createInstance(bool enableValidation)
 {
 	this->enableValidation = enableValidation;
@@ -655,6 +657,11 @@ void VulkanExampleBase::prepareFrame()
 {
 	// Acquire the next image from the swap chaing
 	currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
+	if (!swapChain.isInitialized(currentBuffer)) {
+		withPrimaryCommandBuffer([&] (vk::CommandBuffer& cmdBuffer) {
+			swapChain.initialize(currentBuffer, cmdBuffer);
+		});
+	}
 	// Submit barrier that transforms color attachment image layout back from khr
 	submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
 
@@ -705,6 +712,7 @@ void VulkanExampleBase::submitFrame()
 VulkanExampleBase::VulkanExampleBase(bool enableValidation, const vk::PhysicalDeviceFeatures& requestedFeatures) 
 	: requestedFeatures(requestedFeatures) 
 {
+	EXAMPLE_INSTANCE = this;
 	// Check for validation command line flag
 #if defined(_WIN32)
 	for (int32_t i = 0; i < __argc; i++)
@@ -800,6 +808,7 @@ VulkanExampleBase::~VulkanExampleBase()
 	xcb_disconnect(connection);
 #endif
 #endif
+	EXAMPLE_INSTANCE = nullptr;
 }
 
 void VulkanExampleBase::initVulkan(bool enableValidation)
@@ -901,10 +910,8 @@ void VulkanExampleBase::setupConsole(std::string title)
 	}
 }
 
-HWND VulkanExampleBase::setupWindow(HINSTANCE hinstance, WNDPROC wndproc)
+HWND VulkanExampleBase::setupWindow()
 {
-	this->windowInstance = hinstance;
-
 	bool fullscreen = false;
 
 	// Check command line arguments
@@ -920,10 +927,10 @@ HWND VulkanExampleBase::setupWindow(HINSTANCE hinstance, WNDPROC wndproc)
 
 	wndClass.cbSize = sizeof(WNDCLASSEX);
 	wndClass.style = CS_HREDRAW | CS_VREDRAW;
-	wndClass.lpfnWndProc = wndproc;
+	wndClass.lpfnWndProc = WndProc;
 	wndClass.cbClsExtra = 0;
 	wndClass.cbWndExtra = 0;
-	wndClass.hInstance = hinstance;
+	wndClass.hInstance = hInstance;
 	wndClass.hIcon = LoadIcon(NULL, IDI_APPLICATION);
 	wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wndClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
@@ -1011,7 +1018,7 @@ HWND VulkanExampleBase::setupWindow(HINSTANCE hinstance, WNDPROC wndproc)
 		windowRect.bottom,
 		NULL,
 		NULL,
-		hinstance,
+		hInstance,
 		NULL);
 
 	if (!window)
@@ -1473,6 +1480,8 @@ void VulkanExampleBase::setupDepthStencil()
 
 void VulkanExampleBase::setupFrameBuffer()
 {
+	// Create frame buffers for every swap chain image
+	frameBuffers.resize(swapChain.imageCount);
 	vk::ImageView attachments[2];
 
 	// Depth/Stencil attachment is the same for all frame buffers
@@ -1486,8 +1495,6 @@ void VulkanExampleBase::setupFrameBuffer()
 	frameBufferCreateInfo.height = height;
 	frameBufferCreateInfo.layers = 1;
 
-	// Create frame buffers for every swap chain image
-	frameBuffers.resize(swapChain.imageCount);
 	for (uint32_t i = 0; i < frameBuffers.size(); i++)
 	{
 		attachments[0] = swapChain.buffers[i].view;
@@ -1595,7 +1602,7 @@ void VulkanExampleBase::windowResized()
 void VulkanExampleBase::initSwapchain()
 {
 #if defined(_WIN32)
-	swapChain.initSurface(windowInstance, window);
+	swapChain.initSurface(hInstance, window);
 #elif defined(__ANDROID__)	
 	swapChain.initSurface(androidApp->window);
 #elif defined(__linux__)
@@ -1606,4 +1613,43 @@ void VulkanExampleBase::initSwapchain()
 void VulkanExampleBase::setupSwapChain()
 {
 	swapChain.create(setupCmdBuffer, &width, &height);
+}
+
+#if defined(_WIN32)
+HINSTANCE VulkanExampleBase::hInstance = NULL;
+
+LRESULT CALLBACK VulkanExampleBase::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	if (EXAMPLE_INSTANCE != NULL)
+	{
+		EXAMPLE_INSTANCE->handleMessages(hWnd, uMsg, wParam, lParam);
+	}
+	return (DefWindowProc(hWnd, uMsg, wParam, lParam));
+}
+#elif defined(__linux__) && !defined(__ANDROID__)
+void VulkanExampleBase::handleEvent(const xcb_generic_event_t *event) {
+	if (EXAMPLE_INSTANCE != NULL) {
+		EXAMPLE_INSTANCE->handleEvent(event);
+	}
+}
+#endif
+
+
+void VulkanExampleBase::run() 
+{
+#if defined(_WIN32)
+	setupWindow();
+#elif defined(__ANDROID__)
+	// Attach vulkan example to global android application state
+	state->userData = vulkanExample;
+	state->onAppCmd = VulkanExample::handleAppCommand;
+	state->onInputEvent = VulkanExample::handleAppInput;
+	androidApp = state;
+#elif defined(__linux__)
+	setupWindow();
+#endif
+#if !defined(__ANDROID__)
+	initSwapchain();
+	prepare();
+#endif
+	renderLoop();
 }

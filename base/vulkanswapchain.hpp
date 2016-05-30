@@ -34,6 +34,7 @@
 typedef struct _SwapChainBuffers {
 	vk::Image image;
 	vk::ImageView view;
+	bool initialized { false };
 } SwapChainBuffer;
 
 class VulkanSwapChain
@@ -272,45 +273,47 @@ public:
 			device.destroySwapchainKHR(oldSwapchain);
 		}
 
-		
+		vk::ImageViewCreateInfo colorAttachmentView;
+		colorAttachmentView.format = colorFormat;
+		colorAttachmentView.components = {
+			vk::ComponentSwizzle::eR,
+			vk::ComponentSwizzle::eG,
+			vk::ComponentSwizzle::eB,
+			vk::ComponentSwizzle::eA
+		};
+		colorAttachmentView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+		colorAttachmentView.subresourceRange.baseMipLevel = 0;
+		colorAttachmentView.subresourceRange.levelCount = 1;
+		colorAttachmentView.subresourceRange.baseArrayLayer = 0;
+		colorAttachmentView.subresourceRange.layerCount = 1;
+		colorAttachmentView.viewType = vk::ImageViewType::e2D;
+
 		// Get the swap chain images
 		images = device.getSwapchainImagesKHR(swapChain);
 		imageCount = (uint32_t)images.size();
-
 		// Get the swap chain buffers containing the image and imageview
 		buffers.resize(imageCount);
-		for (uint32_t i = 0; i < imageCount; i++)
-		{
-			vk::ImageViewCreateInfo colorAttachmentView;
-			colorAttachmentView.format = colorFormat;
-			colorAttachmentView.components = {
-				vk::ComponentSwizzle::eR,
-				vk::ComponentSwizzle::eG,
-				vk::ComponentSwizzle::eB,
-				vk::ComponentSwizzle::eA
-			};
-			colorAttachmentView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-			colorAttachmentView.subresourceRange.baseMipLevel = 0;
-			colorAttachmentView.subresourceRange.levelCount = 1;
-			colorAttachmentView.subresourceRange.baseArrayLayer = 0;
-			colorAttachmentView.subresourceRange.layerCount = 1;
-			colorAttachmentView.viewType = vk::ImageViewType::e2D;
-
+		for (uint32_t i = 0; i < imageCount; i++) {
 			buffers[i].image = images[i];
-
 			// Transform images from initial (undefined) to present layout
-			vkTools::setImageLayout(
-				cmdBuffer, 
-				buffers[i].image, 
-				vk::ImageAspectFlagBits::eColor, 
-				vk::ImageLayout::eUndefined, 
-				vk::ImageLayout::ePresentSrcKHR);
-
 			colorAttachmentView.image = buffers[i].image;
-
 			buffers[i].view = device.createImageView(colorAttachmentView);
-			
 		}
+	}
+
+	bool isInitialized(uint32_t i) {
+		return buffers[i].initialized;
+	}
+
+	void initialize(uint32_t i, vk::CommandBuffer cmdBuffer) {
+		// Transform images from initial (undefined) to present layout
+		vkTools::setImageLayout(
+			cmdBuffer,
+			buffers[i].image,
+			vk::ImageAspectFlagBits::eColor,
+			vk::ImageLayout::eUndefined,
+			vk::ImageLayout::ePresentSrcKHR);
+		buffers[i].initialized = true;
 	}
 
 	// Acquires the next image in the swap chain
@@ -323,6 +326,7 @@ public:
 			std::cerr << "Invalid acquire result: " << vk::to_string(result);
 			throw std::error_code(result);
 		}
+
 		return resultValue.value;
 	}
 

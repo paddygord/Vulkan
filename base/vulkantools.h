@@ -140,14 +140,14 @@ namespace vkTools
 		vk::Viewport viewport(
 			float width, 
 			float height, 
-			float minDepth, 
-			float maxDepth);
+			float minDepth = 0, 
+			float maxDepth = 1);
 
 		vk::Rect2D rect2D(
 			int32_t width,
 			int32_t height,
-			int32_t offsetX,
-			int32_t offsetY);
+			int32_t offsetX = 0,
+			int32_t offsetY = 0);
 
 		vk::BufferCreateInfo bufferCreateInfo(
 			vk::BufferUsageFlags usage, 
