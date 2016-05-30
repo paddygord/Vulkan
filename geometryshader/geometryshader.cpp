@@ -14,6 +14,7 @@ std::vector<vkMeshLoader::VertexLayout> vertexLayout =
 {
 	vkMeshLoader::VERTEX_LAYOUT_POSITION,
 	vkMeshLoader::VERTEX_LAYOUT_NORMAL,
+	vkMeshLoader::VERTEX_LAYOUT_COLOR,
 	vkMeshLoader::VERTEX_LAYOUT_UV
 };
 
@@ -161,7 +162,7 @@ public:
 
 		// Attribute descriptions
 		// Describes memory layout and shader positions
-		vertices.attributeDescriptions.resize(3);
+		vertices.attributeDescriptions.resize(vertexLayout.size());
 
 		// Location 0 : Position
 		vertices.attributeDescriptions[0] =
@@ -174,6 +175,10 @@ public:
 		// Location 2 : Texture coordinates
 		vertices.attributeDescriptions[2] =
 			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
+
+		// Location 3 : Texture coordinates
+		vertices.attributeDescriptions[3] =
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32Sfloat, sizeof(float) * 8);
 
 		// Assign to vertex buffer
 		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();

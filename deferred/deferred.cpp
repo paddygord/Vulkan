@@ -298,6 +298,7 @@ public:
 		image.format = format;
 		image.extent.width = offScreenFrameBuf.width;
 		image.extent.height = offScreenFrameBuf.height;
+		image.extent.depth = 1;
 		image.mipLevels = 1;
 		image.arrayLayers = 1;
 		image.samples = vk::SampleCountFlagBits::e1;
@@ -310,9 +311,7 @@ public:
 		imageView.viewType = vk::ImageViewType::e2D;
 		imageView.format = format;
 		imageView.subresourceRange.aspectMask = aspectMask;
-		imageView.subresourceRange.baseMipLevel = 0;
 		imageView.subresourceRange.levelCount = 1;
-		imageView.subresourceRange.baseArrayLayer = 0;
 		imageView.subresourceRange.layerCount = 1;
 
 		vk::MemoryRequirements memReqs;

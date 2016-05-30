@@ -66,6 +66,7 @@ public:
 
 	~VulkanExample()
 	{
+		queue.waitIdle();
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
 
@@ -253,15 +254,14 @@ public:
 
 	void buildComputeCommandBuffer()
 	{
+		// FIXME find a better way to block on re-using the compute command, or build multiple command buffers
+		queue.waitIdle();
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		computeCmdBuffer.begin(cmdBufInfo);
-
 		computeCmdBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipelines.compute[pipelines.computeIndex]);
 		computeCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, computePipelineLayout, 0, computeDescriptorSet, nullptr);
-
 		computeCmdBuffer.dispatch(textureComputeTarget.width / 16, textureComputeTarget.height / 16, 1);
-
 		computeCmdBuffer.end();
 	}
 
@@ -426,7 +426,6 @@ public:
 	{
 		vk::CommandBufferAllocateInfo cmdBufAllocateInfo =
 			vkTools::initializers::commandBufferAllocateInfo(cmdPool, vk::CommandBufferLevel::ePrimary, 1);
-
 		computeCmdBuffer = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
 	}
 
