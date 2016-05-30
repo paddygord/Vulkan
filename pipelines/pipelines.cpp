@@ -18,6 +18,12 @@ std::vector<vkMeshLoader::VertexLayout> vertexLayout =
 	vkMeshLoader::VERTEX_LAYOUT_COLOR
 };
 
+static vk::PhysicalDeviceFeatures features = [] {
+	vk::PhysicalDeviceFeatures features;
+	features.wideLines = VK_TRUE;
+	return features;
+}();
+
 class VulkanExample: public VulkanExampleBase 
 {
 public:
@@ -50,7 +56,7 @@ public:
 		vk::Pipeline toon;
 	} pipelines;
 
-	VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
+	VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION, features)
 	{
 		zoom = -10.5f;
 		rotation = glm::vec3(-25.0f, 15.0f, 0.0f);
@@ -129,6 +135,9 @@ public:
 			drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.toon);
 			drawCmdBuffers[i].setLineWidth(2.0f);
 			drawCmdBuffers[i].drawIndexed(meshes.cube.indexCount, 1, 0, 0, 0);
+
+			auto lineWidthGranularity = deviceProperties.limits.lineWidthGranularity;
+			auto lineWidthRange = deviceProperties.limits.lineWidthRange;
 
 			if (deviceFeatures.fillModeNonSolid)
 			{
@@ -260,7 +269,8 @@ public:
 
 		std::vector<vk::DynamicState> dynamicStateEnables = {
 			vk::DynamicState::eViewport,
-			vk::DynamicState::eScissor
+			vk::DynamicState::eScissor,
+			vk::DynamicState::eLineWidth,
 		};
 		vk::PipelineDynamicStateCreateInfo dynamicState =
 			vkTools::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());

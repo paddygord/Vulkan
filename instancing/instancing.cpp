@@ -93,7 +93,7 @@ public:
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
-		clearValues[0].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 0.0f } };
+		clearValues[0].color = vkTools::initializers::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -141,10 +141,7 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
-
-		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
+		prepareFrame();
 		// Command buffer to be sumitted to the queue
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
@@ -152,11 +149,7 @@ public:
 		// Submit to queue
 		queue.submit(submitInfo, VK_NULL_HANDLE);
 
-		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-
-		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-
-		queue.waitIdle();
+		submitFrame();
 	}
 
 	void loadMeshes()

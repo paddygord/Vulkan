@@ -159,7 +159,7 @@ namespace vkTools
 
 				for (uint32_t i = 0; i < texture->mipLevels; i++)
 				{
-					vk::BufferImageCopy bufferCopyRegion = {};
+					vk::BufferImageCopy bufferCopyRegion;
 					bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 					bufferCopyRegion.imageSubresource.mipLevel = i;
 					bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
@@ -198,7 +198,7 @@ namespace vkTools
 				texture->deviceMemory = device.allocateMemory(memAllocInfo);
 				device.bindImageMemory(texture->image, texture->deviceMemory, 0);
 
-				vk::ImageSubresourceRange subresourceRange = {};
+				vk::ImageSubresourceRange subresourceRange;
 				subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
 				subresourceRange.baseMipLevel = 0;
 				subresourceRange.levelCount = texture->mipLevels;
@@ -293,7 +293,7 @@ namespace vkTools
 
 				// Get sub resource layout
 				// Mip map count, array layer, etc.
-				vk::ImageSubresource subRes = {};
+				vk::ImageSubresource subRes;
 				subRes.aspectMask = vk::ImageAspectFlagBits::eColor;
 				subRes.mipLevel = 0;
 
@@ -340,8 +340,7 @@ namespace vkTools
 			}
 
 			// Create sampler
-			vk::SamplerCreateInfo sampler = {};
-			sampler.sType = vk::StructureType::eSamplerCreateInfo;
+			vk::SamplerCreateInfo sampler;
 			sampler.magFilter = vk::Filter::eLinear;
 			sampler.minFilter = vk::Filter::eLinear;
 			sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
@@ -363,10 +362,7 @@ namespace vkTools
 			// Textures are not directly accessed by the shaders and
 			// are abstracted by image views containing additional
 			// information and sub resource ranges
-			vk::ImageViewCreateInfo view = {};
-			view.sType = vk::StructureType::eImageViewCreateInfo;
-			view.pNext = NULL;
-			view.image;
+			vk::ImageViewCreateInfo view;
 			view.viewType = vk::ImageViewType::e2D;
 			view.format = format;
 			view.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
@@ -397,8 +393,7 @@ namespace vkTools
 
 			// Create command buffer for submitting image barriers
 			// and converting tilings
-			vk::CommandBufferAllocateInfo cmdBufInfo = {};
-			cmdBufInfo.sType = vk::StructureType::eCommandBufferAllocateInfo;
+			vk::CommandBufferAllocateInfo cmdBufInfo;
 			cmdBufInfo.commandPool = cmdPool;
 			cmdBufInfo.level = vk::CommandBufferLevel::ePrimary;
 			cmdBufInfo.commandBufferCount = 1;
@@ -471,7 +466,7 @@ namespace vkTools
 
 			// Setup buffer copy regions for the cube faces
 			// As all faces of a cube map must have the same dimensions, we can do a single copy
-			vk::BufferImageCopy bufferCopyRegion = {};
+			vk::BufferImageCopy bufferCopyRegion;
 			bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 			bufferCopyRegion.imageSubresource.mipLevel = 0;
 			bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
@@ -512,7 +507,7 @@ namespace vkTools
 
 			// Image barrier for optimal image (target)
 			// Set initial layout for all array layers (faces) of the optimal (target) tiled texture
-			vk::ImageSubresourceRange subresourceRange = {};
+			vk::ImageSubresourceRange subresourceRange;
 			subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
 			subresourceRange.baseMipLevel = 0;
 			subresourceRange.levelCount = 1;
@@ -666,7 +661,7 @@ namespace vkTools
 			// If all layers of the texture array have the same dimensions, we only need to do one copy
 			if (sameDims)
 			{
-				vk::BufferImageCopy bufferCopyRegion = {};
+				vk::BufferImageCopy bufferCopyRegion;
 				bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 				bufferCopyRegion.imageSubresource.mipLevel = 0;
 				bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
@@ -683,7 +678,7 @@ namespace vkTools
 				// If dimensions differ, copy layer by layer and pass offsets
 				for (uint32_t layer = 0; layer < texture->layerCount; layer++)
 				{
-					vk::BufferImageCopy bufferCopyRegion = {};
+					vk::BufferImageCopy bufferCopyRegion;
 					bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 					bufferCopyRegion.imageSubresource.mipLevel = 0;
 					bufferCopyRegion.imageSubresource.baseArrayLayer = layer;
@@ -728,7 +723,7 @@ namespace vkTools
 
 			// Image barrier for optimal image (target)
 			// Set initial layout for all array layers (faces) of the optimal (target) tiled texture
-			vk::ImageSubresourceRange subresourceRange = {};
+			vk::ImageSubresourceRange subresourceRange;
 			subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
 			subresourceRange.baseMipLevel = 0;
 			subresourceRange.levelCount = 1;

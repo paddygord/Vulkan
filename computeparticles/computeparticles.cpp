@@ -240,7 +240,7 @@ public:
 		// Copy to staging buffer
 		vk::CommandBuffer copyCmd = VulkanExampleBase::createCommandBuffer(vk::CommandBufferLevel::ePrimary, true);
 
-		vk::BufferCopy copyRegion = {};
+		vk::BufferCopy copyRegion;
 		copyRegion.size = storageBufferSize;
 		copyCmd.copyBuffer(stagingBuffer.buffer, computeStorageBuffer.buffer, copyRegion);
 
@@ -508,9 +508,7 @@ public:
 		}
 		assert(queueIndex < queueCount);
 
-		vk::DeviceQueueCreateInfo queueCreateInfo = {};
-		queueCreateInfo.sType = vk::StructureType::eDeviceQueueCreateInfo;
-		queueCreateInfo.pNext = NULL;
+		vk::DeviceQueueCreateInfo queueCreateInfo;
 		queueCreateInfo.queueFamilyIndex = queueIndex;
 		queueCreateInfo.queueCount = 1;
 		computeQueue = device.getQueue(queueIndex, 0);

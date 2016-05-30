@@ -224,8 +224,6 @@ public:
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
 
-		vk::Result err;
-
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
 			// Set target frame buffer
@@ -273,11 +271,7 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
-		
-
-		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
+		prepareFrame();
 		// Command buffer to be sumitted to the queue
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
@@ -286,12 +280,7 @@ public:
 		queue.submit(submitInfo, VK_NULL_HANDLE);
 		
 
-		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-
-		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-		
-
-		queue.waitIdle();
+		submitFrame();
 		
 	}
 

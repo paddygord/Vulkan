@@ -168,7 +168,7 @@ public:
 		// If all layers of the texture array have the same dimensions, we only need to do one copy
 		if (sameDims)
 		{
-			vk::BufferImageCopy bufferCopyRegion = {};
+			vk::BufferImageCopy bufferCopyRegion;
 			bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 			bufferCopyRegion.imageSubresource.mipLevel = 0;
 			bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
@@ -185,7 +185,7 @@ public:
 			// If dimensions differ, copy layer by layer and pass offsets
 			for (uint32_t layer = 0; layer < layerCount; layer++)
 			{
-				vk::BufferImageCopy bufferCopyRegion = {};
+				vk::BufferImageCopy bufferCopyRegion;
 				bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 				bufferCopyRegion.imageSubresource.mipLevel = 0;
 				bufferCopyRegion.imageSubresource.baseArrayLayer = layer;
@@ -211,7 +211,7 @@ public:
 		imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
 		imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 		imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
-		imageCreateInfo.extent = { textureArray.width, textureArray.height, 1 };
+		imageCreateInfo.extent = vk::Extent3D { textureArray.width, textureArray.height, 1 };
 		imageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 		imageCreateInfo.arrayLayers = layerCount;
 
@@ -229,7 +229,7 @@ public:
 
 		// Image barrier for optimal image (target)
 		// Set initial layout for all array layers (faces) of the optimal (target) tiled texture
-		vk::ImageSubresourceRange subresourceRange = {};
+		vk::ImageSubresourceRange subresourceRange;
 		subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
 		subresourceRange.baseMipLevel = 0;
 		subresourceRange.levelCount = 1;
@@ -306,14 +306,10 @@ public:
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
-		renderPassBeginInfo.renderArea.offset.x = 0;
-		renderPassBeginInfo.renderArea.offset.y = 0;
 		renderPassBeginInfo.renderArea.extent.width = width;
 		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-
-		vk::Result err;
 
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
@@ -348,10 +344,7 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
-
-		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
+		prepareFrame();
 		// Command buffer to be sumitted to the queue
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
@@ -359,11 +352,7 @@ public:
 		// Submit to queue
 		queue.submit(submitInfo, VK_NULL_HANDLE);
 
-		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-
-		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-
-		queue.waitIdle();
+		submitFrame();
 	}
 
 	// Setup vertices for a single uv-mapped quad
@@ -547,7 +536,6 @@ public:
 	{
 		uboVS.instance = new UboInstanceData[layerCount];
 
-		vk::Result err;
 		uint32_t uboSize = sizeof(uboVS.matrices) + (layerCount * sizeof(UboInstanceData));
 
 		// Vertex shader uniform buffer block
@@ -562,7 +550,7 @@ public:
 		float offset = -1.5f;
 		uint32_t index = 0;
 		float center = (layerCount*offset) / 2;
-		for (int32_t i = 0; i < layerCount; i++)
+		for (uint32_t i = 0; i < layerCount; i++)
 		{
 			// Instance model matrix
 			uboVS.instance[i].model = glm::translate(glm::mat4(), glm::vec3(0.0f, i * offset - center, 0.0f));

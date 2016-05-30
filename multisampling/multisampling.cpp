@@ -253,11 +253,11 @@ public:
 		attachments[3].initialLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 		attachments[3].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		vk::AttachmentReference colorReference = {};
+		vk::AttachmentReference colorReference;
 		colorReference.attachment = 0;
 		colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
-		vk::AttachmentReference depthReference = {};
+		vk::AttachmentReference depthReference;
 		depthReference.attachment = 2;
 		depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
@@ -268,7 +268,7 @@ public:
 		resolveReferences[1].attachment = 3;
 		resolveReferences[1].layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		vk::SubpassDescription subpass = {};
+		vk::SubpassDescription subpass;
 		subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
 		subpass.colorAttachmentCount = 1;
 		subpass.pColorAttachments = &colorReference;
@@ -301,9 +301,7 @@ public:
 		attachments[2] = multisampleTarget.depth.view;
 		attachments[3] = depthStencil.view;
 
-		vk::FramebufferCreateInfo frameBufferCreateInfo = {};
-		frameBufferCreateInfo.sType = vk::StructureType::eFramebufferCreateInfo;
-		frameBufferCreateInfo.pNext = NULL;
+		vk::FramebufferCreateInfo frameBufferCreateInfo;
 		frameBufferCreateInfo.renderPass = renderPass;
 		frameBufferCreateInfo.attachmentCount = attachments.size();
 		frameBufferCreateInfo.pAttachments = attachments.data();
@@ -350,8 +348,8 @@ public:
 
 		vk::ClearValue clearValues[3];
 		// Clear to a white background for higher contrast
-		clearValues[0].color = { std::array<float, 4> { 1.0f, 1.0f, 1.0f, 1.0f } };
-		clearValues[1].color = { std::array<float, 4> { 1.0f, 1.0f, 1.0f, 1.0f } };
+		clearValues[0].color = vkTools::initializers::clearColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+		clearValues[1].color = vkTools::initializers::clearColor({ 1.0f, 1.0f, 1.0f, 1.0f });
 		clearValues[2].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -393,10 +391,7 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
-
-		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
+		prepareFrame();
 		// Command buffer to be sumitted to the queue
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
@@ -404,11 +399,7 @@ public:
 		// Submit to queue
 		queue.submit(submitInfo, VK_NULL_HANDLE);
 
-		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-
-		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-
-		queue.waitIdle();
+		submitFrame();
 	}
 
 	void loadTextures()

@@ -1,5 +1,5 @@
 /*
-* Vulkan Example - Push constants example (small shader block accessed outside of uniforms for fast updates)
+* Vulkan Example - Instanced mesh rendering, uses a separate vertex buffer for instanced data
 *
 * Copyright (C) 2016 by Sascha Willems - www.saschawillems.de
 *
@@ -8,13 +8,13 @@
 
 #include "vulkanexamplebase.h"
 
+#define INSTANCE_COUNT 2048
 
 // Vertex layout for this example
 std::vector<vkMeshLoader::VertexLayout> vertexLayout =
 {
 	vkMeshLoader::VERTEX_LAYOUT_POSITION,
 	vkMeshLoader::VERTEX_LAYOUT_NORMAL,
-	vkMeshLoader::VERTEX_LAYOUT_UV,
 	vkMeshLoader::VERTEX_LAYOUT_COLOR
 };
 
@@ -28,18 +28,38 @@ public:
 	} vertices;
 
 	struct {
-		vkMeshLoader::MeshBuffer scene;
+		vkMeshLoader::MeshBuffer example;
 	} meshes;
 
 	struct {
-		vkTools::UniformData vertexShader;
-	} uniformData;
-	
+		vkTools::VulkanTexture colorMap;
+	} textures;
+
+	// Per-instance data block
+	struct InstanceData {
+		glm::vec3 pos;
+		glm::vec3 rot;
+		float scale;
+		uint32_t texIndex;
+	};
+
+	// Contains the instanced data
+	struct {
+		vk::Buffer buffer;
+		vk::DeviceMemory memory;
+		size_t size = 0;
+		vk::DescriptorBufferInfo descriptor;
+	} instanceBuffer;
+
 	struct {
 		glm::mat4 projection;
-		glm::mat4 model;
-		glm::vec4 lightPos = glm::vec4(0.0, 0.0, -2.0, 1.0);
+		glm::mat4 view;
+		float time = 0.0f;
 	} uboVS;
+
+	struct {
+		vkTools::UniformData vsScene;
+	} uniformData;
 
 	struct {
 		vk::Pipeline solid;
@@ -49,54 +69,22 @@ public:
 	vk::DescriptorSet descriptorSet;
 	vk::DescriptorSetLayout descriptorSetLayout;
 
-	// This array holds the light positions
-	// and will be updated via a push constant
-	std::array<glm::vec4, 6> pushConstants;
-
 	VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
 	{
-		width = 1280;
-		height = 720;
-		zoom = -30.0;
-		zoomSpeed = 2.5f;
-		rotationSpeed = 0.5f;
-		timerSpeed *= 0.5f;
-		rotation = { -32.5, 45.0, 0.0 };
-		title = "Vulkan Example - Push constants";
-
-		// todo : this crashes on certain Android devices, so commented out for now
-#if !defined(__ANDROID__)		
-		// Check requested push constant size against hardware limit
-		// Specs require 128 bytes, so if the device complies our 
-		// push constant buffer should always fit into memory
-		vk::PhysicalDeviceProperties deviceProps;
-		deviceProps = physicalDevice.getProperties();
-		assert(sizeof(pushConstants) <= deviceProps.limits.maxPushConstantsSize);
-#endif
+		zoom = -12.0f;
+		rotationSpeed = 0.25f;
+		title = "Vulkan Example - Instanced mesh rendering";
+		srand(time(NULL));
 	}
 
 	~VulkanExample()
 	{
-		// Clean up used Vulkan resources 
-		// Note : Inherited destructor cleans up resources stored in base class
 		device.destroyPipeline(pipelines.solid, nullptr);
-
 		device.destroyPipelineLayout(pipelineLayout, nullptr);
 		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
-
-		vkMeshLoader::freeMeshBufferResources(device, &meshes.scene);
-
-		vkTools::destroyUniformData(device, &uniformData.vertexShader);
-	}
-
-	void reBuildCommandBuffers()
-	{
-		if (!checkCommandBuffers())
-		{
-			destroyCommandBuffers();
-			createCommandBuffers();
-		}
-		buildCommandBuffers();
+		vkMeshLoader::freeMeshBufferResources(device, &meshes.example);
+		vkTools::destroyUniformData(device, &uniformData.vsScene);
+		textureLoader->destroyTexture(textures.colorMap);
 	}
 
 	void buildCommandBuffers()
@@ -104,19 +92,15 @@ public:
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
-		clearValues[0].color = defaultClearColor;
+		clearValues[0].color = vkTools::initializers::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
-		renderPassBeginInfo.renderArea.offset.x = 0;
-		renderPassBeginInfo.renderArea.offset.y = 0;
 		renderPassBeginInfo.renderArea.extent.width = width;
 		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
 		renderPassBeginInfo.pClearValues = clearValues;
-
-		vk::Result err;
 
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
@@ -124,7 +108,6 @@ public:
 			renderPassBeginInfo.framebuffer = frameBuffers[i];
 
 			drawCmdBuffers[i].begin(cmdBufInfo);
-			
 
 			drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
@@ -134,39 +117,23 @@ public:
 			vk::Rect2D scissor = vkTools::initializers::rect2D(width, height, 0, 0);
 			drawCmdBuffers[i].setScissor(0, scissor);
 
-			// Update light positions
-			// w component = light radius scale
-#define r 7.5f
-#define sin_t sin(glm::radians(timer * 360))
-#define cos_t cos(glm::radians(timer * 360))
-#define y -4.0f
-			pushConstants[0] = glm::vec4(r * 1.1 * sin_t, y, r * 1.1 * cos_t, 1.0f);
-			pushConstants[1] = glm::vec4(-r * sin_t, y, -r * cos_t, 1.0f);
-			pushConstants[2] = glm::vec4(r * 0.85f * sin_t, y, -sin_t * 2.5f, 1.5f);
-			pushConstants[3] = glm::vec4(0.0f, y, r * 1.25f * cos_t, 1.5f);
-			pushConstants[4] = glm::vec4(r * 2.25f * cos_t, y, 0.0f, 1.25f);
-			pushConstants[5] = glm::vec4(r * 2.5f * cos(glm::radians(timer * 360)), y, r * 2.5f * sin_t, 1.25f);
-#undef r
-#undef y
-#undef sin_t
-#undef cos_t
-
-			// Submit via push constant (rather than a UBO)
-			drawCmdBuffers[i].pushConstants(pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(pushConstants), pushConstants.data());
-
-			drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
 			drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+			drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
 
 			vk::DeviceSize offsets = 0;
-			drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buf, offsets);
-			drawCmdBuffers[i].bindIndexBuffer(meshes.scene.indices.buf, 0, vk::IndexType::eUint32);
+			// Binding point 0 : Mesh vertex buffer
+			drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buf, offsets);
+			// Binding point 1 : Instance data buffer
+			drawCmdBuffers[i].bindVertexBuffers(INSTANCE_BUFFER_BIND_ID, instanceBuffer.buffer, offsets);
 
-			drawCmdBuffers[i].drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
+			drawCmdBuffers[i].bindIndexBuffer(meshes.example.indices.buf, 0, vk::IndexType::eUint32);
+
+			// Render instances
+			drawCmdBuffers[i].drawIndexed(meshes.example.indexCount, INSTANCE_COUNT, 0, 0, 0);
 
 			drawCmdBuffers[i].endRenderPass();
 
 			drawCmdBuffers[i].end();
-			
 		}
 	}
 
@@ -180,39 +147,71 @@ public:
 
 		// Submit to queue
 		queue.submit(submitInfo, VK_NULL_HANDLE);
-		
 
 		submitFrame();
-		
 	}
 
 	void loadMeshes()
 	{
-		loadMesh(getAssetPath() + "models/samplescene.dae", &meshes.scene, vertexLayout, 0.35f);
+		loadMesh(getAssetPath() + "models/rock01.dae", &meshes.example, vertexLayout, 0.1f);
+	}
+
+	void loadTextures()
+	{
+		textureLoader->loadTextureArray(
+			getAssetPath() + "textures/texturearray_rocks_bc3.ktx",
+			vk::Format::eBc3UnormBlock,
+			&textures.colorMap);
 	}
 
 	void setupVertexDescriptions()
 	{
 		// Binding description
-		vertices.bindingDescriptions.resize(1);
+		vertices.bindingDescriptions.resize(2);
+
+		// Mesh vertex buffer (description) at binding point 0
 		vertices.bindingDescriptions[0] =
-			vkTools::initializers::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkMeshLoader::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
+			vkTools::initializers::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkMeshLoader::vertexSize(vertexLayout), // Input rate for the data passed to shader
+				// Step for each vertex rendered
+				vk::VertexInputRate::eVertex);
+
+		vertices.bindingDescriptions[1] =
+			vkTools::initializers::vertexInputBindingDescription(INSTANCE_BUFFER_BIND_ID, sizeof(InstanceData), // Input rate for the data passed to shader
+				// Step for each instance rendered
+				vk::VertexInputRate::eInstance);
 
 		// Attribute descriptions
 		// Describes memory layout and shader positions
-		vertices.attributeDescriptions.resize(4);
+		vertices.attributeDescriptions.clear();
+
+		// Per-Vertex attributes
 		// Location 0 : Position
-		vertices.attributeDescriptions[0] =
-			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
+		vertices.attributeDescriptions.push_back(
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0));
 		// Location 1 : Normal
-		vertices.attributeDescriptions[1] =
-			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
+		vertices.attributeDescriptions.push_back(
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3));
 		// Location 2 : Texture coordinates
-		vertices.attributeDescriptions[2] =
-			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
+		vertices.attributeDescriptions.push_back(
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6));
 		// Location 3 : Color
-		vertices.attributeDescriptions[3] =
-			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
+		vertices.attributeDescriptions.push_back(
+			vkTools::initializers::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8));
+
+		// Instanced attributes
+		// Location 4 : Position
+		vertices.attributeDescriptions.push_back(
+			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 5, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3));
+		// Location 5 : Rotation
+		vertices.attributeDescriptions.push_back(
+			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 4, vk::Format::eR32G32B32Sfloat, 0));
+		// Location 6 : Scale
+		vertices.attributeDescriptions.push_back(
+			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 6, vk::Format::eR32Sfloat, sizeof(float) * 6));
+		// Location 7 : Texture array layer index
+		vertices.attributeDescriptions.push_back(
+			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 7, vk::Format::eR32Sint, sizeof(float) * 7));
+
 
 		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
 		vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -227,6 +226,7 @@ public:
 		std::vector<vk::DescriptorPoolSize> poolSizes =
 		{
 			vkTools::initializers::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 1),
+			vkTools::initializers::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 1),
 		};
 
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
@@ -244,6 +244,11 @@ public:
 				vk::DescriptorType::eUniformBuffer,
 				vk::ShaderStageFlagBits::eVertex,
 				0),
+			// Binding 1 : Fragment shader combined sampler
+			vkTools::initializers::descriptorSetLayoutBinding(
+				vk::DescriptorType::eCombinedImageSampler,
+				vk::ShaderStageFlagBits::eFragment,
+				1),
 		};
 
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
@@ -252,24 +257,10 @@ public:
 		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
 		
 
-		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo =
+		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		// Define push constant
-		// Example uses six light positions as push constants
-		// 6 * 4 * 4 = 96 bytes
-		// Spec requires a minimum of 128 bytes, bigger values
-		// need to be checked against maxPushConstantsSize
-		// But even at only 128 bytes, lots of stuff can fit 
-		// inside push constants
-		vk::PushConstantRange pushConstantRange =
-			vkTools::initializers::pushConstantRange(vk::ShaderStageFlagBits::eVertex, sizeof(pushConstants), 0);
-
-		// Push constant ranges are part of the pipeline layout
-		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-		pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
-
-		pipelineLayout = device.createPipelineLayout(pipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
 		
 	}
 
@@ -280,11 +271,26 @@ public:
 
 		descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
 
-		// Binding 0 : Vertex shader uniform buffer
-		vk::WriteDescriptorSet writeDescriptorSet =
-			vkTools::initializers::writeDescriptorSet(descriptorSet, vk::DescriptorType::eUniformBuffer, 0, &uniformData.vertexShader.descriptor);
+		vk::DescriptorImageInfo texDescriptor =
+			vkTools::initializers::descriptorImageInfo(textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral);
 
-		device.updateDescriptorSets(writeDescriptorSet, nullptr);
+		std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
+		{
+			// Binding 0 : Vertex shader uniform buffer
+			vkTools::initializers::writeDescriptorSet(
+			descriptorSet,
+				vk::DescriptorType::eUniformBuffer,
+				0,
+				&uniformData.vsScene.descriptor),
+			// Binding 1 : Color map 
+			vkTools::initializers::writeDescriptorSet(
+				descriptorSet,
+				vk::DescriptorType::eCombinedImageSampler,
+				1,
+				&texDescriptor)
+		};
+
+		device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
 	}
 
 	void preparePipelines()
@@ -312,17 +318,17 @@ public:
 
 		std::vector<vk::DynamicState> dynamicStateEnables = {
 			vk::DynamicState::eViewport,
-			vk::DynamicState::eScissor,
+			vk::DynamicState::eScissor
 		};
 		vk::PipelineDynamicStateCreateInfo dynamicState =
 			vkTools::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
 
-		// Solid rendering pipeline
+		// Instacing pipeline
 		// Load shaders
 		std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-		shaderStages[0] = loadShader(getAssetPath() + "shaders/pushconstants/lights.vert.spv", vk::ShaderStageFlagBits::eVertex);
-		shaderStages[1] = loadShader(getAssetPath() + "shaders/pushconstants/lights.frag.spv", vk::ShaderStageFlagBits::eFragment);
+		shaderStages[0] = loadShader(getAssetPath() + "shaders/instancing/instancing.vert.spv", vk::ShaderStageFlagBits::eVertex);
+		shaderStages[1] = loadShader(getAssetPath() + "shaders/instancing/instancing.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
 		vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
 			vkTools::initializers::pipelineCreateInfo(pipelineLayout, renderPass);
@@ -342,43 +348,107 @@ public:
 		
 	}
 
-	void prepareUniformBuffers()
+	float rnd(float range)
 	{
-		// Vertex shader uniform buffer block
-		createBuffer(vk::BufferUsageFlagBits::eUniformBuffer,
-			sizeof(uboVS),
-			&uboVS,
-			uniformData.vertexShader.buffer,
-			uniformData.vertexShader.memory,
-			uniformData.vertexShader.descriptor);
-
-		updateUniformBuffers();
+		return range * (rand() / double(RAND_MAX));
 	}
 
-	void updateUniformBuffers()
+	void prepareInstanceData()
 	{
-		// Vertex shader
-		glm::mat4 viewMatrix = glm::mat4();
-		uboVS.projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.001f, 256.0f);
-		viewMatrix = glm::translate(viewMatrix, glm::vec3(0.0f, 2.0f, zoom));
+		std::vector<InstanceData> instanceData;
+		instanceData.resize(INSTANCE_COUNT);
 
-		float offset = 0.5f;
-		int uboIndex = 1;
-		uboVS.model = viewMatrix * glm::translate(glm::mat4(), glm::vec3(0, 0, 0));
-		uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-		uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-		uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+		std::mt19937 rndGenerator(time(NULL));
+		std::uniform_real_distribution<double> uniformDist(0.0, 1.0);
 
-		void *pData = device.mapMemory(uniformData.vertexShader.memory, 0, sizeof(uboVS), vk::MemoryMapFlags());
-		
-		memcpy(pData, &uboVS, sizeof(uboVS));
-		device.unmapMemory(uniformData.vertexShader.memory);
+		for (auto i = 0; i < INSTANCE_COUNT; i++)
+		{
+			instanceData[i].rot = glm::vec3(M_PI * uniformDist(rndGenerator), M_PI * uniformDist(rndGenerator), M_PI * uniformDist(rndGenerator));
+			float theta = 2 * M_PI * uniformDist(rndGenerator);
+			float phi = acos(1 - 2 * uniformDist(rndGenerator));
+			glm::vec3 pos;
+			instanceData[i].pos = glm::vec3(sin(phi) * cos(theta), sin(theta) * uniformDist(rndGenerator) / 1500.0f, cos(phi)) * 7.5f;
+			instanceData[i].scale = 1.0f + uniformDist(rndGenerator) * 2.0f;
+			instanceData[i].texIndex = rnd(textures.colorMap.layerCount);
+		}
+
+		instanceBuffer.size = instanceData.size() * sizeof(InstanceData);
+
+		// Staging
+		// Instanced data is static, copy to device local memory 
+		// This results in better performance
+
+		struct {
+			vk::DeviceMemory memory;
+			vk::Buffer buffer;
+		} stagingBuffer;
+		VulkanExampleBase::createBuffer(vk::BufferUsageFlagBits::eTransferSrc,
+			vk::MemoryPropertyFlagBits::eHostVisible,
+			instanceBuffer.size,
+			instanceData.data(),
+			stagingBuffer.buffer,
+			stagingBuffer.memory);
+		VulkanExampleBase::createBuffer(vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+			vk::MemoryPropertyFlagBits::eDeviceLocal,
+			instanceBuffer.size,
+			nullptr,
+			instanceBuffer.buffer,
+			instanceBuffer.memory);
+
+		// Copy to staging buffer
+		vk::CommandBuffer copyCmd = VulkanExampleBase::createCommandBuffer(vk::CommandBufferLevel::ePrimary, true);
+
+		vk::BufferCopy copyRegion = { };
+		copyRegion.size = instanceBuffer.size;
+		copyCmd.copyBuffer(stagingBuffer.buffer, instanceBuffer.buffer, copyRegion);
+
+		VulkanExampleBase::flushCommandBuffer(copyCmd, queue, true);
+
+		instanceBuffer.descriptor.range = instanceBuffer.size;
+		instanceBuffer.descriptor.buffer = instanceBuffer.buffer;
+		instanceBuffer.descriptor.offset = 0;
+	}
+
+	void prepareUniformBuffers()
+	{
+		createBuffer(vk::BufferUsageFlagBits::eUniformBuffer,
+			sizeof(uboVS),
+			nullptr,
+			uniformData.vsScene.buffer,
+			uniformData.vsScene.memory,
+			uniformData.vsScene.descriptor);
+
+		// Map for host access
+		uniformData.vsScene.mapped = device.mapMemory(uniformData.vsScene.memory, 0, sizeof(uboVS), vk::MemoryMapFlags());
+
+		updateUniformBuffer(true);
+	}
+
+	void updateUniformBuffer(bool viewChanged)
+	{
+		if (viewChanged)
+		{
+			uboVS.projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.001f, 256.0f);
+			uboVS.view = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
+			uboVS.view = glm::rotate(uboVS.view, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+			uboVS.view = glm::rotate(uboVS.view, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+			uboVS.view = glm::rotate(uboVS.view, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+		}
+
+		if (!paused)
+		{
+			uboVS.time += frameTimer * 0.05f;
+		}
+
+		memcpy(uniformData.vsScene.mapped, &uboVS, sizeof(uboVS));
 	}
 
 	void prepare()
 	{
 		VulkanExampleBase::prepare();
+		loadTextures();
 		loadMeshes();
+		prepareInstanceData();
 		setupVertexDescriptions();
 		prepareUniformBuffers();
 		setupDescriptorSetLayout();
@@ -392,19 +462,20 @@ public:
 	virtual void render()
 	{
 		if (!prepared)
+		{
 			return;
+		}
 		draw();
 		if (!paused)
 		{
 			vkDeviceWaitIdle(device);
-			reBuildCommandBuffers();
+			updateUniformBuffer(false);
 		}
 	}
 
 	virtual void viewChanged()
 	{
-		vkDeviceWaitIdle(device);
-		updateUniformBuffers();
+		updateUniformBuffer(true);
 	}
 };
 

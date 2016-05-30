@@ -287,7 +287,7 @@ public:
 		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = OFFSCREEN_FORMAT;
-		imageCreateInfo.extent = { OFFSCREEN_DIM, OFFSCREEN_DIM, 1 };
+		imageCreateInfo.extent = vk::Extent3D { OFFSCREEN_DIM, OFFSCREEN_DIM, 1 };
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
@@ -644,7 +644,7 @@ public:
 			// Copy from staging buffers
 			vk::CommandBuffer copyCmd = VulkanExampleBase::createCommandBuffer(vk::CommandBufferLevel::ePrimary, true);
 
-			vk::BufferCopy copyRegion = {};
+			vk::BufferCopy copyRegion;
 
 			copyRegion.size = vertexBufferSize;
 			copyCmd.copyBuffer(vertexStaging.buffer, scene->vertices.buf, copyRegion);

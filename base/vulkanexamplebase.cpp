@@ -53,6 +53,7 @@ void VulkanExampleBase::createDevice(vk::DeviceQueueCreateInfo requestedQueues, 
 	vk::DeviceCreateInfo deviceCreateInfo;
 	deviceCreateInfo.queueCreateInfoCount = 1;
 	deviceCreateInfo.pQueueCreateInfos = &requestedQueues;
+	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
 	// enable the debug marker extension if it is present (likely meaning a debugging tool is present)
 	if (vkTools::checkDeviceExtensionPresent(physicalDevice, VK_EXT_DEBUG_MARKER_EXTENSION_NAME))
@@ -643,7 +644,7 @@ void VulkanExampleBase::getOverlayText(VulkanTextOverlay *textOverlay)
 void VulkanExampleBase::prepareFrame()
 {
 	// Acquire the next image from the swap chaing
-	swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
+	currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
 	// Submit barrier that transforms color attachment image layout back from khr
 	submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
 
@@ -691,7 +692,8 @@ void VulkanExampleBase::submitFrame()
 	queue.waitIdle();
 }
 
-VulkanExampleBase::VulkanExampleBase(bool enableValidation)
+VulkanExampleBase::VulkanExampleBase(bool enableValidation, const vk::PhysicalDeviceFeatures& requestedFeatures) 
+	: requestedFeatures(requestedFeatures) 
 {
 	// Check for validation command line flag
 #if defined(_WIN32)
@@ -831,12 +833,13 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 	queueCreateInfo.queueCount = 1;
 	queueCreateInfo.pQueuePriorities = queuePriorities.data();
 
-	createDevice(queueCreateInfo, enableValidation);
-
 	// Store properties (including limits) and features of the phyiscal device
 	// So examples can check against them and see if a feature is actually supported
 	deviceProperties = physicalDevice.getProperties();
 	deviceFeatures = physicalDevice.getFeatures();
+
+	createDevice(queueCreateInfo, enableValidation);
+
 
 	// Gather physical device memory properties
 	deviceMemoryProperties = physicalDevice.getMemoryProperties();

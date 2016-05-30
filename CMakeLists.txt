@@ -66,8 +66,9 @@ set(EXAMPLES
 	gears
 	geometryshader
 	instancing
+        indirect
 	mesh
-    multithreading
+	multithreading
 	multisampling
 	occlusionquery
 	offscreen

@@ -237,7 +237,7 @@ public:
 
 			for (uint32_t i = 0; i < texture.mipLevels; i++)
 			{
-				vk::BufferImageCopy bufferCopyRegion = {};
+				vk::BufferImageCopy bufferCopyRegion;
 				bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 				bufferCopyRegion.imageSubresource.mipLevel = i;
 				bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
@@ -263,7 +263,7 @@ public:
 			imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
 			imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 			imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
-			imageCreateInfo.extent = { texture.width, texture.height, 1 };
+			imageCreateInfo.extent = vk::Extent3D { texture.width, texture.height, 1 };
 			imageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 
 			texture.image = device.createImage(imageCreateInfo, nullptr);
@@ -329,7 +329,7 @@ public:
 			imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
 			imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 			imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
-			imageCreateInfo.extent = { texture.width, texture.height, 1 };
+			imageCreateInfo.extent = vk::Extent3D { texture.width, texture.height, 1 };
 			mappableImage = device.createImage(imageCreateInfo, nullptr);
 
 			// Get memory requirements for this image 
@@ -349,7 +349,7 @@ public:
 
 			// Get sub resource layout
 			// Mip map count, array layer, etc.
-			vk::ImageSubresource subRes = {};
+			vk::ImageSubresource subRes;
 			subRes.aspectMask = vk::ImageAspectFlagBits::eColor;
 
 			vk::SubresourceLayout subResLayout;

@@ -98,20 +98,14 @@ public:
 	// into command buffers that are then resubmitted to the queue
 	void buildCommandBuffers()
 	{
-		vk::CommandBufferBeginInfo cmdBufInfo = {};
-		cmdBufInfo.sType = vk::StructureType::eCommandBufferBeginInfo;
-		cmdBufInfo.pNext = NULL;
+		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
-		vk::RenderPassBeginInfo renderPassBeginInfo = {};
-		renderPassBeginInfo.sType = vk::StructureType::eRenderPassBeginInfo;
-		renderPassBeginInfo.pNext = NULL;
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
-		renderPassBeginInfo.renderArea.offset.x = 0;
-		renderPassBeginInfo.renderArea.offset.y = 0;
 		renderPassBeginInfo.renderArea.extent.width = width;
 		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
@@ -130,7 +124,7 @@ public:
 			drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
 			// Update dynamic viewport state
-			vk::Viewport viewport = {};
+			vk::Viewport viewport;
 			viewport.height = (float)height;
 			viewport.width = (float)width;
 			viewport.minDepth = (float) 0.0f;
@@ -138,7 +132,7 @@ public:
 			drawCmdBuffers[i].setViewport(0, viewport);
 
 			// Update dynamic scissor state
-			vk::Rect2D scissor = {};
+			vk::Rect2D scissor;
 			scissor.extent.width = width;
 			scissor.extent.height = height;
 			scissor.offset.x = 0;
@@ -166,9 +160,7 @@ public:
 			// Add a present memory barrier to the end of the command buffer
 			// This will transform the frame buffer color attachment to a
 			// new layout for presenting it to the windowing system integration 
-			vk::ImageMemoryBarrier prePresentBarrier = {};
-			prePresentBarrier.sType = vk::StructureType::eImageMemoryBarrier;
-			prePresentBarrier.pNext = NULL;
+			vk::ImageMemoryBarrier prePresentBarrier;
 			prePresentBarrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
 			prePresentBarrier.dstAccessMask = vk::AccessFlagBits::eMemoryRead;
 			prePresentBarrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
@@ -188,13 +180,13 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
+		currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
 
 		// Add a post present image memory barrier
 		// This will transform the frame buffer color attachment back
 		// to it's initial layout after it has been presented to the
 		// windowing system
-		vk::ImageMemoryBarrier postPresentBarrier = {};
+		vk::ImageMemoryBarrier postPresentBarrier;
 		postPresentBarrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
 		postPresentBarrier.oldLayout = vk::ImageLayout::ePresentSrcKHR;
 		postPresentBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
@@ -204,9 +196,7 @@ public:
 		postPresentBarrier.image = swapChain.buffers[currentBuffer].image;
 
 		// Use dedicated command buffer from example base class for submitting the post present barrier
-		vk::CommandBufferBeginInfo cmdBufInfo = {};
-		cmdBufInfo.sType = vk::StructureType::eCommandBufferBeginInfo;
-
+		vk::CommandBufferBeginInfo cmdBufInfo;
 		postPresentCmdBuffer.begin(cmdBufInfo);
 
 		// Put post present barrier into command buffer
@@ -215,8 +205,7 @@ public:
 		postPresentCmdBuffer.end();
 
 		// Submit the image barrier to the current queue
-		submitInfo = {};
-		submitInfo.sType = vk::StructureType::eSubmitInfo;
+		submitInfo = vk::SubmitInfo();
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &postPresentCmdBuffer;
 
@@ -230,8 +219,7 @@ public:
 		// command buffers and semaphores to be submitted to a queue
 		// If you want to submit multiple command buffers, pass an array
 		vk::PipelineStageFlags pipelineStages = vk::PipelineStageFlagBits::eBottomOfPipe;
-		vk::SubmitInfo submitInfo = {};
-		submitInfo.sType = vk::StructureType::eSubmitInfo;
+		vk::SubmitInfo submitInfo;
 		submitInfo.pWaitDstStageMask = &pipelineStages;
 		// The wait semaphore ensures that the image is presented 
 		// before we start submitting command buffers agein
@@ -259,17 +247,15 @@ public:
 	// Create synchronzation semaphores
 	void prepareSemaphore()
 	{
-		vk::SemaphoreCreateInfo semaphoreCreateInfo = {};
-		semaphoreCreateInfo.sType = vk::StructureType::eSemaphoreCreateInfo;
-		semaphoreCreateInfo.pNext = NULL;
+		vk::SemaphoreCreateInfo semaphoreCreateInfo;
 
 		// This semaphore ensures that the image is complete
 		// before starting to submit again
-		semaphores.presentComplete = device.createSemaphore(semaphoreCreateInfo, nullptr);
+		semaphores.presentComplete = device.createSemaphore(semaphoreCreateInfo);
 
 		// This semaphore ensures that all commands submitted
 		// have been finished before submitting the image to the queue
-		semaphores.renderComplete = device.createSemaphore(semaphoreCreateInfo, nullptr);
+		semaphores.renderComplete = device.createSemaphore(semaphoreCreateInfo);
 	}
 
 	// Setups vertex and index buffers for an indexed triangle,
@@ -295,8 +281,7 @@ public:
 		uint32_t indexBufferSize = indexBuffer.size() * sizeof(uint32_t);
 		indices.count = indexBuffer.size();
 
-		vk::MemoryAllocateInfo memAlloc = {};
-		memAlloc.sType = vk::StructureType::eMemoryAllocateInfo;
+		vk::MemoryAllocateInfo memAlloc;
 		vk::MemoryRequirements memReqs;
 
 		void *data;
@@ -325,8 +310,7 @@ public:
 			} stagingBuffers;
 
 			// Buffer copies are done on the queue, so we need a command buffer for them
-			vk::CommandBufferAllocateInfo cmdBufInfo = {};
-			cmdBufInfo.sType = vk::StructureType::eCommandBufferAllocateInfo;
+			vk::CommandBufferAllocateInfo cmdBufInfo;
 			cmdBufInfo.commandPool = cmdPool;
 			cmdBufInfo.level = vk::CommandBufferLevel::ePrimary;
 			cmdBufInfo.commandBufferCount = 1;
@@ -334,8 +318,7 @@ public:
 			vk::CommandBuffer copyCommandBuffer = device.allocateCommandBuffers(cmdBufInfo)[0];
 
 			// Vertex buffer
-			vk::BufferCreateInfo vertexBufferInfo = {};
-			vertexBufferInfo.sType = vk::StructureType::eBufferCreateInfo;
+			vk::BufferCreateInfo vertexBufferInfo;
 			vertexBufferInfo.size = vertexBufferSize;
 			// Buffer is used as the copy source
 			vertexBufferInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
@@ -362,8 +345,7 @@ public:
 			device.bindBufferMemory(vertices.buf, vertices.mem, 0);
 
 			// Index buffer
-			vk::BufferCreateInfo indexbufferInfo = {};
-			indexbufferInfo.sType = vk::StructureType::eBufferCreateInfo;
+			vk::BufferCreateInfo indexbufferInfo;
 			indexbufferInfo.size = indexBufferSize;
 			indexbufferInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
 			// Copy index data to a buffer visible to the host (staging buffer)
@@ -387,11 +369,9 @@ public:
 			device.bindBufferMemory(indices.buf, indices.mem, 0);
 			indices.count = indexBuffer.size();
 
-			vk::CommandBufferBeginInfo cmdBufferBeginInfo = {};
-			cmdBufferBeginInfo.sType = vk::StructureType::eCommandBufferBeginInfo;
-			cmdBufferBeginInfo.pNext = NULL;
+			vk::CommandBufferBeginInfo cmdBufferBeginInfo;
 
-			vk::BufferCopy copyRegion = {};
+			vk::BufferCopy copyRegion;
 
 			// Put buffer region copies into command buffer
 			// Note that the staging buffer must not be deleted before the copies 
@@ -408,8 +388,7 @@ public:
 			copyCommandBuffer.end();
 
 			// Submit copies to the queue
-			vk::SubmitInfo copySubmitInfo = {};
-			copySubmitInfo.sType = vk::StructureType::eSubmitInfo;
+			vk::SubmitInfo copySubmitInfo;
 			copySubmitInfo.commandBufferCount = 1;
 			copySubmitInfo.pCommandBuffers = &copyCommandBuffer;
 
@@ -433,8 +412,7 @@ public:
 			// separate between host visible and device local memory
 
 			// Vertex buffer
-			vk::BufferCreateInfo vertexBufferInfo = {};
-			vertexBufferInfo.sType = vk::StructureType::eBufferCreateInfo;
+			vk::BufferCreateInfo vertexBufferInfo;
 			vertexBufferInfo.size = vertexBufferSize;
 			vertexBufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
 
@@ -450,8 +428,7 @@ public:
 			device.bindBufferMemory(vertices.buf, vertices.mem, 0);
 
 			// Index buffer
-			vk::BufferCreateInfo indexbufferInfo = {};
-			indexbufferInfo.sType = vk::StructureType::eBufferCreateInfo;
+			vk::BufferCreateInfo indexbufferInfo;
 			indexbufferInfo.size = indexBufferSize;
 			indexbufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer;
 
@@ -511,9 +488,7 @@ public:
 
 		// Create the global descriptor pool
 		// All descriptors used in this example are allocated from this pool
-		vk::DescriptorPoolCreateInfo descriptorPoolInfo = {};
-		descriptorPoolInfo.sType = vk::StructureType::eDescriptorPoolCreateInfo;
-		descriptorPoolInfo.pNext = NULL;
+		vk::DescriptorPoolCreateInfo descriptorPoolInfo;
 		descriptorPoolInfo.poolSizeCount = 1;
 		descriptorPoolInfo.pPoolSizes = typeCounts;
 		// Set the max. number of sets that can be requested
@@ -532,15 +507,13 @@ public:
 		// binding
 
 		// Binding 0 : Uniform buffer (Vertex shader)
-		vk::DescriptorSetLayoutBinding layoutBinding = {};
+		vk::DescriptorSetLayoutBinding layoutBinding;
 		layoutBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
 		layoutBinding.descriptorCount = 1;
 		layoutBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
 		layoutBinding.pImmutableSamplers = NULL;
 
-		vk::DescriptorSetLayoutCreateInfo descriptorLayout = {};
-		descriptorLayout.sType = vk::StructureType::eDescriptorSetLayoutCreateInfo;
-		descriptorLayout.pNext = NULL;
+		vk::DescriptorSetLayoutCreateInfo descriptorLayout;
 		descriptorLayout.bindingCount = 1;
 		descriptorLayout.pBindings = &layoutBinding;
 
@@ -550,9 +523,7 @@ public:
 		// are based on this descriptor set layout
 		// In a more complex scenario you would have different pipeline layouts for different
 		// descriptor set layouts that could be reused
-		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo = {};
-		pPipelineLayoutCreateInfo.sType = vk::StructureType::ePipelineLayoutCreateInfo;
-		pPipelineLayoutCreateInfo.pNext = NULL;
+		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo;
 		pPipelineLayoutCreateInfo.setLayoutCount = 1;
 		pPipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
 
@@ -562,8 +533,7 @@ public:
 	void setupDescriptorSet()
 	{
 		// Allocate a new descriptor set from the global descriptor pool
-		vk::DescriptorSetAllocateInfo allocInfo = {};
-		allocInfo.sType = vk::StructureType::eDescriptorSetAllocateInfo;
+		vk::DescriptorSetAllocateInfo allocInfo;
 		allocInfo.descriptorPool = descriptorPool;
 		allocInfo.descriptorSetCount = 1;
 		allocInfo.pSetLayouts = &descriptorSetLayout;
@@ -574,10 +544,9 @@ public:
 		// For every binding point used in a shader there needs to be one
 		// descriptor set matching that binding point
 
-		vk::WriteDescriptorSet writeDescriptorSet = {};
+		vk::WriteDescriptorSet writeDescriptorSet;
 
 		// Binding 0 : Uniform buffer
-		writeDescriptorSet.sType = vk::StructureType::eWriteDescriptorSet;
 		writeDescriptorSet.dstSet = descriptorSet;
 		writeDescriptorSet.descriptorCount = 1;
 		writeDescriptorSet.descriptorType = vk::DescriptorType::eUniformBuffer;
@@ -604,9 +573,7 @@ public:
 		// pipeline only stores that they are used with this pipeline,
 		// but not their states
 
-		vk::GraphicsPipelineCreateInfo pipelineCreateInfo = {};
-
-		pipelineCreateInfo.sType = vk::StructureType::eGraphicsPipelineCreateInfo;
+		vk::GraphicsPipelineCreateInfo pipelineCreateInfo;
 		// The layout used for this pipeline
 		pipelineCreateInfo.layout = pipelineLayout;
 		// Renderpass this pipeline is attached to
@@ -614,14 +581,12 @@ public:
 
 		// Vertex input state
 		// Describes the topoloy used with this pipeline
-		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
-		inputAssemblyState.sType = vk::StructureType::ePipelineInputAssemblyStateCreateInfo;
+		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
 		// This pipeline renders vertex data as triangle lists
 		inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleList;
 
 		// Rasterization state
-		vk::PipelineRasterizationStateCreateInfo rasterizationState = {};
-		rasterizationState.sType = vk::StructureType::ePipelineRasterizationStateCreateInfo;
+		vk::PipelineRasterizationStateCreateInfo rasterizationState;
 		// Solid polygon mode
 		rasterizationState.polygonMode = vk::PolygonMode::eFill;
 		// No culling
@@ -634,8 +599,7 @@ public:
 
 		// Color blend state
 		// Describes blend modes and color masks
-		vk::PipelineColorBlendStateCreateInfo colorBlendState = {};
-		colorBlendState.sType = vk::StructureType::ePipelineColorBlendStateCreateInfo;
+		vk::PipelineColorBlendStateCreateInfo colorBlendState;
 		// One blend attachment state
 		// Blending is not used in this example
 		vk::PipelineColorBlendAttachmentState blendAttachmentState[1] = {};
@@ -645,8 +609,7 @@ public:
 		colorBlendState.pAttachments = blendAttachmentState;
 
 		// Viewport state
-		vk::PipelineViewportStateCreateInfo viewportState = {};
-		viewportState.sType = vk::StructureType::ePipelineViewportStateCreateInfo;
+		vk::PipelineViewportStateCreateInfo viewportState;
 		// One viewport
 		viewportState.viewportCount = 1;
 		// One scissor rectangle
@@ -657,21 +620,19 @@ public:
 		// Dynamic states can be set even after the pipeline has been created
 		// So there is no need to create new pipelines just for changing
 		// a viewport's dimensions or a scissor box
-		vk::PipelineDynamicStateCreateInfo dynamicState = {};
+		vk::PipelineDynamicStateCreateInfo dynamicState;
 		// The dynamic state properties themselves are stored in the command buffer
 		std::vector<vk::DynamicState> dynamicStateEnables;
 		dynamicStateEnables.push_back(vk::DynamicState::eViewport);
 		dynamicStateEnables.push_back(vk::DynamicState::eScissor);
-		dynamicState.sType = vk::StructureType::ePipelineDynamicStateCreateInfo;
 		dynamicState.pDynamicStates = dynamicStateEnables.data();
 		dynamicState.dynamicStateCount = dynamicStateEnables.size();
 
 		// Depth and stencil state
 		// Describes depth and stenctil test and compare ops
-		vk::PipelineDepthStencilStateCreateInfo depthStencilState = {};
+		vk::PipelineDepthStencilStateCreateInfo depthStencilState;
 		// Basic depth compare setup with depth writes and depth test enabled
 		// No stencil used 
-		depthStencilState.sType = vk::StructureType::ePipelineDepthStencilStateCreateInfo;
 		depthStencilState.depthTestEnable = VK_TRUE;
 		depthStencilState.depthWriteEnable = VK_TRUE;
 		depthStencilState.depthCompareOp = vk::CompareOp::eLessOrEqual;
@@ -683,8 +644,7 @@ public:
 		depthStencilState.front = depthStencilState.back;
 
 		// Multi sampling state
-		vk::PipelineMultisampleStateCreateInfo multisampleState = {};
-		multisampleState.sType = vk::StructureType::ePipelineMultisampleStateCreateInfo;
+		vk::PipelineMultisampleStateCreateInfo multisampleState;
 		multisampleState.pSampleMask = NULL;
 		// No multi sampling used in this example
 		multisampleState.rasterizationSamples = vk::SampleCountFlagBits::e1;
@@ -721,14 +681,10 @@ public:
 		vk::MemoryRequirements memReqs;
 
 		// Vertex shader uniform buffer block
-		vk::BufferCreateInfo bufferInfo = {};
-		vk::MemoryAllocateInfo allocInfo = {};
-		allocInfo.sType = vk::StructureType::eMemoryAllocateInfo;
-		allocInfo.pNext = NULL;
+		vk::BufferCreateInfo bufferInfo;
+		vk::MemoryAllocateInfo allocInfo;
 		allocInfo.allocationSize = 0;
 		allocInfo.memoryTypeIndex = 0;
-
-		bufferInfo.sType = vk::StructureType::eBufferCreateInfo;
 		bufferInfo.size = sizeof(uboVS);
 		bufferInfo.usage = vk::BufferUsageFlagBits::eUniformBuffer;
 

@@ -159,11 +159,7 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
-		
-
-		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
+		prepareFrame();
 		// Command buffer to be sumitted to the queue
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
@@ -172,12 +168,7 @@ public:
 		queue.submit(submitInfo, VK_NULL_HANDLE);
 		
 
-		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-
-		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-		
-
-		queue.waitIdle();
+		submitFrame();
 		
 	}
 
@@ -373,28 +364,31 @@ public:
 	void preparePipelines()
 	{
 		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
-                inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleList;
-                vk::PipelineRasterizationStateCreateInfo rasterizationState;
-                rasterizationState.polygonMode = vk::PolygonMode::eFill;
-                rasterizationState.cullMode = vk::CullModeFlagBits::eBack;
-                rasterizationState.frontFace = vk::FrontFace::eClockwise;
-                vk::PipelineColorBlendAttachmentState blendAttachmentState;
-                blendAttachmentState.colorWriteMask = vkTools::initializers::fullColorWriteMask();
+		inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleList;
 
-                vk::PipelineColorBlendStateCreateInfo colorBlendState;
-                colorBlendState.attachmentCount = 1;
-                colorBlendState.pAttachments = &blendAttachmentState;
+		vk::PipelineRasterizationStateCreateInfo rasterizationState =
+			vkTools::initializers::pipelineRasterizationStateCreateInfo(
+				vk::PolygonMode::eFill,
+				vk::CullModeFlagBits::eBack,
+				vk::FrontFace::eClockwise);
 
-                vk::PipelineDepthStencilStateCreateInfo depthStencilState;
-                depthStencilState.depthTestEnable = VK_TRUE;
-                depthStencilState.depthWriteEnable = VK_TRUE;
-                depthStencilState.depthCompareOp = vk::CompareOp::eLessOrEqual;
+		vk::PipelineColorBlendAttachmentState blendAttachmentState;
+		blendAttachmentState.colorWriteMask = vkTools::initializers::fullColorWriteMask();
 
-                vk::PipelineViewportStateCreateInfo viewportState;
-                viewportState.scissorCount = 1;
-                viewportState.viewportCount = 1;
+		vk::PipelineColorBlendStateCreateInfo colorBlendState;
+		colorBlendState.attachmentCount = 1;
+		colorBlendState.pAttachments = &blendAttachmentState;
 
-                //vk::PipelineMultisampleStateCreateInfo multisampleState;
+		vk::PipelineDepthStencilStateCreateInfo depthStencilState;
+		depthStencilState.depthTestEnable = VK_TRUE;
+		depthStencilState.depthWriteEnable = VK_TRUE;
+		depthStencilState.depthCompareOp = vk::CompareOp::eLessOrEqual;
+
+		vk::PipelineViewportStateCreateInfo viewportState;
+		viewportState.scissorCount = 1;
+		viewportState.viewportCount = 1;
+
+		vk::PipelineMultisampleStateCreateInfo multisampleState;
 
 		std::vector<vk::DynamicState> dynamicStateEnables = {
 			vk::DynamicState::eViewport,
@@ -416,7 +410,7 @@ public:
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
 		pipelineCreateInfo.pRasterizationState = &rasterizationState;
 		pipelineCreateInfo.pColorBlendState = &colorBlendState;
-		//pipelineCreateInfo.pMultisampleState = &multisampleState;
+		pipelineCreateInfo.pMultisampleState = &multisampleState;
 		pipelineCreateInfo.pViewportState = &viewportState;
 		pipelineCreateInfo.pDepthStencilState = &depthStencilState;
 		pipelineCreateInfo.pDynamicState = &dynamicState;

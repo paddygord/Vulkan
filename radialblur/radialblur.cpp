@@ -179,7 +179,7 @@ public:
 		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = format;
-		imageCreateInfo.extent = { width, height, 1 };
+		imageCreateInfo.extent = vk::Extent3D { width, height, 1 };
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
@@ -272,11 +272,8 @@ public:
 		vk::ImageViewCreateInfo colorImageView;
 		colorImageView.viewType = vk::ImageViewType::e2D;
 		colorImageView.format = fbColorFormat;
-		colorImageView.subresourceRange = {};
 		colorImageView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-		colorImageView.subresourceRange.baseMipLevel = 0;
 		colorImageView.subresourceRange.levelCount = 1;
-		colorImageView.subresourceRange.baseArrayLayer = 0;
 		colorImageView.subresourceRange.layerCount = 1;
 
 		offScreenFrameBuf.color.image = device.createImage(image, nullptr);
@@ -303,11 +300,8 @@ public:
 		vk::ImageViewCreateInfo depthStencilView;
 		depthStencilView.viewType = vk::ImageViewType::e2D;
 		depthStencilView.format = fbDepthFormat;
-		depthStencilView.subresourceRange = {};
 		depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
-		depthStencilView.subresourceRange.baseMipLevel = 0;
 		depthStencilView.subresourceRange.levelCount = 1;
-		depthStencilView.subresourceRange.baseArrayLayer = 0;
 		depthStencilView.subresourceRange.layerCount = 1;
 
 		offScreenFrameBuf.depth.image = device.createImage(image, nullptr);
@@ -358,7 +352,7 @@ public:
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
-		clearValues[0].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 0.0f } };
+		clearValues[0].color = vkTools::initializers::clearColor( { 0, 0, 0, 0 } );
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -412,7 +406,6 @@ public:
 		imgBlit.srcSubresource.baseArrayLayer = 0;
 		imgBlit.srcSubresource.layerCount = 1;
 
-		imgBlit.srcOffsets[0] = { 0, 0, 0 };
 		imgBlit.srcOffsets[1].x = offScreenFrameBuf.width;
 		imgBlit.srcOffsets[1].y = offScreenFrameBuf.height;
 		imgBlit.srcOffsets[1].z = 1;
@@ -422,7 +415,6 @@ public:
 		imgBlit.dstSubresource.baseArrayLayer = 0;
 		imgBlit.dstSubresource.layerCount = 1;
 
-		imgBlit.dstOffsets[0] = { 0, 0, 0 };
 		imgBlit.dstOffsets[1].x = offScreenFrameBuf.textureTarget.width;
 		imgBlit.dstOffsets[1].y = offScreenFrameBuf.textureTarget.height;
 		imgBlit.dstOffsets[1].z = 1;

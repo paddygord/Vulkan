@@ -100,6 +100,9 @@ protected:
 	vk::PhysicalDeviceProperties deviceProperties;
 	// Stores phyiscal device features (for e.g. checking if a feature is available)
 	vk::PhysicalDeviceFeatures deviceFeatures;
+
+	// Requested features
+	vk::PhysicalDeviceFeatures requestedFeatures;
 	// Stores all available memory (type) properties for the physical device
 	vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
 	// Logical device, application's view of the physical device (GPU)
@@ -157,7 +160,7 @@ public:
 	uint32_t width = 1280;
 	uint32_t height = 720;
 
-	vk::ClearColorValue defaultClearColor = { std::array<float, 4> { 0.025f, 0.025f, 0.025f, 1.0f } };
+	VK_CLEAR_COLOR_TYPE defaultClearColor = vkTools::initializers::clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
 
 	float zoom = 0;
 
@@ -225,7 +228,7 @@ public:
 	xcb_intern_atom_reply_t *atom_wm_delete_window;
 #endif
 
-	VulkanExampleBase(bool enableValidation);
+	VulkanExampleBase(bool enableValidation, const vk::PhysicalDeviceFeatures& requestedFeatures = vk::PhysicalDeviceFeatures());
 	VulkanExampleBase() : VulkanExampleBase(false) {};
 	~VulkanExampleBase();
 

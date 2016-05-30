@@ -581,7 +581,6 @@ public:
 			copyCmd.end();
 
 			vk::SubmitInfo submitInfo;
-			submitInfo.sType = vk::StructureType::eSubmitInfo;
 			submitInfo.commandBufferCount = 1;
 			submitInfo.pCommandBuffers = &copyCmd;
 

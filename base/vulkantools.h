@@ -30,10 +30,19 @@
 #include <android/asset_manager.h>
 #endif
 
+#include <glm/glm.hpp>
+
 // Custom define for better code readability
 #define VK_FLAGS_NONE 0
 // Default fence timeout in nanoseconds
 #define DEFAULT_FENCE_TIMEOUT 100000000000
+
+
+#ifdef VK_CPP_HAS_UNRESTRICTED_UNIONS
+#define VK_CLEAR_COLOR_TYPE vk::ClearColorValue
+#else 
+#define VK_CLEAR_COLOR_TYPE VkClearColorValue
+#endif
 
 // Macro to check and display Vulkan return results
 #define VK_CHECK_RESULT(f)																				\
@@ -118,6 +127,9 @@ namespace vkTools
 	// Some initializers are parameterized for convenience
 	namespace initializers
 	{
+
+		VK_CLEAR_COLOR_TYPE clearColor(const glm::vec4& v);
+
 		vk::CommandBufferAllocateInfo commandBufferAllocateInfo(
 			vk::CommandPool commandPool,
 			vk::CommandBufferLevel level,

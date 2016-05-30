@@ -242,8 +242,6 @@ public:
 		}
 
 		vk::SwapchainCreateInfoKHR swapchainCI;
-		swapchainCI.sType = vk::StructureType::eSwapchainCreateInfoKHR;
-		swapchainCI.pNext = NULL;
 		swapchainCI.surface = surface;
 		swapchainCI.minImageCount = desiredNumberOfSwapchainImages;
 		swapchainCI.imageFormat = colorFormat;
@@ -316,11 +314,16 @@ public:
 	}
 
 	// Acquires the next image in the swap chain
-	vk::Result acquireNextImage(vk::Semaphore presentCompleteSemaphore, uint32_t &currentBuffer)
+	uint32_t acquireNextImage(vk::Semaphore presentCompleteSemaphore)
 	{
 		auto resultValue = device.acquireNextImageKHR(swapChain, UINT64_MAX, presentCompleteSemaphore, vk::Fence());
-		currentBuffer = resultValue.value;
-		return resultValue.result;
+		vk::Result result = resultValue.result;
+		if (result != vk::Result::eSuccess) {
+			// TODO handle eSuboptimalKHR
+			std::cerr << "Invalid acquire result: " << vk::to_string(result);
+			throw std::error_code(result);
+		}
+		return resultValue.value;
 	}
 
 	// Present the current image to the queue

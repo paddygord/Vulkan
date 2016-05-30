@@ -154,8 +154,7 @@ public:
 		// Command buffer
 
 		// Pool
-		vk::CommandPoolCreateInfo cmdPoolInfo = {};
-		cmdPoolInfo.sType = vk::StructureType::eCommandPoolCreateInfo;
+		vk::CommandPoolCreateInfo cmdPoolInfo;
 		cmdPoolInfo.queueFamilyIndex = 0; // todo : pass from example base / swap chain
 		cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
 		commandPool = device.createCommandPool(cmdPoolInfo, nullptr);
@@ -250,7 +249,7 @@ public:
 			vk::ImageLayout::ePreinitialized,
 			vk::ImageLayout::eTransferDstOptimal);
 
-		vk::BufferImageCopy bufferCopyRegion = {};
+		vk::BufferImageCopy bufferCopyRegion;
 		bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 		bufferCopyRegion.imageSubresource.mipLevel = 0;
 		bufferCopyRegion.imageSubresource.layerCount = 1;
@@ -345,8 +344,7 @@ public:
 		device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
 
 		// Pipeline cache
-		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-		pipelineCacheCreateInfo.sType = vk::StructureType::ePipelineCacheCreateInfo;
+		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo;
 		pipelineCache = device.createPipelineCache(pipelineCacheCreateInfo, nullptr);
 	}
 
@@ -449,34 +447,25 @@ public:
 		attachments[1].initialLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 		attachments[1].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		vk::AttachmentReference colorReference = {};
+		vk::AttachmentReference colorReference;
 		colorReference.attachment = 0;
 		colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
-		vk::AttachmentReference depthReference = {};
+		vk::AttachmentReference depthReference;
 		depthReference.attachment = 1;
 		depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		vk::SubpassDescription subpass = {};
+		vk::SubpassDescription subpass;
 		subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-		subpass.inputAttachmentCount = 0;
-		subpass.pInputAttachments = NULL;
 		subpass.colorAttachmentCount = 1;
 		subpass.pColorAttachments = &colorReference;
-		subpass.pResolveAttachments = NULL;
 		subpass.pDepthStencilAttachment = &depthReference;
-		subpass.preserveAttachmentCount = 0;
-		subpass.pPreserveAttachments = NULL;
 
-		vk::RenderPassCreateInfo renderPassInfo = {};
-		renderPassInfo.sType = vk::StructureType::eRenderPassCreateInfo;
-		renderPassInfo.pNext = NULL;
+		vk::RenderPassCreateInfo renderPassInfo;
 		renderPassInfo.attachmentCount = 2;
 		renderPassInfo.pAttachments = attachments;
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpass;
-		renderPassInfo.dependencyCount = 0;
-		renderPassInfo.pDependencies = NULL;
 
 		renderPass = device.createRenderPass(renderPassInfo, nullptr);
 	}
@@ -569,7 +558,7 @@ public:
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
-		clearValues[1].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 0.0f } };
+		clearValues[1].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
@@ -619,8 +608,8 @@ public:
 			return;
 		}
 
-		vk::SubmitInfo submitInfo = {};
-		submitInfo.sType = vk::StructureType::eSubmitInfo;submitInfo.commandBufferCount = 1;
+		vk::SubmitInfo submitInfo;
+		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &cmdBuffers[bufferindex];
 
 		queue.submit(submitInfo, VK_NULL_HANDLE);
@@ -702,7 +691,7 @@ public:
 
 		vk::ClearValue clearValues[3];
 
-		clearValues[0].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 1.0f } };
+		clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -806,10 +795,7 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
-
-		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
+		prepareFrame();
 		// Command buffer to be sumitted to the queue
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
@@ -820,11 +806,7 @@ public:
 		// Submit text overlay to queue
 		textOverlay->submit(queue, currentBuffer);
 
-		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-
-		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-
-		queue.waitIdle();
+		submitFrame();
 	}
 
 	void loadTextures()

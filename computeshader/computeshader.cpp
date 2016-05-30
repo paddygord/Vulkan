@@ -43,10 +43,8 @@ public:
 		// Compute pipelines are separated from 
 		// graphics pipelines in Vulkan
 		std::vector<vk::Pipeline> compute;
-		uint32_t computeIndex = 0;
+		uint32_t computeIndex { 0 };
 	} pipelines;
-
-	int vertexBufferSize;
 
 	vk::Queue computeQueue;
 	vk::CommandBuffer computeCmdBuffer;
@@ -107,7 +105,7 @@ public:
 		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = format;
-		imageCreateInfo.extent = { width, height, 1 };
+		imageCreateInfo.extent = vk::Extent3D { width, height, 1 };
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
@@ -210,9 +208,7 @@ public:
 			// Image memory barrier to make sure that compute
 			// shader writes are finished before sampling
 			// from the texture
-			vk::ImageMemoryBarrier imageMemoryBarrier = {};
-			imageMemoryBarrier.sType = vk::StructureType::eImageMemoryBarrier;
-			imageMemoryBarrier.pNext = NULL;
+			vk::ImageMemoryBarrier imageMemoryBarrier;
 			imageMemoryBarrier.oldLayout = vk::ImageLayout::eGeneral;
 			imageMemoryBarrier.newLayout = vk::ImageLayout::eGeneral;
 			imageMemoryBarrier.image = textureComputeTarget.image;
@@ -570,6 +566,7 @@ public:
 
 			pipelines.compute.push_back(pipeline);
 		}
+		pipelines.computeIndex = 0;
 	}
 
 	// Prepare and initialize uniform buffer containing shader uniforms
@@ -617,7 +614,7 @@ public:
 		}
 		assert(queueIndex < queueCount);
 
-		vk::DeviceQueueCreateInfo queueCreateInfo = {};
+		vk::DeviceQueueCreateInfo queueCreateInfo;
 		queueCreateInfo.queueFamilyIndex = queueIndex;
 		queueCreateInfo.queueCount = 1;
 		computeQueue = device.getQueue(queueIndex, 0);

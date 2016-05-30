@@ -163,8 +163,7 @@ public:
 		// Command buffer
 
 		// Pool
-		vk::CommandPoolCreateInfo cmdPoolInfo = {};
-		cmdPoolInfo.sType = vk::StructureType::eCommandPoolCreateInfo;
+		vk::CommandPoolCreateInfo cmdPoolInfo;
 		cmdPoolInfo.queueFamilyIndex = 0; // todo : pass from example base / swap chain
 		cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
 		commandPool = device.createCommandPool(cmdPoolInfo, nullptr);
@@ -261,7 +260,7 @@ public:
 			vk::ImageLayout::ePreinitialized,
 			vk::ImageLayout::eTransferDstOptimal);
 
-		vk::BufferImageCopy bufferCopyRegion = {};
+		vk::BufferImageCopy bufferCopyRegion;
 		bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 		bufferCopyRegion.imageSubresource.mipLevel = 0;
 		bufferCopyRegion.imageSubresource.layerCount = 1;
@@ -369,8 +368,7 @@ public:
 		device.updateDescriptorSets(writeDescriptorSets, nullptr);
 
 		// Pipeline cache
-		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-		pipelineCacheCreateInfo.sType = vk::StructureType::ePipelineCacheCreateInfo;
+		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo;
 		pipelineCache = device.createPipelineCache(pipelineCacheCreateInfo, nullptr);
 	}
 
@@ -493,15 +491,15 @@ public:
 		attachments[1].initialLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 		attachments[1].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		vk::AttachmentReference colorReference = {};
+		vk::AttachmentReference colorReference;
 		colorReference.attachment = 0;
 		colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
-		vk::AttachmentReference depthReference = {};
+		vk::AttachmentReference depthReference;
 		depthReference.attachment = 1;
 		depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		vk::SubpassDescription subpass = {};
+		vk::SubpassDescription subpass;
 		subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
 		subpass.inputAttachmentCount = 0;
 		subpass.pInputAttachments = NULL;
@@ -512,7 +510,7 @@ public:
 		subpass.preserveAttachmentCount = 0;
 		subpass.pPreserveAttachments = NULL;
 
-		vk::RenderPassCreateInfo renderPassInfo = {};
+		vk::RenderPassCreateInfo renderPassInfo;
 		renderPassInfo.attachmentCount = 2;
 		renderPassInfo.pAttachments = attachments;
 		renderPassInfo.subpassCount = 1;

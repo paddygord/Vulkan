@@ -194,7 +194,7 @@ public:
 		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = format;
-		imageCreateInfo.extent = { width, height, 1 };
+		imageCreateInfo.extent = vk::Extent3D { width, height, 1 };
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
@@ -280,15 +280,15 @@ public:
 		attDesc[1].initialLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 		attDesc[1].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		vk::AttachmentReference colorReference = {};
+		vk::AttachmentReference colorReference;
 		colorReference.attachment = 0;
 		colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
-		vk::AttachmentReference depthReference = {};
+		vk::AttachmentReference depthReference;
 		depthReference.attachment = 1;
 		depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-		vk::SubpassDescription subpass = {};
+		vk::SubpassDescription subpass;
 		subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
 		subpass.colorAttachmentCount = 1;
 		subpass.pColorAttachments = &colorReference;
@@ -329,11 +329,8 @@ public:
 		vk::ImageViewCreateInfo colorImageView;
 		colorImageView.viewType = vk::ImageViewType::e2D;
 		colorImageView.format = fbColorFormat;
-		colorImageView.subresourceRange = {};
 		colorImageView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-		colorImageView.subresourceRange.baseMipLevel = 0;
 		colorImageView.subresourceRange.levelCount = 1;
-		colorImageView.subresourceRange.baseArrayLayer = 0;
 		colorImageView.subresourceRange.layerCount = 1;
 		offScreenFrameBuf.color.image = device.createImage(image, nullptr);
 
@@ -362,11 +359,8 @@ public:
 		vk::ImageViewCreateInfo depthStencilView;
 		depthStencilView.viewType = vk::ImageViewType::e2D;
 		depthStencilView.format = DEPTH_FORMAT;
-		depthStencilView.subresourceRange = {};
 		depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
-		depthStencilView.subresourceRange.baseMipLevel = 0;
 		depthStencilView.subresourceRange.levelCount = 1;
-		depthStencilView.subresourceRange.baseArrayLayer = 0;
 		depthStencilView.subresourceRange.layerCount = 1;
 		offScreenFrameBuf.depth.image = device.createImage(image, nullptr);
 
@@ -423,7 +417,7 @@ public:
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
-		clearValues[0].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 1.0f } };
+		clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -526,10 +520,7 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
-
-		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
+		prepareFrame();
 		// Submit offscreen command buffer for rendering depth buffer from light's pov
 
 		// Wait for swap chain presentation to finish
@@ -559,9 +550,7 @@ public:
 		// Submit to queue
 		queue.submit(submitInfo, VK_NULL_HANDLE);
 
-		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-
-		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
+		submitFrame();
 	}
 
 	void loadMeshes()
@@ -938,21 +927,13 @@ public:
 			vk::ImageLayout::eShaderReadOnlyOptimal,
 			vk::ImageLayout::eTransferDstOptimal);
 
-		vk::ImageCopy imgCopy = {};
+		vk::ImageCopy imgCopy;
 
 		imgCopy.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eDepth;
-		imgCopy.srcSubresource.mipLevel = 0;
-		imgCopy.srcSubresource.baseArrayLayer = 0;
 		imgCopy.srcSubresource.layerCount = 1;
 
-		imgCopy.srcOffset = { 0, 0, 0 };
-
 		imgCopy.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eDepth;
-		imgCopy.dstSubresource.mipLevel = 0;
-		imgCopy.dstSubresource.baseArrayLayer = 0;
 		imgCopy.dstSubresource.layerCount = 1;
-
-		imgCopy.dstOffset = { 0, 0, 0 };
 
 		imgCopy.extent.width = TEX_DIM;
 		imgCopy.extent.height = TEX_DIM;

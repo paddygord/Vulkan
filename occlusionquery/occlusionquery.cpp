@@ -72,10 +72,11 @@ public:
 	vk::QueryPool queryPool;
 
 	// Passed query samples
-	uint64_t passedSamples[2] = { 1,1 };
+	uint64_t passedSamples[2];
 
 	VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
 	{
+		passedSamples[0] = passedSamples[1] = 1;
 		width = 1280;
 		height = 720;
 		zoom = -35.0f;
@@ -131,8 +132,7 @@ public:
 		device.bindBufferMemory(queryResult.buffer, queryResult.memory, 0);
 
 		// Create query pool
-		vk::QueryPoolCreateInfo queryPoolInfo = {};
-		queryPoolInfo.sType = vk::StructureType::eQueryPoolCreateInfo;
+		vk::QueryPoolCreateInfo queryPoolInfo;
 		// Query pool will be created for occlusion queries
 		queryPoolInfo.queryType = vk::QueryType::eOcclusion;
 		queryPoolInfo.queryCount = 2;
@@ -238,10 +238,9 @@ public:
 			clearAttachments[1].aspectMask = vk::ImageAspectFlagBits::eDepth;
 			clearAttachments[1].clearValue.depthStencil = { 1.0f, 0 };
 
-			vk::ClearRect clearRect = {};
+			vk::ClearRect clearRect;
 			clearRect.layerCount = 1;
-			clearRect.rect.offset = { 0, 0 };
-			clearRect.rect.extent = { width, height };
+			clearRect.rect.extent = vk::Extent2D { width, height };
 
 			drawCmdBuffers[i].clearAttachments(clearAttachments, clearRect);
 

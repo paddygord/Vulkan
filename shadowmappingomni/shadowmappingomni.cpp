@@ -174,7 +174,7 @@ public:
 		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = format;
-		imageCreateInfo.extent = { shadowCubeMap.width, shadowCubeMap.height, 1 };
+		imageCreateInfo.extent = vk::Extent3D { shadowCubeMap.width, shadowCubeMap.height, 1 };
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 6;
 		imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
@@ -213,7 +213,7 @@ public:
 		
 
 		// Image barrier for optimal image (target)
-		vk::ImageSubresourceRange subresourceRange = {};
+		vk::ImageSubresourceRange subresourceRange;
 		subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
 		subresourceRange.baseMipLevel = 0;
 		subresourceRange.levelCount = 1;
@@ -305,11 +305,8 @@ public:
 		vk::ImageViewCreateInfo colorImageView;
 		colorImageView.viewType = vk::ImageViewType::e2D;
 		colorImageView.format = fbColorFormat;
-		colorImageView.subresourceRange = {};
 		colorImageView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-		colorImageView.subresourceRange.baseMipLevel = 0;
 		colorImageView.subresourceRange.levelCount = 1;
-		colorImageView.subresourceRange.baseArrayLayer = 0;
 		colorImageView.subresourceRange.layerCount = 1;
 
 		vk::MemoryRequirements memReqs;
@@ -343,7 +340,6 @@ public:
 		vk::ImageViewCreateInfo depthStencilView;
 		depthStencilView.viewType = vk::ImageViewType::e2D;
 		depthStencilView.format = fbDepthFormat;
-		depthStencilView.subresourceRange = {};
 		depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
 		depthStencilView.subresourceRange.levelCount = 1;
 		depthStencilView.subresourceRange.layerCount = 1;
@@ -376,9 +372,7 @@ public:
 		attachments[0] = offScreenFrameBuf.color.view;
 		attachments[1] = offScreenFrameBuf.depth.view;
 
-		vk::FramebufferCreateInfo fbufCreateInfo = {};
-		fbufCreateInfo.sType = vk::StructureType::eFramebufferCreateInfo;
-		fbufCreateInfo.pNext = NULL;
+		vk::FramebufferCreateInfo fbufCreateInfo;
 		fbufCreateInfo.renderPass = renderPass;
 		fbufCreateInfo.attachmentCount = 2;
 		fbufCreateInfo.pAttachments = attachments;
@@ -398,7 +392,7 @@ public:
 	void updateCubeFace(uint32_t faceIndex)
 	{
 		vk::ClearValue clearValues[2];
-		clearValues[0].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 1.0f } };
+		clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -462,19 +456,15 @@ public:
 			vk::ImageLayout::eTransferSrcOptimal);
 
 		// Copy region for transfer from framebuffer to cube face
-		vk::ImageCopy copyRegion = {};
+		vk::ImageCopy copyRegion;
 
 		copyRegion.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 		copyRegion.srcSubresource.baseArrayLayer = 0;
-		copyRegion.srcSubresource.mipLevel = 0;
 		copyRegion.srcSubresource.layerCount = 1;
-		copyRegion.srcOffset = { 0, 0, 0 };
 
 		copyRegion.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
 		copyRegion.dstSubresource.baseArrayLayer = faceIndex;
-		copyRegion.dstSubresource.mipLevel = 0;
 		copyRegion.dstSubresource.layerCount = 1;
-		copyRegion.dstOffset = { 0, 0, 0 };
 
 		copyRegion.extent.width = shadowCubeMap.width;
 		copyRegion.extent.height = shadowCubeMap.height;
@@ -514,7 +504,7 @@ public:
 		vk::Rect2D scissor = vkTools::initializers::rect2D(offScreenFrameBuf.width, offScreenFrameBuf.height, 0, 0);
 		offScreenCmdBuffer.setScissor(0, scissor);
 
-		vk::ImageSubresourceRange subresourceRange = {};
+		vk::ImageSubresourceRange subresourceRange;
 		subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
 		subresourceRange.baseMipLevel = 0;
 		subresourceRange.levelCount = 1;
@@ -618,11 +608,7 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
-		
-
-		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
+		prepareFrame();
 		// Gather command buffers to be sumitted to the queue
 		std::vector<vk::CommandBuffer> submitCmdBuffers = {
 			offScreenCmdBuffer,
@@ -635,12 +621,7 @@ public:
 		queue.submit(submitInfo, VK_NULL_HANDLE);
 		
 
-		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-
-		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-		
-
-		queue.waitIdle();
+		submitFrame();
 		
 	}
 

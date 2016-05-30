@@ -212,7 +212,7 @@ public:
                                                                 thread->mesh.indices.mem);
 
 			// Copy from mesh buffer
-			vk::BufferCopy copyRegion = {};
+			vk::BufferCopy copyRegion;
 
 			// Vertex buffer
 			copyRegion.size = meshes.ufo.vertices.size;
@@ -361,14 +361,11 @@ public:
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
-		clearValues[0].color = defaultClearColor;
-		clearValues[0].color = { std::array<float, 4> {0.0f, 0.0f, 0.2f, 0.0f} };
+		clearValues[0].color = vkTools::initializers::clearColor({ 0.0f, 0.0f, 0.2f, 0.0f });
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo.renderPass = renderPass;
-		renderPassBeginInfo.renderArea.offset.x = 0;
-		renderPassBeginInfo.renderArea.offset.y = 0;
 		renderPassBeginInfo.renderArea.extent.width = width;
 		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount = 2;
@@ -429,12 +426,10 @@ public:
                 void draw()
                 {
                                 prepareFrame();
-
                                 updateCommandBuffers(frameBuffers[currentBuffer]);
 
                                 submitInfo.commandBufferCount = 1;
                                 submitInfo.pCommandBuffers = &primaryCommandBuffer;
-
                                 queue.submit(submitInfo, renderFence);
 
                                 // Wait for fence to signal that all command buffers are ready
@@ -443,8 +438,6 @@ public:
                                 {
                                                 fenceRes = device.waitForFences(renderFence, VK_TRUE, 100000000);
                                 } while (fenceRes == vk::Result::eTimeout);
-                                vkTools::checkResult(fenceRes);
-                                VK_CHECK_RESULT(fenceRes);
                                 device.resetFences(renderFence);
 
                                 submitFrame();

@@ -109,7 +109,7 @@ public:
 		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = format;
-		imageCreateInfo.extent = { width, height, 1 };
+		imageCreateInfo.extent = vk::Extent3D { width, height, 1 };
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
@@ -175,8 +175,7 @@ public:
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
-		clearValues[0].color = defaultClearColor;
-		clearValues[0].color = { std::array<float, 4> {0.0f, 0.0f, 0.2f, 0.0f} };
+		clearValues[0].color = vkTools::initializers::clearColor({ 0.0f, 0.0f, 0.2f, 0.0f });
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -199,9 +198,7 @@ public:
 			// Image memory barrier to make sure that compute
 			// shader writes are finished before sampling
 			// from the texture
-			vk::ImageMemoryBarrier imageMemoryBarrier = {};
-			imageMemoryBarrier.sType = vk::StructureType::eImageMemoryBarrier;
-			imageMemoryBarrier.pNext = NULL;
+			vk::ImageMemoryBarrier imageMemoryBarrier;
 			imageMemoryBarrier.oldLayout = vk::ImageLayout::eGeneral;
 			imageMemoryBarrier.newLayout = vk::ImageLayout::eGeneral;
 			imageMemoryBarrier.image = textureComputeTarget.image;
@@ -250,30 +247,22 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
-		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
+		prepareFrame();
 		// Command buffer to be sumitted to the queue
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-
 		// Submit to queue
+		submitFrame();
 		queue.submit(submitInfo, VK_NULL_HANDLE);
-		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-		queue.waitIdle();
+		// Present frame
+		submitFrame();
 		
-
 		// Compute
 		vk::SubmitInfo computeSubmitInfo;
 		computeSubmitInfo.commandBufferCount = 1;
 		computeSubmitInfo.pCommandBuffers = &computeCmdBuffer;
-
 		computeQueue.submit(computeSubmitInfo, VK_NULL_HANDLE);
-		
-
 		computeQueue.waitIdle();
-		
 	}
 
 	// Setup vertices for a single uv-mapped quad
@@ -566,7 +555,7 @@ public:
 		}
 		assert(queueIndex < queueCount);
 
-		vk::DeviceQueueCreateInfo queueCreateInfo = {};
+		vk::DeviceQueueCreateInfo queueCreateInfo;
 		queueCreateInfo.queueFamilyIndex = queueIndex;
 		queueCreateInfo.queueCount = 1;
 		computeQueue = device.getQueue(queueIndex, 0);

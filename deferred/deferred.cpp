@@ -197,7 +197,7 @@ public:
 		vk::ImageCreateInfo imageCreateInfo;
 		imageCreateInfo.imageType = vk::ImageType::e2D;
 		imageCreateInfo.format = format;
-		imageCreateInfo.extent = { width, height, 1 };
+		imageCreateInfo.extent = vk::Extent3D { width, height, 1 };
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
@@ -309,7 +309,6 @@ public:
 		vk::ImageViewCreateInfo imageView;
 		imageView.viewType = vk::ImageViewType::e2D;
 		imageView.format = format;
-		imageView.subresourceRange = {};
 		imageView.subresourceRange.aspectMask = aspectMask;
 		imageView.subresourceRange.baseMipLevel = 0;
 		imageView.subresourceRange.levelCount = 1;
@@ -489,7 +488,6 @@ public:
 		imgBlit.srcSubresource.baseArrayLayer = 0;
 		imgBlit.srcSubresource.layerCount = 1;
 		 
-		imgBlit.srcOffsets[0] = { 0, 0, 0 };
 		imgBlit.srcOffsets[1].x = offScreenFrameBuf.width;
 		imgBlit.srcOffsets[1].y = offScreenFrameBuf.height;
 		imgBlit.srcOffsets[1].z = 1;
@@ -499,7 +497,6 @@ public:
 		imgBlit.dstSubresource.baseArrayLayer = 0;
 		imgBlit.dstSubresource.layerCount = 1;
 
-		imgBlit.dstOffsets[0] = { 0, 0, 0 };
 		imgBlit.dstOffsets[1].x = textureTargets.position.width;
 		imgBlit.dstOffsets[1].y = textureTargets.position.height;
 		imgBlit.dstOffsets[1].z = 1;
@@ -545,9 +542,9 @@ public:
 
 		// Clear values for all attachments written in the fragment sahder
 		std::array<vk::ClearValue,4> clearValues;
-		clearValues[0].color = { std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 0.0f } };
-		clearValues[1].color = { std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 0.0f } };
-		clearValues[2].color = { std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 0.0f } };
+		clearValues[0].color = vkTools::initializers::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
+		clearValues[1].color = vkTools::initializers::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
+		clearValues[2].color = vkTools::initializers::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
 		clearValues[3].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -610,7 +607,7 @@ public:
 		vk::CommandBufferBeginInfo cmdBufInfo;
 
 		vk::ClearValue clearValues[2];
-		clearValues[0].color = { std::array<float, 4> { 0.0f, 0.0f, 0.2f, 0.0f } };
+		clearValues[0].color = vkTools::initializers::clearColor({ 0.0f, 0.0f, 0.2f, 0.0f });
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -669,10 +666,7 @@ public:
 	void draw()
 	{
 		// Get next image in the swap chain (back/front buffer)
-		swapChain.acquireNextImage(semaphores.presentComplete, currentBuffer);
-		
-		submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
+		prepareFrame();
 		// Gather command buffers to be sumitted to the queue
 		std::vector<vk::CommandBuffer> submitCmdBuffers = {
 			offScreenCmdBuffer,
@@ -684,12 +678,7 @@ public:
 		// Submit to queue
 		queue.submit(submitInfo, VK_NULL_HANDLE);
 		
-		submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-
-		swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-		
-		queue.waitIdle();
-		
+		submitFrame();
 	}
 
 	void loadMeshes()
