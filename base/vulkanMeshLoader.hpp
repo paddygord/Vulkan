@@ -153,12 +153,12 @@ namespace vkMeshLoader
 
 	static void freeMeshBufferResources(vk::Device device, vkMeshLoader::MeshBuffer *meshBuffer)
 	{
-		device.destroyBuffer(meshBuffer->vertices.buf, nullptr);
-		device.freeMemory(meshBuffer->vertices.mem, nullptr);
+		device.destroyBuffer(meshBuffer->vertices.buf);
+		device.freeMemory(meshBuffer->vertices.mem);
 		if (meshBuffer->indices.buf)
 		{
-			device.destroyBuffer(meshBuffer->indices.buf, nullptr);
-			device.freeMemory(meshBuffer->indices.mem, nullptr);
+			device.destroyBuffer(meshBuffer->indices.buf);
+			device.freeMemory(meshBuffer->indices.mem);
 		}
 	}
 }
@@ -382,10 +382,10 @@ public:
 	// Clean up vulkan resources used by a mesh
 	static void freeVulkanResources(vk::Device device, VulkanMeshLoader *mesh)
 	{
-		device.destroyBuffer(mesh->vertexBuffer.buf, nullptr);
-		device.freeMemory(mesh->vertexBuffer.mem, nullptr);
-		device.destroyBuffer(mesh->indexBuffer.buf, nullptr);
-		device.freeMemory(mesh->indexBuffer.mem, nullptr);
+		device.destroyBuffer(mesh->vertexBuffer.buf);
+		device.freeMemory(mesh->vertexBuffer.mem);
+		device.destroyBuffer(mesh->indexBuffer.buf);
+		device.freeMemory(mesh->indexBuffer.mem);
 	}
 
 	vk::Result createBuffer(
@@ -401,11 +401,11 @@ public:
 		vk::MemoryRequirements memReqs;
 
 		vk::BufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(usageFlags, size);
-		buffer = device.createBuffer(bufferInfo, nullptr);
+		buffer = device.createBuffer(bufferInfo);
 		memReqs = device.getBufferMemoryRequirements(buffer);
 		memAllocInfo.allocationSize = memReqs.size;
 		memAllocInfo.memoryTypeIndex = getMemoryType(deviceMemoryProperties, memReqs.memoryTypeBits, memoryPropertyFlags);
-		memory = device.allocateMemory(memAllocInfo, nullptr);
+		memory = device.allocateMemory(memAllocInfo);
 		device.bindBufferMemory(buffer, memory, 0);
 
 		return vk::Result::eSuccess;
@@ -587,10 +587,10 @@ public:
 			copyQueue.submit(submitInfo, VK_NULL_HANDLE);
 			copyQueue.waitIdle();
 
-			device.destroyBuffer(vertexStaging.buffer, nullptr);
-			device.freeMemory(vertexStaging.memory, nullptr);
-			device.destroyBuffer(indexStaging.buffer, nullptr);
-			device.freeMemory(indexStaging.memory, nullptr);
+			device.destroyBuffer(vertexStaging.buffer);
+			device.freeMemory(vertexStaging.memory);
+			device.destroyBuffer(indexStaging.buffer);
+			device.freeMemory(indexStaging.memory);
 		}
 		else
 		{

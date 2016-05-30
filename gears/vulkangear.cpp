@@ -37,14 +37,14 @@ VulkanGear::VulkanGear(vk::Device device, VulkanExampleBase *example)
 VulkanGear::~VulkanGear()
 {
 	// Clean up vulkan resources
-	device.destroyBuffer(uniformData.buffer, nullptr);
-	device.freeMemory(uniformData.memory, nullptr);
+	device.destroyBuffer(uniformData.buffer);
+	device.freeMemory(uniformData.memory);
 
-	device.destroyBuffer(vertexBuffer.buf, nullptr);
-	device.freeMemory(vertexBuffer.mem, nullptr);
+	device.destroyBuffer(vertexBuffer.buf);
+	device.freeMemory(vertexBuffer.mem);
 
-	device.destroyBuffer(indexBuffer.buf, nullptr);
-	device.freeMemory(indexBuffer.mem, nullptr);
+	device.destroyBuffer(indexBuffer.buf);
+	device.freeMemory(indexBuffer.mem);
 }
 
 void VulkanGear::generate(float inner_radius, float outer_radius, float width, int teeth, float tooth_depth, glm::vec3 color, glm::vec3 pos, float rotSpeed, float rotOffset)
@@ -191,12 +191,12 @@ void VulkanGear::generate(float inner_radius, float outer_radius, float width, i
 
 	// Generate vertex buffer
 	vk::BufferCreateInfo vBufferInfo = vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eVertexBuffer, vertexBufferSize);
-	vertexBuffer.buf = device.createBuffer(vBufferInfo, nullptr);
+	vertexBuffer.buf = device.createBuffer(vBufferInfo);
 	
 	memReqs = device.getBufferMemoryRequirements(vertexBuffer.buf);
 	memAlloc.allocationSize = memReqs.size;
 	exampleBase->getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible, &memAlloc.memoryTypeIndex);
-	vertexBuffer.mem = device.allocateMemory(memAlloc, nullptr);
+	vertexBuffer.mem = device.allocateMemory(memAlloc);
 	
 	data = device.mapMemory(vertexBuffer.mem, 0, vertexBufferSize, vk::MemoryMapFlags());
 	
@@ -207,12 +207,12 @@ void VulkanGear::generate(float inner_radius, float outer_radius, float width, i
 
 	// Generate index buffer
 	vk::BufferCreateInfo iBufferInfo = vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eIndexBuffer, indexBufferSize);
-	indexBuffer.buf = device.createBuffer(iBufferInfo, nullptr);
+	indexBuffer.buf = device.createBuffer(iBufferInfo);
 	
 	memReqs = device.getBufferMemoryRequirements(indexBuffer.buf);
 	memAlloc.allocationSize = memReqs.size;
 	exampleBase->getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible, &memAlloc.memoryTypeIndex);
-	indexBuffer.mem = device.allocateMemory(memAlloc, nullptr);
+	indexBuffer.mem = device.allocateMemory(memAlloc);
 	
 	data = device.mapMemory(indexBuffer.mem, 0, indexBufferSize, vk::MemoryMapFlags());
 	
@@ -286,12 +286,12 @@ void VulkanGear::prepareUniformBuffer()
 
 	vk::BufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eUniformBuffer, sizeof(ubo));
 
-	uniformData.buffer = device.createBuffer(bufferInfo, nullptr);
+	uniformData.buffer = device.createBuffer(bufferInfo);
 	
 	memReqs = device.getBufferMemoryRequirements(uniformData.buffer);
 	allocInfo.allocationSize = memReqs.size;
 	exampleBase->getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible, &allocInfo.memoryTypeIndex);
-	uniformData.memory = device.allocateMemory(allocInfo, nullptr);
+	uniformData.memory = device.allocateMemory(allocInfo);
 	
 	device.bindBufferMemory(uniformData.buffer, uniformData.memory, 0);
 	

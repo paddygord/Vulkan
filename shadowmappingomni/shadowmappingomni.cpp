@@ -122,34 +122,34 @@ public:
 		// Note : Inherited destructor cleans up resources stored in base class
 
 		// Cube map
-		device.destroyImageView(shadowCubeMap.view, nullptr);
-		device.destroyImage(shadowCubeMap.image, nullptr);
-		device.destroySampler(shadowCubeMap.sampler, nullptr);
-		device.freeMemory(shadowCubeMap.deviceMemory, nullptr);
+		device.destroyImageView(shadowCubeMap.view);
+		device.destroyImage(shadowCubeMap.image);
+		device.destroySampler(shadowCubeMap.sampler);
+		device.freeMemory(shadowCubeMap.deviceMemory);
 
 		// Frame buffer
 
 		// Color attachment
-		device.destroyImageView(offScreenFrameBuf.color.view, nullptr);
-		device.destroyImage(offScreenFrameBuf.color.image, nullptr);
-		device.freeMemory(offScreenFrameBuf.color.mem, nullptr);
+		device.destroyImageView(offScreenFrameBuf.color.view);
+		device.destroyImage(offScreenFrameBuf.color.image);
+		device.freeMemory(offScreenFrameBuf.color.mem);
 
 		// Depth attachment
-		device.destroyImageView(offScreenFrameBuf.depth.view, nullptr);
-		device.destroyImage(offScreenFrameBuf.depth.image, nullptr);
-		device.freeMemory(offScreenFrameBuf.depth.mem, nullptr);
+		device.destroyImageView(offScreenFrameBuf.depth.view);
+		device.destroyImage(offScreenFrameBuf.depth.image);
+		device.freeMemory(offScreenFrameBuf.depth.mem);
 
-		device.destroyFramebuffer(offScreenFrameBuf.frameBuffer, nullptr);
+		device.destroyFramebuffer(offScreenFrameBuf.frameBuffer);
 
 		// Pipelibes
-		device.destroyPipeline(pipelines.scene, nullptr);
-		device.destroyPipeline(pipelines.offscreen, nullptr);
-		device.destroyPipeline(pipelines.cubeMap, nullptr);
+		device.destroyPipeline(pipelines.scene);
+		device.destroyPipeline(pipelines.offscreen);
+		device.destroyPipeline(pipelines.cubeMap);
 
-		device.destroyPipelineLayout(pipelineLayouts.scene, nullptr);
-		device.destroyPipelineLayout(pipelineLayouts.offscreen, nullptr);
+		device.destroyPipelineLayout(pipelineLayouts.scene);
+		device.destroyPipelineLayout(pipelineLayouts.offscreen);
 
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
 		// Meshes
 		vkMeshLoader::freeMeshBufferResources(device, &meshes.scene);
@@ -199,7 +199,7 @@ public:
 		
 
 		// Create cube map image
-		shadowCubeMap.image = device.createImage(imageCreateInfo, nullptr);
+		shadowCubeMap.image = device.createImage(imageCreateInfo);
 		
 
 		memReqs = device.getImageMemoryRequirements(shadowCubeMap.image);
@@ -207,7 +207,7 @@ public:
 		memAllocInfo.allocationSize = memReqs.size;
 
 		getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal, &memAllocInfo.memoryTypeIndex);
-		shadowCubeMap.deviceMemory = device.allocateMemory(memAllocInfo, nullptr);
+		shadowCubeMap.deviceMemory = device.allocateMemory(memAllocInfo);
 		
 		device.bindImageMemory(shadowCubeMap.image, shadowCubeMap.deviceMemory, 0);
 		
@@ -256,7 +256,7 @@ public:
 		sampler.minLod = 0.0f;
 		sampler.maxLod = 0.0f;
 		sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-		shadowCubeMap.sampler = device.createSampler(sampler, nullptr);
+		shadowCubeMap.sampler = device.createSampler(sampler);
 		
 
 		// Create image view
@@ -267,7 +267,7 @@ public:
 		view.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 		view.subresourceRange.layerCount = 6;
 		view.image = shadowCubeMap.image;
-		shadowCubeMap.view = device.createImageView(view, nullptr);
+		shadowCubeMap.view = device.createImageView(view);
 		
 	}
 
@@ -311,12 +311,12 @@ public:
 
 		vk::MemoryRequirements memReqs;
 
-		offScreenFrameBuf.color.image = device.createImage(image, nullptr);
+		offScreenFrameBuf.color.image = device.createImage(image);
 		
 		memReqs = device.getImageMemoryRequirements(offScreenFrameBuf.color.image);
 		memAlloc.allocationSize = memReqs.size;
 		getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal, &memAlloc.memoryTypeIndex);
-		offScreenFrameBuf.color.mem = device.allocateMemory(memAlloc, nullptr);
+		offScreenFrameBuf.color.mem = device.allocateMemory(memAlloc);
 		
 
 		device.bindImageMemory(offScreenFrameBuf.color.image, offScreenFrameBuf.color.mem, 0);
@@ -329,7 +329,7 @@ public:
 			vk::ImageLayout::eColorAttachmentOptimal);
 
 		colorImageView.image = offScreenFrameBuf.color.image;
-		offScreenFrameBuf.color.view = device.createImageView(colorImageView, nullptr);
+		offScreenFrameBuf.color.view = device.createImageView(colorImageView);
 		
 
 		// Depth stencil attachment
@@ -344,12 +344,12 @@ public:
 		depthStencilView.subresourceRange.levelCount = 1;
 		depthStencilView.subresourceRange.layerCount = 1;
 
-		offScreenFrameBuf.depth.image = device.createImage(image, nullptr);
+		offScreenFrameBuf.depth.image = device.createImage(image);
 		
 		memReqs = device.getImageMemoryRequirements(offScreenFrameBuf.depth.image);
 		memAlloc.allocationSize = memReqs.size;
 		getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal, &memAlloc.memoryTypeIndex);
-		offScreenFrameBuf.depth.mem = device.allocateMemory(memAlloc, nullptr);
+		offScreenFrameBuf.depth.mem = device.allocateMemory(memAlloc);
 		
 
 		device.bindImageMemory(offScreenFrameBuf.depth.image, offScreenFrameBuf.depth.mem, 0);
@@ -365,7 +365,7 @@ public:
 		flushSetupCommandBuffer();
 
 		depthStencilView.image = offScreenFrameBuf.depth.image;
-		offScreenFrameBuf.depth.view = device.createImageView(depthStencilView, nullptr);
+		offScreenFrameBuf.depth.view = device.createImageView(depthStencilView);
 		
 
 		vk::ImageView attachments[2];
@@ -380,7 +380,7 @@ public:
 		fbufCreateInfo.height = offScreenFrameBuf.height;
 		fbufCreateInfo.layers = 1;
 
-		offScreenFrameBuf.frameBuffer = device.createFramebuffer(fbufCreateInfo, nullptr);
+		offScreenFrameBuf.frameBuffer = device.createFramebuffer(fbufCreateInfo);
 		
 	}
 
@@ -672,7 +672,7 @@ public:
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
 			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 3);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -695,14 +695,14 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 		
 
 		// 3D scene pipeline layout
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		pipelineLayouts.scene = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayouts.scene = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 		
 
 		// Offscreen pipeline layout
@@ -714,7 +714,7 @@ public:
 		pPipelineLayoutCreateInfo.pushConstantRangeCount = 1;
 		pPipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 
-		pipelineLayouts.offscreen = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayouts.offscreen = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 		
 	}
 

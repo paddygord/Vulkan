@@ -258,7 +258,7 @@ public:
 		swapchainCI.clipped = true;
 		swapchainCI.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
 
-		swapChain = device.createSwapchainKHR(swapchainCI, nullptr);
+		swapChain = device.createSwapchainKHR(swapchainCI);
 		
 
 		// If an existing sawp chain is re-created, destroy the old swap chain
@@ -267,9 +267,9 @@ public:
 		{ 
 			for (uint32_t i = 0; i < imageCount; i++)
 			{
-				device.destroyImageView(buffers[i].view, nullptr);
+				device.destroyImageView(buffers[i].view);
 			}
-			device.destroySwapchainKHR(oldSwapchain, nullptr);
+			device.destroySwapchainKHR(oldSwapchain);
 		}
 
 		
@@ -308,7 +308,7 @@ public:
 
 			colorAttachmentView.image = buffers[i].image;
 
-			buffers[i].view = device.createImageView(colorAttachmentView, nullptr);
+			buffers[i].view = device.createImageView(colorAttachmentView);
 			
 		}
 	}
@@ -357,10 +357,10 @@ public:
 	{
 		for (uint32_t i = 0; i < imageCount; i++)
 		{
-			device.destroyImageView(buffers[i].view, nullptr);
+			device.destroyImageView(buffers[i].view);
 		}
-		device.destroySwapchainKHR(swapChain, nullptr);
-		instance.destroySurfaceKHR(surface, nullptr);
+		device.destroySwapchainKHR(swapChain);
+		instance.destroySurfaceKHR(surface);
 	}
 
 };

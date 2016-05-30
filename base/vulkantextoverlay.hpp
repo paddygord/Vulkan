@@ -137,20 +137,20 @@ public:
 	~VulkanTextOverlay()
 	{
 		// Free up all Vulkan resources requested by the text overlay
-		device.destroySampler(sampler, nullptr);
-		device.destroyImage(image, nullptr);
-		device.destroyImageView(view, nullptr);
-		device.destroyBuffer(buffer, nullptr);
-		device.freeMemory(memory, nullptr);
-		device.freeMemory(imageMemory, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
-		device.destroyDescriptorPool(descriptorPool, nullptr);
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyPipelineCache(pipelineCache, nullptr);
-		device.destroyPipeline(pipeline, nullptr);
-		device.destroyRenderPass(renderPass, nullptr);
+		device.destroySampler(sampler);
+		device.destroyImage(image);
+		device.destroyImageView(view);
+		device.destroyBuffer(buffer);
+		device.freeMemory(memory);
+		device.freeMemory(imageMemory);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
+		device.destroyDescriptorPool(descriptorPool);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyPipelineCache(pipelineCache);
+		device.destroyPipeline(pipeline);
+		device.destroyRenderPass(renderPass);
 		device.freeCommandBuffers(commandPool, cmdBuffers.size(), cmdBuffers.data());
-		device.destroyCommandPool(commandPool, nullptr);
+		device.destroyCommandPool(commandPool);
 	}
 
 	// Prepare all vulkan resources required to render the font
@@ -166,7 +166,7 @@ public:
 		vk::CommandPoolCreateInfo cmdPoolInfo;
 		cmdPoolInfo.queueFamilyIndex = 0; // todo : pass from example base / swap chain
 		cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-		commandPool = device.createCommandPool(cmdPoolInfo, nullptr);
+		commandPool = device.createCommandPool(cmdPoolInfo);
 
 		vk::CommandBufferAllocateInfo cmdBufAllocateInfo =
 			vkTools::initializers::commandBufferAllocateInfo(
@@ -180,7 +180,7 @@ public:
 		vk::DeviceSize bufferSize = MAX_CHAR_COUNT * sizeof(glm::vec4);
 
 		vk::BufferCreateInfo bufferInfo = vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eVertexBuffer, bufferSize);
-		buffer = device.createBuffer(bufferInfo, nullptr);
+		buffer = device.createBuffer(bufferInfo);
 
 		vk::MemoryRequirements memReqs;
 		vk::MemoryAllocateInfo allocInfo;
@@ -189,7 +189,7 @@ public:
 		allocInfo.allocationSize = memReqs.size;
 		allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
 
-		memory = device.allocateMemory(allocInfo, nullptr);
+		memory = device.allocateMemory(allocInfo);
 		device.bindBufferMemory(buffer, memory, 0);
 
 		// Font texture
@@ -207,12 +207,12 @@ public:
 		imageInfo.sharingMode = vk::SharingMode::eExclusive;
 		imageInfo.initialLayout = vk::ImageLayout::ePreinitialized;
 
-		image = device.createImage(imageInfo, nullptr);
+		image = device.createImage(imageInfo);
 
 		allocInfo.allocationSize = STB_FONT_WIDTH * STB_NUM_CHARS;
 		allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-		imageMemory = device.allocateMemory(allocInfo, nullptr);
+		imageMemory = device.allocateMemory(allocInfo);
 		device.bindImageMemory(image, imageMemory, 0);
 
 		// Staging
@@ -227,7 +227,7 @@ public:
 		bufferCreateInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
 		bufferCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 
-		stagingBuffer.buffer = device.createBuffer(bufferCreateInfo, nullptr);
+		stagingBuffer.buffer = device.createBuffer(bufferCreateInfo);
 
 		// Get memory requirements for the staging buffer (alignment, memory type bits)
 		memReqs = device.getBufferMemoryRequirements(stagingBuffer.buffer);
@@ -236,7 +236,7 @@ public:
 		// Get memory type index for a host visible buffer
 		allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
 
-		stagingBuffer.memory = device.allocateMemory(allocInfo, nullptr);
+		stagingBuffer.memory = device.allocateMemory(allocInfo);
 		device.bindBufferMemory(stagingBuffer.buffer, stagingBuffer.memory, 0);
 
 		void *data = device.mapMemory(stagingBuffer.memory, 0, allocInfo.allocationSize, vk::MemoryMapFlags());
@@ -288,8 +288,8 @@ public:
 		queue.waitIdle();
 
 		device.freeCommandBuffers(commandPool, copyCmd);
-		device.freeMemory(stagingBuffer.memory, nullptr);
-		device.destroyBuffer(stagingBuffer.buffer, nullptr);
+		device.freeMemory(stagingBuffer.memory);
+		device.destroyBuffer(stagingBuffer.buffer);
 
 
 		vk::ImageViewCreateInfo imageViewInfo;
@@ -299,7 +299,7 @@ public:
 		imageViewInfo.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB,	vk::ComponentSwizzle::eA };
 		imageViewInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 
-		view = device.createImageView(imageViewInfo, nullptr);
+		view = device.createImageView(imageViewInfo);
 
 		// Sampler
 		vk::SamplerCreateInfo samplerInfo;
@@ -314,7 +314,7 @@ public:
 		samplerInfo.minLod = 0.0f;
 		samplerInfo.maxLod = 1.0f;
 		samplerInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-		sampler = device.createSampler(samplerInfo, nullptr);
+		sampler = device.createSampler(samplerInfo);
 
 		// Descriptor
 		// Font uses a separate descriptor pool
@@ -327,7 +327,7 @@ public:
 				poolSizes.data(),
 				1);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 
 		// Descriptor set layout
 		std::array<vk::DescriptorSetLayoutBinding, 1> setLayoutBindings;
@@ -338,7 +338,7 @@ public:
 				setLayoutBindings.data(),
 				setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorSetLayoutInfo, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorSetLayoutInfo);
 
 		// Pipeline layout
 		vk::PipelineLayoutCreateInfo pipelineLayoutInfo =
@@ -346,7 +346,7 @@ public:
 				&descriptorSetLayout,
 				1);
 
-		pipelineLayout = device.createPipelineLayout(pipelineLayoutInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pipelineLayoutInfo);
 
 		// Descriptor set
 		vk::DescriptorSetAllocateInfo descriptorSetAllocInfo =
@@ -369,7 +369,7 @@ public:
 
 		// Pipeline cache
 		vk::PipelineCacheCreateInfo pipelineCacheCreateInfo;
-		pipelineCache = device.createPipelineCache(pipelineCacheCreateInfo, nullptr);
+		pipelineCache = device.createPipelineCache(pipelineCacheCreateInfo);
 	}
 
 	// Prepare a separate pipeline for the font rendering decoupled from the main application
@@ -518,7 +518,7 @@ public:
 		renderPassInfo.dependencyCount = 0;
 		renderPassInfo.pDependencies = NULL;
 
-		renderPass = device.createRenderPass(renderPassInfo, nullptr);
+		renderPass = device.createRenderPass(renderPassInfo);
 	}
 
 	// Map buffer 

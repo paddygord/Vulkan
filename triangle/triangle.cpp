@@ -75,22 +75,22 @@ public:
 	{
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
-		device.destroyPipeline(pipelines.solid, nullptr);
+		device.destroyPipeline(pipelines.solid);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
-		device.destroyBuffer(vertices.buf, nullptr);
-		device.freeMemory(vertices.mem, nullptr);
+		device.destroyBuffer(vertices.buf);
+		device.freeMemory(vertices.mem);
 
-		device.destroyBuffer(indices.buf, nullptr);
-		device.freeMemory(indices.mem, nullptr);
+		device.destroyBuffer(indices.buf);
+		device.freeMemory(indices.mem);
 
-		device.destroySemaphore(semaphores.presentComplete, nullptr);
-		device.destroySemaphore(semaphores.renderComplete, nullptr);
+		device.destroySemaphore(semaphores.presentComplete);
+		device.destroySemaphore(semaphores.renderComplete);
 
-		device.destroyBuffer(uniformDataVS.buffer, nullptr);
-		device.freeMemory(uniformDataVS.memory, nullptr);
+		device.destroyBuffer(uniformDataVS.buffer);
+		device.freeMemory(uniformDataVS.memory);
 	}
 
 	// Build separate command buffers for every framebuffer image
@@ -323,11 +323,11 @@ public:
 			// Buffer is used as the copy source
 			vertexBufferInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
 			// Create a host-visible buffer to copy the vertex data to (staging buffer)
-			stagingBuffers.vertices.buffer = device.createBuffer(vertexBufferInfo, nullptr);
+			stagingBuffers.vertices.buffer = device.createBuffer(vertexBufferInfo);
 			memReqs = device.getBufferMemoryRequirements(stagingBuffers.vertices.buffer);
 			memAlloc.allocationSize = memReqs.size;
 			memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
-			stagingBuffers.vertices.memory = device.allocateMemory(memAlloc, nullptr);
+			stagingBuffers.vertices.memory = device.allocateMemory(memAlloc);
 			// Map and copy
 			data = device.mapMemory(stagingBuffers.vertices.memory, 0, memAlloc.allocationSize, vk::MemoryMapFlags());
 			memcpy(data, vertexBuffer.data(), vertexBufferSize);
@@ -337,11 +337,11 @@ public:
 			// Create the destination buffer with device only visibility
 			// Buffer will be used as a vertex buffer and is the copy destination
 			vertexBufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst;
-			vertices.buf = device.createBuffer(vertexBufferInfo, nullptr);
+			vertices.buf = device.createBuffer(vertexBufferInfo);
 			memReqs = device.getBufferMemoryRequirements(vertices.buf);
 			memAlloc.allocationSize = memReqs.size;
 			memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-			vertices.mem = device.allocateMemory(memAlloc, nullptr);
+			vertices.mem = device.allocateMemory(memAlloc);
 			device.bindBufferMemory(vertices.buf, vertices.mem, 0);
 
 			// Index buffer
@@ -349,11 +349,11 @@ public:
 			indexbufferInfo.size = indexBufferSize;
 			indexbufferInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
 			// Copy index data to a buffer visible to the host (staging buffer)
-			stagingBuffers.indices.buffer = device.createBuffer(indexbufferInfo, nullptr);
+			stagingBuffers.indices.buffer = device.createBuffer(indexbufferInfo);
 			memReqs = device.getBufferMemoryRequirements(stagingBuffers.indices.buffer);
 			memAlloc.allocationSize = memReqs.size;
 			memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
-			stagingBuffers.indices.memory = device.allocateMemory(memAlloc, nullptr);
+			stagingBuffers.indices.memory = device.allocateMemory(memAlloc);
 			data = device.mapMemory(stagingBuffers.indices.memory, 0, indexBufferSize, vk::MemoryMapFlags());
 			memcpy(data, indexBuffer.data(), indexBufferSize);
 			device.unmapMemory(stagingBuffers.indices.memory);
@@ -361,11 +361,11 @@ public:
 
 			// Create destination buffer with device only visibility
 			indexbufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst;
-			indices.buf = device.createBuffer(indexbufferInfo, nullptr);
+			indices.buf = device.createBuffer(indexbufferInfo);
 			memReqs = device.getBufferMemoryRequirements(indices.buf);
 			memAlloc.allocationSize = memReqs.size;
 			memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-			indices.mem = device.allocateMemory(memAlloc, nullptr);
+			indices.mem = device.allocateMemory(memAlloc);
 			device.bindBufferMemory(indices.buf, indices.mem, 0);
 			indices.count = indexBuffer.size();
 
@@ -398,10 +398,10 @@ public:
 			device.freeCommandBuffers(cmdPool, copyCommandBuffer);
 
 			// Destroy staging buffers
-			device.destroyBuffer(stagingBuffers.vertices.buffer, nullptr);
-			device.freeMemory(stagingBuffers.vertices.memory, nullptr);
-			device.destroyBuffer(stagingBuffers.indices.buffer, nullptr);
-			device.freeMemory(stagingBuffers.indices.memory, nullptr);
+			device.destroyBuffer(stagingBuffers.vertices.buffer);
+			device.freeMemory(stagingBuffers.vertices.memory);
+			device.destroyBuffer(stagingBuffers.indices.buffer);
+			device.freeMemory(stagingBuffers.indices.memory);
 		}
 		else
 		{
@@ -417,11 +417,11 @@ public:
 			vertexBufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
 
 			// Copy vertex data to a buffer visible to the host
-			vertices.buf = device.createBuffer(vertexBufferInfo, nullptr);
+			vertices.buf = device.createBuffer(vertexBufferInfo);
 			memReqs = device.getBufferMemoryRequirements(vertices.buf);
 			memAlloc.allocationSize = memReqs.size;
 			memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
-			vertices.mem = device.allocateMemory(memAlloc, nullptr);
+			vertices.mem = device.allocateMemory(memAlloc);
 			data = device.mapMemory(vertices.mem, 0, memAlloc.allocationSize, vk::MemoryMapFlags());
 			memcpy(data, vertexBuffer.data(), vertexBufferSize);
 			device.unmapMemory(vertices.mem);
@@ -434,11 +434,11 @@ public:
 
 			// Copy index data to a buffer visible to the host
 			memset(&indices, 0, sizeof(indices));
-			indices.buf = device.createBuffer(indexbufferInfo, nullptr);
+			indices.buf = device.createBuffer(indexbufferInfo);
 			memReqs = device.getBufferMemoryRequirements(indices.buf);
 			memAlloc.allocationSize = memReqs.size;
 			memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
-			indices.mem = device.allocateMemory(memAlloc, nullptr);
+			indices.mem = device.allocateMemory(memAlloc);
 			data = device.mapMemory(indices.mem, 0, indexBufferSize, vk::MemoryMapFlags());
 			memcpy(data, indexBuffer.data(), indexBufferSize);
 			device.unmapMemory(indices.mem);
@@ -495,7 +495,7 @@ public:
 		// Requesting descriptors beyond maxSets will result in an error
 		descriptorPoolInfo.maxSets = 1;
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -527,7 +527,7 @@ public:
 		pPipelineLayoutCreateInfo.setLayoutCount = 1;
 		pPipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
 
-		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 	}
 
 	void setupDescriptorSet()
@@ -689,7 +689,7 @@ public:
 		bufferInfo.usage = vk::BufferUsageFlagBits::eUniformBuffer;
 
 		// Create a new buffer
-		uniformDataVS.buffer = device.createBuffer(bufferInfo, nullptr);
+		uniformDataVS.buffer = device.createBuffer(bufferInfo);
 		// Get memory requirements including size, alignment and memory type 
 		memReqs = device.getBufferMemoryRequirements(uniformDataVS.buffer);
 		allocInfo.allocationSize = memReqs.size;
@@ -698,7 +698,7 @@ public:
 		// correct one to allocate memory from is important
 		allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
 		// Allocate memory for the uniform buffer
-		(uniformDataVS.memory) = device.allocateMemory(allocInfo, nullptr);
+		(uniformDataVS.memory) = device.allocateMemory(allocInfo);
 		// Bind memory to buffer
 		device.bindBufferMemory(uniformDataVS.buffer, uniformDataVS.memory, 0);
 		

@@ -81,16 +81,16 @@ public:
 	{
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
-		device.destroyPipeline(pipelines.solid, nullptr);
+		device.destroyPipeline(pipelines.solid);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
 		// Destroy and free mesh resources 
-		device.destroyBuffer(mesh.vertices.buf, nullptr);
-		device.freeMemory(mesh.vertices.mem, nullptr);
-		device.destroyBuffer(mesh.indices.buf, nullptr);
-		device.freeMemory(mesh.indices.mem, nullptr);
+		device.destroyBuffer(mesh.vertices.buf);
+		device.freeMemory(mesh.vertices.mem);
+		device.destroyBuffer(mesh.indices.buf);
+		device.freeMemory(mesh.indices.mem);
 
 		textureLoader->destroyTexture(textures.colorMap);
 
@@ -270,10 +270,10 @@ public:
 
 			VulkanExampleBase::flushCommandBuffer(copyCmd, queue, true);
 
-			device.destroyBuffer(vertexStaging.buffer, nullptr);
-			device.freeMemory(vertexStaging.memory, nullptr);
-			device.destroyBuffer(indexStaging.buffer, nullptr);
-			device.freeMemory(indexStaging.memory, nullptr);
+			device.destroyBuffer(vertexStaging.buffer);
+			device.freeMemory(vertexStaging.memory);
+			device.destroyBuffer(indexStaging.buffer);
+			device.freeMemory(indexStaging.memory);
 		}
 		else
 		{
@@ -346,7 +346,7 @@ public:
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
 			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 1);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -368,12 +368,12 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 	}
 
 	void setupDescriptorSet()

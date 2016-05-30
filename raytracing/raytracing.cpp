@@ -78,11 +78,11 @@ public:
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
 
-		device.destroyPipeline(pipelines.display, nullptr);
-		device.destroyPipeline(pipelines.compute, nullptr);
+		device.destroyPipeline(pipelines.display);
+		device.destroyPipeline(pipelines.compute);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
 		vkMeshLoader::freeMeshBufferResources(device, &meshes.quad);
 
@@ -123,11 +123,11 @@ public:
 		vk::MemoryAllocateInfo memAllocInfo;
 		vk::MemoryRequirements memReqs;
 
-		tex->image = device.createImage(imageCreateInfo, nullptr);
+		tex->image = device.createImage(imageCreateInfo);
 		memReqs = device.getImageMemoryRequirements(tex->image);
 		memAllocInfo.allocationSize = memReqs.size;
 		getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal, &memAllocInfo.memoryTypeIndex);
-		tex->deviceMemory = device.allocateMemory(memAllocInfo, nullptr);
+		tex->deviceMemory = device.allocateMemory(memAllocInfo);
 		device.bindImageMemory(tex->image, tex->deviceMemory, 0);
 
 		tex->imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
@@ -151,7 +151,7 @@ public:
 		sampler.minLod = 0.0f;
 		sampler.maxLod = 0.0f;
 		sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-		tex->sampler = device.createSampler(sampler, nullptr);
+		tex->sampler = device.createSampler(sampler);
 
 		// Create image view
 		vk::ImageViewCreateInfo view;
@@ -160,7 +160,7 @@ public:
 		view.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
 		view.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 		view.image = tex->image;
-		tex->view = device.createImageView(view, nullptr);
+		tex->view = device.createImageView(view);
 	}
 
 	void buildCommandBuffers()
@@ -332,7 +332,7 @@ public:
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
 			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 3);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -349,13 +349,13 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 		
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 		
 	}
 
@@ -465,13 +465,13 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		computeDescriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		computeDescriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 		
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&computeDescriptorSetLayout, 1);
 
-		computePipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		computePipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 		
 
 		vk::DescriptorSetAllocateInfo allocInfo =

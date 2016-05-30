@@ -44,7 +44,7 @@ void VulkanExampleBase::createInstance(bool enableValidation)
 		instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount;
 		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 	}
-	instance = vk::createInstance(instanceCreateInfo, nullptr);
+	instance = vk::createInstance(instanceCreateInfo);
 }
 
 void VulkanExampleBase::createDevice(vk::DeviceQueueCreateInfo requestedQueues, bool enableValidation)
@@ -73,7 +73,7 @@ void VulkanExampleBase::createDevice(vk::DeviceQueueCreateInfo requestedQueues, 
 		deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 	}
 
-	device = physicalDevice.createDevice(deviceCreateInfo, nullptr);
+	device = physicalDevice.createDevice(deviceCreateInfo);
 }
 
 std::string VulkanExampleBase::getWindowTitle()
@@ -286,7 +286,7 @@ vk::Bool32 VulkanExampleBase::createBuffer(vk::BufferUsageFlags usageFlags, vk::
 	vk::BufferCreateInfo bufferCreateInfo;
 	bufferCreateInfo.usage = usageFlags;
 	bufferCreateInfo.size = size;
-	buffer = device.createBuffer(bufferCreateInfo, nullptr);
+	buffer = device.createBuffer(bufferCreateInfo);
 
 	vk::MemoryRequirements memReqs = device.getBufferMemoryRequirements(buffer);
 	vk::MemoryAllocateInfo memAlloc;
@@ -733,7 +733,7 @@ VulkanExampleBase::~VulkanExampleBase()
 	swapChain.cleanup();
 	if (descriptorPool)
 	{
-		device.destroyDescriptorPool(descriptorPool, nullptr);
+		device.destroyDescriptorPool(descriptorPool);
 	}
 	if (setupCmdBuffer)
 	{
@@ -741,32 +741,32 @@ VulkanExampleBase::~VulkanExampleBase()
 
 	}
 	destroyCommandBuffers();
-	device.destroyRenderPass(renderPass, nullptr);
+	device.destroyRenderPass(renderPass);
 	for (uint32_t i = 0; i < frameBuffers.size(); i++)
 	{
-		device.destroyFramebuffer(frameBuffers[i], nullptr);
+		device.destroyFramebuffer(frameBuffers[i]);
 	}
 
 	for (auto& shaderModule : shaderModules)
 	{
-		device.destroyShaderModule(shaderModule, nullptr);
+		device.destroyShaderModule(shaderModule);
 	}
-	device.destroyImageView(depthStencil.view, nullptr);
-	device.destroyImage(depthStencil.image, nullptr);
-	device.freeMemory(depthStencil.mem, nullptr);
+	device.destroyImageView(depthStencil.view);
+	device.destroyImage(depthStencil.image);
+	device.freeMemory(depthStencil.mem);
 
-	device.destroyPipelineCache(pipelineCache, nullptr);
+	device.destroyPipelineCache(pipelineCache);
 
 	if (textureLoader)
 	{
 		delete textureLoader;
 	}
 
-	device.destroyCommandPool(cmdPool, nullptr);
+	device.destroyCommandPool(cmdPool);
 
-	device.destroySemaphore(semaphores.presentComplete, nullptr);
-	device.destroySemaphore(semaphores.renderComplete, nullptr);
-	device.destroySemaphore(semaphores.textOverlayComplete, nullptr);
+	device.destroySemaphore(semaphores.presentComplete);
+	device.destroySemaphore(semaphores.renderComplete);
+	device.destroySemaphore(semaphores.textOverlayComplete);
 
 	if (enableTextOverlay)
 	{
@@ -856,14 +856,14 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 	vk::SemaphoreCreateInfo semaphoreCreateInfo;
 	// Create a semaphore used to synchronize image presentation
 	// Ensures that the image is displayed before we start submitting new commands to the queu
-	semaphores.presentComplete = device.createSemaphore(semaphoreCreateInfo, nullptr);
+	semaphores.presentComplete = device.createSemaphore(semaphoreCreateInfo);
 	// Create a semaphore used to synchronize command submission
 	// Ensures that the image is not presented until all commands have been sumbitted and executed
-	semaphores.renderComplete = device.createSemaphore(semaphoreCreateInfo, nullptr);
+	semaphores.renderComplete = device.createSemaphore(semaphoreCreateInfo);
 	// Create a semaphore used to synchronize command submission
 	// Ensures that the image is not presented until all commands for the text overlay have been sumbitted and executed
 	// Will be inserted after the render complete semaphore if the text overlay is enabled
-	semaphores.textOverlayComplete = device.createSemaphore(semaphoreCreateInfo, nullptr);
+	semaphores.textOverlayComplete = device.createSemaphore(semaphoreCreateInfo);
 
 	// Set up submit info structure
 	// Semaphores will stay the same during application lifetime
@@ -1412,7 +1412,7 @@ void VulkanExampleBase::createCommandPool()
 	vk::CommandPoolCreateInfo cmdPoolInfo;
 	cmdPoolInfo.queueFamilyIndex = swapChain.queueNodeIndex;
 	cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-	cmdPool = device.createCommandPool(cmdPoolInfo, nullptr);
+	cmdPool = device.createCommandPool(cmdPoolInfo);
 }
 
 void VulkanExampleBase::setupDepthStencil()
@@ -1443,11 +1443,11 @@ void VulkanExampleBase::setupDepthStencil()
 
 	vk::MemoryRequirements memReqs;
 
-	depthStencil.image = device.createImage(image, nullptr);
+	depthStencil.image = device.createImage(image);
 	memReqs = device.getImageMemoryRequirements(depthStencil.image);
 	mem_alloc.allocationSize = memReqs.size;
 	mem_alloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-	depthStencil.mem = device.allocateMemory(mem_alloc, nullptr);
+	depthStencil.mem = device.allocateMemory(mem_alloc);
 	
 	device.bindImageMemory(depthStencil.image, depthStencil.mem, 0);
 	vkTools::setImageLayout(
@@ -1458,7 +1458,7 @@ void VulkanExampleBase::setupDepthStencil()
 		vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
 	depthStencilView.image = depthStencil.image;
-	depthStencil.view = device.createImageView(depthStencilView, nullptr);
+	depthStencil.view = device.createImageView(depthStencilView);
 }
 
 void VulkanExampleBase::setupFrameBuffer()
@@ -1481,7 +1481,7 @@ void VulkanExampleBase::setupFrameBuffer()
 	for (uint32_t i = 0; i < frameBuffers.size(); i++)
 	{
 		attachments[0] = swapChain.buffers[i].view;
-		frameBuffers[i] = device.createFramebuffer(frameBufferCreateInfo, nullptr);
+		frameBuffers[i] = device.createFramebuffer(frameBufferCreateInfo);
 	}
 }
 
@@ -1523,7 +1523,7 @@ void VulkanExampleBase::setupRenderPass()
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
 
-	renderPass = device.createRenderPass(renderPassInfo, nullptr);
+	renderPass = device.createRenderPass(renderPassInfo);
 }
 
 void VulkanExampleBase::windowResize()
@@ -1542,14 +1542,14 @@ void VulkanExampleBase::windowResize()
 
 	// Recreate the frame buffers
 
-	device.destroyImageView(depthStencil.view, nullptr);
-	device.destroyImage(depthStencil.image, nullptr);
-	device.freeMemory(depthStencil.mem, nullptr);
+	device.destroyImageView(depthStencil.view);
+	device.destroyImage(depthStencil.image);
+	device.freeMemory(depthStencil.mem);
 	setupDepthStencil();
 	
 	for (uint32_t i = 0; i < frameBuffers.size(); i++)
 	{
-		device.destroyFramebuffer(frameBuffers[i], nullptr);
+		device.destroyFramebuffer(frameBuffers[i]);
 	}
 	setupFrameBuffer();
 

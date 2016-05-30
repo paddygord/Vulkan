@@ -111,19 +111,19 @@ public:
 		textureLoader->destroyTexture(textures.fontSDF);
 		textureLoader->destroyTexture(textures.fontBitmap);
 
-		device.destroyPipeline(pipelines.sdf, nullptr);
+		device.destroyPipeline(pipelines.sdf);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
-		device.destroyBuffer(vertices.buf, nullptr);
-		device.freeMemory(vertices.mem, nullptr);
+		device.destroyBuffer(vertices.buf);
+		device.freeMemory(vertices.mem);
 
-		device.destroyBuffer(indices.buf, nullptr);
-		device.freeMemory(indices.mem, nullptr);
+		device.destroyBuffer(indices.buf);
+		device.freeMemory(indices.mem);
 
-		device.destroyBuffer(uniformData.vs.buffer, nullptr);
-		device.freeMemory(uniformData.vs.memory, nullptr);
+		device.destroyBuffer(uniformData.vs.buffer);
+		device.freeMemory(uniformData.vs.memory);
 	}
 
 	// Basic parser fpr AngelCode bitmap font format files
@@ -389,7 +389,7 @@ public:
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo = 
 			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -416,13 +416,13 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout = 
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 		
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 		
 	}
 

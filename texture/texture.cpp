@@ -78,24 +78,24 @@ public:
 		// Note : Inherited destructor cleans up resources stored in base class
 
 		// Clean up texture resources
-		device.destroyImageView(texture.view, nullptr);
-		device.destroyImage(texture.image, nullptr);
-		device.destroySampler(texture.sampler, nullptr);
-		device.freeMemory(texture.deviceMemory, nullptr);
+		device.destroyImageView(texture.view);
+		device.destroyImage(texture.image);
+		device.destroySampler(texture.sampler);
+		device.freeMemory(texture.deviceMemory);
 
-		device.destroyPipeline(pipelines.solid, nullptr);
+		device.destroyPipeline(pipelines.solid);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
-		device.destroyBuffer(vertices.buf, nullptr);
-		device.freeMemory(vertices.mem, nullptr);
+		device.destroyBuffer(vertices.buf);
+		device.freeMemory(vertices.mem);
 
-		device.destroyBuffer(indices.buf, nullptr);
-		device.freeMemory(indices.mem, nullptr);
+		device.destroyBuffer(indices.buf);
+		device.freeMemory(indices.mem);
 
-		device.destroyBuffer(uniformDataVS.buffer, nullptr);
-		device.freeMemory(uniformDataVS.memory, nullptr);
+		device.destroyBuffer(uniformDataVS.buffer);
+		device.freeMemory(uniformDataVS.memory);
 	}
 
 	// Create an image memory barrier for changing the layout of
@@ -214,7 +214,7 @@ public:
 			bufferCreateInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
 			bufferCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 			
-			stagingBuffer = device.createBuffer(bufferCreateInfo, nullptr);
+			stagingBuffer = device.createBuffer(bufferCreateInfo);
 
 			// Get memory requirements for the staging buffer (alignment, memory type bits)
 			memReqs = device.getBufferMemoryRequirements(stagingBuffer);
@@ -223,7 +223,7 @@ public:
 			// Get memory type index for a host visible buffer
 			getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible, &memAllocInfo.memoryTypeIndex);
 
-			stagingMemory = device.allocateMemory(memAllocInfo, nullptr);
+			stagingMemory = device.allocateMemory(memAllocInfo);
 			device.bindBufferMemory(stagingBuffer, stagingMemory, 0);
 
 			// Copy texture data into staging buffer
@@ -266,14 +266,14 @@ public:
 			imageCreateInfo.extent = vk::Extent3D { texture.width, texture.height, 1 };
 			imageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 
-			texture.image = device.createImage(imageCreateInfo, nullptr);
+			texture.image = device.createImage(imageCreateInfo);
 
 			memReqs = device.getImageMemoryRequirements(texture.image);
 
 			memAllocInfo.allocationSize = memReqs.size;
 			memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-			texture.deviceMemory = device.allocateMemory(memAllocInfo, nullptr);
+			texture.deviceMemory = device.allocateMemory(memAllocInfo);
 			device.bindImageMemory(texture.image, texture.deviceMemory, 0);
 
 			vk::CommandBuffer copyCmd = VulkanExampleBase::createCommandBuffer(vk::CommandBufferLevel::ePrimary, true);
@@ -306,8 +306,8 @@ public:
 			VulkanExampleBase::flushCommandBuffer(copyCmd, queue, true);
 
 			// Clean up staging resources
-			device.freeMemory(stagingMemory, nullptr);
-			device.destroyBuffer(stagingBuffer, nullptr);
+			device.freeMemory(stagingMemory);
+			device.destroyBuffer(stagingBuffer);
 		}
 		else
 		{
@@ -330,7 +330,7 @@ public:
 			imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 			imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
 			imageCreateInfo.extent = vk::Extent3D { texture.width, texture.height, 1 };
-			mappableImage = device.createImage(imageCreateInfo, nullptr);
+			mappableImage = device.createImage(imageCreateInfo);
 
 			// Get memory requirements for this image 
 			// like size and alignment
@@ -342,7 +342,7 @@ public:
 			getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible, &memAllocInfo.memoryTypeIndex);
 
 			// Allocate host memory
-			mappableMemory = device.allocateMemory(memAllocInfo, nullptr);
+			mappableMemory = device.allocateMemory(memAllocInfo);
 
 			// Bind allocated image for use
 			device.bindImageMemory(mappableImage, mappableMemory, 0);
@@ -411,7 +411,7 @@ public:
 		sampler.maxAnisotropy = 8;
 		sampler.anisotropyEnable = VK_TRUE;
 		sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-		texture.sampler = device.createSampler(sampler, nullptr);
+		texture.sampler = device.createSampler(sampler);
 
 		// Create image view
 		// Textures are not directly accessed by the shaders and
@@ -430,14 +430,14 @@ public:
 		// Only set mip map count if optimal tiling is used
 		view.subresourceRange.levelCount = (useStaging) ? texture.mipLevels : 1;
 		view.image = texture.image;
-		texture.view = device.createImageView(view, nullptr);
+		texture.view = device.createImageView(view);
 	}
 
 	// Free staging resources used while creating a texture
 	void destroyTextureImage(Texture texture)
 	{
-		device.destroyImage(texture.image, nullptr);
-		device.freeMemory(texture.deviceMemory, nullptr);
+		device.destroyImage(texture.image);
+		device.freeMemory(texture.deviceMemory);
 	}
 
 	void buildCommandBuffers()
@@ -570,7 +570,7 @@ public:
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo = 
 			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -592,12 +592,12 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout = 
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 	}
 
 	void setupDescriptorSet()

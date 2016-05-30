@@ -130,10 +130,10 @@ public:
 	{
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
-		device.destroyPipeline(pipelines.phong, nullptr);
-		device.destroyPipeline(pipelines.starsphere, nullptr);
+		device.destroyPipeline(pipelines.phong);
+		device.destroyPipeline(pipelines.starsphere);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
 
 		device.freeCommandBuffers(cmdPool, primaryCommandBuffer);
 		device.freeCommandBuffers(cmdPool, secondaryCommandBuffer);
@@ -144,11 +144,11 @@ public:
 		for (auto& thread : threadData)
 		{
 			device.freeCommandBuffers(thread.commandPool, thread.commandBuffer.size(), thread.commandBuffer.data());
-			device.destroyCommandPool(thread.commandPool, nullptr);
+			device.destroyCommandPool(thread.commandPool);
 			vkMeshLoader::freeMeshBufferResources(device, &thread.mesh);
 		}
 
-		vkDestroyFence(device, renderFence, nullptr);
+		device.destroyFence(renderFence);
 	}
 
 	float rnd(float range)

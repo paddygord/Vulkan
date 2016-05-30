@@ -72,16 +72,16 @@ public:
 		// Note : Inherited destructor cleans up resources stored in base class
 
 		// Clean up texture resources
-		device.destroyImageView(cubeMap.view, nullptr);
-		device.destroyImage(cubeMap.image, nullptr);
-		device.destroySampler(cubeMap.sampler, nullptr);
-		device.freeMemory(cubeMap.deviceMemory, nullptr);
+		device.destroyImageView(cubeMap.view);
+		device.destroyImage(cubeMap.image);
+		device.destroySampler(cubeMap.sampler);
+		device.freeMemory(cubeMap.deviceMemory);
 
-		device.destroyPipeline(pipelines.skybox, nullptr);
-		device.destroyPipeline(pipelines.reflect, nullptr);
+		device.destroyPipeline(pipelines.skybox);
+		device.destroyPipeline(pipelines.reflect);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
 		vkMeshLoader::freeMeshBufferResources(device, &meshes.object);
 		vkMeshLoader::freeMeshBufferResources(device, &meshes.skybox);
@@ -127,7 +127,7 @@ public:
 		bufferCreateInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
 		bufferCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 
-		stagingBuffer = device.createBuffer(bufferCreateInfo, nullptr);
+		stagingBuffer = device.createBuffer(bufferCreateInfo);
 
 		// Get memory requirements for the staging buffer (alignment, memory type bits)
 		memReqs = device.getBufferMemoryRequirements(stagingBuffer);
@@ -136,7 +136,7 @@ public:
 		// Get memory type index for a host visible buffer
 		memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
 
-		stagingMemory = device.allocateMemory(memAllocInfo, nullptr);
+		stagingMemory = device.allocateMemory(memAllocInfo);
 		device.bindBufferMemory(stagingBuffer, stagingMemory, 0);
 
 		// Copy texture data into staging buffer
@@ -172,14 +172,14 @@ public:
 		// This flag is required for cube map images
 		imageCreateInfo.flags = vk::ImageCreateFlagBits::eCubeCompatible;
 
-		cubeMap.image = device.createImage(imageCreateInfo, nullptr);
+		cubeMap.image = device.createImage(imageCreateInfo);
 
 		memReqs = device.getImageMemoryRequirements(cubeMap.image);
 
 		memAllocInfo.allocationSize = memReqs.size;
 		memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-		cubeMap.deviceMemory = device.allocateMemory(memAllocInfo, nullptr);
+		cubeMap.deviceMemory = device.allocateMemory(memAllocInfo);
 		device.bindImageMemory(cubeMap.image, cubeMap.deviceMemory, 0);
 
 		vk::CommandBuffer copyCmd = VulkanExampleBase::createCommandBuffer(vk::CommandBufferLevel::ePrimary, true);
@@ -229,7 +229,7 @@ public:
 		sampler.minLod = 0.0f;
 		sampler.maxLod = 0.0f;
 		sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-		cubeMap.sampler = device.createSampler(sampler, nullptr);
+		cubeMap.sampler = device.createSampler(sampler);
 
 		// Create image view
 		vk::ImageViewCreateInfo view;
@@ -241,11 +241,11 @@ public:
 		// 6 array layers (faces)
 		view.subresourceRange.layerCount = 6;
 		view.image = cubeMap.image;
-		cubeMap.view = device.createImageView(view, nullptr);
+		cubeMap.view = device.createImageView(view);
 
 		// Clean up staging resources
-		device.freeMemory(stagingMemory, nullptr);
-		device.destroyBuffer(stagingBuffer, nullptr);
+		device.freeMemory(stagingMemory);
+		device.destroyBuffer(stagingBuffer);
 	}
 
 	void buildCommandBuffers()
@@ -360,7 +360,7 @@ public:
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo = 
 			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -382,12 +382,12 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout = 
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 	}
 
 	void setupDescriptorSets()

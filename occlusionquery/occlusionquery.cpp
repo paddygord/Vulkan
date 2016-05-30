@@ -91,17 +91,17 @@ public:
 	{
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
-		device.destroyPipeline(pipelines.solid, nullptr);
-		device.destroyPipeline(pipelines.occluder, nullptr);
-		device.destroyPipeline(pipelines.simple, nullptr);
+		device.destroyPipeline(pipelines.solid);
+		device.destroyPipeline(pipelines.occluder);
+		device.destroyPipeline(pipelines.simple);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
-		device.destroyQueryPool(queryPool, nullptr);
+		device.destroyQueryPool(queryPool);
 
-		device.destroyBuffer(queryResult.buffer, nullptr);
-		device.freeMemory(queryResult.memory, nullptr);
+		device.destroyBuffer(queryResult.buffer);
+		device.freeMemory(queryResult.memory);
 
 		vkTools::destroyUniformData(device, &uniformData.vsScene);
 		vkTools::destroyUniformData(device, &uniformData.sphere);
@@ -124,11 +124,11 @@ public:
 			vkTools::initializers::bufferCreateInfo(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst, bufSize);
 
 		// Results are saved in a host visible buffer for easy access by the application
-		queryResult.buffer = device.createBuffer(bufferCreateInfo, nullptr);
+		queryResult.buffer = device.createBuffer(bufferCreateInfo);
 		memReqs = device.getBufferMemoryRequirements(queryResult.buffer);
 		memAlloc.allocationSize = memReqs.size;
 		memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
-		queryResult.memory = device.allocateMemory(memAlloc, nullptr);
+		queryResult.memory = device.allocateMemory(memAlloc);
 		device.bindBufferMemory(queryResult.buffer, queryResult.memory, 0);
 
 		// Create query pool
@@ -330,7 +330,7 @@ public:
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
 			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 3);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -347,12 +347,12 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 	}
 
 	void setupDescriptorSets()

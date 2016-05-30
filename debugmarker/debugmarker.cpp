@@ -228,23 +228,23 @@ public:
 	{
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
-		device.destroyPipeline(pipelines.toonshading, nullptr);
-		device.destroyPipeline(pipelines.color, nullptr);
-		device.destroyPipeline(pipelines.wireframe, nullptr);
-		device.destroyPipeline(pipelines.postprocess, nullptr);
+		device.destroyPipeline(pipelines.toonshading);
+		device.destroyPipeline(pipelines.color);
+		device.destroyPipeline(pipelines.wireframe);
+		device.destroyPipeline(pipelines.postprocess);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
 		// Destroy and free mesh resources 
-		device.destroyBuffer(scene.vertices.buf, nullptr);
-		device.freeMemory(scene.vertices.mem, nullptr);
-		device.destroyBuffer(scene.indices.buf, nullptr);
-		device.freeMemory(scene.indices.mem, nullptr);
-		device.destroyBuffer(sceneGlow.vertices.buf, nullptr);
-		device.freeMemory(sceneGlow.vertices.mem, nullptr);
-		device.destroyBuffer(sceneGlow.indices.buf, nullptr);
-		device.freeMemory(sceneGlow.indices.mem, nullptr);
+		device.destroyBuffer(scene.vertices.buf);
+		device.freeMemory(scene.vertices.mem);
+		device.destroyBuffer(scene.indices.buf);
+		device.freeMemory(scene.indices.mem);
+		device.destroyBuffer(sceneGlow.vertices.buf);
+		device.freeMemory(sceneGlow.vertices.mem);
+		device.destroyBuffer(sceneGlow.indices.buf);
+		device.freeMemory(sceneGlow.indices.mem);
 
 		vkTools::destroyUniformData(device, &uniformData.vsScene);
 
@@ -253,14 +253,14 @@ public:
 		textureLoader->destroyTexture(offScreenFrameBuf.textureTarget);
 		// Frame buffer
 		// Color attachment
-		device.destroyImageView(offScreenFrameBuf.color.view, nullptr);
-		device.destroyImage(offScreenFrameBuf.color.image, nullptr);
-		device.freeMemory(offScreenFrameBuf.color.mem, nullptr);
+		device.destroyImageView(offScreenFrameBuf.color.view);
+		device.destroyImage(offScreenFrameBuf.color.image);
+		device.freeMemory(offScreenFrameBuf.color.mem);
 		// Depth attachment
-		device.destroyImageView(offScreenFrameBuf.depth.view, nullptr);
-		device.destroyImage(offScreenFrameBuf.depth.image, nullptr);
-		device.freeMemory(offScreenFrameBuf.depth.mem, nullptr);
-		device.destroyFramebuffer(offScreenFrameBuf.frameBuffer, nullptr);
+		device.destroyImageView(offScreenFrameBuf.depth.view);
+		device.destroyImage(offScreenFrameBuf.depth.image);
+		device.freeMemory(offScreenFrameBuf.depth.mem);
+		device.destroyFramebuffer(offScreenFrameBuf.frameBuffer);
 	}
 
 	// Prepare a texture target and framebuffer for offscreen rendering
@@ -300,11 +300,11 @@ public:
 		vk::MemoryAllocateInfo memAllocInfo;
 		vk::MemoryRequirements memReqs;
 
-		tex->image = device.createImage(imageCreateInfo, nullptr);
+		tex->image = device.createImage(imageCreateInfo);
 		memReqs = device.getImageMemoryRequirements(tex->image);
 		memAllocInfo.allocationSize = memReqs.size;
 		memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-		(tex->deviceMemory) = device.allocateMemory(memAllocInfo, nullptr);
+		(tex->deviceMemory) = device.allocateMemory(memAllocInfo);
 		device.bindImageMemory(tex->image, tex->deviceMemory, 0);
 
 		// Transform image layout to transfer destination
@@ -330,7 +330,7 @@ public:
 		sampler.minLod = 0.0f;
 		sampler.maxLod = 0.0f;
 		sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-		tex->sampler = device.createSampler(sampler, nullptr);
+		tex->sampler = device.createSampler(sampler);
 
 		// Create image view
 		vk::ImageViewCreateInfo view;
@@ -340,7 +340,7 @@ public:
 		view.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
 		view.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 		view.image = tex->image;
-		tex->view = device.createImageView(view, nullptr);
+		tex->view = device.createImageView(view);
 
 		// Name for debugging
 		DebugMarker::setObjectName(device, (uint64_t)(VkImage)tex->image, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, "Off-screen texture target image");
@@ -377,11 +377,11 @@ public:
 		colorImageView.subresourceRange.baseArrayLayer = 0;
 		colorImageView.subresourceRange.layerCount = 1;
 
-		offScreenFrameBuf.color.image = device.createImage(image, nullptr);
+		offScreenFrameBuf.color.image = device.createImage(image);
 		memReqs = device.getImageMemoryRequirements(offScreenFrameBuf.color.image);
 		memAllocInfo.allocationSize = memReqs.size;
 		memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-		offScreenFrameBuf.color.mem = device.allocateMemory(memAllocInfo, nullptr);
+		offScreenFrameBuf.color.mem = device.allocateMemory(memAllocInfo);
 		device.bindImageMemory(offScreenFrameBuf.color.image, offScreenFrameBuf.color.mem, 0);
 
 		vkTools::setImageLayout(
@@ -392,7 +392,7 @@ public:
 			vk::ImageLayout::eColorAttachmentOptimal);
 
 		colorImageView.image = offScreenFrameBuf.color.image;
-		offScreenFrameBuf.color.view = device.createImageView(colorImageView, nullptr);
+		offScreenFrameBuf.color.view = device.createImageView(colorImageView);
 
 		// Depth stencil attachment
 		image.format = fbDepthFormat;
@@ -408,11 +408,11 @@ public:
 		depthStencilView.subresourceRange.baseArrayLayer = 0;
 		depthStencilView.subresourceRange.layerCount = 1;
 
-		offScreenFrameBuf.depth.image = device.createImage(image, nullptr);
+		offScreenFrameBuf.depth.image = device.createImage(image);
 		memReqs = device.getImageMemoryRequirements(offScreenFrameBuf.depth.image);
 		memAllocInfo.allocationSize = memReqs.size;
 		memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-		offScreenFrameBuf.depth.mem = device.allocateMemory(memAllocInfo, nullptr);
+		offScreenFrameBuf.depth.mem = device.allocateMemory(memAllocInfo);
 		device.bindImageMemory(offScreenFrameBuf.depth.image, offScreenFrameBuf.depth.mem, 0);
 
 		vkTools::setImageLayout(
@@ -423,7 +423,7 @@ public:
 			vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
 		depthStencilView.image = offScreenFrameBuf.depth.image;
-		offScreenFrameBuf.depth.view = device.createImageView(depthStencilView, nullptr);
+		offScreenFrameBuf.depth.view = device.createImageView(depthStencilView);
 
 		vk::ImageView attachments[2];
 		attachments[0] = offScreenFrameBuf.color.view;
@@ -436,7 +436,7 @@ public:
 		fbufCreateInfo.width = offScreenFrameBuf.width;
 		fbufCreateInfo.height = offScreenFrameBuf.height;
 		fbufCreateInfo.layers = 1;
-		offScreenFrameBuf.frameBuffer = device.createFramebuffer(fbufCreateInfo, nullptr);
+		offScreenFrameBuf.frameBuffer = device.createFramebuffer(fbufCreateInfo);
 
 		VulkanExampleBase::flushCommandBuffer(cmdBuffer, queue, true);
 
@@ -654,10 +654,10 @@ public:
 
 			VulkanExampleBase::flushCommandBuffer(copyCmd, queue, true);
 
-			device.destroyBuffer(vertexStaging.buffer, nullptr);
-			device.freeMemory(vertexStaging.memory, nullptr);
-			device.destroyBuffer(indexStaging.buffer, nullptr);
-			device.freeMemory(indexStaging.memory, nullptr);
+			device.destroyBuffer(vertexStaging.buffer);
+			device.freeMemory(vertexStaging.memory);
+			device.destroyBuffer(indexStaging.buffer);
+			device.freeMemory(indexStaging.memory);
 		}
 		else
 		{
@@ -846,7 +846,7 @@ public:
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
 			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 1);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -868,12 +868,12 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 
 		// Name for debugging
 		DebugMarker::setObjectName(device, (uint64_t)(VkPipelineLayout)pipelineLayout, VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT, "Shared pipeline layout");

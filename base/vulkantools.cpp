@@ -323,8 +323,8 @@ namespace vkTools
 		{
 			device.unmapMemory(uniformData->memory);
 		}
-		device.destroyBuffer(uniformData->buffer, nullptr);
-		device.freeMemory(uniformData->memory, nullptr);
+		device.destroyBuffer(uniformData->buffer);
+		device.freeMemory(uniformData->memory);
 	}
 }
 

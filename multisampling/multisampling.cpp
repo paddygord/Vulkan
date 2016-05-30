@@ -80,20 +80,20 @@ public:
 	{
 		// Clean up used Vulkan resources 
 		// Note : Inherited destructor cleans up resources stored in base class
-		device.destroyPipeline(pipelines.solid, nullptr);
+		device.destroyPipeline(pipelines.solid);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
 		vkMeshLoader::freeMeshBufferResources(device, &meshes.example);
 
 		// Destroy MSAA target
-		device.destroyImage(multisampleTarget.color.image, nullptr);
-		device.destroyImageView(multisampleTarget.color.view, nullptr);
-		device.freeMemory(multisampleTarget.color.memory, nullptr);
-		device.destroyImage(multisampleTarget.depth.image, nullptr);
-		device.destroyImageView(multisampleTarget.depth.view, nullptr);
-		device.freeMemory(multisampleTarget.depth.memory, nullptr);
+		device.destroyImage(multisampleTarget.color.image);
+		device.destroyImageView(multisampleTarget.color.view);
+		device.freeMemory(multisampleTarget.color.memory);
+		device.destroyImage(multisampleTarget.depth.image);
+		device.destroyImageView(multisampleTarget.depth.view);
+		device.freeMemory(multisampleTarget.depth.memory);
 
 		textureLoader->destroyTexture(textures.colorMap);
 
@@ -126,7 +126,7 @@ public:
 		info.usage = vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment;
 		info.initialLayout = vk::ImageLayout::eUndefined;
 
-		multisampleTarget.color.image = device.createImage(info, nullptr);
+		multisampleTarget.color.image = device.createImage(info);
 
 		vk::MemoryRequirements memReqs;
 		memReqs = device.getImageMemoryRequirements(multisampleTarget.color.image);
@@ -140,7 +140,7 @@ public:
 			// If this is not available, fall back to device local memory
 			getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal, &memAlloc.memoryTypeIndex);
 		}
-		multisampleTarget.color.memory = device.allocateMemory(memAlloc, nullptr);
+		multisampleTarget.color.memory = device.allocateMemory(memAlloc);
 		device.bindImageMemory(multisampleTarget.color.image, multisampleTarget.color.memory, 0);
 
 		// Create image view for the MSAA target
@@ -156,7 +156,7 @@ public:
 		viewInfo.subresourceRange.levelCount = 1;
 		viewInfo.subresourceRange.layerCount = 1;
 
-		multisampleTarget.color.view = device.createImageView(viewInfo, nullptr);
+		multisampleTarget.color.view = device.createImageView(viewInfo);
 
 		// Depth target
 		info.imageType = vk::ImageType::e2D;
@@ -173,7 +173,7 @@ public:
 		info.usage = vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eDepthStencilAttachment;
 		info.initialLayout = vk::ImageLayout::eUndefined;
 
-		multisampleTarget.depth.image = device.createImage(info, nullptr);
+		multisampleTarget.depth.image = device.createImage(info);
 
 		memReqs = device.getImageMemoryRequirements(multisampleTarget.depth.image);
 		memAlloc;
@@ -184,7 +184,7 @@ public:
 			getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal, &memAlloc.memoryTypeIndex);
 		}
 		
-		multisampleTarget.depth.memory = device.allocateMemory(memAlloc, nullptr);
+		multisampleTarget.depth.memory = device.allocateMemory(memAlloc);
 		device.bindImageMemory(multisampleTarget.depth.image, multisampleTarget.depth.memory, 0);
 
 		// Create image view for the MSAA target
@@ -199,7 +199,7 @@ public:
 		viewInfo.subresourceRange.levelCount = 1;
 		viewInfo.subresourceRange.layerCount = 1;
 
-		multisampleTarget.depth.view = device.createImageView(viewInfo, nullptr);
+		multisampleTarget.depth.view = device.createImageView(viewInfo);
 	}
 
 	// Setup a render pass for using a multi sampled attachment 
@@ -282,7 +282,7 @@ public:
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpass;
 
-		renderPass = device.createRenderPass(renderPassInfo, nullptr);
+		renderPass = device.createRenderPass(renderPassInfo);
 	}
 
 	// Frame buffer attachments must match with render pass setup, 
@@ -314,7 +314,7 @@ public:
 		for (uint32_t i = 0; i < frameBuffers.size(); i++)
 		{
 			attachments[1] = swapChain.buffers[i].view;
-			frameBuffers[i] = device.createFramebuffer(frameBufferCreateInfo, nullptr);
+			frameBuffers[i] = device.createFramebuffer(frameBufferCreateInfo);
 		}
 	}
 
@@ -456,7 +456,7 @@ public:
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
 			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -478,12 +478,12 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 	}
 
 	void setupDescriptorSet()

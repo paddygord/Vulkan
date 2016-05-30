@@ -127,22 +127,22 @@ public:
 		textureLoader->destroyTexture(textures.floor.colorMap);
 		textureLoader->destroyTexture(textures.floor.normalMap);
 
-		device.destroyPipeline(pipelines.particles, nullptr);
-		device.destroyPipeline(pipelines.environment, nullptr);
+		device.destroyPipeline(pipelines.particles);
+		device.destroyPipeline(pipelines.environment);
 
-		device.destroyPipelineLayout(pipelineLayout, nullptr);
-		device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+		device.destroyPipelineLayout(pipelineLayout);
+		device.destroyDescriptorSetLayout(descriptorSetLayout);
 
 		device.unmapMemory(particles.memory);
-		device.destroyBuffer(particles.buffer, nullptr);
-		device.freeMemory(particles.memory, nullptr);
+		device.destroyBuffer(particles.buffer);
+		device.freeMemory(particles.memory);
 
-		device.destroyBuffer(uniformData.fire.buffer, nullptr);
-		device.freeMemory(uniformData.fire.memory, nullptr);
+		device.destroyBuffer(uniformData.fire.buffer);
+		device.freeMemory(uniformData.fire.memory);
 
 		vkMeshLoader::freeMeshBufferResources(device, &meshes.environment.buffers);
 
-		device.destroySampler(textures.particles.sampler, nullptr);
+		device.destroySampler(textures.particles.sampler);
 	}
 
 	void buildCommandBuffers()
@@ -360,7 +360,7 @@ public:
 		samplerCreateInfo.anisotropyEnable = VK_TRUE;
 		// Use a different border color (than the normal texture loader) for additive blending
 		samplerCreateInfo.borderColor = vk::BorderColor::eFloatTransparentBlack;
-		textures.particles.sampler = device.createSampler(samplerCreateInfo, nullptr);
+		textures.particles.sampler = device.createSampler(samplerCreateInfo);
 		
 	}
 
@@ -440,7 +440,7 @@ public:
 		vk::DescriptorPoolCreateInfo descriptorPoolInfo =
 			vkTools::initializers::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
 
-		descriptorPool = device.createDescriptorPool(descriptorPoolInfo, nullptr);
+		descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
 	}
 
 	void setupDescriptorSetLayout()
@@ -467,13 +467,13 @@ public:
 		vk::DescriptorSetLayoutCreateInfo descriptorLayout =
 			vkTools::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
 
-		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
+		descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
 		
 
 		vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vkTools::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo, nullptr);
+		pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
 		
 	}
 
