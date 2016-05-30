@@ -94,7 +94,7 @@ public:
 
 	// Fence to wait for all command buffers to finish before
 	// presenting to the swap chain
-	VkFence renderFence = {};
+	vk::Fence renderFence;
 
 	// Max. dimension of the ufo mesh for use as the sphere
 	// radius for frustum culling
@@ -567,8 +567,7 @@ public:
 	{
 		VulkanExampleBase::prepare();
 		// Create a fence for synchronization
-		VkFenceCreateInfo fenceCreateInfo = vkTools::initializers::fenceCreateInfo(VK_FLAGS_NONE);
-		vkCreateFence(device, &fenceCreateInfo, NULL, &renderFence);
+		renderFence = device.createFence(vk::FenceCreateInfo());
 		loadMeshes();
 		setupVertexDescriptions();
 		setupPipelineLayout();
