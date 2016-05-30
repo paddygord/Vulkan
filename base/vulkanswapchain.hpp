@@ -34,7 +34,6 @@
 typedef struct _SwapChainBuffers {
 	vk::Image image;
 	vk::ImageView view;
-	bool initialized { false };
 } SwapChainBuffer;
 
 class VulkanSwapChain
@@ -298,21 +297,6 @@ public:
 			buffers[i].image = images[i];
 			buffers[i].view = device.createImageView(colorAttachmentView.setImage(images[i]));
 		}
-	}
-
-	bool isInitialized(uint32_t i) {
-		return buffers[i].initialized;
-	}
-
-	void initialize(uint32_t i, vk::CommandBuffer cmdBuffer) {
-		// Transform images from initial (undefined) to present layout
-		vkTools::setImageLayout(
-			cmdBuffer,
-			buffers[i].image,
-			vk::ImageAspectFlagBits::eColor,
-			vk::ImageLayout::eUndefined,
-			vk::ImageLayout::ePresentSrcKHR);
-		buffers[i].initialized = true;
 	}
 
 	// Acquires the next image in the swap chain

@@ -597,7 +597,7 @@ void VulkanExampleBase::submitPostPresentBarrier(const vk::Image& image)
 
 	vk::ImageMemoryBarrier postPresentBarrier;
 	postPresentBarrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-	postPresentBarrier.oldLayout = vk::ImageLayout::ePresentSrcKHR;
+	postPresentBarrier.oldLayout = vk::ImageLayout::eUndefined;
 	postPresentBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
 	postPresentBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 	postPresentBarrier.image = image;
@@ -657,11 +657,6 @@ void VulkanExampleBase::prepareFrame()
 {
 	// Acquire the next image from the swap chaing
 	currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
-	if (!swapChain.isInitialized(currentBuffer)) {
-		withPrimaryCommandBuffer([&] (vk::CommandBuffer& cmdBuffer) {
-			swapChain.initialize(currentBuffer, cmdBuffer);
-		});
-	}
 	// Submit barrier that transforms color attachment image layout back from khr
 	submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
 
@@ -1113,7 +1108,7 @@ void VulkanExampleBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 		{
 			destWidth = LOWORD(lParam);
 			destHeight = HIWORD(lParam);
-			if ((wParam == SIZE_MAXIMIZED) || (wParam == SIZE_MINIMIZED))
+			if ((wParam == SIZE_MAXIMIZED) || (wParam == SIZE_RESTORED))
 			{
 				windowResize();
 			}
