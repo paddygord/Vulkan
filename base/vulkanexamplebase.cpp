@@ -260,6 +260,16 @@ void VulkanExampleBase::prepare()
 	}
 }
 
+vk::PipelineShaderStageCreateInfo VulkanExampleBase::loadGlslShader(const std::string& fileName, vk::ShaderStageFlagBits stage) {
+	auto source = vkTools::readTextFile(fileName.c_str());
+	vk::PipelineShaderStageCreateInfo shaderStage;
+	shaderStage.stage = stage;
+	shaderStage.module = vulkanShaders::glslToShaderModule(device, stage, source);
+	shaderStage.pName = "main";
+	shaderModules.push_back(shaderStage.module);
+	return shaderStage;
+}
+
 vk::PipelineShaderStageCreateInfo VulkanExampleBase::loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage)
 {
 	vk::PipelineShaderStageCreateInfo shaderStage;

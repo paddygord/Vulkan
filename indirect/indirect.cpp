@@ -10,18 +10,8 @@
 #include "shapes.h"
 
 #define SHAPES_COUNT 5
-
 #define INSTANCES_PER_SHAPE 1000
-
 #define INSTANCE_COUNT (INSTANCES_PER_SHAPE * SHAPES_COUNT)
-
-// Vertex layout for this example
-std::vector<vkMeshLoader::VertexLayout> vertexLayout =
-{
-	vkMeshLoader::VERTEX_LAYOUT_POSITION,
-	vkMeshLoader::VERTEX_LAYOUT_NORMAL,
-	vkMeshLoader::VERTEX_LAYOUT_COLOR
-};
 
 class VulkanExample : public VulkanExampleBase
 {
@@ -65,7 +55,6 @@ public:
 		vk::DeviceMemory memory;
 		size_t size = 0;
 	} indirectBuffer;
-
 
 	struct UboVS {
 		glm::mat4 projection;
@@ -155,10 +144,8 @@ public:
 		// Command buffer to be sumitted to the queue
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-
 		// Submit to queue
 		queue.submit(submitInfo, VK_NULL_HANDLE);
-
 		submitFrame();
 	}
 
@@ -191,7 +178,6 @@ public:
 		shape.vertices = vertices.size() - shape.baseVertex;
 		shapes.push_back(shape);
 	}
-
 
 	void loadShapes()
 	{
@@ -299,34 +285,21 @@ public:
 
 		descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
 
-		std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-		{
-			// Binding 0 : Vertex shader uniform buffer
-			vkTools::initializers::writeDescriptorSet(
-			descriptorSet,
-				vk::DescriptorType::eUniformBuffer,
-				0,
-				&uniformData.vsScene.descriptor),
-		};
+		// Binding 0 : Vertex shader uniform buffer
+		vk::WriteDescriptorSet writeDescriptorSet;
+		writeDescriptorSet.dstSet = descriptorSet;
+		writeDescriptorSet.descriptorType = vk::DescriptorType::eUniformBuffer;
+		writeDescriptorSet.dstBinding = 0;
+		writeDescriptorSet.pBufferInfo = &uniformData.vsScene.descriptor;
+		writeDescriptorSet.descriptorCount = 1;
 
-		device.updateDescriptorSets(writeDescriptorSets, nullptr);
-	}
-
-
-	static std::string loadFile(const std::string& f) {
-		std::ifstream t(f);
-		std::string str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
-		return str;
-	}
-
-	void loadGlslShader() {
-
+		device.updateDescriptorSets(writeDescriptorSet, nullptr);
 	}
 
 	void preparePipelines()
 	{
 		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
+			vkTools::initializers::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList);
 
 		vk::PipelineRasterizationStateCreateInfo rasterizationState =
 			vkTools::initializers::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise);
@@ -358,17 +331,8 @@ public:
 		std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 		{
 			vulkanShaders::initGlsl();
-			std::string source;
-			source = loadFile(getAssetPath() + "shaders/indirect/indirect.vert");
-			shaderStages[0].pName = "main";
-			shaderStages[0].stage = vk::ShaderStageFlagBits::eVertex;
-			shaderStages[0].module = vulkanShaders::glslToShaderModule(device, shaderStages[0].stage, source);
-			shaderModules.push_back(shaderStages[0].module);
-
-			source = loadFile(getAssetPath() + "shaders/indirect/indirect.frag");
-			shaderStages[1].pName = "main";
-			shaderStages[1].stage = vk::ShaderStageFlagBits::eFragment;
-			shaderStages[1].module = vulkanShaders::glslToShaderModule(device, shaderStages[1].stage, source);
+			shaderStages[0] = loadGlslShader(getAssetPath() + "shaders/indirect/indirect.vert", vk::ShaderStageFlagBits::eVertex);
+			shaderStages[1] = loadGlslShader(getAssetPath() + "shaders/indirect/indirect.frag", vk::ShaderStageFlagBits::eFragment);
 			vulkanShaders::finalizeGlsl();
 		}
 
@@ -388,11 +352,6 @@ public:
 
 		pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
 		
-	}
-
-	float rnd(float range)
-	{
-		return range * (rand() / double(RAND_MAX));
 	}
 
 	void prepareIndirectData() 
