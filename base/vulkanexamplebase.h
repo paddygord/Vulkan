@@ -31,11 +31,14 @@
 
 #include <array>
 #include <chrono>
+#include <fstream>
+#include <functional>
 #include <iostream>
 #include <iomanip>
 #include <random>
 #include <string>
 #include <sstream>
+#include <streambuf>
 #include <thread>
 #include <vector>
 
@@ -48,6 +51,7 @@
 
 #include "vulkantools.h"
 #include "vulkandebug.h"
+#include "vulkanShaders.h"
 
 #include "vulkanswapchain.hpp"
 #include "vulkanTextureLoader.hpp"
@@ -346,7 +350,54 @@ public:
 		vk::DeviceMemory &memory,
 		vk::DescriptorBufferInfo &descriptor);
 
-	void copyToMemory(const vk::DeviceMemory &memory, void* data, size_t size, size_t offset = 0);
+	struct CreateBufferResult {
+		vk::Buffer buf;
+		vk::DeviceMemory mem;
+	};
+
+	// Overload to pass memory property flags
+	CreateBufferResult createBuffer(vk::BufferUsageFlags usage, vk::MemoryPropertyFlags memoryPropertyFlags, vk::DeviceSize size) {
+		CreateBufferResult result;
+		if (!createBuffer(usage, memoryPropertyFlags, size, nullptr, result.buf, result.mem)) {
+			throw std::runtime_error("Unable to allocate buffer");
+		}
+		return result;
+	}
+
+	template <typename T>
+	CreateBufferResult createBuffer(vk::BufferUsageFlags usage, vk::MemoryPropertyFlags memoryPropertyFlags, const std::vector<T>& data) {
+		CreateBufferResult result;
+		createBuffer(usage, memoryPropertyFlags, data.size() * sizeof(T), (void*)data.data(), result.buf, result.mem);
+		return result;
+	}
+
+	template <typename T>
+	CreateBufferResult createBuffer(vk::BufferUsageFlags usage, const std::vector<T>& data) {
+		return createBuffer(usage, vk::MemoryPropertyFlagBits::eHostVisible, data);
+	}
+
+	// Create a short lived command buffer which is immediately executed and released
+	template <typename F>
+	void withPrimaryCommandBuffer(F f) {
+		vk::CommandBuffer commandBuffer = createCommandBuffer(vk::CommandBufferLevel::ePrimary, true);
+		f(commandBuffer);
+		flushCommandBuffer(commandBuffer, queue, true);
+	}
+
+	template <typename T> 
+	CreateBufferResult stageToBuffer(vk::BufferUsageFlags usage, const std::vector<T>& data) {
+		size_t size = sizeof(T) * data.size();
+		CreateBufferResult staging = createBuffer(vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible, data);
+		CreateBufferResult result = createBuffer(usage | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eDeviceLocal, size);
+		withPrimaryCommandBuffer([&](vk::CommandBuffer copyCmd) {
+			copyCmd.copyBuffer(staging.buf, result.buf, vk::BufferCopy(0, 0, size));
+		});
+		device.freeMemory(staging.mem);
+		device.destroyBuffer(staging.buf);
+		return result;
+	}
+
+	void copyToMemory(const vk::DeviceMemory &memory, void* data, vk::DeviceSize size, vk::DeviceSize offset = 0);
 
 	template<typename T>
 	void copyToMemory(const vk::DeviceMemory &memory, const T& data, size_t offset = 0) {

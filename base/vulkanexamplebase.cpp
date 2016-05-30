@@ -275,7 +275,7 @@ vk::PipelineShaderStageCreateInfo VulkanExampleBase::loadShader(const std::strin
 	return shaderStage;
 }
 
-void VulkanExampleBase::copyToMemory(const vk::DeviceMemory & memory, void* data, size_t size, size_t offset) {
+void VulkanExampleBase::copyToMemory(const vk::DeviceMemory & memory, void* data, vk::DeviceSize size, vk::DeviceSize offset) {
 	void *mapped = device.mapMemory(memory, offset, size, vk::MemoryMapFlags());
 	memcpy(mapped, data, size);
 	device.unmapMemory(memory);

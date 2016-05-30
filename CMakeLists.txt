@@ -36,6 +36,10 @@ add_dependency_external_projects(zlib)
 include_directories(${ZLIB_INCLUDE_DIRS})
 link_libraries(${ZLIB_LIBRARIES})
 
+add_dependency_external_projects(glslang)
+include_directories(${GLSLANG_INCLUDE_DIRS})
+link_libraries(${GLSLANG_LIBRARIES})
+
 add_subdirectory(base)
 link_libraries(base)
 include_directories(base)
