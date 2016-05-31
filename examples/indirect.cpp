@@ -1,16 +1,15 @@
 /*
 * Vulkan Example - Instanced mesh rendering, uses a separate vertex buffer for instanced data
 *
-* Copyright (C) 2016 by Sascha Willems - www.saschawillems.de
-*
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
 #include "vulkanexamplebase.h"
 #include "shapes.h"
+#include <glm/gtc/quaternion.hpp>
 
 #define SHAPES_COUNT 5
-#define INSTANCES_PER_SHAPE 1000
+#define INSTANCES_PER_SHAPE 8000
 #define INSTANCE_COUNT (INSTANCES_PER_SHAPE * SHAPES_COUNT)
 
 class VulkanExample : public VulkanExampleBase
@@ -226,16 +225,13 @@ public:
 		// Instanced attributes
 		// Location 4 : Position
 		vertices.attributeDescriptions.push_back(
-			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 5, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3));
+			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 4, vk::Format::eR32G32B32Sfloat, offsetof(InstanceData, pos)));
 		// Location 5 : Rotation
 		vertices.attributeDescriptions.push_back(
-			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 4, vk::Format::eR32G32B32Sfloat, 0));
+			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 5, vk::Format::eR32G32B32A32Sfloat, offsetof(InstanceData, rot)));
 		// Location 6 : Scale
 		vertices.attributeDescriptions.push_back(
-			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 6, vk::Format::eR32Sfloat, sizeof(float) * 6));
-		// Location 7 : Texture array layer index
-		vertices.attributeDescriptions.push_back(
-			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 7, vk::Format::eR32Sint, sizeof(float) * 7));
+			vkTools::initializers::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 6, vk::Format::eR32Sfloat, offsetof(InstanceData, scale)));
 
 
 		vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
@@ -373,32 +369,52 @@ public:
 		indirectBuffer.memory = stageResult.mem;
 	}
 
+
+	std::vector<InstanceData> instanceData;
+
 	void prepareInstanceData()
 	{
-		std::vector<InstanceData> instanceData;
 		instanceData.resize(INSTANCE_COUNT);
 
-		std::mt19937 rndGenerator(time(NULL));
-		std::uniform_real_distribution<double> uniformDist(0.0, 1.0);
+		std::mt19937 rndGenerator(time(nullptr));
+		std::uniform_real_distribution<float> uniformDist(0.0, 1.0);
+		std::exponential_distribution<float> expDist(1);
 
 		for (auto i = 0; i < INSTANCE_COUNT; i++)
 		{
-			instanceData[i].rot = glm::vec3(M_PI * uniformDist(rndGenerator), M_PI * uniformDist(rndGenerator), M_PI * uniformDist(rndGenerator));
+			auto& instance = instanceData[i];
+			instance.rot = glm::vec3(M_PI * uniformDist(rndGenerator), M_PI * uniformDist(rndGenerator), M_PI * uniformDist(rndGenerator));
 			float theta = 2 * M_PI * uniformDist(rndGenerator);
 			float phi = acos(1 - 2 * uniformDist(rndGenerator));
-			glm::vec3 pos;
-			instanceData[i].pos = glm::vec3(sin(phi) * cos(theta), sin(theta) * uniformDist(rndGenerator) / 1500.0f, cos(phi)) * 7.5f;
-			instanceData[i].scale = 1.0f + uniformDist(rndGenerator) * 2.0f;
+			instance.scale = 0.1f + expDist(rndGenerator) * 3.0f;
+			instance.pos = glm::normalize(glm::vec3(sin(phi) * cos(theta), sin(theta), cos(phi)));
+			instance.pos *= instance.scale * (1.0f + expDist(rndGenerator) / 2.0f) * 4.0f;
 		}
 
 		instanceBuffer.size = instanceData.size() * sizeof(InstanceData);
-		// Staging
-		// Instanced data is static, copy to device local memory 
-		// This results in better performance
-		auto stageResult = stageToBuffer(vk::BufferUsageFlagBits::eIndirectBuffer, instanceData);
-		instanceBuffer.buffer = stageResult.buf;
-		instanceBuffer.memory = stageResult.mem;
+		auto uploadResult = stageToBuffer(vk::BufferUsageFlagBits::eVertexBuffer, instanceData);
+		instanceBuffer.buffer = uploadResult.buf;
+		instanceBuffer.memory = uploadResult.mem;
 	}
+
+
+//	void updateInstanceBuffer() {
+//#ifdef UPDATES
+//		auto time = uboVS.time;
+//		for (auto i = 0; i < SHAPES_COUNT; ++i) {
+//			size_t offset = i * INSTANCES_PER_SHAPE;
+//			for (auto j = 0; j < INSTANCES_PER_SHAPE; ++j) {
+//				size_t index = offset + j;
+//				auto& instance = instanceData[index];
+//				glm::quat q = glm::angleAxis(time, instance.axis);
+//				instance.rot = instance.rot * q;
+//				instance.pos = q * instance.pos;
+//			}
+//		}
+//		memcpy(instanceBuffer.mapped, instanceData.data(), instanceBuffer.size);
+//#endif
+//	}
+
 
 	void prepareUniformBuffers()
 	{
@@ -433,6 +449,7 @@ public:
 
 		memcpy(uniformData.vsScene.mapped, &uboVS, sizeof(uboVS));
 	}
+
 
 	void prepare()
 	{

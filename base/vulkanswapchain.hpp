@@ -313,6 +313,7 @@ public:
 		return resultValue.value;
 	}
 
+#if 0
 	// Present the current image to the queue
 	vk::Result queuePresent(vk::Queue queue, uint32_t currentBuffer)
 	{
@@ -322,6 +323,7 @@ public:
 		presentInfo.pImageIndices = &currentBuffer;
 		return queue.presentKHR(presentInfo);
 	}
+#endif
 
 	// Present the current image to the queue
 	vk::Result queuePresent(vk::Queue queue, uint32_t currentBuffer, vk::Semaphore waitSemaphore)
