@@ -6,10 +6,11 @@
 
 #include "vulkanexamplebase.h"
 #include "shapes.h"
+#include "easings.hpp"
 #include <glm/gtc/quaternion.hpp>
 
 #define SHAPES_COUNT 5
-#define INSTANCES_PER_SHAPE 8000
+#define INSTANCES_PER_SHAPE 4000
 #define INSTANCE_COUNT (INSTANCES_PER_SHAPE * SHAPES_COUNT)
 
 class VulkanExample : public VulkanExampleBase
@@ -77,7 +78,7 @@ public:
 
 	VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
 	{
-		zoom = -12.0f;
+		zoom = -1.0f;
 		rotationSpeed = 0.25f;
 		title = "Vulkan Example - Instanced mesh rendering";
 		srand(time(NULL));
@@ -467,6 +468,13 @@ public:
 		prepared = true;
 	}
 
+	const float duration = 4.0f;
+	const float interval = 6.0f;
+	float zoomDelta = 135;
+	float zoomStart;
+	float accumulator = FLT_MAX;
+
+
 	virtual void render()
 	{
 		if (!prepared)
@@ -477,7 +485,27 @@ public:
 		if (!paused)
 		{
 			device.waitIdle();
-			updateUniformBuffer(false);
+			accumulator += frameTimer;
+			if (accumulator < duration) {
+				zoom = easings::inOutQuint(accumulator, duration, zoomStart, zoomDelta);
+				updateUniformBuffer(true);
+			}
+			else {
+				updateUniformBuffer(false);
+			}
+
+			if (accumulator >= interval) {
+				accumulator = 0;
+				zoomStart = zoom;
+				if (zoom < -2) {
+					zoomDelta = 135;
+				}
+				else {
+					zoomDelta = -135;
+				}
+			}
+
+
 		}
 	}
 

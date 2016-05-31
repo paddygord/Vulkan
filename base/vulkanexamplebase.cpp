@@ -1071,6 +1071,7 @@ void VulkanExampleBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 	{
 		short wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam);
 		zoom += (float)wheelDelta * 0.005f * zoomSpeed;
+		OutputDebugStringA(("Zoom " + std::to_string(zoom)).c_str());
 		viewChanged();
 		break;
 	}
