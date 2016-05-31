@@ -49,52 +49,21 @@ add_dependencies(base vkcpp)
 add_dependencies(base assimp)
 add_dependencies(base zlib)
 
-# Function for building single example
-function(buildExample EXAMPLE_NAME)
-	file(GLOB SOURCE ${EXAMPLE_NAME}/*.cpp)
-	if(WIN32)
-		add_executable(${EXAMPLE_NAME} WIN32 ${EXAMPLE_NAME}/${EXAMPLE_NAME}.cpp ${SOURCE})
-	else()
-		add_executable(${EXAMPLE_NAME} ${EXAMPLE_NAME}/${EXAMPLE_NAME}.cpp ${SOURCE})
-	endif()
-    target_link_libraries(${EXAMPLE_NAME} ${EXAMPLE_LIBS})
-endfunction()
-
-set(EXAMPLES
-	bloom
-	computeshader
-	computeparticles
-	deferred
-	displacement
-	distancefieldfonts
-	gears
-	geometryshader
-	instancing
-        indirect
-	mesh
-	multithreading
-	multisampling
-	occlusionquery
-	offscreen
-	parallaxmapping
-	particlefire
-	pipelines
-	pushconstants
-	raytracing
-	radialblur
-	shadowmapping
-	shadowmappingomni
-	skeletalanimation
-	sphericalenvmapping
-	tessellation
-	textoverlay
-	texture
-	texturearray
-	texturecubemap
-	triangle
-	vulkanscene
-)
-
+file(GLOB EXAMPLES examples/*.cpp)
 foreach(EXAMPLE ${EXAMPLES})
-    buildExample(${EXAMPLE})
-endforeach(EXAMPLE)
+    get_filename_component(EXAMPLE_NAME ${EXAMPLE} NAME_WE)
+
+    # Find any shaders
+    set(SHADER_DIR "data/shaders/${EXAMPLE_NAME}")
+    file(GLOB SHADERS ${SHADER_DIR}/*.vert ${SHADER_DIR}/*.frag)
+    source_group("Shaders" FILES ${SHADERS})
+    message("Shaders ${SHADERS}")
+
+    if(WIN32)
+        add_executable(${EXAMPLE_NAME} WIN32 ${EXAMPLE} ${SHADERS})
+    else()
+        add_executable(${EXAMPLE_NAME} ${EXAMPLE}  ${SHADERS})
+    endif()
+    target_link_libraries(${EXAMPLE_NAME} ${EXAMPLE_LIBS})
+endforeach()
+
