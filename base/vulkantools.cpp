@@ -7,6 +7,9 @@
 */
 
 #include "vulkantools.h"
+#include <iostream>
+#include <fstream>
+
 
 namespace vkTools
 {

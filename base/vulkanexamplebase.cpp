@@ -10,73 +10,6 @@
 
 VulkanExampleBase* VulkanExampleBase::EXAMPLE_INSTANCE = nullptr;
 
-void VulkanExampleBase::createInstance(bool enableValidation)
-{
-	this->enableValidation = enableValidation;
-
-	vk::ApplicationInfo appInfo;
-	appInfo.pApplicationName = name.c_str();
-	appInfo.pEngineName = name.c_str();
-	appInfo.apiVersion = VK_API_VERSION_1_0;
-
-	std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
-
-	// Enable surface extensions depending on os
-#if defined(_WIN32)
-	enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#elif defined(__ANDROID__)
-	enabledExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-#elif defined(__linux__)
-	enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#endif
-
-	vk::InstanceCreateInfo instanceCreateInfo;
-	instanceCreateInfo.pApplicationInfo = &appInfo;
-	if (enabledExtensions.size() > 0)
-	{
-		if (enableValidation)
-		{
-			enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-		}
-		instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-		instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-	}
-	if (enableValidation)
-	{
-		instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount;
-		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
-	}
-	instance = vk::createInstance(instanceCreateInfo);
-}
-
-void VulkanExampleBase::createDevice(vk::DeviceQueueCreateInfo requestedQueues, bool enableValidation)
-{
-	std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-	vk::DeviceCreateInfo deviceCreateInfo;
-	deviceCreateInfo.queueCreateInfoCount = 1;
-	deviceCreateInfo.pQueueCreateInfos = &requestedQueues;
-	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
-
-	// enable the debug marker extension if it is present (likely meaning a debugging tool is present)
-	if (vkTools::checkDeviceExtensionPresent(physicalDevice, VK_EXT_DEBUG_MARKER_EXTENSION_NAME))
-	{
-		enabledExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
-		enableDebugMarkers = true;
-	}
-
-	if (enabledExtensions.size() > 0)
-	{
-		deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-		deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-	}
-	if (enableValidation)
-	{
-		deviceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount;
-		deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
-	}
-
-	device = physicalDevice.createDevice(deviceCreateInfo);
-}
 
 std::string VulkanExampleBase::getWindowTitle()
 {
@@ -137,6 +70,7 @@ void VulkanExampleBase::destroyCommandBuffers()
 	device.freeCommandBuffers(cmdPool, postPresentCmdBuffer);
 }
 
+/*
 void VulkanExampleBase::createSetupCommandBuffer()
 {
 	if (setupCmdBuffer)
@@ -168,6 +102,7 @@ void VulkanExampleBase::flushSetupCommandBuffer()
 	device.freeCommandBuffers(cmdPool, setupCmdBuffer);
 	setupCmdBuffer = vk::CommandBuffer();
 }
+*/
 
 vk::CommandBuffer VulkanExampleBase::createCommandBuffer(vk::CommandBufferLevel level, bool begin)
 {
@@ -210,11 +145,6 @@ void VulkanExampleBase::flushCommandBuffer(vk::CommandBuffer& commandBuffer, con
 	}
 }
 
-void VulkanExampleBase::createPipelineCache()
-{
-	 pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
-}
-
 void VulkanExampleBase::prepare()
 {
 	if (enableValidation)
@@ -226,16 +156,13 @@ void VulkanExampleBase::prepare()
 		vkDebug::DebugMarker::setup(device);
 	}
 	createCommandPool();
-	createSetupCommandBuffer();
-	setupSwapChain();
+	withPrimaryCommandBuffer([&](vk::CommandBuffer setupCmdBuffer) {
+		setupSwapChain(setupCmdBuffer);
+		setupDepthStencil(setupCmdBuffer);
+	});
 	createCommandBuffers();
-	setupDepthStencil();
 	setupRenderPass();
-	createPipelineCache();
 	setupFrameBuffer();
-	flushSetupCommandBuffer();
-	// Recreate setup command buffer for derived class
-	createSetupCommandBuffer();
 	// Create a simple texture loader class
 	textureLoader = new vkTools::VulkanTextureLoader(physicalDevice, device, queue, cmdPool);
 #if defined(__ANDROID__)
@@ -704,8 +631,7 @@ void VulkanExampleBase::submitFrame()
 	queue.waitIdle();
 }
 
-VulkanExampleBase::VulkanExampleBase(bool enableValidation, const vk::PhysicalDeviceFeatures& requestedFeatures) 
-	: requestedFeatures(requestedFeatures) 
+VulkanExampleBase::VulkanExampleBase(bool enableValidation) 
 {
 	EXAMPLE_INSTANCE = this;
 	// Check for validation command line flag
@@ -747,11 +673,6 @@ VulkanExampleBase::~VulkanExampleBase()
 	if (descriptorPool)
 	{
 		device.destroyDescriptorPool(descriptorPool);
-	}
-	if (setupCmdBuffer)
-	{
-		device.freeCommandBuffers(cmdPool, setupCmdBuffer);
-
 	}
 	destroyCommandBuffers();
 	device.destroyRenderPass(renderPass);
@@ -808,55 +729,12 @@ VulkanExampleBase::~VulkanExampleBase()
 
 void VulkanExampleBase::initVulkan(bool enableValidation)
 {
-	// Vulkan instance
-	createInstance(enableValidation);
-	//if (err)
-	//{
-	//	vkTools::exitFatal("Could not create Vulkan instance : \n" + vkTools::errorString(err), "Fatal error");
-	//}
+	createContext(enableValidation);
 
-#if defined(__ANDROID__)
-	loadVulkanFunctions(instance);
-#endif
-
-	// Physical device
-	std::vector<vk::PhysicalDevice> physicalDevices = instance.enumeratePhysicalDevices();
-
-	// Note :
-	// This example will always use the first physical device reported,
-	// change the vector index if you have multiple Vulkan devices installed
-	// and want to use another one
-	physicalDevice = physicalDevices[0];
 
 	// Find a queue that supports graphics operations
-	uint32_t graphicsQueueIndex = 0;
-	std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();;
-	uint32_t queueCount = queueProps.size();
+	uint32_t graphicsQueueIndex = findQueue(vk::QueueFlagBits::eGraphics);
 
-	for (graphicsQueueIndex = 0; graphicsQueueIndex < queueCount; graphicsQueueIndex++)
-	{
-		if (queueProps[graphicsQueueIndex].queueFlags & vk::QueueFlagBits::eGraphics)
-			break;
-	}
-	assert(graphicsQueueIndex < queueCount);
-
-	// Vulkan device
-	std::array<float, 1> queuePriorities = { 0.0f };
-	vk::DeviceQueueCreateInfo queueCreateInfo;
-	queueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
-	queueCreateInfo.queueCount = 1;
-	queueCreateInfo.pQueuePriorities = queuePriorities.data();
-
-	// Store properties (including limits) and features of the phyiscal device
-	// So examples can check against them and see if a feature is actually supported
-	deviceProperties = physicalDevice.getProperties();
-	deviceFeatures = physicalDevice.getFeatures();
-
-	createDevice(queueCreateInfo, enableValidation);
-
-
-	// Gather physical device memory properties
-	deviceMemoryProperties = physicalDevice.getMemoryProperties();
 
 	// Get the graphics queue
 	queue = device.getQueue(graphicsQueueIndex, 0);
@@ -864,7 +742,7 @@ void VulkanExampleBase::initVulkan(bool enableValidation)
 	// Find a suitable depth format
 	depthFormat = vkTools::getSupportedDepthFormat(physicalDevice);
 
-	swapChain.connect(instance, physicalDevice, device);
+	swapChain.connect(*this);
 
 	// Create synchronization objects
 	vk::SemaphoreCreateInfo semaphoreCreateInfo;
@@ -1394,32 +1272,6 @@ void VulkanExampleBase::buildCommandBuffers()
 	// Can be overriden in derived class
 }
 
-vk::Bool32 VulkanExampleBase::getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties, uint32_t * typeIndex)
-{
-	for (uint32_t i = 0; i < 32; i++)
-	{
-		if ((typeBits & 1) == 1)
-		{
-			if ((deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
-			{
-				*typeIndex = i;
-				return true;
-			}
-		}
-		typeBits >>= 1;
-	}
-	return false;
-}
-
-uint32_t VulkanExampleBase::getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties)
-{
-	uint32_t result = 0;
-	if (!getMemoryType(typeBits, properties, &result)) {
-		// todo : throw error
-	}
-	return result;
-}
-
 void VulkanExampleBase::createCommandPool()
 {
 	vk::CommandPoolCreateInfo cmdPoolInfo;
@@ -1428,8 +1280,10 @@ void VulkanExampleBase::createCommandPool()
 	cmdPool = device.createCommandPool(cmdPoolInfo);
 }
 
-void VulkanExampleBase::setupDepthStencil()
+void VulkanExampleBase::setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer)
 {
+	depthStencil.destroy(device);
+
 	vk::ImageCreateInfo image;
 	image.imageType = vk::ImageType::e2D;
 	image.format = depthFormat;
@@ -1550,23 +1404,19 @@ void VulkanExampleBase::windowResize()
 	// Recreate swap chain
 	width = destWidth;
 	height = destHeight;
-	createSetupCommandBuffer();
-	setupSwapChain();
+	withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
+		setupSwapChain(setupCmdBuffer);
+		setupDepthStencil(setupCmdBuffer);
+	});
 
 	// Recreate the frame buffers
 
-	device.destroyImageView(depthStencil.view);
-	device.destroyImage(depthStencil.image);
-	device.freeMemory(depthStencil.mem);
-	setupDepthStencil();
 	
 	for (uint32_t i = 0; i < frameBuffers.size(); i++)
 	{
 		device.destroyFramebuffer(frameBuffers[i]);
 	}
 	setupFrameBuffer();
-
-	flushSetupCommandBuffer();
 
 	// Command buffers need to be recreated as they may store
 	// references to the recreated frame buffer
@@ -1606,7 +1456,7 @@ void VulkanExampleBase::initSwapchain()
 #endif
 }
 
-void VulkanExampleBase::setupSwapChain()
+void VulkanExampleBase::setupSwapChain(const vk::CommandBuffer& setupCmdBuffer)
 {
 	swapChain.create(setupCmdBuffer, &width, &height);
 }

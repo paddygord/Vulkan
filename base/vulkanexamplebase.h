@@ -53,6 +53,7 @@
 #include "vulkandebug.h"
 #include "vulkanShaders.h"
 
+#include "vulkanContext.hpp"
 #include "vulkanswapchain.hpp"
 #include "vulkanTextureLoader.hpp"
 #include "vulkanMeshLoader.hpp"
@@ -70,7 +71,7 @@
 #define INSTANCE_BUFFER_BIND_ID 1
 #define ENABLE_VALIDATION true
 
-class VulkanExampleBase
+class VulkanExampleBase : public vkTools::VulkanContext
 {
 private:	
 	// Set to true when example is created with enabled validation layers
@@ -79,10 +80,6 @@ private:
 	bool enableDebugMarkers = false;
 	// fps timer (one second interval)
 	float fpsTimer = 0.0f;
-	// Create application wide Vulkan instance
-	void createInstance(bool enableValidation);
-	// Create logical Vulkan device based on physical device
-	void createDevice(vk::DeviceQueueCreateInfo requestedQueues, bool enableValidation);
 	// Get window title with example name, device, et.
 	std::string getWindowTitle();
 	// Destination dimensions for resizing the window
@@ -104,21 +101,7 @@ protected:
 	// Frame counter to display fps
 	uint32_t frameCounter = 0;
 	uint32_t lastFPS = 0;
-	// Vulkan instance, stores all per-application states
-	vk::Instance instance;
-	// Physical device (GPU) that Vulkan will ise
-	vk::PhysicalDevice physicalDevice;
-	// Stores physical device properties (for e.g. checking device limits)
-	vk::PhysicalDeviceProperties deviceProperties;
-	// Stores phyiscal device features (for e.g. checking if a feature is available)
-	vk::PhysicalDeviceFeatures deviceFeatures;
 
-	// Requested features
-	vk::PhysicalDeviceFeatures requestedFeatures;
-	// Stores all available memory (type) properties for the physical device
-	vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
-	// Logical device, application's view of the physical device (GPU)
-	vk::Device device;
 	// Handle to the device graphics queue that command buffers are submitted to
 	vk::Queue queue;
 	// Color buffer format
@@ -129,7 +112,7 @@ protected:
 	// Command buffer pool
 	vk::CommandPool cmdPool;
 	// Command buffer used for setup
-	vk::CommandBuffer setupCmdBuffer;
+	//vk::CommandBuffer setupCmdBuffer;
 	// Command buffer for submitting a post present image barrier
 	vk::CommandBuffer postPresentCmdBuffer;
 	// Command buffer for submitting a pre present image barrier
@@ -150,8 +133,6 @@ protected:
 	vk::DescriptorPool descriptorPool;
 	// List of shader modules created (stored for cleanup)
 	std::vector<vk::ShaderModule> shaderModules;
-	// Pipeline cache object
-	vk::PipelineCache pipelineCache;
 	// Wraps the swap chain to present images (framebuffers) to the windowing system
 	VulkanSwapChain swapChain;
 	// Synchronization semaphores
@@ -204,6 +185,22 @@ public:
 		vk::Image image;
 		vk::DeviceMemory mem;
 		vk::ImageView view;
+		void destroy(const vk::Device& device) {
+			if (view) {
+				device.destroyImageView(view);
+				view = vk::ImageView();
+			}
+			if (image) {
+				device.destroyImage(image);
+				image = vk::Image();
+			}
+			if (mem) {
+				device.freeMemory(mem);
+				mem = vk::DeviceMemory();
+			}
+
+
+		}
 	} depthStencil;
 
 	// Gamepad state (only one pad supported)
@@ -240,7 +237,7 @@ public:
 	xcb_intern_atom_reply_t *atom_wm_delete_window;
 #endif
 
-	VulkanExampleBase(bool enableValidation, const vk::PhysicalDeviceFeatures& requestedFeatures = vk::PhysicalDeviceFeatures());
+	VulkanExampleBase(bool enableValidation);
 	VulkanExampleBase() : VulkanExampleBase(false) {};
 	~VulkanExampleBase();
 
@@ -278,13 +275,13 @@ public:
 	virtual void buildCommandBuffers();
 
 	// Get memory type for a given memory allocation (flags and bits)
-	vk::Bool32 getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties, uint32_t *typeIndex);
-	uint32_t getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties = vk::MemoryPropertyFlags());
+	//vk::Bool32 getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties, uint32_t *typeIndex);
+	//uint32_t getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties = vk::MemoryPropertyFlags());
 
 	// Creates a new (graphics) command pool object storing command buffers
 	void createCommandPool();
 	// Setup default depth and stencil views
-	void setupDepthStencil();
+	void setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer);
 	// Create framebuffers for all requested swap chain images
 	// Can be overriden in derived class to setup a custom framebuffer (e.g. for MSAA)
 	virtual void setupFrameBuffer();
@@ -295,7 +292,7 @@ public:
 	// Connect and prepare the swap chain
 	void initSwapchain();
 	// Create swap chain images
-	void setupSwapChain();
+	void setupSwapChain(const vk::CommandBuffer& setupCmdBuffer);
 
 	// Check if command buffers are valid (!= VK_NULL_HANDLE)
 	bool checkCommandBuffers();
@@ -304,10 +301,10 @@ public:
 	// Destroy all command buffers and set their handles to VK_NULL_HANDLE
 	// May be necessary during runtime if options are toggled 
 	void destroyCommandBuffers();
-	// Create command buffer for setup commands
-	void createSetupCommandBuffer();
-	// Finalize setup command bufferm submit it to the queue and remove it
-	void flushSetupCommandBuffer();
+	//// Create command buffer for setup commands
+	//void createSetupCommandBuffer();
+	//// Finalize setup command bufferm submit it to the queue and remove it
+	//void flushSetupCommandBuffer();
 
 	// Command buffer creation
 	// Creates and returns a new command buffer
@@ -315,9 +312,6 @@ public:
 	// End the command buffer, submit it to the queue and free (if requested)
 	// Note : Waits for the queue to become idle
 	void flushCommandBuffer(vk::CommandBuffer& commandBuffer, const vk::Queue& queue, bool free);
-
-	// Create a cache pool for rendering pipelines
-	void createPipelineCache();
 
 	// Prepare commonly used Vulkan functions
 	virtual void prepare();

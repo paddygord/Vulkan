@@ -1,22 +1,7 @@
 #pragma once
-#include <vulkan/vulkan.h>
 
-#include <math.h>
-#include <stdlib.h>
 #include <string>
-#include <cstring>
-#include <fstream>
-#include <assert.h>
-#include <stdio.h>
-#include <vector>
-#ifdef _WIN32
-#include <windows.h>
-#include <fcntl.h>
-#include <io.h>
-#endif
-#ifdef __ANDROID__
-#include "vulkanandroid.h"
-#endif
+#include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 
 namespace vkDebug

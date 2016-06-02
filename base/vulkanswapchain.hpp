@@ -1,6 +1,6 @@
 /*
 * Class wrapping access to the swap chain
-* 
+*
 * A swap chain is a collection of framebuffers used for rendering
 * The swap chain images can then presented to the windowing system
 *
@@ -36,12 +36,9 @@ typedef struct _SwapChainBuffers {
 	vk::ImageView view;
 } SwapChainBuffer;
 
-class VulkanSwapChain
-{
-private: 
-	vk::Instance instance;
-	vk::Device device;
-	vk::PhysicalDevice physicalDevice;
+class VulkanSwapChain {
+private:
+	vkTools::VulkanContext context;
 	vk::SurfaceKHR surface;
 public:
 	vk::Format colorFormat;
@@ -49,7 +46,7 @@ public:
 
 	vk::SwapchainKHR swapChain;
 
-	uint32_t imageCount;
+	uint32_t imageCount{ 0 };
 	std::vector<vk::Image> images;
 	std::vector<SwapChainBuffer> buffers;
 
@@ -68,14 +65,13 @@ public:
 		xcb_connection_t* connection, xcb_window_t window
 #endif
 #endif
-	)
-	{
+		) {
 		// Create surface depending on OS
 #ifdef _WIN32
 		vk::Win32SurfaceCreateInfoKHR surfaceCreateInfo;
 		surfaceCreateInfo.hinstance = (HINSTANCE)platformHandle;
 		surfaceCreateInfo.hwnd = (HWND)platformWindow;
-		surface = instance.createWin32SurfaceKHR(surfaceCreateInfo);
+		surface = context.instance.createWin32SurfaceKHR(surfaceCreateInfo);
 #else
 #ifdef __ANDROID__
 		vk::AndroidSurfaceCreateInfoKHR surfaceCreateInfo;
@@ -89,81 +85,19 @@ public:
 #endif
 #endif
 
-		// Get available queue family properties
-		std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();
-		auto queueCount = queueProps.size();
-
-		// Iterate over each queue to learn whether it supports presenting:
-		// Find a queue with present support
-		// Will be used to present the swap chain images to the windowing system
-		std::vector<vk::Bool32> supportsPresent(queueCount);
-		for (uint32_t i = 0; i < queueCount; i++) 
-		{
-			supportsPresent[i] = physicalDevice.getSurfaceSupportKHR(i, surface);
-		}
-
-		// Search for a graphics and a present queue in the array of queue
-		// families, try to find one that supports both
-		uint32_t graphicsQueueNodeIndex = UINT32_MAX;
-		uint32_t presentQueueNodeIndex = UINT32_MAX;
-		for (uint32_t i = 0; i < queueCount; i++) 
-		{
-			if (queueProps[i].queueFlags & vk::QueueFlagBits::eGraphics)
-			{
-				if (graphicsQueueNodeIndex == UINT32_MAX) 
-				{
-					graphicsQueueNodeIndex = i;
-				}
-
-				if (supportsPresent[i] == VK_TRUE) 
-				{
-					graphicsQueueNodeIndex = i;
-					presentQueueNodeIndex = i;
-					break;
-				}
-			}
-		}
-		if (presentQueueNodeIndex == UINT32_MAX) 
-		{	
-			// If there's no queue that supports both present and graphics
-			// try to find a separate present queue
-			for (uint32_t i = 0; i < queueCount; ++i) 
-			{
-				if (supportsPresent[i] == VK_TRUE) 
-				{
-					presentQueueNodeIndex = i;
-					break;
-				}
-			}
-		}
-
-		// Exit if either a graphics or a presenting queue hasn't been found
-		if (graphicsQueueNodeIndex == UINT32_MAX || presentQueueNodeIndex == UINT32_MAX) 
-		{
-			vkTools::exitFatal("Could not find a graphics and/or presenting queue!", "Fatal error");
-		}
-
-		// todo : Add support for separate graphics and presenting queue
-		if (graphicsQueueNodeIndex != presentQueueNodeIndex) 
-		{
-			vkTools::exitFatal("Separate graphics and presenting queues are not supported yet!", "Fatal error");
-		}
-
-		queueNodeIndex = graphicsQueueNodeIndex;
+		// Find a queue for both present and graphics
+		queueNodeIndex = context.findQueue(vk::QueueFlagBits::eGraphics, surface);
 
 		// Get list of supported surface formats
-		std::vector<vk::SurfaceFormatKHR> surfaceFormats = physicalDevice.getSurfaceFormatsKHR(surface);
+		std::vector<vk::SurfaceFormatKHR> surfaceFormats = context.physicalDevice.getSurfaceFormatsKHR(surface);
 		auto formatCount = surfaceFormats.size();
 
 
 		// If the surface format list only includes one entry with vk::Format::eUndefined,
 		// there is no preferered format, so we assume vk::Format::eB8G8R8A8Unorm
-		if ((formatCount == 1) && (surfaceFormats[0].format == vk::Format::eUndefined))
-		{
+		if ((formatCount == 1) && (surfaceFormats[0].format == vk::Format::eUndefined)) {
 			colorFormat = vk::Format::eB8G8R8A8Unorm;
-		}
-		else
-		{
+		} else {
 			// Always select the first available color format
 			// If you need a specific format (e.g. SRGB) you'd need to
 			// iterate over the list of available surface format and
@@ -174,35 +108,28 @@ public:
 	}
 
 	// Connect to the instance und device and get all required function pointers
-	void connect(vk::Instance instance, vk::PhysicalDevice physicalDevice, vk::Device device)
-	{
-		this->instance = instance;
-		this->physicalDevice = physicalDevice;
-		this->device = device;
+	void connect(vkTools::VulkanContext& context) {
+		this->context = context;
 	}
 
 	// Create the swap chain and get images with given width and height
-	void create(vk::CommandBuffer cmdBuffer, uint32_t *width, uint32_t *height)
-	{
+	void create(vk::CommandBuffer cmdBuffer, uint32_t *width, uint32_t *height) {
 		vk::SwapchainKHR oldSwapchain = swapChain;
 
 		// Get physical device surface properties and formats
-		vk::SurfaceCapabilitiesKHR surfCaps = physicalDevice.getSurfaceCapabilitiesKHR(surface).value;
+		vk::SurfaceCapabilitiesKHR surfCaps = context.physicalDevice.getSurfaceCapabilitiesKHR(surface).value;
 		// Get available present modes
-		std::vector<vk::PresentModeKHR> presentModes = physicalDevice.getSurfacePresentModesKHR(surface);
+		std::vector<vk::PresentModeKHR> presentModes = context.physicalDevice.getSurfacePresentModesKHR(surface);
 		auto presentModeCount = presentModes.size();
 
 		vk::Extent2D swapchainExtent;
 		// width and height are either both -1, or both not -1.
-		if (surfCaps.currentExtent.width == -1)
-		{
+		if (surfCaps.currentExtent.width == -1) {
 			// If the surface size is undefined, the size is set to
 			// the size of the images requested.
 			swapchainExtent.width = *width;
 			swapchainExtent.height = *height;
-		}
-		else
-		{
+		} else {
 			// If the surface size is defined, the swap chain size must match
 			swapchainExtent = surfCaps.currentExtent;
 			*width = surfCaps.currentExtent.width;
@@ -211,33 +138,26 @@ public:
 
 		// Prefer mailbox mode if present, it's the lowest latency non-tearing present  mode
 		vk::PresentModeKHR swapchainPresentMode = vk::PresentModeKHR::eFifo;
-		for (size_t i = 0; i < presentModeCount; i++) 
-		{
-			if (presentModes[i] == vk::PresentModeKHR::eMailbox) 
-			{
+		for (size_t i = 0; i < presentModeCount; i++) {
+			if (presentModes[i] == vk::PresentModeKHR::eMailbox) {
 				swapchainPresentMode = vk::PresentModeKHR::eMailbox;
 				break;
 			}
-			if ((swapchainPresentMode != vk::PresentModeKHR::eMailbox) && (presentModes[i] == vk::PresentModeKHR::eImmediate)) 
-			{
+			if ((swapchainPresentMode != vk::PresentModeKHR::eMailbox) && (presentModes[i] == vk::PresentModeKHR::eImmediate)) {
 				swapchainPresentMode = vk::PresentModeKHR::eImmediate;
 			}
 		}
 
 		// Determine the number of images
 		uint32_t desiredNumberOfSwapchainImages = surfCaps.minImageCount + 1;
-		if ((surfCaps.maxImageCount > 0) && (desiredNumberOfSwapchainImages > surfCaps.maxImageCount))
-		{
+		if ((surfCaps.maxImageCount > 0) && (desiredNumberOfSwapchainImages > surfCaps.maxImageCount)) {
 			desiredNumberOfSwapchainImages = surfCaps.maxImageCount;
 		}
 
 		vk::SurfaceTransformFlagBitsKHR preTransform;
-		if (surfCaps.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity)
-		{
+		if (surfCaps.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
 			preTransform = vk::SurfaceTransformFlagBitsKHR::eIdentity;
-		}
-		else 
-		{
+		} else {
 			preTransform = surfCaps.currentTransform;
 		}
 
@@ -246,7 +166,7 @@ public:
 		swapchainCI.minImageCount = desiredNumberOfSwapchainImages;
 		swapchainCI.imageFormat = colorFormat;
 		swapchainCI.imageColorSpace = colorSpace;
-		swapchainCI.imageExtent = vk::Extent2D { swapchainExtent.width, swapchainExtent.height };
+		swapchainCI.imageExtent = vk::Extent2D{ swapchainExtent.width, swapchainExtent.height };
 		swapchainCI.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
 		swapchainCI.preTransform = preTransform;
 		swapchainCI.imageArrayLayers = 1;
@@ -258,18 +178,16 @@ public:
 		swapchainCI.clipped = true;
 		swapchainCI.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
 
-		swapChain = device.createSwapchainKHR(swapchainCI);
-		
+		swapChain = context.device.createSwapchainKHR(swapchainCI);
+
 
 		// If an existing sawp chain is re-created, destroy the old swap chain
 		// This also cleans up all the presentable images
-		if (oldSwapchain) 
-		{ 
-			for (uint32_t i = 0; i < imageCount; i++)
-			{
-				device.destroyImageView(buffers[i].view);
+		if (oldSwapchain) {
+			for (uint32_t i = 0; i < imageCount; i++) {
+				context.device.destroyImageView(buffers[i].view);
 			}
-			device.destroySwapchainKHR(oldSwapchain);
+			context.device.destroySwapchainKHR(oldSwapchain);
 		}
 
 		vk::ImageViewCreateInfo colorAttachmentView;
@@ -288,21 +206,20 @@ public:
 		colorAttachmentView.viewType = vk::ImageViewType::e2D;
 
 		// Get the swap chain images
-		images = device.getSwapchainImagesKHR(swapChain);
+		images = context.device.getSwapchainImagesKHR(swapChain);
 		imageCount = (uint32_t)images.size();
 
 		// Get the swap chain buffers containing the image and imageview
 		buffers.resize(imageCount);
 		for (uint32_t i = 0; i < imageCount; i++) {
 			buffers[i].image = images[i];
-			buffers[i].view = device.createImageView(colorAttachmentView.setImage(images[i]));
+			buffers[i].view = context.device.createImageView(colorAttachmentView.setImage(images[i]));
 		}
 	}
 
 	// Acquires the next image in the swap chain
-	uint32_t acquireNextImage(vk::Semaphore presentCompleteSemaphore)
-	{
-		auto resultValue = device.acquireNextImageKHR(swapChain, UINT64_MAX, presentCompleteSemaphore, vk::Fence());
+	uint32_t acquireNextImage(vk::Semaphore presentCompleteSemaphore) {
+		auto resultValue = context.device.acquireNextImageKHR(swapChain, UINT64_MAX, presentCompleteSemaphore, vk::Fence());
 		vk::Result result = resultValue.result;
 		if (result != vk::Result::eSuccess) {
 			// TODO handle eSuboptimalKHR
@@ -313,27 +230,13 @@ public:
 		return resultValue.value;
 	}
 
-#if 0
 	// Present the current image to the queue
-	vk::Result queuePresent(vk::Queue queue, uint32_t currentBuffer)
-	{
+	vk::Result queuePresent(vk::Queue queue, uint32_t currentBuffer, vk::Semaphore waitSemaphore) {
 		vk::PresentInfoKHR presentInfo;
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = &swapChain;
 		presentInfo.pImageIndices = &currentBuffer;
-		return queue.presentKHR(presentInfo);
-	}
-#endif
-
-	// Present the current image to the queue
-	vk::Result queuePresent(vk::Queue queue, uint32_t currentBuffer, vk::Semaphore waitSemaphore)
-	{
-		vk::PresentInfoKHR presentInfo;
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &swapChain;
-		presentInfo.pImageIndices = &currentBuffer;
-		if (waitSemaphore)
-		{
+		if (waitSemaphore) {
 			presentInfo.pWaitSemaphores = &waitSemaphore;
 			presentInfo.waitSemaphoreCount = 1;
 		}
@@ -342,14 +245,12 @@ public:
 
 
 	// Free all Vulkan resources used by the swap chain
-	void cleanup()
-	{
-		for (uint32_t i = 0; i < imageCount; i++)
-		{
-			device.destroyImageView(buffers[i].view);
+	void cleanup() {
+		for (uint32_t i = 0; i < imageCount; i++) {
+			context.device.destroyImageView(buffers[i].view);
 		}
-		device.destroySwapchainKHR(swapChain);
-		instance.destroySurfaceKHR(surface);
+		context.device.destroySwapchainKHR(swapChain);
+		context.instance.destroySurfaceKHR(surface);
 	}
 
 };
