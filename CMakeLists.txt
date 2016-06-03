@@ -19,6 +19,10 @@ else()
     link_libraries(${XCB_LIBRARIES})
 endif()
 
+add_dependency_external_projects(glfw)
+include_directories(${GLFW_INCLUDE_DIRS})
+link_libraries(${GLFW_LIBRARIES})
+
 add_dependency_external_projects(glm)
 include_directories(${GLM_INCLUDE_DIRS})
 
@@ -55,15 +59,9 @@ foreach(EXAMPLE ${EXAMPLES})
 
     # Find any shaders
     set(SHADER_DIR "data/shaders/${EXAMPLE_NAME}")
-    file(GLOB SHADERS ${SHADER_DIR}/*.vert ${SHADER_DIR}/*.frag)
+    file(GLOB SHADERS ${SHADER_DIR}/*.vert ${SHADER_DIR}/*.frag ${SHADER_DIR}/*.comp )
     source_group("Shaders" FILES ${SHADERS})
-    message("Shaders ${SHADERS}")
-
-    if(WIN32)
-        add_executable(${EXAMPLE_NAME} WIN32 ${EXAMPLE} ${SHADERS})
-    else()
-        add_executable(${EXAMPLE_NAME} ${EXAMPLE}  ${SHADERS})
-    endif()
+    add_executable(${EXAMPLE_NAME} ${EXAMPLE} ${SHADERS})
     target_link_libraries(${EXAMPLE_NAME} ${EXAMPLE_LIBS})
 endforeach()
 

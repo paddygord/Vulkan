@@ -9,6 +9,9 @@
 #include "vulkanShaders.h"
 #include <GlslangToSpv.h>
 
+using namespace vkx;
+using namespace vkx::shader;
+
 void init_resources(TBuiltInResource &Resources) {
     Resources.maxLights = 32;
     Resources.maxClipPlanes = 6;
@@ -116,18 +119,18 @@ EShLanguage FindLanguage(const vk::ShaderStageFlagBits shader_type) {
     }
 }
 
-void vulkanShaders::initGlsl() {
+void shader::initGlsl() {
     glslang::InitializeProcess();
 }
 
-void vulkanShaders::finalizeGlsl() {
+void shader::finalizeGlsl() {
     glslang::FinalizeProcess();
 }
 
 //
 // Compile a given string containing GLSL into SPV for use by VK
 //
-std::vector<uint32_t> vulkanShaders::glslToSpv(const vk::ShaderStageFlagBits shaderType, const std::string& shaderSource) {
+std::vector<uint32_t> shader::glslToSpv(const vk::ShaderStageFlagBits shaderType, const std::string& shaderSource) {
     std::vector<uint32_t> result;
     TBuiltInResource Resources;
     init_resources(Resources);
@@ -140,7 +143,7 @@ std::vector<uint32_t> vulkanShaders::glslToSpv(const vk::ShaderStageFlagBits sha
         const char *shaderStrings[1] = { shaderSource.c_str() };
         shader->setStrings(shaderStrings, 1);
         if (!shader->parse(&Resources, 100, false, messages)) {
-			auto log = shader->getInfoLog();
+            auto log = shader->getInfoLog();
             throw new std::runtime_error(log);
         }
     }
@@ -154,8 +157,8 @@ std::vector<uint32_t> vulkanShaders::glslToSpv(const vk::ShaderStageFlagBits sha
     return result;
 }
 
-vk::ShaderModule vulkanShaders::glslToShaderModule(const vk::Device& device, const vk::ShaderStageFlagBits shaderType, const std::string& shaderSource) {
-    std::vector<uint32_t> spv = vulkanShaders::glslToSpv(shaderType, shaderSource);
+vk::ShaderModule shader::glslToShaderModule(const vk::Device& device, const vk::ShaderStageFlagBits shaderType, const std::string& shaderSource) {
+    std::vector<uint32_t> spv = shader::glslToSpv(shaderType, shaderSource);
     vk::ShaderModuleCreateInfo moduleCreateInfo;
     moduleCreateInfo
         .setCodeSize(spv.size() * sizeof(uint32_t))

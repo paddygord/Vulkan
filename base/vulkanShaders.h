@@ -11,10 +11,14 @@
 #include <vector>
 #include <vulkan/vk_cpp.hpp>
 
-namespace vulkanShaders {
-    void initGlsl();
-    void finalizeGlsl();
-    void initDebugReport(const vk::Instance& instance);
-    std::vector<uint32_t> glslToSpv(const vk::ShaderStageFlagBits shaderType, const std::string& shaderSource);
-    vk::ShaderModule glslToShaderModule(const vk::Device& device, const vk::ShaderStageFlagBits shaderType, const std::string& shaderSource);
-};
+namespace vkx {
+    namespace shader {
+        using SpvBuffer = std::vector<uint32_t>;
+        void initGlsl();
+        void finalizeGlsl();
+        void initDebugReport(const vk::Instance& instance);
+
+        SpvBuffer glslToSpv(vk::ShaderStageFlagBits shaderType, const std::string& shaderSource);
+        vk::ShaderModule glslToShaderModule(const vk::Device& device, const vk::ShaderStageFlagBits shaderType, const std::string& shaderSource);
+    }
+}
