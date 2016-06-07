@@ -28,15 +28,22 @@ set(${EXTERNAL_NAME_UPPER}_INCLUDE_DIRS ${${EXTERNAL_NAME_UPPER}_INCLUDE_DIR} CA
 ExternalProject_Get_Property(${EXTERNAL_NAME} INSTALL_DIR)
 set(LIB_DIR ${INSTALL_DIR}/lib)
 list(APPEND LIB_NAMES glslang HLSL OGLCompiler OSDependent SPIRV)
-include(SelectLibraryConfigurations)
 
+if(WIN32)
+	set(LIB_PREFIX "")
+	set(LIB_SUFFIX ".lib")
+else()
+	set(LIB_PREFIX "lib")
+	set(LIB_SUFFIX ".a")
+endif()
 
 foreach(BASE_LIB ${LIB_NAMES})
     string(TOUPPER ${BASE_LIB} BASE_LIB_UPPER)
-    list(APPEND ${EXTERNAL_NAME_UPPER}_LIBRARY_RELEASE "${LIB_DIR}/${BASE_LIB}.lib")
-    list(APPEND ${EXTERNAL_NAME_UPPER}_LIBRARY_DEBUG "${LIB_DIR}/${BASE_LIB}d.lib")
+    list(APPEND ${EXTERNAL_NAME_UPPER}_LIBRARY_RELEASE "${LIB_DIR}/${LIB_PREFIX}${BASE_LIB}${LIB_SUFFIX}")
+    list(APPEND ${EXTERNAL_NAME_UPPER}_LIBRARY_DEBUG "${LIB_DIR}/${LIB_PREFIX}${BASE_LIB}d${LIB_SUFFIX}")
 endforeach()
 
+include(SelectLibraryConfigurations)
 select_library_configurations(${EXTERNAL_NAME_UPPER})
 
 set(${EXTERNAL_NAME_UPPER}_LIBRARY ${${EXTERNAL_NAME_UPPER}_LIBRARY} CACHE FILEPATH "Location of glslang libraries")

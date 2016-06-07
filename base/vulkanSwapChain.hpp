@@ -81,7 +81,7 @@ namespace vkx {
             vk::XcbSurfaceCreateInfoKHR surfaceCreateInfo;
             surfaceCreateInfo.connection = connection;
             surfaceCreateInfo.window = window;
-            surface = instance.createXcbSurfaceKHR(surfaceCreateInfo);
+            surface = context.instance.createXcbSurfaceKHR(surfaceCreateInfo);
 #endif
 #endif
 

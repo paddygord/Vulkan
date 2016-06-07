@@ -16,6 +16,9 @@
 #else 
 #ifdef _WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32 1
+#else 
+#define GLFW_EXPOSE_NATIVE_X11 1
+#define GLFW_EXPOSE_NATIVE_GLX 1
 #endif
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
@@ -40,6 +43,7 @@
 #include <streambuf>
 #include <thread>
 #include <vector>
+#include <initializer_list>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -284,7 +288,7 @@ namespace vkx {
 
 
         // Load a mesh (using ASSIMP) and create vulkan vertex and index buffers with given vertex layout
-        vkx::MeshBuffer ExampleBase::loadMesh(
+        vkx::MeshBuffer loadMesh(
             const std::string& filename,
             const vkx::MeshLayout& vertexLayout,
             float scale = 1.0f);

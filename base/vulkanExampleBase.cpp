@@ -5,6 +5,10 @@
 *
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
+#include <algorithm>
+#include <initializer_list>
+#include <stdexcept>
+
 
 #include "vulkanExampleBase.h"
 
@@ -22,8 +26,6 @@ ExampleBase::ExampleBase(bool enableValidation) {
     // Vulkan library is loaded dynamically on Android
     bool libLoaded = loadVulkanLibrary();
     assert(libLoaded);
-#elif defined(__linux__)
-    initxcbConnection();
 #endif
 
 #if !defined(__ANDROID__)
@@ -70,6 +72,7 @@ ExampleBase::~ExampleBase() {
     glfwTerminate();
 #endif
 }
+
 
 void ExampleBase::run() {
 #if defined(_WIN32)
@@ -482,9 +485,6 @@ void ExampleBase::submitFrame() {
     queue.waitIdle();
 }
 
-
-
-
 #if defined(__ANDROID__)
 int32_t ExampleBase::handleAppInput(struct android_app* app, AInputEvent* event) {
     ExampleBase* vulkanExample = (ExampleBase*)app->userData;
@@ -659,12 +659,15 @@ void ExampleBase::JoystickHandler(int, int) {
 
 void ExampleBase::setupWindow() {
     bool fullscreen = false;
+
+#ifdef _WIN32
     // Check command line arguments
     for (int32_t i = 0; i < __argc; i++) {
         if (__argv[i] == std::string("-fullscreen")) {
             fullscreen = true;
         }
     }
+#endif
 
     if (fullscreen) {
         // TODO 
@@ -877,7 +880,7 @@ void ExampleBase::initSwapchain() {
 #elif defined(__ANDROID__)    
     swapChain.initSurface(androidApp->window);
 #elif defined(__linux__)
-    swapChain.initSurface(connection, window);
+    swapChain.initSurface(nullptr, 1);
 #endif
 }
 
@@ -902,3 +905,5 @@ void ExampleBase::draw() {
     // Push the rendered frame to the surface
     submitFrame();
 }
+#if 0
+#endif

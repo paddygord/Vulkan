@@ -9,6 +9,7 @@
 #pragma once
 
 #include <vector>
+#include <algorithm>
 #include <vulkan/vk_cpp.hpp>
 
 namespace vkx {

@@ -22,8 +22,7 @@
 #else
 #endif
 
-#include "vulkan/vulkan.h"
-#include "vulkantools.h"
+#include <vulkan/vulkan.h>
 
 #include <assimp/Importer.hpp> 
 #include <assimp/scene.h>     
@@ -36,6 +35,8 @@
 #if defined(__ANDROID__)
 #include <android/asset_manager.h>
 #endif
+
+#include "vulkanTools.h"
 
 namespace vkx {
     typedef enum VertexLayout {

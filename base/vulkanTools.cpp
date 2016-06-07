@@ -7,6 +7,7 @@
 */
 
 #include "vulkanTools.h"
+#include <iterator>
 #include <iostream>
 #include <fstream>
 
@@ -182,8 +183,8 @@ namespace vkx {
 
         // read the data:
         vec.insert(vec.begin(),
-            std::istream_iterator<BYTE>(file),
-            std::istream_iterator<BYTE>());
+            std::istream_iterator<uint8_t>(file),
+            std::istream_iterator<uint8_t>());
 
         return vec;
     }

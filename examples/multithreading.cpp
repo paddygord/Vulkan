@@ -8,7 +8,7 @@
 
 #include "vulkanExampleBase.h"
 
-#include "threadpool.hpp"
+#include "threadPool.hpp"
 #include "frustum.hpp"
 
 

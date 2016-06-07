@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <algorithm>
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_cpp.hpp>
 #include <glm/glm.hpp>

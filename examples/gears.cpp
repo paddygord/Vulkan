@@ -8,7 +8,7 @@
 
 
 
-#include "vulkangear.h"
+#include "vulkanGear.h"
 #include "vulkanExampleBase.h"
 
 

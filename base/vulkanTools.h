@@ -9,6 +9,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <algorithm>
 #include <vulkan/vk_cpp.hpp>
 #include <glm/glm.hpp>
 

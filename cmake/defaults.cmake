@@ -39,12 +39,8 @@ add_definitions(-DGLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 if(WIN32)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 else()
-    find_package(Threads REQUIRED)
-    link_libraries(${CMAKE_THREAD_LIBS_INIT})
-
     add_definitions(-std=c++14)
     add_definitions(-std=c++0x)
     add_definitions(-std=gnu++14)

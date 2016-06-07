@@ -324,11 +324,8 @@ public:
         vk::ImageViewCreateInfo colorImageView;
         colorImageView.viewType = vk::ImageViewType::e2D;
         colorImageView.format = OFFSCREEN_FORMAT;
-        colorImageView.subresourceRange = {};
         colorImageView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-        colorImageView.subresourceRange.baseMipLevel = 0;
         colorImageView.subresourceRange.levelCount = 1;
-        colorImageView.subresourceRange.baseArrayLayer = 0;
         colorImageView.subresourceRange.layerCount = 1;
 
         offScreenFrameBuf.color = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
@@ -395,7 +392,7 @@ public:
         vk::CommandBufferBeginInfo cmdBufInfo;
 
         vk::ClearValue clearValues[2];
-        clearValues[0].color = { std::array<float, 4> { 0.0f, 0.0f, 0.0f, 0.0f } };
+        clearValues[0].color = vkx::clearColor(glm::vec4(0));
         clearValues[1].depthStencil = { 1.0f, 0 };
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -447,21 +444,15 @@ public:
         vk::ImageBlit imgBlit;
 
         imgBlit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-        imgBlit.srcSubresource.mipLevel = 0;
-        imgBlit.srcSubresource.baseArrayLayer = 0;
         imgBlit.srcSubresource.layerCount = 1;
 
-        imgBlit.srcOffsets[0] = { 0, 0, 0 };
         imgBlit.srcOffsets[1].x = offScreenFrameBuf.width;
         imgBlit.srcOffsets[1].y = offScreenFrameBuf.height;
         imgBlit.srcOffsets[1].z = 1;
 
         imgBlit.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-        imgBlit.dstSubresource.mipLevel = 0;
-        imgBlit.dstSubresource.baseArrayLayer = 0;
         imgBlit.dstSubresource.layerCount = 1;
 
-        imgBlit.dstOffsets[0] = { 0, 0, 0 };
         imgBlit.dstOffsets[1].x = offScreenFrameBuf.textureTarget.extent.width;
         imgBlit.dstOffsets[1].y = offScreenFrameBuf.textureTarget.extent.height;
         imgBlit.dstOffsets[1].z = 1;

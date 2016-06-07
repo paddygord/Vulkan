@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <algorithm>
 
 #include <vulkan/vk_cpp.hpp>
 #include <gli/gli.hpp>
@@ -167,7 +168,7 @@ namespace vkx {
 #ifdef WIN32
         static thread_local vk::CommandPool s_cmdPool;
 #else
-        thread_local vk::CommandPool cmdPool;
+        static thread_local vk::CommandPool s_cmdPool;
 #endif
 
         const vk::CommandPool& getCommandPool() const {
