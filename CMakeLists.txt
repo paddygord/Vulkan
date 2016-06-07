@@ -6,9 +6,9 @@ set(NAME vulkanExamples)
 
 project(${NAME})
 
-add_custom_target(SetupRelease ALL if 1==$<CONFIG:Release>  ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin)
+add_custom_target(SetupRelease ALL ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin)
 set_target_properties(SetupRelease PROPERTIES FOLDER "CMakeTargets")
-add_custom_target(SetupDebug ALL if 1==$<CONFIG:Debug> ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin_debug)
+add_custom_target(SetupDebug ALL ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin_debug)
 set_target_properties(SetupDebug PROPERTIES FOLDER "CMakeTargets")
 
 find_package(Vulkan REQUIRED)
@@ -25,21 +25,29 @@ endif()
 
 if (WIN32)
     add_dependency_external_projects(glfw3)
+    list(APPEND EXTERNALS glfw3)
+
     include_directories(${GLFW3_INCLUDE_DIR})
     link_libraries(${GLFW3_LIBRARY})
-	list(APPEND EXTERNALS glfw3)
 
     add_dependency_external_projects(assimp)
-	list(APPEND EXTERNALS assimp)
+    list(APPEND EXTERNALS assimp)
     add_dependency_external_projects(zlib)
     include_directories(${ZLIB_INCLUDE_DIRS})
     link_libraries(${ZLIB_LIBRARIES})
     include_directories(${ASSIMP_INCLUDE_DIRS})
     link_libraries(${ASSIMP_LIBRARIES})
 else()
-    find_package(glfw3 3.2 REQUIRED glfw3)
+
+    pkg_check_modules(GLFW3 REQUIRED glfw3>=3.2)
+    link_libraries(${GLFW3_LIBRARIES})
+    include_directories(${GLFW3_INCLUDEDIR})
+
     find_package(assimp)
-	# FIXME figure out how to apply the found packages properly
+    link_libraries(${ASSIMP_LIBRARIES})
+    include_directories(${ASSIMP_INCLUDEDIR})
+    get_cmake_property(VARNAMES VARIABLES)
+
 endif()
 
 add_dependency_external_projects(glm)
@@ -89,12 +97,9 @@ foreach(EXAMPLE ${EXAMPLES})
     source_group("Shaders" FILES ${SHADERS})
     add_executable(${EXAMPLE_NAME} ${EXAMPLE} ${SHADERS})
     add_dependencies(${EXAMPLE_NAME} base)
-    foreach(EXTERNAL ${EXTERNALS})
-        add_dependencies(${EXAMPLE_NAME} ${EXTERNAL})
-    endforeach()
     target_link_libraries(${EXAMPLE_NAME} ${EXAMPLE_LIBS})
-	if (NOT WIN32)
-		target_link_libraries(${EXAMPLE_NAME} Threads::Threads)
-	endif()
+    if (NOT WIN32)
+        target_link_libraries(${EXAMPLE_NAME} Threads::Threads)
+    endif()
 endforeach()
 
