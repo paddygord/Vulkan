@@ -29,9 +29,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/bin")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/bin_debug")
 set(CMAKE_DEBUG_POSTFIX "d")
 
-add_custom_target(OutputDir ALL COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin)
-add_custom_target(DebugOutputDir ALL COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin_debug)
-
 add_definitions(-DNOMINMAX)
 add_definitions(-D_USE_MATH_DEFINES)
 add_definitions(-DGLM_FORCE_RADIANS)

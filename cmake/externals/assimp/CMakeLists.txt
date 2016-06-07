@@ -33,8 +33,8 @@ set(${EXTERNAL_NAME_UPPER}_INCLUDE_DIRS ${INSTALL_DIR}/include CACHE PATH "List 
 set(${EXTERNAL_NAME_UPPER}_LIBRARY_DEBUG ${INSTALL_DIR}/lib/${LIB_PREFIX}assimpd.${LIB_EXT} CACHE FILEPATH "Path to assimp debug library")
 set(${EXTERNAL_NAME_UPPER}_LIBRARY_RELEASE ${INSTALL_DIR}/lib/${LIB_PREFIX}assimp.${LIB_EXT} CACHE FILEPATH "Path to assimp release library")
 
-add_custom_command(TARGET ${EXTERNAL_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${INSTALL_DIR}/bin/assimp.dll ${CMAKE_SOURCE_DIR}/bin )
-add_custom_command(TARGET ${EXTERNAL_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${INSTALL_DIR}/bin/assimpd.dll ${CMAKE_SOURCE_DIR}/bin_debug )
+add_custom_command(TARGET ${EXTERNAL_NAME} POST_BUILD COMMAND if 1==$<CONFIG:Release> ${CMAKE_COMMAND} -E copy ${INSTALL_DIR}/bin/assimp.dll ${CMAKE_SOURCE_DIR}/bin )
+add_custom_command(TARGET ${EXTERNAL_NAME} POST_BUILD COMMAND if 1==$<CONFIG:Debug> ${CMAKE_COMMAND} -E copy ${INSTALL_DIR}/bin/assimpd.dll ${CMAKE_SOURCE_DIR}/bin_debug )
 
 include(SelectLibraryConfigurations)
 select_library_configurations(${EXTERNAL_NAME_UPPER})
