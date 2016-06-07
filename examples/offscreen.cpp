@@ -504,12 +504,14 @@ public:
     }
 
     void draw() override {
+        prepareFrame();
         // Gather command buffers to be sumitted to the queue
         std::vector<vk::CommandBuffer> submitCmdBuffers = {
             offScreenCmdBuffer,
             drawCmdBuffers[currentBuffer],
         };
         drawCommandBuffers(submitCmdBuffers);
+        submitFrame();
     }
 
     void loadMeshes() {

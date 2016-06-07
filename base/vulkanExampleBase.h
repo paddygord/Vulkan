@@ -184,27 +184,7 @@ namespace vkx {
         std::string title = "Vulkan Example";
         std::string name = "vulkanExample";
 
-        struct {
-            vk::Image image;
-            vk::DeviceMemory mem;
-            vk::ImageView view;
-            void destroy(const vk::Device& device) {
-                if (view) {
-                    device.destroyImageView(view);
-                    view = vk::ImageView();
-                }
-                if (image) {
-                    device.destroyImage(image);
-                    image = vk::Image();
-                }
-                if (mem) {
-                    device.freeMemory(mem);
-                    mem = vk::DeviceMemory();
-                }
-
-
-            }
-        } depthStencil;
+        CreateImageResult depthStencil;
 
         // Gamepad state (only one pad supported)
 

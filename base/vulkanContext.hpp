@@ -235,6 +235,7 @@ namespace vkx {
             CreateImageResult result;
             result.device = device;
             result.image = device.createImage(imageCreateInfo);
+            result.format = imageCreateInfo.format;
             vk::MemoryRequirements memReqs = device.getImageMemoryRequirements(result.image);
             vk::MemoryAllocateInfo memAllocInfo;
             memAllocInfo.allocationSize = result.allocSize = memReqs.size;

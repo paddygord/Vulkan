@@ -46,12 +46,9 @@ namespace vkx {
         uint32_t *frameBufferWidth;
         uint32_t *frameBufferHeight;
 
-        vk::Sampler sampler;
-        vk::Image image;
-        vk::ImageView view;
-        vk::Buffer buffer;
-        vk::DeviceMemory memory;
-        vk::DeviceMemory imageMemory;
+        CreateImageResult texture;
+        CreateBufferResult vertexBuffer;
+
         vk::DescriptorPool descriptorPool;
         vk::DescriptorSetLayout descriptorSetLayout;
         vk::DescriptorSet descriptorSet;
@@ -105,12 +102,9 @@ namespace vkx {
 
         ~TextOverlay() {
             // Free up all Vulkan resources requested by the text overlay
-            context.device.destroySampler(sampler);
-            context.device.destroyImage(image);
-            context.device.destroyImageView(view);
-            context.device.destroyBuffer(buffer);
-            context.device.freeMemory(memory);
-            context.device.freeMemory(imageMemory);
+            texture.destroy();
+            vertexBuffer.destroy();
+
             context.device.destroyDescriptorSetLayout(descriptorSetLayout);
             context.device.destroyDescriptorPool(descriptorPool);
             context.device.destroyPipelineLayout(pipelineLayout);
@@ -140,10 +134,7 @@ namespace vkx {
 
             // Vertex buffer
             vk::DeviceSize bufferSize = MAX_CHAR_COUNT * sizeof(glm::vec4);
-
-            auto createBufferResults = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, bufferSize);
-            buffer = createBufferResults.buffer;
-            memory = createBufferResults.memory;
+            vertexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, bufferSize);
 
             // Font texture
             vk::ImageCreateInfo imageInfo;
@@ -154,20 +145,11 @@ namespace vkx {
             imageInfo.extent.depth = 1;
             imageInfo.mipLevels = 1;
             imageInfo.arrayLayers = 1;
-            imageInfo.samples = vk::SampleCountFlagBits::e1;
             imageInfo.tiling = vk::ImageTiling::eOptimal;
             imageInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
-            imageInfo.sharingMode = vk::SharingMode::eExclusive;
-            imageInfo.initialLayout = vk::ImageLayout::ePreinitialized;
 
-            image = context.device.createImage(imageInfo);
-            auto memReqs = context.device.getImageMemoryRequirements(image);
-            vk::MemoryAllocateInfo allocInfo;
-            allocInfo.allocationSize = STB_FONT_WIDTH * STB_NUM_CHARS;
-            allocInfo.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-            imageMemory = context.device.allocateMemory(allocInfo);
-            context.device.bindImageMemory(image, imageMemory, 0);
+            texture = context.createImage(imageInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
             // Staging
             auto staging = context.createBuffer(vk::BufferUsageFlagBits::eTransferSrc, STB_FONT_WIDTH * STB_FONT_HEIGHT, &font24pixels[0][0]);
@@ -175,13 +157,7 @@ namespace vkx {
             // Copy to image
             context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& copyCmd) {
                 // Prepare for transfer
-                setImageLayout(
-                    copyCmd,
-                    image,
-                    vk::ImageAspectFlagBits::eColor,
-                    vk::ImageLayout::ePreinitialized,
-                    vk::ImageLayout::eTransferDstOptimal);
-
+                setImageLayout(copyCmd, texture.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
                 vk::BufferImageCopy bufferCopyRegion;
                 bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
                 bufferCopyRegion.imageSubresource.mipLevel = 0;
@@ -189,46 +165,35 @@ namespace vkx {
                 bufferCopyRegion.imageExtent.width = STB_FONT_WIDTH;
                 bufferCopyRegion.imageExtent.height = STB_FONT_HEIGHT;
                 bufferCopyRegion.imageExtent.depth = 1;
-
-                copyCmd.copyBufferToImage(staging.buffer, image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegion);
-
+                copyCmd.copyBufferToImage(staging.buffer, texture.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegion);
                 // Prepare for shader read
-                setImageLayout(
-                    copyCmd,
-                    image,
-                    vk::ImageAspectFlagBits::eColor,
-                    vk::ImageLayout::eTransferDstOptimal,
-                    vk::ImageLayout::eShaderReadOnlyOptimal);
-
+                setImageLayout(copyCmd, texture.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
             });
 
-            context.device.freeMemory(staging.memory);
-            context.device.destroyBuffer(staging.buffer);
+            staging.destroy();
 
+            {
+                vk::ImageViewCreateInfo imageViewInfo;
+                imageViewInfo.image = texture.image;
+                imageViewInfo.viewType = vk::ImageViewType::e2D;
+                imageViewInfo.format = imageInfo.format;
+                imageViewInfo.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB,    vk::ComponentSwizzle::eA };
+                imageViewInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 
-            vk::ImageViewCreateInfo imageViewInfo;
-            imageViewInfo.image = image;
-            imageViewInfo.viewType = vk::ImageViewType::e2D;
-            imageViewInfo.format = imageInfo.format;
-            imageViewInfo.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB,    vk::ComponentSwizzle::eA };
-            imageViewInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+                texture.view = context.device.createImageView(imageViewInfo);
 
-            view = context.device.createImageView(imageViewInfo);
+            }
 
             // vk::Sampler
-            vk::SamplerCreateInfo samplerInfo;
-            samplerInfo.magFilter = vk::Filter::eLinear;
-            samplerInfo.minFilter = vk::Filter::eLinear;
-            samplerInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
-            samplerInfo.addressModeU = vk::SamplerAddressMode::eRepeat;
-            samplerInfo.addressModeV = vk::SamplerAddressMode::eRepeat;
-            samplerInfo.addressModeW = vk::SamplerAddressMode::eRepeat;
-            samplerInfo.mipLodBias = 0.0f;
-            samplerInfo.compareOp = vk::CompareOp::eNever;
-            samplerInfo.minLod = 0.0f;
-            samplerInfo.maxLod = 1.0f;
-            samplerInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-            sampler = context.device.createSampler(samplerInfo);
+            {
+                vk::SamplerCreateInfo samplerInfo;
+                samplerInfo.magFilter = vk::Filter::eLinear;
+                samplerInfo.minFilter = vk::Filter::eLinear;
+                samplerInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
+                samplerInfo.maxLod = 1.0f;
+                samplerInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
+                texture.sampler = context.device.createSampler(samplerInfo);
+            }
 
             // Descriptor
             // Font uses a separate descriptor pool
@@ -273,8 +238,8 @@ namespace vkx {
 
             vk::DescriptorImageInfo texDescriptor =
                 descriptorImageInfo(
-                    sampler,
-                    view,
+                    texture.sampler,
+                    texture.view,
                     vk::ImageLayout::eGeneral);
 
             std::array<vk::WriteDescriptorSet, 1> writeDescriptorSets;
@@ -428,7 +393,7 @@ namespace vkx {
 
         // Map buffer 
         void beginTextUpdate() {
-            mapped = (glm::vec4*)context.device.mapMemory(memory, 0, VK_WHOLE_SIZE, vk::MemoryMapFlags());
+            mapped = vertexBuffer.map<glm::vec4>();
             numLetters = 0;
         }
 
@@ -499,7 +464,7 @@ namespace vkx {
 
         // Unmap buffer and update command buffers
         void endTextUpdate() {
-            context.device.unmapMemory(memory);
+            vertexBuffer.unmap();
             mapped = nullptr;
             updateCommandBuffers();
         }
@@ -532,8 +497,8 @@ namespace vkx {
                     cmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
                     cmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
                     vk::DeviceSize offsets = 0;
-                    cmdBuffers[i].bindVertexBuffers(0, buffer, offsets);
-                    cmdBuffers[i].bindVertexBuffers(1, buffer, offsets);
+                    cmdBuffers[i].bindVertexBuffers(0, vertexBuffer.buffer, offsets);
+                    cmdBuffers[i].bindVertexBuffers(1, vertexBuffer.buffer, offsets);
                     for (uint32_t j = 0; j < numLetters; j++) {
                         cmdBuffers[i].draw(4, 1, j * 4, 0);
                     }

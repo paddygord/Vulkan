@@ -91,12 +91,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     // vk::Framebuffer for offscreen rendering
-    struct FrameBufferAttachment {
-        vk::Image image;
-        vk::DeviceMemory mem;
-        vk::ImageView view;
-         vk::Format format;
-    };
+    using FrameBufferAttachment = CreateImageResult;
+
     struct FrameBuffer {
         int32_t width, height;
         vk::Framebuffer frameBuffer;
@@ -132,26 +128,15 @@ public:
         textureTargets.normal.destroy();
         textureTargets.albedo.destroy();
 
-        // Frame buffer
-
         // Color attachments
-        device.destroyImageView(offScreenFrameBuf.position.view);
-        device.destroyImage(offScreenFrameBuf.position.image);
-        device.freeMemory(offScreenFrameBuf.position.mem);
-
-        device.destroyImageView(offScreenFrameBuf.normal.view);
-        device.destroyImage(offScreenFrameBuf.normal.image);
-        device.freeMemory(offScreenFrameBuf.normal.mem);
-
-        device.destroyImageView(offScreenFrameBuf.albedo.view);
-        device.destroyImage(offScreenFrameBuf.albedo.image);
-        device.freeMemory(offScreenFrameBuf.albedo.mem);
+        offScreenFrameBuf.position.destroy();
+        offScreenFrameBuf.normal.destroy();
+        offScreenFrameBuf.albedo.destroy();
 
         // Depth attachment
-        device.destroyImageView(offScreenFrameBuf.depth.view);
-        device.destroyImage(offScreenFrameBuf.depth.image);
-        device.freeMemory(offScreenFrameBuf.depth.mem);
+        offScreenFrameBuf.depth.destroy();
 
+        // Frame buffer
         device.destroyFramebuffer(offScreenFrameBuf.frameBuffer);
 
         device.destroyPipeline(pipelines.deferred);
@@ -284,27 +269,7 @@ public:
         image.tiling = vk::ImageTiling::eOptimal;
         image.usage = usage | vk::ImageUsageFlagBits::eTransferSrc;
 
-        vk::MemoryAllocateInfo memAlloc;
-
-        vk::ImageViewCreateInfo imageView;
-        imageView.viewType = vk::ImageViewType::e2D;
-        imageView.format = format;
-        imageView.subresourceRange.aspectMask = aspectMask;
-        imageView.subresourceRange.levelCount = 1;
-        imageView.subresourceRange.layerCount = 1;
-
-        vk::MemoryRequirements memReqs;
-
-        attachment.image = device.createImage(image);
-
-        memReqs = device.getImageMemoryRequirements(attachment.image);
-        memAlloc.allocationSize = memReqs.size;
-        getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal, &memAlloc.memoryTypeIndex);
-        attachment.mem = device.allocateMemory(memAlloc);
-
-
-        device.bindImageMemory(attachment.image, attachment.mem, 0);
-
+        attachment = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
         vkx::setImageLayout(
             setupCmdBuffer,
@@ -313,9 +278,15 @@ public:
             vk::ImageLayout::eUndefined,
             imageLayout);
 
+        vk::ImageViewCreateInfo imageView;
+        imageView.viewType = vk::ImageViewType::e2D;
+        imageView.format = format;
+        imageView.subresourceRange.aspectMask = aspectMask;
+        imageView.subresourceRange.levelCount = 1;
+        imageView.subresourceRange.layerCount = 1;
         imageView.image = attachment.image;
-        attachment.view = device.createImageView(imageView);
 
+        attachment.view = device.createImageView(imageView);
     }
 
     // Prepare a new framebuffer for offscreen rendering

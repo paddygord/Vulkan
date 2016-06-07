@@ -80,8 +80,10 @@ namespace vkx {
         size_t allocSize{ 0 };
         void* mapped{ nullptr };
 
-        inline void map(size_t offset = 0, size_t size = VK_WHOLE_SIZE) {
+        template <typename T = void>
+        inline T* map(size_t offset = 0, size_t size = VK_WHOLE_SIZE) {
             mapped = device.mapMemory(memory, offset, size, vk::MemoryMapFlags());
+            return (T*)mapped;
         }
 
         inline void unmap() {
@@ -116,6 +118,8 @@ namespace vkx {
     struct CreateImageResult : public AllocatedResult{
         vk::Image image;
         vk::ImageView view;
+        vk::Sampler sampler;
+        vk::Format format{ vk::Format::eUndefined };
         size_t size{ 0 };
 
         void destroy() override {

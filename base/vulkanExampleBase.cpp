@@ -47,9 +47,7 @@ ExampleBase::~ExampleBase() {
     for (auto& shaderModule : shaderModules) {
         device.destroyShaderModule(shaderModule);
     }
-    device.destroyImageView(depthStencil.view);
-    device.destroyImage(depthStencil.image);
-    device.freeMemory(depthStencil.mem);
+    depthStencil.destroy();
 
     if (textureLoader) {
         delete textureLoader;
@@ -733,7 +731,7 @@ void ExampleBase::createCommandPool() {
 }
 
 void ExampleBase::setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer) {
-    depthStencil.destroy(device);
+    depthStencil.destroy();
 
     vk::ImageCreateInfo image;
     image.imageType = vk::ImageType::e2D;
@@ -745,29 +743,8 @@ void ExampleBase::setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer) {
     image.tiling = vk::ImageTiling::eOptimal;
     image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferSrc;
 
-    vk::MemoryAllocateInfo mem_alloc;
-    mem_alloc.allocationSize = 0;
-    mem_alloc.memoryTypeIndex = 0;
+    depthStencil = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-    vk::ImageViewCreateInfo depthStencilView;
-    depthStencilView.viewType = vk::ImageViewType::e2D;
-    depthStencilView.format = depthFormat;
-    depthStencilView.subresourceRange;
-    depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
-    depthStencilView.subresourceRange.baseMipLevel = 0;
-    depthStencilView.subresourceRange.levelCount = 1;
-    depthStencilView.subresourceRange.baseArrayLayer = 0;
-    depthStencilView.subresourceRange.layerCount = 1;
-
-    vk::MemoryRequirements memReqs;
-
-    depthStencil.image = device.createImage(image);
-    memReqs = device.getImageMemoryRequirements(depthStencil.image);
-    mem_alloc.allocationSize = memReqs.size;
-    mem_alloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-    depthStencil.mem = device.allocateMemory(mem_alloc);
-
-    device.bindImageMemory(depthStencil.image, depthStencil.mem, 0);
     setImageLayout(
         setupCmdBuffer,
         depthStencil.image,
@@ -775,6 +752,12 @@ void ExampleBase::setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer) {
         vk::ImageLayout::eUndefined,
         vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
+    vk::ImageViewCreateInfo depthStencilView;
+    depthStencilView.viewType = vk::ImageViewType::e2D;
+    depthStencilView.format = depthFormat;
+    depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
+    depthStencilView.subresourceRange.levelCount = 1;
+    depthStencilView.subresourceRange.layerCount = 1;
     depthStencilView.image = depthStencil.image;
     depthStencil.view = device.createImageView(depthStencilView);
 }

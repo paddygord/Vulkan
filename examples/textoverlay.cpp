@@ -365,8 +365,8 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
-        uniformData.vsScene = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, sizeof(uboVS), &uboVS);
-
+        uniformData.vsScene = createUniformBuffer(uboVS);
+        uniformData.vsScene.map();
         updateUniformBuffers();
     }
 

@@ -117,7 +117,7 @@ namespace vkx {
             vk::SwapchainKHR oldSwapchain = swapChain;
 
             // Get physical device surface properties and formats
-            vk::SurfaceCapabilitiesKHR surfCaps = context.physicalDevice.getSurfaceCapabilitiesKHR(surface).value;
+            vk::SurfaceCapabilitiesKHR surfCaps = context.physicalDevice.getSurfaceCapabilitiesKHR(surface);
             // Get available present modes
             std::vector<vk::PresentModeKHR> presentModes = context.physicalDevice.getSurfacePresentModesKHR(surface);
             auto presentModeCount = presentModes.size();
