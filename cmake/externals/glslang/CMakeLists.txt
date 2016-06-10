@@ -5,8 +5,9 @@ include(ExternalProject)
 
 ExternalProject_Add(
   ${EXTERNAL_NAME}
-  URL https://github.com/jherico/glslang/archive/debug_postfix.zip
-  URL_MD5 21ff82538ba493c88a377bf501717fc0
+  DOWNLOAD_NAME glslang-95d85ce0caea6609372e83324e370fddfa368c28.zip
+  URL https://codeload.github.com/KhronosGroup/glslang/zip/95d85ce0caea6609372e83324e370fddfa368c28
+  URL_MD5 6eeb4523352a06da51c89fdb1f2db0b6
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   BINARY_DIR ${EXTERNAL_PROJECT_PREFIX}/build
   LOG_DOWNLOAD 1

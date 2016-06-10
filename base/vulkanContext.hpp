@@ -67,9 +67,15 @@ namespace vkx {
             // change the vector index if you have multiple Vulkan devices installed
             // and want to use another one
             physicalDevice = physicalDevices[0];
+            struct Version {
+                uint32_t patch : 12;
+                uint32_t minor : 10;
+                uint32_t major : 10;
+            } _version;
             // Store properties (including limits) and features of the phyiscal device
             // So examples can check against them and see if a feature is actually supported
             deviceProperties = physicalDevice.getProperties();
+            memcpy(&_version, &deviceProperties.apiVersion, sizeof(uint32_t));
             deviceFeatures = physicalDevice.getFeatures();
             // Gather physical device memory properties
             deviceMemoryProperties = physicalDevice.getMemoryProperties();

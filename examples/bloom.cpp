@@ -585,10 +585,10 @@ public:
     // Setup vertices for a single uv-mapped quad
     void generateQuad() {
         struct Vertex {
-            float pos[3];
-            float uv[2];
-            float col[3];
-            float normal[3];
+            glm::vec3 pos;
+            glm::vec2 uv;
+            glm::vec3 col;
+            glm::vec3 normal;
         };
 
 #define QUAD_COLOR_NORMAL { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f }
@@ -878,22 +878,26 @@ public:
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
-        auto memoryProperties = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
         // Phong and color pass vertex shader uniform buffer
-        uniformData.vsScene = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, memoryProperties, ubos.scene);
+        uniformData.vsScene = createUniformBuffer(ubos.scene);
+        uniformData.vsScene.map();
 
         // Fullscreen quad display vertex shader uniform buffer
-        uniformData.vsFullScreen = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, memoryProperties, ubos.fullscreen);
+        uniformData.vsFullScreen = createUniformBuffer(ubos.fullscreen);
+        uniformData.vsFullScreen.map();
 
         // Fullscreen quad fragment shader uniform buffers
         // Vertical blur
-        uniformData.fsVertBlur = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, memoryProperties, ubos.vertBlur);
+        uniformData.fsVertBlur = createUniformBuffer(ubos.vertBlur);
+        uniformData.fsVertBlur.map();
 
         // Horizontal blur
-        uniformData.fsHorzBlur = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, memoryProperties, ubos.horzBlur);
+        uniformData.fsHorzBlur = createUniformBuffer(ubos.horzBlur);
+        uniformData.fsHorzBlur.map();
 
         // Skybox
-        uniformData.vsSkyBox = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, memoryProperties, ubos.skyBox);
+        uniformData.vsSkyBox = createUniformBuffer(ubos.skyBox);
+        uniformData.vsSkyBox.map();
 
         // Intialize uniform buffers
         updateUniformBuffersScene();
@@ -905,7 +909,6 @@ public:
         // UFO
         ubos.fullscreen.projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 256.0f);
         glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, -1.0f, zoom));
-
         ubos.fullscreen.model = viewMatrix *
             glm::translate(glm::mat4(), glm::vec3(sin(glm::radians(timer * 360.0f)) * 0.25f, 0.0f, cos(glm::radians(timer * 360.0f)) * 0.25f) + cameraPos);
 
@@ -914,23 +917,15 @@ public:
         ubos.fullscreen.model = glm::rotate(ubos.fullscreen.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
         ubos.fullscreen.model = glm::rotate(ubos.fullscreen.model, glm::radians(timer * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         ubos.fullscreen.model = glm::rotate(ubos.fullscreen.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
-        void *pData;
-        pData = device.mapMemory(uniformData.vsFullScreen.memory, 0, sizeof(ubos.fullscreen), vk::MemoryMapFlags());
-        memcpy(pData, &ubos.fullscreen, sizeof(ubos.fullscreen));
-        device.unmapMemory(uniformData.vsFullScreen.memory);
+        uniformData.vsFullScreen.copy(ubos.fullscreen);
 
         // Skybox
         ubos.skyBox.projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 256.0f);
-
         ubos.skyBox.model = glm::mat4();
         ubos.skyBox.model = glm::rotate(ubos.skyBox.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
         ubos.skyBox.model = glm::rotate(ubos.skyBox.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
         ubos.skyBox.model = glm::rotate(ubos.skyBox.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
-        pData = device.mapMemory(uniformData.vsSkyBox.memory, 0, sizeof(ubos.skyBox), vk::MemoryMapFlags());
-        memcpy(pData, &ubos.skyBox, sizeof(ubos.skyBox));
-        device.unmapMemory(uniformData.vsSkyBox.memory);
+        uniformData.vsSkyBox.copy(ubos.skyBox);
     }
 
     // Update uniform buffers for the fullscreen quad
@@ -939,23 +934,16 @@ public:
         ubos.scene.projection = glm::ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
         ubos.scene.model = glm::mat4();
 
-        void*pData;
-        pData = device.mapMemory(uniformData.vsScene.memory, 0, sizeof(ubos.scene), vk::MemoryMapFlags());
-        memcpy(pData, &ubos.scene, sizeof(ubos.scene));
-        device.unmapMemory(uniformData.vsScene.memory);
+        uniformData.vsScene.copy(ubos.scene);
 
         // Fragment shader
         // Vertical
         ubos.vertBlur.horizontal = 0;
-        pData = device.mapMemory(uniformData.fsVertBlur.memory, 0, sizeof(ubos.vertBlur), vk::MemoryMapFlags());
-        memcpy(pData, &ubos.vertBlur, sizeof(ubos.vertBlur));
-        device.unmapMemory(uniformData.fsVertBlur.memory);
+        uniformData.fsVertBlur.copy(ubos.vertBlur);
 
         // Horizontal
         ubos.horzBlur.horizontal = 1;
-        pData = device.mapMemory(uniformData.fsHorzBlur.memory, 0, sizeof(ubos.horzBlur), vk::MemoryMapFlags());
-        memcpy(pData, &ubos.horzBlur, sizeof(ubos.horzBlur));
-        device.unmapMemory(uniformData.fsHorzBlur.memory);
+        uniformData.fsHorzBlur.copy(ubos.horzBlur);
     }
 
     void draw() override {
