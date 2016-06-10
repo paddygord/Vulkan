@@ -880,7 +880,7 @@ void ExampleBase::initSwapchain() {
 #elif defined(__ANDROID__)    
     swapChain.initSurface(androidApp->window);
 #elif defined(__linux__)
-    swapChain.initSurface(nullptr, 1);
+    swapChain.initSurface(window);
 #endif
 }
 

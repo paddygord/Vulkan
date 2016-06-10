@@ -42,7 +42,7 @@ namespace vkx {
         vkx::Context context;
         vk::SurfaceKHR surface;
     public:
-         vk::Format colorFormat;
+        vk::Format colorFormat;
         vk::ColorSpaceKHR colorSpace;
         vk::SwapchainKHR swapChain;
 
@@ -62,7 +62,7 @@ namespace vkx {
 #ifdef __ANDROID__
             ANativeWindow* window
 #else
-            xcb_connection_t* connection, xcb_window_t window
+            GLFWwindow* window
 #endif
 #endif
             ) {
@@ -78,10 +78,18 @@ namespace vkx {
             surfaceCreateInfo.window = window;
             surface = instance.createAndroidSurfaceKHR(surfaceCreateInfo);
 #else
-            vk::XcbSurfaceCreateInfoKHR surfaceCreateInfo;
-            surfaceCreateInfo.connection = connection;
-            surfaceCreateInfo.window = window;
-            surface = context.instance.createXcbSurfaceKHR(surfaceCreateInfo);
+            //vk::XcbSurfaceCreateInfoKHR surfaceCreateInfo;
+            //surfaceCreateInfo.connection = connection;
+            //surfaceCreateInfo.window = window;
+            //surface = context.instance.createXcbSurfaceKHR(surfaceCreateInfo);
+
+            VkSurfaceKHR vk_surf;
+            vk::Result result = static_cast<vk::Result>(glfwCreateWindowSurface(context.instance, window, NULL, &vk_surf));
+            if (result != vk::Result::eSuccess) {
+                std::cerr << "Window surface creation failed: " << vk::to_string(result);
+                throw std::error_code(result);
+            }
+            surface = vk_surf;
 #endif
 #endif
 

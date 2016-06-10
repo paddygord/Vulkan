@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <vulkan/vulkan.h>
+
 #if defined(__ANDROID__)
 #include <android/native_activity.h>
 #include <android/asset_manager.h>
@@ -55,8 +57,6 @@ using glm::vec4;
 using glm::mat3;
 using glm::mat4;
 using glm::quat;
-
-#include <vulkan/vulkan.h>
 
 #include "vulkanTools.h"
 #include "vulkanDebug.h"
