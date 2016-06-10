@@ -238,7 +238,7 @@ namespace vkx {
             flushCommandBuffer(commandBuffer, true);
         }
 
-        CreateImageResult createImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags) {
+        CreateImageResult createImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags) const {
             CreateImageResult result;
             result.device = device;
             result.image = device.createImage(imageCreateInfo);

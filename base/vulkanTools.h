@@ -175,12 +175,20 @@ namespace vkx {
         float height,
         float minDepth = 0,
         float maxDepth = 1);
+    vk::Viewport viewport(
+        const glm::uvec2& size,
+        float minDepth = 0,
+        float maxDepth = 1);
 
     vk::Rect2D rect2D(
-        int32_t width,
-        int32_t height,
+        uint32_t width,
+        uint32_t height,
         int32_t offsetX = 0,
         int32_t offsetY = 0);
+
+    vk::Rect2D rect2D(
+        const glm::uvec2& size,
+        const glm::ivec2& offset = glm::ivec2(0));
 
     vk::BufferCreateInfo bufferCreateInfo(
         vk::BufferUsageFlags usage,

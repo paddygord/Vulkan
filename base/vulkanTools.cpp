@@ -309,9 +309,17 @@ namespace vkx {
         return viewport;
     }
 
+    vk::Viewport viewport(
+        const glm::uvec2& size,
+        float minDepth,
+        float maxDepth) {
+        return viewport((float)size.x, (float)size.y, minDepth, maxDepth);
+    }
+
+
     vk::Rect2D rect2D(
-        int32_t width,
-        int32_t height,
+        uint32_t width,
+        uint32_t height,
         int32_t offsetX,
         int32_t offsetY) {
         vk::Rect2D rect2D;
@@ -320,6 +328,10 @@ namespace vkx {
         rect2D.offset.x = offsetX;
         rect2D.offset.y = offsetY;
         return rect2D;
+    }
+
+    vk::Rect2D rect2D(const glm::uvec2& size, const glm::ivec2& offset) {
+        return rect2D(size.x, size.y, offset.x, offset.y);
     }
 
     vk::BufferCreateInfo bufferCreateInfo(
