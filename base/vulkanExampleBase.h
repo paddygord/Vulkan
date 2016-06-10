@@ -61,6 +61,7 @@ using glm::quat;
 #include "vulkanTools.h"
 #include "vulkanDebug.h"
 #include "vulkanShaders.h"
+#include "vulkanFramebuffer.hpp"
 
 #include "vulkanContext.hpp"
 #include "vulkanSwapChain.hpp"
