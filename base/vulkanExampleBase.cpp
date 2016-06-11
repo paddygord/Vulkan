@@ -905,5 +905,3 @@ void ExampleBase::draw() {
     // Push the rendered frame to the surface
     submitFrame();
 }
-#if 0
-#endif
