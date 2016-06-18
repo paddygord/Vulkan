@@ -396,6 +396,23 @@ public:
     float zoomStart;
     float accumulator = FLT_MAX;
 
+    void draw() {
+        // Acquire the next image from the swap chaing
+        currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
+        vk::PipelineStageFlags dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        vk::SubmitInfo submitInfo;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = drawCmdBuffers.data() + currentBuffer;
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = &semaphores.presentComplete;
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = &semaphores.renderComplete;
+        submitInfo.pWaitDstStageMask = &dstStageMask;
+        queue.submit(submitInfo, VK_NULL_HANDLE);
+        swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
+        queue.waitIdle();
+    }
+
 
     virtual void render() {
         if (!prepared) {

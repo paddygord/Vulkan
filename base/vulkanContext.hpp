@@ -172,12 +172,12 @@ namespace vkx {
 
 
 #ifdef WIN32
-        static thread_local vk::CommandPool s_cmdPool;
+        static __declspec(thread) VkCommandPool s_cmdPool;
 #else
         static thread_local vk::CommandPool s_cmdPool;
 #endif
 
-        const vk::CommandPool& getCommandPool() const {
+        const vk::CommandPool getCommandPool() const {
             if (!s_cmdPool) {
                 vk::CommandPoolCreateInfo cmdPoolInfo;
                 cmdPoolInfo.queueFamilyIndex = graphicsQueueIndex;

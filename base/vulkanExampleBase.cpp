@@ -794,15 +794,15 @@ void ExampleBase::setupRenderPass() {
     attachments[0].format = colorformat;
     attachments[0].loadOp = vk::AttachmentLoadOp::eClear;
     attachments[0].storeOp = vk::AttachmentStoreOp::eStore;
-    attachments[0].initialLayout = vk::ImageLayout::eColorAttachmentOptimal;
-    attachments[0].finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    attachments[0].initialLayout = vk::ImageLayout::eUndefined;
+    attachments[0].finalLayout = vk::ImageLayout::ePresentSrcKHR;
 
     // Depth attachment
     attachments[1].format = depthFormat;
     attachments[1].loadOp = vk::AttachmentLoadOp::eClear;
     attachments[1].storeOp = vk::AttachmentStoreOp::eStore;
-    attachments[1].initialLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-    attachments[1].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+    attachments[1].initialLayout = vk::ImageLayout::eUndefined;
+    attachments[1].finalLayout = vk::ImageLayout::eUndefined;
 
     vk::AttachmentReference colorReference;
     colorReference.attachment = 0;
@@ -818,11 +818,21 @@ void ExampleBase::setupRenderPass() {
     subpass.pColorAttachments = &colorReference;
     subpass.pDepthStencilAttachment = &depthReference;
 
+    vk::SubpassDependency dependency;
+    dependency.srcSubpass = 0;
+    dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+    dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead;
+    dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+    dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+
     vk::RenderPassCreateInfo renderPassInfo;
     renderPassInfo.attachmentCount = 2;
     renderPassInfo.pAttachments = attachments;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
 
     renderPass = device.createRenderPass(renderPassInfo);
 }
