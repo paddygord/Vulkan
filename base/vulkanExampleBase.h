@@ -59,6 +59,8 @@ namespace vkx {
         uint32_t destHeight;
 
         // Command buffers used for rendering
+        std::vector<vk::CommandBuffer> primaryCmdBuffers;
+        std::vector<vk::CommandBuffer> textCmdBuffers;
         std::vector<vk::CommandBuffer> drawCmdBuffers;
 
     protected:
@@ -99,8 +101,6 @@ namespace vkx {
             vk::Semaphore presentComplete;
             // Command buffer submission and execution
             vk::Semaphore renderComplete;
-            // Text overlay submission and execution
-            vk::Semaphore textOverlayComplete;
         } semaphores;
 
         // Simple texture loader
@@ -109,7 +109,19 @@ namespace vkx {
         // Returns the base asset path (for shaders, models, textures) depending on the os
         const std::string getAssetPath();
 
+        // A collection of items queued for destruction.  On the next queue submit, 
+        // they will be inserted into the recycler for eventual destruction once the 
+        // fence has cleared
+        using VoidLambda = std::function<void()>;
+        using VoidLambdaList = std::list<VoidLambda>;
+        using FencedLambda = std::pair<vk::Fence, VoidLambda>;
+        using FencedLambdaQueue = std::queue<FencedLambda>;
+
+        VoidLambdaList dumpster;
+        FencedLambdaQueue recycler;
     protected:
+        // Command buffer pool
+        vk::CommandPool cmdPool;
 
         bool prepared = false;
         uint32_t width = 1280;
@@ -175,8 +187,6 @@ namespace vkx {
 #endif
 
         // A default draw implementation
-        void drawCommandBuffers(const std::vector<vk::CommandBuffer>& commandBuffers);
-        // A default draw implementation
         virtual void draw();
         // Pure virtual render function (override in derived class)
         virtual void render() = 0;
@@ -195,10 +205,6 @@ namespace vkx {
         // Called when the window has been resized
         // Can be overriden in derived class to recreate or rebuild resources attached to the frame buffer / swapchain
         virtual void windowResized();
-        // Pure virtual function to be overriden by the dervice class
-        // Called in case of an event where e.g. the framebuffer has to be rebuild and thus
-        // all command buffers that may reference this
-        virtual void buildCommandBuffers();
 
         // Setup default depth and stencil views
         void setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer);
@@ -210,21 +216,107 @@ namespace vkx {
         // Can be overriden in derived class to setup a custom render pass (e.g. for MSAA)
         virtual void setupRenderPass();
 
+        void trashCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers) {
+            if (cmdBuffers.empty()) {
+                return;
+            }
+            std::vector<vk::CommandBuffer> trashCmdBuffers;
+            trashCmdBuffers.swap(cmdBuffers);
+            dumpster.push_back([trashCmdBuffers, this] {
+                device.freeCommandBuffers(getCommandPool(), trashCmdBuffers);
+            });
+        }
+
+        void populateSubCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers, std::function<void(const vk::CommandBuffer& commandBuffer)> f) {
+            if (cmdBuffers.empty()) {
+                vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+                cmdBufAllocateInfo.commandPool = getCommandPool();
+                cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
+                cmdBufAllocateInfo.level = vk::CommandBufferLevel::eSecondary;
+                cmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
+            }
+
+            vk::CommandBufferInheritanceInfo inheritance;
+            inheritance.renderPass = renderPass;
+            inheritance.subpass = 0;
+            vk::CommandBufferBeginInfo beginInfo;
+            beginInfo.flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue;
+            beginInfo.pInheritanceInfo = &inheritance;
+            for (size_t i = 0; i < swapChain.imageCount; ++i) {
+                inheritance.framebuffer = framebuffers[i];
+                vk::CommandBuffer& cmdBuffer = cmdBuffers[i];
+                cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+                cmdBuffer.begin(beginInfo);
+                f(cmdBuffer);
+                cmdBuffer.end();
+            }
+        }
+
+        virtual void updateDrawCommandBuffers() final {
+            populateSubCommandBuffers(drawCmdBuffers, [&](const vk::CommandBuffer& cmdBuffer) {
+                updateDrawCommandBuffer(cmdBuffer);
+            });
+        }
+
+        virtual void buildCommandBuffers() final {
+            // Destroy command buffers if already present
+            if (primaryCmdBuffers.empty()) {
+                // Create one command buffer per frame buffer
+                // in the swap chain
+                // Command buffers store a reference to the
+                // frame buffer inside their render pass info
+                // so for static usage withouth having to rebuild
+                // them each frame, we use one per frame buffer
+                vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+                cmdBufAllocateInfo.commandPool = cmdPool;
+                cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
+                primaryCmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
+            }
+
+            vk::CommandBufferBeginInfo cmdBufInfo;
+            vk::ClearValue clearValues[2];
+            clearValues[0].color = defaultClearColor;
+            clearValues[1].depthStencil = { 1.0f, 0 };
+
+            vk::RenderPassBeginInfo renderPassBeginInfo;
+            renderPassBeginInfo.renderPass = renderPass;
+            renderPassBeginInfo.renderArea.offset.x = 0;
+            renderPassBeginInfo.renderArea.offset.y = 0;
+            renderPassBeginInfo.renderArea.extent.width = width;
+            renderPassBeginInfo.renderArea.extent.height = height;
+            renderPassBeginInfo.clearValueCount = 2;
+            renderPassBeginInfo.pClearValues = clearValues;
+            for (size_t i = 0; i < swapChain.imageCount; ++i) {
+                const auto& cmdBuffer = primaryCmdBuffers[i];
+                cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+                cmdBuffer.begin(cmdBufInfo);
+                renderPassBeginInfo.framebuffer = framebuffers[i];
+                cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eSecondaryCommandBuffers);
+                if (!drawCmdBuffers.empty()) {
+                    cmdBuffer.executeCommands(drawCmdBuffers[i]);
+                }
+                if (enableTextOverlay && !textCmdBuffers.empty() && textOverlay && textOverlay->visible) {
+                    cmdBuffer.executeCommands(textCmdBuffers[i]);
+                }
+                cmdBuffer.endRenderPass();
+                cmdBuffer.end();
+            }
+        }
+
+        // Pure virtual function to be overriden by the dervice class
+        // Called in case of an event where e.g. the framebuffer has to be rebuild and thus
+        // all command buffers that may reference this
+        virtual void updateDrawCommandBuffer(const vk::CommandBuffer& drawCommand) = 0;
+
         // Connect and prepare the swap chain
         void initSwapchain();
         // Create swap chain images
         void setupSwapChain();
 
-        // Check if command buffers are valid (!= VK_NULL_HANDLE)
-        bool checkCommandBuffers();
-        // Create command buffers for drawing commands
-        void createCommandBuffers();
         // Destroy all command buffers and set their handles to VK_NULL_HANDLE
         // May be necessary during runtime if options are toggled 
         void destroyCommandBuffers();
-
-        // Command buffer pool
-        vk::CommandPool cmdPool;
+        void drawCurrentCommandBuffer(const vk::Semaphore& semaphore = vk::Semaphore());
 
         // Prepare commonly used Vulkan functions
         virtual void prepare();
@@ -243,16 +335,6 @@ namespace vkx {
 
         // Start the main render loop
         void renderLoop();
-
-#if 0
-        // Submit a pre present image barrier to the queue
-        // Transforms the (framebuffer) image layout from color attachment to present(khr) for presenting to the swap chain
-        void submitPrePresentBarrier(const vk::Image& image);
-
-        // Submit a post present image barrier to the queue
-        // Transforms the (framebuffer) image layout back from present(khr) to color attachment layout
-        void submitPostPresentBarrier(const vk::Image& image);
-#endif
 
         // Prepare a submit info structure containing
         // semaphores and submit buffer info for vkQueueSubmit

@@ -29,15 +29,16 @@
 #include <chrono>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <iomanip>
+#include <list>
 #include <random>
 #include <string>
 #include <sstream>
 #include <streambuf>
 #include <thread>
 #include <vector>
-#include <initializer_list>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>

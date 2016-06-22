@@ -139,20 +139,22 @@ public:
         uniformData.fsVertBlur.destroy();
         uniformData.fsHorzBlur.destroy();
 
-        device.freeCommandBuffers(cmdPool, offScreenCmdBuffer);
+        device.freeCommandBuffers(getCommandPool(), offScreenCmdBuffer);
 
         textures.cubemap.destroy();
     }
 
+    vk::RenderPass offscreenRenderPass;
+
     // Prepare a new framebuffer for offscreen rendering
     // The contents of this framebuffer are then
     // blitted to our render target
-    void prepareOffscreenFramebuffer(vkx::Framebuffer &frameBuf, vk::CommandBuffer cmdBuffer) {
+    void prepareOffscreenFramebuffer(vkx::Framebuffer &frameBuf) {
         frameBuf.size = glm::uvec2(FB_DIM);
         frameBuf.colorFormat = FB_COLOR_FORMAT;
         // Find a suitable depth format
         frameBuf.depthFormat = vkx::getSupportedDepthFormat(physicalDevice);
-        frameBuf.create(*this, renderPass);
+        frameBuf.create(*this, offscreenRenderPass);
 
         // Create sampler
         vk::SamplerCreateInfo sampler;
@@ -165,10 +167,72 @@ public:
 
     // Prepare the offscreen framebuffers used for the vertical- and horizontal blur 
     void prepareOffscreenFramebuffers() {
-        withPrimaryCommandBuffer([&](vk::CommandBuffer& cmdBuffer) {
-            prepareOffscreenFramebuffer(offScreenFrameBufA, cmdBuffer);
-            prepareOffscreenFramebuffer(offScreenFrameBufB, cmdBuffer);
-        });
+
+        std::array<vk::AttachmentDescription, 2> attachments;
+        // Color attachment
+        attachments[0].format = colorformat;
+        attachments[0].loadOp = vk::AttachmentLoadOp::eClear;
+        attachments[0].storeOp = vk::AttachmentStoreOp::eStore;
+        attachments[0].initialLayout = vk::ImageLayout::eUndefined;
+        attachments[0].finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+        // Depth attachment
+        attachments[1].format = depthFormat;
+        attachments[1].loadOp = vk::AttachmentLoadOp::eClear;
+        attachments[1].storeOp = vk::AttachmentStoreOp::eDontCare;
+        attachments[1].initialLayout = vk::ImageLayout::eUndefined;
+        attachments[1].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+
+        std::array<vk::AttachmentReference, 2> attachmentReferences;
+        vk::AttachmentReference& depthReference = attachmentReferences[0];
+        depthReference.attachment = 1;
+        depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+
+        vk::AttachmentReference& colorReference = attachmentReferences[1];
+        colorReference.attachment = 0;
+        colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
+
+        std::vector<vk::SubpassDescription> subpasses;
+        std::vector<vk::SubpassDependency> subpassDependencies;
+
+        vk::SubpassDependency dependency;
+        dependency.srcSubpass = 0;
+        dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+        dependency.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+        dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+        subpassDependencies.push_back(dependency);
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcAccessMask = vk::AccessFlagBits::eShaderRead;
+        dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+        dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+        dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        subpassDependencies.push_back(dependency);
+
+        vk::SubpassDescription subpass;
+        subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+        subpass.pDepthStencilAttachment = attachmentReferences.data();
+        subpass.colorAttachmentCount = attachmentReferences.size() - 1;
+        subpass.pColorAttachments = attachmentReferences.data() + 1;
+        subpasses.push_back(subpass);
+
+        if (offscreenRenderPass) {
+            device.destroyRenderPass(offscreenRenderPass);
+        }
+
+        vk::RenderPassCreateInfo renderPassInfo;
+        renderPassInfo.attachmentCount = attachments.size();
+        renderPassInfo.pAttachments = attachments.data();
+        renderPassInfo.subpassCount = subpasses.size();
+        renderPassInfo.pSubpasses = subpasses.data();
+        renderPassInfo.dependencyCount = subpassDependencies.size();
+        renderPassInfo.pDependencies = subpassDependencies.data();
+        offscreenRenderPass = device.createRenderPass(renderPassInfo);
+
+        prepareOffscreenFramebuffer(offScreenFrameBufA);
+        prepareOffscreenFramebuffer(offScreenFrameBufB);
     }
 
     void createOffscreenCommandBuffer() {
@@ -195,17 +259,10 @@ public:
         offScreenCmdBuffer.setViewport(0, viewport);
         offScreenCmdBuffer.setScissor(0, scissor);
 
-        vkx::setImageLayout(
-            offScreenCmdBuffer,
-            offScreenFrameBufA.color.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eColorAttachmentOptimal);
-
         // Draw the bloom geometry.
         {
             vk::RenderPassBeginInfo renderPassBeginInfo;
-            renderPassBeginInfo.renderPass = renderPass;
+            renderPassBeginInfo.renderPass = offscreenRenderPass;
             renderPassBeginInfo.framebuffer = offScreenFrameBufA.frameBuffer;
             renderPassBeginInfo.renderArea.extent.width = offScreenFrameBufA.size.x;
             renderPassBeginInfo.renderArea.extent.height = offScreenFrameBufA.size.y;
@@ -220,24 +277,9 @@ public:
             offScreenCmdBuffer.endRenderPass();
         }
 
-        // Switch framebuffer 1 into read mode and framebuffer 2 into write mode
-        vkx::setImageLayout(
-            offScreenCmdBuffer,
-            offScreenFrameBufA.color.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            vk::ImageLayout::eShaderReadOnlyOptimal);
-
-        vkx::setImageLayout(
-            offScreenCmdBuffer,
-            offScreenFrameBufB.color.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eColorAttachmentOptimal);
-
         {
             vk::RenderPassBeginInfo renderPassBeginInfo;
-            renderPassBeginInfo.renderPass = renderPass;
+            renderPassBeginInfo.renderPass = offscreenRenderPass;
             renderPassBeginInfo.framebuffer = offScreenFrameBufB.frameBuffer;
             renderPassBeginInfo.renderArea.extent.width = offScreenFrameBufB.size.x;
             renderPassBeginInfo.renderArea.extent.height = offScreenFrameBufB.size.y;
@@ -263,77 +305,46 @@ public:
     }
 
     void reBuildCommandBuffers() {
-        if (!checkCommandBuffers()) {
-            destroyCommandBuffers();
-            createCommandBuffers();
+        updateDrawCommandBuffers();
+        if (bloom) {
+            buildOffscreenCommandBuffer();
         }
         buildCommandBuffers();
     }
 
-    void buildCommandBuffers() override {
-        vk::CommandBufferBeginInfo cmdBufInfo;
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
-
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
-
-        vk::Viewport viewport = vkx::viewport(width, height);
-        vk::Rect2D scissor = vkx::rect2D(width, height);
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         vk::DeviceSize offset = 0;
+        cmdBuffer.setViewport(0, vkx::viewport(width, height));
+        cmdBuffer.setScissor(0, vkx::rect2D(width, height));
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+        // Skybox 
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.skyBox, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skyBox);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.skyBox.vertices.buffer, offset);
+        cmdBuffer.bindIndexBuffer(meshes.skyBox.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.skyBox.indexCount, 1, 0, 0, 0);
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
+        // 3D scene
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phongPass);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.ufo.vertices.buffer, offset);
+        cmdBuffer.bindIndexBuffer(meshes.ufo.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.ufo.indexCount, 1, 0, 0, 0);
 
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            drawCmdBuffers[i].setViewport(0, viewport);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            // Skybox 
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.skyBox, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skyBox);
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.skyBox.vertices.buffer, offset);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.skyBox.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.skyBox.indexCount, 1, 0, 0, 0);
-
-            // 3D scene
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phongPass);
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.ufo.vertices.buffer, offset);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.ufo.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.ufo.indexCount, 1, 0, 0, 0);
-
-            // Render vertical blurred scene applying a horizontal blur
-            if (bloom) {
-                vkx::setImageLayout(
-                    drawCmdBuffers[i],
-                    offScreenFrameBufB.color.image,
-                    vk::ImageAspectFlagBits::eColor,
-                    vk::ImageLayout::eColorAttachmentOptimal,
-                    vk::ImageLayout::eShaderReadOnlyOptimal);
-
-                drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.radialBlur, 0, descriptorSets.horizontalBlur, nullptr);
-                drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blur);
-                drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offset);
-                drawCmdBuffers[i].bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-                drawCmdBuffers[i].drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
-            }
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-        }
-
+        // Render vertical blurred scene applying a horizontal blur
         if (bloom) {
-            buildOffscreenCommandBuffer();
+            vkx::setImageLayout(
+                cmdBuffer,
+                offScreenFrameBufB.color.image,
+                vk::ImageAspectFlagBits::eColor,
+                vk::ImageLayout::eColorAttachmentOptimal,
+                vk::ImageLayout::eShaderReadOnlyOptimal);
+
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.radialBlur, 0, descriptorSets.horizontalBlur, nullptr);
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blur);
+            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offset);
+            cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
+            cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
         }
     }
 
@@ -712,6 +723,8 @@ public:
 
         // Offscreen rendering
         if (bloom) {
+            vk::SubmitInfo submitInfo;
+            submitInfo.pWaitDstStageMask = this->submitInfo.pWaitDstStageMask;
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &offScreenCmdBuffer;
             submitInfo.waitSemaphoreCount = 1;
@@ -722,15 +735,7 @@ public:
         }
 
         // Scene rendering
-        {
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-            submitInfo.waitSemaphoreCount = 1;
-            submitInfo.pWaitSemaphores = bloom ? &offscreenSemaphore : &semaphores.presentComplete;
-            submitInfo.signalSemaphoreCount = 1;
-            submitInfo.pSignalSemaphores = &semaphores.renderComplete;
-            queue.submit(submitInfo, VK_NULL_HANDLE);
-        }
+        drawCurrentCommandBuffer();
 
         submitFrame();
     }
@@ -750,6 +755,10 @@ public:
         setupDescriptorPool();
         setupDescriptorSet();
         createOffscreenCommandBuffer();
+        updateDrawCommandBuffers();
+        if (bloom) {
+            buildOffscreenCommandBuffer();
+        }
         buildCommandBuffers();
         prepared = true;
     }

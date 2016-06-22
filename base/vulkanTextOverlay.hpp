@@ -40,8 +40,6 @@ namespace vkx {
     class TextOverlay {
     private:
         Context context;
-        vk::Format colorFormat;
-        vk::Format depthFormat;
 
         uint32_t& frameBufferWidth;
         uint32_t& frameBufferHeight;
@@ -53,11 +51,7 @@ namespace vkx {
         vk::DescriptorSetLayout descriptorSetLayout;
         vk::DescriptorSet descriptorSet;
         vk::PipelineLayout pipelineLayout;
-        vk::PipelineCache pipelineCache;
         vk::Pipeline pipeline;
-        vk::RenderPass renderPass;
-        std::vector<vk::Framebuffer>& frameBuffers;
-        std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
 
         // Pointer to mapped vertex buffer
         glm::vec4 *mapped = nullptr;
@@ -72,40 +66,28 @@ namespace vkx {
         bool visible = true;
         bool invalidated = false;
 
-        std::vector<vk::CommandBuffer> cmdBuffers;
-
         TextOverlay(
             Context context,
-            std::vector<vk::Framebuffer> &framebuffers,
-            vk::Format colorFormat,
-            vk::Format depthFormat,
             uint32_t& framebufferwidth,
             uint32_t& framebufferheight,
-            std::vector<vk::PipelineShaderStageCreateInfo> shaderstages) 
-            : frameBufferHeight(framebufferheight), frameBufferWidth(framebufferwidth), frameBuffers(framebuffers)
+            vk::PipelineCache pipelineCache,
+            std::vector<vk::PipelineShaderStageCreateInfo> shaderstages,
+            vk::RenderPass renderPass) 
+            : frameBufferHeight(framebufferheight), frameBufferWidth(framebufferwidth)
         {
-            this->colorFormat = colorFormat;
-            this->depthFormat = depthFormat;
             this->context = context;
-            this->shaderStages = shaderstages;
-            cmdBuffers.resize(framebuffers.size());
             prepareResources();
-            prepareRenderPass();
-            preparePipeline();
+            preparePipeline(pipelineCache, shaderstages, renderPass);
         }
 
         ~TextOverlay() {
             // Free up all Vulkan resources requested by the text overlay
             texture.destroy();
             vertexBuffer.destroy();
-
             context.device.destroyDescriptorSetLayout(descriptorSetLayout);
             context.device.destroyDescriptorPool(descriptorPool);
             context.device.destroyPipelineLayout(pipelineLayout);
-            context.device.destroyPipelineCache(pipelineCache);
             context.device.destroyPipeline(pipeline);
-            context.device.destroyRenderPass(renderPass);
-            context.device.freeCommandBuffers(context.getCommandPool(), cmdBuffers.size(), cmdBuffers.data());
         }
 
         // Prepare all vulkan resources required to render the font
@@ -120,11 +102,6 @@ namespace vkx {
             vk::CommandPoolCreateInfo cmdPoolInfo;
             cmdPoolInfo.queueFamilyIndex = 0; // todo : pass from example base / swap chain
             cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-
-            vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
-            cmdBufAllocateInfo.commandPool = context.getCommandPool();
-            cmdBufAllocateInfo.commandBufferCount = frameBuffers.size();
-            cmdBuffers = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
 
             // Vertex buffer
             vk::DeviceSize bufferSize = MAX_CHAR_COUNT * sizeof(glm::vec4);
@@ -215,14 +192,12 @@ namespace vkx {
             std::array<vk::WriteDescriptorSet, 1> writeDescriptorSets;
             writeDescriptorSets[0] = writeDescriptorSet(descriptorSet, vk::DescriptorType::eCombinedImageSampler, 0, &texDescriptor);
             context.device.updateDescriptorSets(writeDescriptorSets, nullptr);
-
-            // vk::Pipeline cache
-            vk::PipelineCacheCreateInfo pipelineCacheCreateInfo;
-            pipelineCache = context.device.createPipelineCache(pipelineCacheCreateInfo);
         }
 
         // Prepare a separate pipeline for the font rendering decoupled from the main application
-        void preparePipeline() {
+        void preparePipeline(vk::PipelineCache pipelineCache,
+            std::vector<vk::PipelineShaderStageCreateInfo> shaderStages,
+            vk::RenderPass renderPass) {
             vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
                 pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleStrip);
 
@@ -250,23 +225,16 @@ namespace vkx {
             blendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
             blendAttachmentState.colorWriteMask = allFlags;
 
-            vk::PipelineColorBlendStateCreateInfo colorBlendState =
-                pipelineColorBlendStateCreateInfo(
-                    1,
-                    &blendAttachmentState);
+            vk::PipelineColorBlendStateCreateInfo colorBlendState = pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
 
             vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-                pipelineDepthStencilStateCreateInfo(
-                    VK_FALSE,
-                    VK_FALSE,
-                    vk::CompareOp::eLessOrEqual);
+                pipelineDepthStencilStateCreateInfo(VK_FALSE, VK_FALSE, vk::CompareOp::eLessOrEqual);
 
             vk::PipelineViewportStateCreateInfo viewportState =
                 pipelineViewportStateCreateInfo(1, 1);
 
             vk::PipelineMultisampleStateCreateInfo multisampleState =
-                pipelineMultisampleStateCreateInfo(
-                    vk::SampleCountFlagBits::e1);
+                pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
 
             std::vector<vk::DynamicState> dynamicStateEnables = {
                 vk::DynamicState::eViewport,
@@ -295,9 +263,7 @@ namespace vkx {
             inputState.pVertexAttributeDescriptions = vertexAttribs.data();
 
             vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-                vkx::pipelineCreateInfo(
-                    pipelineLayout,
-                    renderPass);
+                vkx::pipelineCreateInfo(pipelineLayout, renderPass);
 
             pipelineCreateInfo.pVertexInputState = &inputState;
             pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -311,62 +277,6 @@ namespace vkx {
             pipelineCreateInfo.pStages = shaderStages.data();
 
             pipeline = context.device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
-        }
-
-        // Prepare a separate render pass for rendering the text as an overlay
-        void prepareRenderPass() {
-            vk::AttachmentDescription attachments[2] = {};
-
-            // Color attachment
-            attachments[0].format = colorFormat;
-            // Don't clear the framebuffer (like the renderpass from the example does)
-            attachments[0].stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-            attachments[0].stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-            attachments[0].initialLayout = vk::ImageLayout::eColorAttachmentOptimal;
-            attachments[0].finalLayout = vk::ImageLayout::ePresentSrcKHR;
-
-            // Depth attachment
-            attachments[1].format = depthFormat;
-            attachments[1].samples = vk::SampleCountFlagBits::e1;
-            attachments[1].loadOp = vk::AttachmentLoadOp::eDontCare;
-            attachments[1].storeOp = vk::AttachmentStoreOp::eDontCare;
-            attachments[1].stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-            attachments[1].stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-            attachments[1].initialLayout = vk::ImageLayout::eUndefined;
-            attachments[1].finalLayout = vk::ImageLayout::eUndefined;
-
-            vk::AttachmentReference colorReference;
-            colorReference.attachment = 0;
-            colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
-
-            vk::AttachmentReference depthReference;
-            depthReference.attachment = 1;
-            depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-
-            vk::SubpassDescription subpass;
-            subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-            subpass.colorAttachmentCount = 1;
-            subpass.pColorAttachments = &colorReference;
-            subpass.pDepthStencilAttachment = &depthReference;
-
-            vk::SubpassDependency dependency;
-            dependency.srcSubpass = 0;
-            dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-            dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-            dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-            dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
-
-            vk::RenderPassCreateInfo renderPassInfo;
-
-            renderPassInfo.attachmentCount = 2;
-            renderPassInfo.pAttachments = attachments;
-            renderPassInfo.subpassCount = 1;
-            renderPassInfo.pSubpasses = &subpass;
-            renderPassInfo.dependencyCount = 1;
-            renderPassInfo.pDependencies = &dependency;
-
-            renderPass = context.device.createRenderPass(renderPassInfo);
         }
 
         // Map buffer 
@@ -444,68 +354,23 @@ namespace vkx {
         void endTextUpdate() {
             vertexBuffer.unmap();
             mapped = nullptr;
-            updateCommandBuffers();
         }
 
         // Needs to be called by the application
-        void updateCommandBuffers() {
-            vk::CommandBufferBeginInfo cmdBufInfo;
-
-            vk::ClearValue clearValues[1];
-            clearValues[0].color = clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
-
-            vk::RenderPassBeginInfo renderPassBeginInfo;
-            renderPassBeginInfo.renderPass = renderPass;
-            renderPassBeginInfo.renderArea.extent.width = frameBufferWidth;
-            renderPassBeginInfo.renderArea.extent.height = frameBufferHeight;
-            renderPassBeginInfo.clearValueCount = 1;
-            renderPassBeginInfo.pClearValues = clearValues;
-
-            for (int32_t i = 0; i < cmdBuffers.size(); ++i) {
-                renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-                cmdBuffers[i].begin(cmdBufInfo);
-                {
-                    debug::marker::Marker(cmdBuffers[i], "Text overlay", glm::vec4(1.0f, 0.94f, 0.3f, 1.0f));
-                    cmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-                    vk::Viewport viewport = vkx::viewport((float)frameBufferWidth, (float)frameBufferHeight, 0.0f, 1.0f);
-                    cmdBuffers[i].setViewport(0, viewport);
-                    vk::Rect2D scissor = vkx::rect2D(frameBufferWidth, frameBufferHeight, 0, 0);
-                    cmdBuffers[i].setScissor(0, scissor);
-                    cmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-                    cmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-                    vk::DeviceSize offsets = 0;
-                    cmdBuffers[i].bindVertexBuffers(0, vertexBuffer.buffer, offsets);
-                    cmdBuffers[i].bindVertexBuffers(1, vertexBuffer.buffer, offsets);
-                    for (uint32_t j = 0; j < numLetters; j++) {
-                        cmdBuffers[i].draw(4, 1, j * 4, 0);
-                    }
-                    cmdBuffers[i].endRenderPass();
-                }
-
-
-                cmdBuffers[i].end();
+        void writeCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+            debug::marker::Marker(cmdBuffer, "Text overlay", glm::vec4(1.0f, 0.94f, 0.3f, 1.0f));
+            vk::Viewport viewport = vkx::viewport((float)frameBufferWidth, (float)frameBufferHeight, 0.0f, 1.0f);
+            cmdBuffer.setViewport(0, viewport);
+            vk::Rect2D scissor = vkx::rect2D(frameBufferWidth, frameBufferHeight, 0, 0);
+            cmdBuffer.setScissor(0, scissor);
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+            vk::DeviceSize offsets = 0;
+            cmdBuffer.bindVertexBuffers(0, vertexBuffer.buffer, offsets);
+            cmdBuffer.bindVertexBuffers(1, vertexBuffer.buffer, offsets);
+            for (uint32_t j = 0; j < numLetters; j++) {
+                cmdBuffer.draw(4, 1, j * 4, 0);
             }
-        }
-
-        // Submit the text command buffers to a queue
-        void submit(vk::Queue queue, uint32_t bufferindex, vk::SubmitInfo submitInfo) {
-            if (!visible) {
-                return;
-            }
-
-            submitInfo.pCommandBuffers = &cmdBuffers[bufferindex];
-            submitInfo.commandBufferCount = 1;
-
-            queue.submit(submitInfo, VK_NULL_HANDLE);
-        }
-
-        void reallocateCommandBuffers() {
-            context.device.freeCommandBuffers(context.getCommandPool(), cmdBuffers);
-            vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
-            cmdBufAllocateInfo.commandPool = context.getCommandPool();
-            cmdBufAllocateInfo.commandBufferCount = frameBuffers.size();
-            cmdBuffers = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
         }
     };
 }

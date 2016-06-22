@@ -156,83 +156,48 @@ public:
             vk::Format::eR8G8B8A8Unorm);
     }
 
-    void buildCommandBuffers() {
-        // Destroy command buffers if already present
-        if (!checkCommandBuffers()) {
-            destroyCommandBuffers();
-            createCommandBuffers();
-        }
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
+        vk::Viewport viewport = vkx::viewport((float)width * 0.5f, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::CommandBufferBeginInfo cmdBufInfo;
+        vk::DeviceSize offsets = 0;
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        // Left (pre compute)
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetBaseImage, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = framebuffers[i];
+        // vk::Image memory barrier to make sure that compute
+        // shader writes are finished before sampling
+        // from the texture
+        vk::ImageMemoryBarrier imageMemoryBarrier;
+        imageMemoryBarrier.oldLayout = vk::ImageLayout::eGeneral;
+        imageMemoryBarrier.newLayout = vk::ImageLayout::eGeneral;
+        imageMemoryBarrier.image = textureComputeTarget.image;
+        imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+        imageMemoryBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
+        imageMemoryBarrier.dstAccessMask = vk::AccessFlagBits::eInputAttachmentRead;
+        // todo : use different pipeline stage bits
+        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe, vk::DependencyFlags(), nullptr, nullptr, imageMemoryBarrier);
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
+        // Right (post compute)
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetPostCompute, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
 
-            // vk::Image memory barrier to make sure that compute
-            // shader writes are finished before sampling
-            // from the texture
-            vk::ImageMemoryBarrier imageMemoryBarrier;
-            imageMemoryBarrier.oldLayout = vk::ImageLayout::eGeneral;
-            imageMemoryBarrier.newLayout = vk::ImageLayout::eGeneral;
-            imageMemoryBarrier.image = textureComputeTarget.image;
-            imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-            imageMemoryBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
-            imageMemoryBarrier.dstAccessMask = vk::AccessFlagBits::eInputAttachmentRead;
-            // todo : use different pipeline stage bits
-            drawCmdBuffers[i].pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe, vk::DependencyFlags(), nullptr, nullptr, imageMemoryBarrier);
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width * 0.5f, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            vk::DeviceSize offsets = 0;
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-
-            // Left (pre compute)
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetBaseImage, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
-
-            drawCmdBuffers[i].drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
-
-            // Right (post compute)
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetPostCompute, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
-
-            viewport.x = (float)width / 2.0f;
-            drawCmdBuffers[i].setViewport(0, viewport);
-            drawCmdBuffers[i].drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
-            drawCmdBuffers[i].endRenderPass();
-            drawCmdBuffers[i].end();
-        }
-
+        viewport.x = (float)width / 2.0f;
+        cmdBuffer.setViewport(0, viewport);
+        cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
     }
 
     void buildComputeCommandBuffer() {
         // FIXME find a better way to block on re-using the compute command, or build multiple command buffers
         queue.waitIdle();
         vk::CommandBufferBeginInfo cmdBufInfo;
-
         computeCmdBuffer.begin(cmdBufInfo);
         computeCmdBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipelines.compute[pipelines.computeIndex]);
         computeCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, computePipelineLayout, 0, computeDescriptorSet, nullptr);
@@ -589,6 +554,7 @@ public:
         setupDescriptorPool();
         setupDescriptorSet();
         prepareCompute();
+        updateDrawCommandBuffers();
         buildCommandBuffers();
         buildComputeCommandBuffer();
         prepared = true;
@@ -624,7 +590,7 @@ public:
 #else
         textOverlay->addText("Press \"NUMPAD +/-\" to change shaders", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
 #endif
-}
+    }
 
     virtual void switchComputePipeline(int32_t dir) {
         if ((dir < 0) && (pipelines.computeIndex > 0)) {
