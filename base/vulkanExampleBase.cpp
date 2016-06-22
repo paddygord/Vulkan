@@ -9,10 +9,25 @@
 #include <initializer_list>
 #include <stdexcept>
 
-
 #include "vulkanExampleBase.h"
 
 using namespace vkx;
+
+/*
+* Vulkan Example base class
+*
+* Copyright (C) 2016 by Sascha Willems - www.saschawillems.de
+*
+* This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
+*/
+
+#pragma once
+
+#include "common.hpp"
+#include "vulkanExampleBase.h"
+
+using namespace vkx;
+
 
 ExampleBase::ExampleBase(bool enableValidation) {
     // Check for validation command line flag
@@ -42,8 +57,8 @@ ExampleBase::~ExampleBase() {
     }
     destroyCommandBuffers();
     device.destroyRenderPass(renderPass);
-    for (uint32_t i = 0; i < frameBuffers.size(); i++) {
-        device.destroyFramebuffer(frameBuffers[i]);
+    for (uint32_t i = 0; i < framebuffers.size(); i++) {
+        device.destroyFramebuffer(framebuffers[i]);
     }
 
     for (auto& shaderModule : shaderModules) {
@@ -257,6 +272,8 @@ bool ExampleBase::checkCommandBuffers() {
 }
 
 void ExampleBase::createCommandBuffers() {
+    destroyCommandBuffers();
+
     // Create one command buffer per frame buffer
     // in the swap chain
     // Command buffers store a reference to the
@@ -265,23 +282,15 @@ void ExampleBase::createCommandBuffers() {
     // them each frame, we use one per frame buffer
     vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
     cmdBufAllocateInfo.commandPool = cmdPool;
-
-    // 2 extra command buffers for submitting present barriers
-    cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount + 2;
+    cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
     drawCmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
-    // Pre present
-    prePresentCmdBuffer = drawCmdBuffers[cmdBufAllocateInfo.commandBufferCount - 1];
-    // Post present
-    postPresentCmdBuffer = drawCmdBuffers[cmdBufAllocateInfo.commandBufferCount - 2];
-
-    // Now fix the primary draw buffer container size
-    drawCmdBuffers.resize(cmdBufAllocateInfo.commandBufferCount - 2);
 }
 
 void ExampleBase::destroyCommandBuffers() {
-    device.freeCommandBuffers(cmdPool, drawCmdBuffers);
-    device.freeCommandBuffers(cmdPool, prePresentCmdBuffer);
-    device.freeCommandBuffers(cmdPool, postPresentCmdBuffer);
+    if (!drawCmdBuffers.empty()) {
+        device.freeCommandBuffers(cmdPool, drawCmdBuffers);
+        drawCmdBuffers.clear();
+    }
 }
 
 void ExampleBase::prepare() {
@@ -291,14 +300,17 @@ void ExampleBase::prepare() {
     if (enableDebugMarkers) {
         debug::marker::setup(device);
     }
-    createCommandPool();
+    cmdPool = getCommandPool();
+
+    setupSwapChain();
     withPrimaryCommandBuffer([&](vk::CommandBuffer setupCmdBuffer) {
-        setupSwapChain(setupCmdBuffer);
         setupDepthStencil(setupCmdBuffer);
     });
     createCommandBuffers();
+
     setupRenderPass();
     setupFrameBuffer();
+
     // Create a simple texture loader class
     textureLoader = new TextureLoader(*this);
 #if defined(__ANDROID__)
@@ -310,11 +322,11 @@ void ExampleBase::prepare() {
         shaderStages.push_back(loadShader(getAssetPath() + "shaders/base/textoverlay.vert.spv", vk::ShaderStageFlagBits::eVertex));
         shaderStages.push_back(loadShader(getAssetPath() + "shaders/base/textoverlay.frag.spv", vk::ShaderStageFlagBits::eFragment));
         textOverlay = new TextOverlay(*this,
-            frameBuffers,
+            framebuffers,
             colorformat,
             depthFormat,
-            &width,
-            &height,
+            width,
+            height,
             shaderStages
             );
         updateTextOverlay();
@@ -355,51 +367,6 @@ MeshBuffer ExampleBase::loadMesh(const std::string& filename, const MeshLayout& 
     return loader.createBuffers(*this, vertexLayout, scale);
 }
 
-void ExampleBase::submitPrePresentBarrier(const vk::Image& image) {
-    vk::CommandBufferBeginInfo cmdBufInfo;
-
-    prePresentCmdBuffer.begin(cmdBufInfo);
-
-    vk::ImageMemoryBarrier prePresentBarrier;
-    prePresentBarrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-    prePresentBarrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
-    prePresentBarrier.newLayout = vk::ImageLayout::ePresentSrcKHR;
-    prePresentBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-    prePresentBarrier.image = image;
-
-    prePresentCmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTopOfPipe, vk::DependencyFlags(), nullptr, nullptr, prePresentBarrier);
-
-    prePresentCmdBuffer.end();
-
-    vk::SubmitInfo submitInfo;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &prePresentCmdBuffer;
-
-    queue.submit(submitInfo, VK_NULL_HANDLE);
-}
-
-void ExampleBase::submitPostPresentBarrier(const vk::Image& image) {
-    vk::CommandBufferBeginInfo cmdBufInfo;
-
-    postPresentCmdBuffer.begin(cmdBufInfo);
-
-    vk::ImageMemoryBarrier postPresentBarrier;
-    postPresentBarrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-    postPresentBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
-    postPresentBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-    postPresentBarrier.image = image;
-
-    postPresentCmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTopOfPipe, vk::DependencyFlags(), nullptr, nullptr, postPresentBarrier);
-
-    postPresentCmdBuffer.end();
-
-    vk::SubmitInfo submitInfo;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &postPresentCmdBuffer;
-
-    queue.submit(submitInfo, VK_NULL_HANDLE);
-}
-
 vk::SubmitInfo ExampleBase::prepareSubmitInfo(
     const std::vector<vk::CommandBuffer>& commandBuffers,
     vk::PipelineStageFlags *pipelineStages) {
@@ -419,7 +386,6 @@ void ExampleBase::updateTextOverlay() {
         return;
 
     textOverlay->beginTextUpdate();
-
     textOverlay->addText(title, 5.0f, 5.0f, TextOverlay::alignLeft);
 
     std::stringstream ss;
@@ -440,14 +406,10 @@ void ExampleBase::getOverlayText(vkx::TextOverlay *textOverlay) {
 void ExampleBase::prepareFrame() {
     // Acquire the next image from the swap chaing
     currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
-    // Submit barrier that transforms color attachment image layout back from khr
-    submitPostPresentBarrier(swapChain.buffers[currentBuffer].image);
-
 }
 
 void ExampleBase::submitFrame() {
     bool submitTextOverlay = enableTextOverlay && textOverlay->visible;
-
     if (submitTextOverlay) {
         // Wait for color attachment output to finish before rendering the text overlay
         vk::PipelineStageFlags stageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
@@ -477,11 +439,7 @@ void ExampleBase::submitFrame() {
         submitInfo.pSignalSemaphores = &semaphores.renderComplete;
     }
 
-    // Submit barrier that transforms color attachment to khr presen
-    submitPrePresentBarrier(swapChain.buffers[currentBuffer].image);
-
     swapChain.queuePresent(queue, currentBuffer, submitTextOverlay ? semaphores.textOverlayComplete : semaphores.renderComplete);
-
     queue.waitIdle();
 }
 
@@ -581,11 +539,12 @@ void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int
             example->paused = !example->paused;
             break;
 
-        case GLFW_KEY_F1:
-            if (example->enableTextOverlay) {
-                example->textOverlay->visible = !example->textOverlay->visible;
-            }
-            break;
+        //case GLFW_KEY_F1:
+        //    if (example->enableTextOverlay) {
+        //        example->textOverlay->visible = !example->textOverlay->visible;
+        //        example->windowResize();
+        //    }
+        //    break;
 
         case GLFW_KEY_ESCAPE:
             glfwSetWindowShouldClose(window, 1);
@@ -717,201 +676,208 @@ void ExampleBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         }
 #endif
 
-void ExampleBase::viewChanged() {
-    // Can be overrdiden in derived class
-}
+        void ExampleBase::viewChanged() {
+            // Can be overrdiden in derived class
+        }
 
-void ExampleBase::keyPressed(uint32_t keyCode) {
-    // Can be overriden in derived class
-}
+        void ExampleBase::keyPressed(uint32_t keyCode) {
+            // Can be overriden in derived class
+        }
 
-void ExampleBase::buildCommandBuffers() {
-    // Can be overriden in derived class
-}
+        void ExampleBase::buildCommandBuffers() {
+            // Can be overriden in derived class
+        }
 
-void ExampleBase::createCommandPool() {
-    cmdPool = getCommandPool();
-}
+        void ExampleBase::setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer) {
+            depthStencil.destroy();
 
-void ExampleBase::setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer) {
-    depthStencil.destroy();
+            vk::ImageCreateInfo image;
+            image.imageType = vk::ImageType::e2D;
+            image.format = depthFormat;
+            image.extent = vk::Extent3D{ width, height, 1 };
+            image.mipLevels = 1;
+            image.arrayLayers = 1;
+            image.samples = vk::SampleCountFlagBits::e1;
+            image.tiling = vk::ImageTiling::eOptimal;
+            image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferSrc;
 
-    vk::ImageCreateInfo image;
-    image.imageType = vk::ImageType::e2D;
-    image.format = depthFormat;
-    image.extent = vk::Extent3D{ width, height, 1 };
-    image.mipLevels = 1;
-    image.arrayLayers = 1;
-    image.samples = vk::SampleCountFlagBits::e1;
-    image.tiling = vk::ImageTiling::eOptimal;
-    image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferSrc;
+            depthStencil = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-    depthStencil = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
+            setImageLayout(
+                setupCmdBuffer,
+                depthStencil.image,
+                vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
-    setImageLayout(
-        setupCmdBuffer,
-        depthStencil.image,
-        vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
-        vk::ImageLayout::eUndefined,
-        vk::ImageLayout::eDepthStencilAttachmentOptimal);
+            vk::ImageViewCreateInfo depthStencilView;
+            depthStencilView.viewType = vk::ImageViewType::e2D;
+            depthStencilView.format = depthFormat;
+            depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
+            depthStencilView.subresourceRange.levelCount = 1;
+            depthStencilView.subresourceRange.layerCount = 1;
+            depthStencilView.image = depthStencil.image;
+            depthStencil.view = device.createImageView(depthStencilView);
+        }
 
-    vk::ImageViewCreateInfo depthStencilView;
-    depthStencilView.viewType = vk::ImageViewType::e2D;
-    depthStencilView.format = depthFormat;
-    depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
-    depthStencilView.subresourceRange.levelCount = 1;
-    depthStencilView.subresourceRange.layerCount = 1;
-    depthStencilView.image = depthStencil.image;
-    depthStencil.view = device.createImageView(depthStencilView);
-}
+        void ExampleBase::setupFrameBuffer() {
+            vk::ImageView attachments[2];
 
-void ExampleBase::setupFrameBuffer() {
-    // Create frame buffers for every swap chain image
-    frameBuffers.resize(swapChain.imageCount);
-    vk::ImageView attachments[2];
+            // Depth/Stencil attachment is the same for all frame buffers
+            attachments[1] = depthStencil.view;
 
-    // Depth/Stencil attachment is the same for all frame buffers
-    attachments[1] = depthStencil.view;
+            vk::FramebufferCreateInfo framebufferCreateInfo;
+            framebufferCreateInfo.renderPass = renderPass;
+            framebufferCreateInfo.attachmentCount = 2;
+            framebufferCreateInfo.pAttachments = attachments;
+            framebufferCreateInfo.width = width;
+            framebufferCreateInfo.height = height;
+            framebufferCreateInfo.layers = 1;
 
-    vk::FramebufferCreateInfo frameBufferCreateInfo;
-    frameBufferCreateInfo.renderPass = renderPass;
-    frameBufferCreateInfo.attachmentCount = 2;
-    frameBufferCreateInfo.pAttachments = attachments;
-    frameBufferCreateInfo.width = width;
-    frameBufferCreateInfo.height = height;
-    frameBufferCreateInfo.layers = 1;
+            // Create frame buffers for every swap chain image
+            framebuffers = swapChain.createFramebuffers(framebufferCreateInfo);
+        }
 
-    for (uint32_t i = 0; i < frameBuffers.size(); i++) {
-        attachments[0] = swapChain.buffers[i].view;
-        frameBuffers[i] = device.createFramebuffer(frameBufferCreateInfo);
-    }
-}
+        void ExampleBase::setupRenderPass() {
+            if (renderPass) {
+                device.destroyRenderPass(renderPass);
+            }
 
-void ExampleBase::setupRenderPass() {
-    vk::AttachmentDescription attachments[2];
+            std::vector<vk::AttachmentDescription> attachments;
+            std::vector<vk::AttachmentReference> attachmentReferences;
+            attachments.resize(2);
+            attachmentReferences.resize(2);
 
-    // Color attachment
-    attachments[0].format = colorformat;
-    attachments[0].loadOp = vk::AttachmentLoadOp::eClear;
-    attachments[0].storeOp = vk::AttachmentStoreOp::eStore;
-    attachments[0].initialLayout = vk::ImageLayout::eUndefined;
-    attachments[0].finalLayout = vk::ImageLayout::ePresentSrcKHR;
+            // Color attachment
+            attachments[0].format = colorformat;
+            attachments[0].loadOp = vk::AttachmentLoadOp::eClear;
+            attachments[0].storeOp = vk::AttachmentStoreOp::eStore;
+            attachments[0].initialLayout = vk::ImageLayout::eUndefined;
+            if (enableTextOverlay) {
+                attachments[0].finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
+            } else {
+                attachments[0].finalLayout = vk::ImageLayout::ePresentSrcKHR;
+            }
 
-    // Depth attachment
-    attachments[1].format = depthFormat;
-    attachments[1].loadOp = vk::AttachmentLoadOp::eClear;
-    attachments[1].storeOp = vk::AttachmentStoreOp::eStore;
-    attachments[1].initialLayout = vk::ImageLayout::eUndefined;
-    attachments[1].finalLayout = vk::ImageLayout::eUndefined;
+            // Depth attachment
+            attachments[1].format = depthFormat;
+            attachments[1].loadOp = vk::AttachmentLoadOp::eClear;
+            attachments[1].storeOp = vk::AttachmentStoreOp::eDontCare;
+            attachments[1].initialLayout = vk::ImageLayout::eUndefined;
+            attachments[1].finalLayout = vk::ImageLayout::eUndefined;
 
-    vk::AttachmentReference colorReference;
-    colorReference.attachment = 0;
-    colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
+            // Only one depth attachment, so put it first in the references
+            vk::AttachmentReference& depthReference = attachmentReferences[0];
+            depthReference.attachment = 1;
+            depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-    vk::AttachmentReference depthReference;
-    depthReference.attachment = 1;
-    depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+            vk::AttachmentReference& colorReference = attachmentReferences[1];
+            colorReference.attachment = 0;
+            colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
-    vk::SubpassDescription subpass;
-    subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorReference;
-    subpass.pDepthStencilAttachment = &depthReference;
+            std::vector<vk::SubpassDescription> subpasses;
+            std::vector<vk::SubpassDependency> subpassDependencies;
+            {
+                vk::SubpassDependency dependency;
+                dependency.srcSubpass = 0;
+                dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+                dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+                dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead;
+                dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+                dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+                subpassDependencies.push_back(dependency);
 
-    vk::SubpassDependency dependency;
-    dependency.srcSubpass = 0;
-    dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-    dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead;
-    dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-    dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+                vk::SubpassDescription subpass;
+                subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+                subpass.pDepthStencilAttachment = attachmentReferences.data();
+                subpass.colorAttachmentCount = attachmentReferences.size() - 1;
+                subpass.pColorAttachments = attachmentReferences.data() + 1;
+                subpasses.push_back(subpass);
+            }
 
-    vk::RenderPassCreateInfo renderPassInfo;
-    renderPassInfo.attachmentCount = 2;
-    renderPassInfo.pAttachments = attachments;
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &dependency;
+            vk::RenderPassCreateInfo renderPassInfo;
+            renderPassInfo.attachmentCount = attachments.size();
+            renderPassInfo.pAttachments = attachments.data();
+            renderPassInfo.subpassCount = subpasses.size();
+            renderPassInfo.pSubpasses = subpasses.data();
+            renderPassInfo.dependencyCount = subpassDependencies.size();
+            renderPassInfo.pDependencies = subpassDependencies.data();
+            renderPass = device.createRenderPass(renderPassInfo);
+        }
 
-    renderPass = device.createRenderPass(renderPassInfo);
-}
+        void ExampleBase::windowResize() {
+            if (!prepared) {
+                return;
+            }
+            prepared = false;
 
-void ExampleBase::windowResize() {
-    if (!prepared) {
-        return;
-    }
-    prepared = false;
+            // Recreate swap chain
+            width = destWidth;
+            height = destHeight;
 
-    // Recreate swap chain
-    width = destWidth;
-    height = destHeight;
-    withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
-        setupSwapChain(setupCmdBuffer);
-        setupDepthStencil(setupCmdBuffer);
-    });
+            setupSwapChain();
+            withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
+                setupDepthStencil(setupCmdBuffer);
+            });
 
-    // Recreate the frame buffers
+            // Recreate the frame buffers
+            for (uint32_t i = 0; i < framebuffers.size(); i++) {
+                device.destroyFramebuffer(framebuffers[i]);
+            }
+            setupFrameBuffer();
+            setupRenderPass();
 
+            // Command buffers need to be recreated as they may store
+            // references to the recreated frame buffer
+            createCommandBuffers();
+            buildCommandBuffers();
 
-    for (uint32_t i = 0; i < frameBuffers.size(); i++) {
-        device.destroyFramebuffer(frameBuffers[i]);
-    }
-    setupFrameBuffer();
+            queue.waitIdle();
+            device.waitIdle();
 
-    // Command buffers need to be recreated as they may store
-    // references to the recreated frame buffer
-    destroyCommandBuffers();
-    createCommandBuffers();
-    buildCommandBuffers();
+            if (enableTextOverlay && textOverlay->visible) {
+                textOverlay->reallocateCommandBuffers();
+                updateTextOverlay();
+            }
 
-    queue.waitIdle();
-    device.waitIdle();
+            // Notify derived class
+            windowResized();
+            viewChanged();
 
-    if (enableTextOverlay) {
-        textOverlay->reallocateCommandBuffers();
-        updateTextOverlay();
-    }
+            prepared = true;
+        }
 
-    // Notify derived class
-    windowResized();
-    viewChanged();
+        void ExampleBase::windowResized() {
+            // Can be overriden in derived class
+        }
 
-    prepared = true;
-}
-
-void ExampleBase::windowResized() {
-    // Can be overriden in derived class
-}
-
-void ExampleBase::initSwapchain() {
+        void ExampleBase::initSwapchain() {
 #if defined(_WIN32)
-    swapChain.initSurface(GetModuleHandle(NULL), glfwGetWin32Window(window));
+            swapChain.initSurface(GetModuleHandle(NULL), glfwGetWin32Window(window));
 #elif defined(__ANDROID__)    
-    swapChain.initSurface(androidApp->window);
+            swapChain.initSurface(androidApp->window);
 #elif defined(__linux__)
-    swapChain.initSurface(window);
+            swapChain.initSurface(window);
 #endif
 }
 
-void ExampleBase::setupSwapChain(const vk::CommandBuffer& setupCmdBuffer) {
-    swapChain.create(setupCmdBuffer, &width, &height);
-}
+        void ExampleBase::setupSwapChain() {
+            swapChain.create(&width, &height);
+        }
 
-void ExampleBase::drawCommandBuffers(const std::vector<vk::CommandBuffer>& commandBuffers) {
+        void ExampleBase::drawCommandBuffers(const std::vector<vk::CommandBuffer>& commandBuffers) {
+            // Command buffer(s) to be sumitted to the queue
+            submitInfo.commandBufferCount = commandBuffers.size();
+            submitInfo.pCommandBuffers = commandBuffers.data();
+            // Submit to queue
+            queue.submit(submitInfo, VK_NULL_HANDLE);
+        }
 
-    // Command buffer(s) to be sumitted to the queue
-    submitInfo.commandBufferCount = commandBuffers.size();
-    submitInfo.pCommandBuffers = commandBuffers.data();
-    // Submit to queue
-    queue.submit(submitInfo, VK_NULL_HANDLE);
-}
+        void ExampleBase::draw() {
+            // Get next image in the swap chain (back/front buffer)
+            prepareFrame();
 
-void ExampleBase::draw() {
-    // Get next image in the swap chain (back/front buffer)
-    prepareFrame();
-
-    drawCommandBuffers({ drawCmdBuffers[currentBuffer] });
-    // Push the rendered frame to the surface
-    submitFrame();
-}
+            drawCommandBuffers({ drawCmdBuffers[currentBuffer] });
+            // Push the rendered frame to the surface
+            submitFrame();
+        }

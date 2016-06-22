@@ -42,13 +42,12 @@ namespace vkx {
         vkx::Context context;
         vk::SurfaceKHR surface;
     public:
+        std::vector<SwapChainBuffer> buffers;
         vk::Format colorFormat;
         vk::ColorSpaceKHR colorSpace;
         vk::SwapchainKHR swapChain;
 
         uint32_t imageCount{ 0 };
-        std::vector<vk::Image> images;
-        std::vector<SwapChainBuffer> buffers;
 
         // Index of the deteced graphics and presenting device queue
         uint32_t queueNodeIndex = UINT32_MAX;
@@ -121,7 +120,7 @@ namespace vkx {
         }
 
         // Create the swap chain and get images with given width and height
-        void create(vk::CommandBuffer cmdBuffer, uint32_t *width, uint32_t *height) {
+        void create(uint32_t *width, uint32_t *height) {
             vk::SwapchainKHR oldSwapchain = swapChain;
 
             // Get physical device surface properties and formats
@@ -209,7 +208,7 @@ namespace vkx {
             colorAttachmentView.viewType = vk::ImageViewType::e2D;
 
             // Get the swap chain images
-            images = context.device.getSwapchainImagesKHR(swapChain);
+            auto images = context.device.getSwapchainImagesKHR(swapChain);
             imageCount = (uint32_t)images.size();
 
             // Get the swap chain buffers containing the image and imageview
@@ -218,6 +217,27 @@ namespace vkx {
                 buffers[i].image = images[i];
                 buffers[i].view = context.device.createImageView(colorAttachmentView.setImage(images[i]));
             }
+        }
+
+        std::vector<vk::Framebuffer> createFramebuffers(vk::FramebufferCreateInfo framebufferCreateInfo) {
+            // Verify that the first attachment is null
+            assert(framebufferCreateInfo.pAttachments[0] == vk::ImageView());
+
+
+            std::vector<vk::ImageView> attachments;
+            attachments.resize(framebufferCreateInfo.attachmentCount);
+            for (size_t i = 0; i < framebufferCreateInfo.attachmentCount; ++i) {
+                attachments[i] = framebufferCreateInfo.pAttachments[i];
+            }
+            framebufferCreateInfo.pAttachments = attachments.data();
+
+            std::vector<vk::Framebuffer> framebuffers;
+            framebuffers.resize(imageCount);
+            for (uint32_t i = 0; i < imageCount; i++) {
+                attachments[0] = buffers[i].view;
+                framebuffers[i] = context.device.createFramebuffer(framebufferCreateInfo);
+            }
+            return framebuffers;
         }
 
         // Acquires the next image in the swap chain

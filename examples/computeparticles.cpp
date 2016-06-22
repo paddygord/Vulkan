@@ -73,7 +73,7 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        enableTextOverlay = true;
+        enableTextOverlay = false;
         title = "Vulkan Example - Compute shader particle system";
     }
 
@@ -127,7 +127,7 @@ public:
 
         for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
             // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+            renderPassBeginInfo.framebuffer = framebuffers[i];
 
             drawCmdBuffers[i].begin(cmdBufInfo);
 

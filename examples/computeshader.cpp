@@ -180,7 +180,7 @@ public:
 
         for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
             // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+            renderPassBeginInfo.framebuffer = framebuffers[i];
 
             drawCmdBuffers[i].begin(cmdBufInfo);
 
@@ -222,9 +222,7 @@ public:
             viewport.x = (float)width / 2.0f;
             drawCmdBuffers[i].setViewport(0, viewport);
             drawCmdBuffers[i].drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
-
             drawCmdBuffers[i].endRenderPass();
-
             drawCmdBuffers[i].end();
         }
 

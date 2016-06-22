@@ -37,7 +37,7 @@ namespace vkx {
         // Prepare a new framebuffer for offscreen rendering
         // The contents of this framebuffer are then
         // blitted to our render target
-        void create(const vkx::Context& context, const vk::RenderPass& renderPass) {
+        void create(const vkx::Context& context, const vk::RenderPass& renderPass, vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eSampled) {
             device = context.device;
             destroy();
 
@@ -53,7 +53,7 @@ namespace vkx {
             image.samples = vk::SampleCountFlagBits::e1;
             image.tiling = vk::ImageTiling::eOptimal;
             // vk::Image of the framebuffer is blit source
-            image.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc;
+            image.usage = vk::ImageUsageFlagBits::eColorAttachment | usage;
             color = context.createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
             vk::ImageViewCreateInfo colorImageView;

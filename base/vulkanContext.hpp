@@ -20,7 +20,7 @@ namespace vkx {
         float fpsTimer = 0.0f;
         // Create application wide Vulkan instance
 
-        void createContext(bool enableValidation) {
+        void createContext(bool enableValidation = false) {
 
             this->enableValidation = enableValidation;
             {
@@ -136,7 +136,7 @@ namespace vkx {
             instance.destroy();
         }
 
-        uint32_t findQueue(const vk::QueueFlags& flags, const vk::SurfaceKHR& presentSurface = vk::SurfaceKHR()) {
+        uint32_t findQueue(const vk::QueueFlags& flags, const vk::SurfaceKHR& presentSurface = vk::SurfaceKHR()) const {
             std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();
             size_t queueCount = queueProps.size();
             for (uint32_t i = 0; i < queueCount; i++) {
@@ -249,6 +249,25 @@ namespace vkx {
             memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
             result.memory = device.allocateMemory(memAllocInfo);
             device.bindImageMemory(result.image, result.memory, 0);
+            return result;
+        }
+
+        CreateImageResult stageToDeviceImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data) const {
+            CreateBufferResult staging = createBuffer(vk::BufferUsageFlagBits::eTransferSrc, size, data);
+            CreateImageResult result = createImage(imageCreateInfo, memoryPropertyFlags);
+            withPrimaryCommandBuffer([&](const vk::CommandBuffer& copyCmd) {
+                // Prepare for transfer
+                setImageLayout(copyCmd, result.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+                vk::BufferImageCopy bufferCopyRegion;
+                bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+                bufferCopyRegion.imageSubresource.mipLevel = 0;
+                bufferCopyRegion.imageSubresource.layerCount = 1;
+                bufferCopyRegion.imageExtent = imageCreateInfo.extent;
+                copyCmd.copyBufferToImage(staging.buffer, result.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegion);
+                // Prepare for shader read
+                setImageLayout(copyCmd, result.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+            });
+            staging.destroy();
             return result;
         }
 

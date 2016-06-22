@@ -8,55 +8,7 @@
 
 #pragma once
 
-#include <vulkan/vulkan.h>
-
-#if defined(__ANDROID__)
-#include <android/native_activity.h>
-#include <android/asset_manager.h>
-#include <android_native_app_glue.h>
-#include "vulkanandroid.h"
-#else 
-#ifdef _WIN32
-#define GLFW_EXPOSE_NATIVE_WIN32 1
-#else 
-#define GLFW_EXPOSE_NATIVE_X11 1
-#define GLFW_EXPOSE_NATIVE_GLX 1
-#endif
-#include <GLFW/glfw3.h>
-#include <GLFW/glfw3native.h>
-#endif
-
-#include <assert.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
-#include <array>
-#include <chrono>
-#include <fstream>
-#include <functional>
-#include <iostream>
-#include <iomanip>
-#include <random>
-#include <string>
-#include <sstream>
-#include <streambuf>
-#include <thread>
-#include <vector>
-#include <initializer_list>
-
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/matrix_inverse.hpp>
-
-using glm::vec3;
-using glm::vec4;
-using glm::mat3;
-using glm::mat4;
-using glm::quat;
+#include "common.hpp"
 
 #include "vulkanTools.h"
 #include "vulkanDebug.h"
@@ -106,42 +58,41 @@ namespace vkx {
         uint32_t destWidth;
         uint32_t destHeight;
 
+        // Command buffers used for rendering
+        std::vector<vk::CommandBuffer> drawCmdBuffers;
+
     protected:
         // Last frame time, measured using a high performance timer (if available)
-        float frameTimer = 1.0f;
+        float frameTimer{ 1.0f };
         // Frame counter to display fps
-        uint32_t frameCounter = 0;
-        uint32_t lastFPS = 0;
+        uint32_t frameCounter{ 0 };
+        uint32_t lastFPS{ 0 };
 
         // Color buffer format
-        vk::Format colorformat = vk::Format::eB8G8R8A8Unorm;
-        // Depth buffer format
-        // Depth format is selected during Vulkan initialization
-        vk::Format depthFormat;
-        // Command buffer used for setup
-        //vk::CommandBuffer setupCmdBuffer;
-        // Command buffer for submitting a post present image barrier
-        vk::CommandBuffer postPresentCmdBuffer;
-        // Command buffer for submitting a pre present image barrier
-        vk::CommandBuffer prePresentCmdBuffer;
+        vk::Format colorformat{ vk::Format::eB8G8R8A8Unorm };
+
+        // Depth buffer format...  selected during Vulkan initialization
+        vk::Format depthFormat{ vk::Format::eUndefined };
+
         // vk::Pipeline stage flags for the submit info structure
         vk::PipelineStageFlags submitPipelineStages = vk::PipelineStageFlagBits::eBottomOfPipe;
         // Contains command buffers and semaphores to be presented to the queue
         vk::SubmitInfo submitInfo;
-        // Command buffers used for rendering
-        std::vector<vk::CommandBuffer> drawCmdBuffers;
         // Global render pass for frame buffer writes
         vk::RenderPass renderPass;
+
         // List of available frame buffers (same as number of swap chain images)
-        std::vector<vk::Framebuffer>frameBuffers;
+        std::vector<vk::Framebuffer> framebuffers;
         // Active frame buffer index
         uint32_t currentBuffer = 0;
         // Descriptor set pool
         vk::DescriptorPool descriptorPool;
         // List of shader modules created (stored for cleanup)
         std::vector<vk::ShaderModule> shaderModules;
+
         // Wraps the swap chain to present images (framebuffers) to the windowing system
         SwapChain swapChain;
+
         // Synchronization semaphores
         struct {
             // Swap chain image presentation
@@ -151,8 +102,10 @@ namespace vkx {
             // Text overlay submission and execution
             vk::Semaphore textOverlayComplete;
         } semaphores;
+
         // Simple texture loader
         TextureLoader *textureLoader{ nullptr };
+
         // Returns the base asset path (for shaders, models, textures) depending on the os
         const std::string getAssetPath();
 
@@ -252,6 +205,7 @@ namespace vkx {
         // Create framebuffers for all requested swap chain images
         // Can be overriden in derived class to setup a custom framebuffer (e.g. for MSAA)
         virtual void setupFrameBuffer();
+
         // Setup a default render pass
         // Can be overriden in derived class to setup a custom render pass (e.g. for MSAA)
         virtual void setupRenderPass();
@@ -259,7 +213,7 @@ namespace vkx {
         // Connect and prepare the swap chain
         void initSwapchain();
         // Create swap chain images
-        void setupSwapChain(const vk::CommandBuffer& setupCmdBuffer);
+        void setupSwapChain();
 
         // Check if command buffers are valid (!= VK_NULL_HANDLE)
         bool checkCommandBuffers();
@@ -271,13 +225,6 @@ namespace vkx {
 
         // Command buffer pool
         vk::CommandPool cmdPool;
-
-        // Creates a new (graphics) command pool object storing command buffers
-        void createCommandPool();
-        //// Create command buffer for setup commands
-        //void createSetupCommandBuffer();
-        //// Finalize setup command bufferm submit it to the queue and remove it
-        //void flushSetupCommandBuffer();
 
         // Prepare commonly used Vulkan functions
         virtual void prepare();
@@ -297,6 +244,7 @@ namespace vkx {
         // Start the main render loop
         void renderLoop();
 
+#if 0
         // Submit a pre present image barrier to the queue
         // Transforms the (framebuffer) image layout from color attachment to present(khr) for presenting to the swap chain
         void submitPrePresentBarrier(const vk::Image& image);
@@ -304,6 +252,7 @@ namespace vkx {
         // Submit a post present image barrier to the queue
         // Transforms the (framebuffer) image layout back from present(khr) to color attachment layout
         void submitPostPresentBarrier(const vk::Image& image);
+#endif
 
         // Prepare a submit info structure containing
         // semaphores and submit buffer info for vkQueueSubmit
@@ -337,32 +286,6 @@ namespace vkx {
         static void FramebufferSizeHandler(GLFWwindow* window, int width, int height);
         static void JoystickHandler(int, int);
     };
-
-
 }
-
-// Boilerplate for running an example
-#if defined(__ANDROID__)
-#define ENTRY_POINT_START \
-        void android_main(android_app* state) { \
-            app_dummy(); 
-
-#define ENTRY_POINT_END \
-            return 0; \
-        }
-#else 
-#define ENTRY_POINT_START \
-        int main(const int argc, const char *argv[]) { 
-
-#define ENTRY_POINT_END \
-        }
-#endif
-
-#define RUN_EXAMPLE(ExampleType) \
-    ENTRY_POINT_START \
-        ExampleType* vulkanExample = new ExampleType(); \
-        vulkanExample->run(); \
-        delete(vulkanExample); \
-    ENTRY_POINT_END
 
 using namespace vkx;

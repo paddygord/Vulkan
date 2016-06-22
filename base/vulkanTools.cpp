@@ -592,7 +592,7 @@ namespace vkx {
         return pushConstantRange;
     }
 
-    VK_CLEAR_COLOR_TYPE clearColor(const glm::vec4& v) {
+    VK_CLEAR_COLOR_TYPE clearColor(const glm::vec4& v = glm::vec4(0)) {
         VK_CLEAR_COLOR_TYPE result;
         memcpy(&result.float32, &v, sizeof(result.float32));
         return result;

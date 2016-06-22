@@ -67,7 +67,7 @@ public:
 
         for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
             // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+            renderPassBeginInfo.framebuffer = framebuffers[i];
 
             drawCmdBuffers[i].begin(cmdBufInfo);
 
@@ -233,7 +233,7 @@ public:
         shaderStages[1] = loadShader(getAssetPath() + "shaders/gears.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
+            vkx::pipelineCreateInfo(pipelineLayout, vk::RenderPass());
 
         pipelineCreateInfo.pVertexInputState = &vertices.inputState;
         pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
