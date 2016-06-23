@@ -103,91 +103,54 @@ public:
         textures.gradient = textureLoader->loadTexture(getAssetPath() + "textures/particle_gradient_rgba.ktx",  vk::Format::eR8G8B8A8Unorm);
     }
 
-    void buildCommandBuffers() {
-        // Destroy command buffers if already present
-        if (!checkCommandBuffers()) {
-            destroyCommandBuffers();
-            createCommandBuffers();
-        }
+    void updatePrimaryCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
+        // Compute particle movement
+        // Add memory barrier to ensure that the (rendering) vertex shader operations have finished
+        // Required as the compute shader will overwrite the vertex buffer data
+        vk::BufferMemoryBarrier bufferBarrier;
+        // Vertex shader invocations have finished reading from the buffer
+        bufferBarrier.srcAccessMask = vk::AccessFlagBits::eVertexAttributeRead;
+        // Compute shader buffer read and write
+        bufferBarrier.dstAccessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
+        bufferBarrier.buffer = computeStorageBuffer.buffer;
+        bufferBarrier.size = computeStorageBuffer.descriptor.range;
+        bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eVertexShader, vk::PipelineStageFlagBits::eComputeShader, vk::DependencyFlags(), nullptr, bufferBarrier, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipelines.compute);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, computePipelineLayout, 0, computeDescriptorSet, nullptr);
+        // Dispatch the compute job
+        cmdBuffer.dispatch(PARTICLE_COUNT / 16, 1, 1);
 
-        vk::CommandBufferBeginInfo cmdBufInfo;
+        // Add memory barrier to ensure that compute shader has finished writing to the buffer
+        // Without this the (rendering) vertex shader may display incomplete results (partial data from last frame)
+        // Compute shader has finished writes to the buffer
+        bufferBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
+        // Vertex shader access (attribute binding)
+        bufferBarrier.dstAccessMask = vk::AccessFlagBits::eVertexAttributeRead;
+        bufferBarrier.buffer = computeStorageBuffer.buffer;
+        bufferBarrier.size = computeStorageBuffer.descriptor.range;
+        bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eVertexShader, vk::DependencyFlags(), nullptr, bufferBarrier, nullptr);
+    }
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        // Draw the particle system using the update vertex buffer
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = framebuffers[i];
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-            // Compute particle movement
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetPostCompute, nullptr);
 
-            // Add memory barrier to ensure that the (rendering) vertex shader operations have finished
-            // Required as the compute shader will overwrite the vertex buffer data
-            vk::BufferMemoryBarrier bufferBarrier;
-            // Vertex shader invocations have finished reading from the buffer
-            bufferBarrier.srcAccessMask = vk::AccessFlagBits::eVertexAttributeRead;
-            // Compute shader buffer read and write
-            bufferBarrier.dstAccessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
-            bufferBarrier.buffer = computeStorageBuffer.buffer;
-            bufferBarrier.size = computeStorageBuffer.descriptor.range;
-            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-
-            drawCmdBuffers[i].pipelineBarrier(vk::PipelineStageFlagBits::eVertexShader, vk::PipelineStageFlagBits::eComputeShader, vk::DependencyFlags(), nullptr, bufferBarrier, nullptr);
-
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eCompute, pipelines.compute);
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eCompute, computePipelineLayout, 0, computeDescriptorSet, nullptr);
-
-            // Dispatch the compute job
-            drawCmdBuffers[i].dispatch(PARTICLE_COUNT / 16, 1, 1);
-
-            // Add memory barrier to ensure that compute shader has finished writing to the buffer
-            // Without this the (rendering) vertex shader may display incomplete results (partial data from last frame)
-            // Compute shader has finished writes to the buffer
-            bufferBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
-            // Vertex shader access (attribute binding)
-            bufferBarrier.dstAccessMask = vk::AccessFlagBits::eVertexAttributeRead;
-            bufferBarrier.buffer = computeStorageBuffer.buffer;
-            bufferBarrier.size = computeStorageBuffer.descriptor.range;
-            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-
-            drawCmdBuffers[i].pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eVertexShader, vk::DependencyFlags(), nullptr, bufferBarrier, nullptr);
-
-            // Draw the particle system using the update vertex buffer
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetPostCompute, nullptr);
-
-            vk::DeviceSize offsets = 0;
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, computeStorageBuffer.buffer, offsets);
-            drawCmdBuffers[i].draw(PARTICLE_COUNT, 1, 0, 0);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-        }
-
+        vk::DeviceSize offsets = 0;
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, computeStorageBuffer.buffer, offsets);
+        cmdBuffer.draw(PARTICLE_COUNT, 1, 0, 0);
     }
 
     // Setup and fill the compute shader storage buffers for
@@ -469,7 +432,7 @@ public:
         setupDescriptorPool();
         setupDescriptorSet();
         prepareCompute();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 

@@ -452,65 +452,30 @@ public:
 
     }
 
-    void reBuildCommandBuffers() {
-        if (!checkCommandBuffers()) {
-            destroyCommandBuffers();
-            createCommandBuffers();
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
+
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
+
+        vk::DeviceSize offsets = 0;
+
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
+
+        if (displayCubeMap) {
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.cubeMap);
+            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.skybox.vertices.buffer, offsets);
+            cmdBuffer.bindIndexBuffer(meshes.skybox.indices.buffer, 0, vk::IndexType::eUint32);
+            cmdBuffer.drawIndexed(meshes.skybox.indexCount, 1, 0, 0, 0);
+        } else {
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.scene);
+            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, offsets);
+            cmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
+            cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
         }
-        buildCommandBuffers();
-    }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
-
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
-
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
-
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            vk::DeviceSize offsets = 0;
-
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
-
-            if (displayCubeMap) {
-                drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.cubeMap);
-                drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.skybox.vertices.buffer, offsets);
-                drawCmdBuffers[i].bindIndexBuffer(meshes.skybox.indices.buffer, 0, vk::IndexType::eUint32);
-                drawCmdBuffers[i].drawIndexed(meshes.skybox.indexCount, 1, 0, 0, 0);
-            } else {
-                drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.scene);
-                drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, offsets);
-                drawCmdBuffers[i].bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
-                drawCmdBuffers[i].drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
-            }
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-
-        }
     }
 
     void draw() override {
@@ -780,7 +745,7 @@ public:
         setupDescriptorPool();
         setupDescriptorSets();
         prepareOffscreenFramebuffer();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         buildOffscreenCommandBuffer();
         prepared = true;
     }
@@ -804,7 +769,7 @@ public:
 
     void toggleCubeMapDisplay() {
         displayCubeMap = !displayCubeMap;
-        reBuildCommandBuffers();
+        updateDrawCommandBuffers();
     }
 
     void keyPressed(uint32_t key) override {

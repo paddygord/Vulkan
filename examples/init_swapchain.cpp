@@ -209,19 +209,67 @@ class InitSwapchainExample : public vkx::Context {
 
 public:
     InitSwapchainExample() {
-        createContext(true);
+        // Construct the Vulkan instance just as we did in the init_context example
+        bool enableValidation = true;
+        createContext(enableValidation);
+
+        // Construct the window.  The window doesn't need any special attributes, it just 
+        // need to be a native Win32 or XCB window surface. Window is independent of the contenxt and
+        // RenderPass creation.  It can creation can occur before or after them.
         createWindow();
+
+        // Using the window surface, construct the swap chain.  The swap chain is dependent on both 
+        // the Vulkan instance as well as the window surface, so it needs to happen after
         createSwapChain();
+
+        // Create a renderpass.  
+        //
+        // A renderpass defines what combination of input and output attachments types will be used 
+        // during a given set of rendering operations, as well as what subpasses 
+        // 
+        // Note, it doesn't reference the actual images, just defines the kinds of images, they're 
+        // layouts, and how the layouts will change over the course of executing commands during the 
+        // renderpass.  Therefore it can be created almost immediately after the context and typically
+        // doesn't need to change over time in response to things like window resizing , or rendering a 
+        // different set of objects, or using different pipelines for rendering.  
+        //
+        // A RenderPass is required for creating framebuffers and pipelines, which can then only be used
+        // with that specific RenderPass OR another RenderPass that is considered compatible.  
+        // 
+        // Creation of the RenderPass is dependent on the Vulkan context creation, but not on the window
+        // or the SwapChain.  
         createRenderPass();
+
+        // Create the Framebuffers to which we will render output that will be presented to the screen.  
+        // As noted above, any FrameBuffer is dependent on a RenderPass and can only be used with that 
+        // RenderPass or another RenderPass compatible with it.  It's also typically dpenedent on the 
+        // Window, since usually you'll be creating at least one set of Framebuffers specifically for 
+        // presentation to the window surface, and that set (which we are creating here) must must be using
+        // the images acquired from the SwapChain, and must match the size of those images.
+        // 
+        // Common practice is to create an individual Framebuffer for each of the SwapChain images,
+        // although all of them can typically share the same depth image, since they will not be 
+        // in use concurrently
         createFramebuffers();
+
+        // Create the CommandBuffer objects which will contain the commands we execute for our rendering.  
+        // 
+        // Similar to the Framebuffers, we will create one for each of the swap chain images.  
         createCommandBuffers();
-        // Create synchronization objects
+
+        // Finally, we need to create a number of Sempahores.  Semaphores are used for GPU<->GPU 
+        // synchronization.  Tyipically this means that you include them in certain function calls to 
+        // tell the GPU to wait until the semaphore is signalled before actually executing the commands
+        // or that once it's completed the commands, it should signal the semaphore, or both.  
         vk::SemaphoreCreateInfo semaphoreCreateInfo;
         // Create a semaphore used to synchronize image presentation
-        // Ensures that the image is displayed before we start submitting new commands to the queu
+        // This semaphore will be signaled when the system actually displays an image.  By waiting on this
+        // semaphore, we can ensure that the GPU doesn't start working on the next frame until the image 
+        // for it has been acquired (typically meaning that it's previous contents have been presented to the screen)
         semaphores.presentComplete = device.createSemaphore(semaphoreCreateInfo);
         // Create a semaphore used to synchronize command submission
-        // Ensures that the image is not presented until all commands have been sumbitted and executed
+        // This semaphore is used to ensure that before we submit a given image for presentation, all the rendering 
+        // command for generating the image have been completed.
         semaphores.renderComplete = device.createSemaphore(semaphoreCreateInfo);
     }
 

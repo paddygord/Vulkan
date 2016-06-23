@@ -531,80 +531,49 @@ public:
              vk::Format::eBc3UnormBlock);
     }
 
-    void reBuildCommandBuffers() {
-        if (!checkCommandBuffers()) {
-            destroyCommandBuffers();
-            createCommandBuffers();
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
+
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
+
+        vk::DeviceSize offsets{ 0 };
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.deferred, 0, descriptorSet, nullptr);
+
+        if (debugDisplay) {
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.debug);
+            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
+            cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
+            cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 1);
+            // Move viewport to display final composition in lower right corner
+            viewport.x = viewport.width * 0.5f;
+            viewport.y = viewport.height * 0.5f;
+            cmdBuffer.setViewport(0, viewport);
         }
-        buildCommandBuffers();
+
+        // Final composition as full screen quad
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.deferred);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(6, 1, 0, 0, 1);
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
-
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = vkx::clearColor({ 0.0f, 0.0f, 0.2f, 0.0f });
-        clearValues[1].depthStencil = { 1.0f, 0 };
-
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
-
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            vk::DeviceSize offsets{ 0 };
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.deferred, 0, descriptorSet, nullptr);
-
-            if (debugDisplay) {
-                drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.debug);
-                drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
-                drawCmdBuffers[i].bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-                drawCmdBuffers[i].drawIndexed(meshes.quad.indexCount, 1, 0, 0, 1);
-                // Move viewport to display final composition in lower right corner
-                viewport.x = viewport.width * 0.5f;
-                viewport.y = viewport.height * 0.5f;
-                drawCmdBuffers[i].setViewport(0, viewport);
-            }
-
-            // Final composition as full screen quad
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.deferred);
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(6, 1, 0, 0, 1);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-
-        }
-    }
-
+    vk::Semaphore offscreenSemaphore;
     void draw() override {
         prepareFrame();
-                    // Gather command buffers to be sumitted to the queue
-                    std::vector<vk::CommandBuffer> submitCmdBuffers = {
-                                    offScreenCmdBuffer,
-                                    drawCmdBuffers[currentBuffer],
-                    };
-        drawCommandBuffers(submitCmdBuffers);
+        {
+            vk::SubmitInfo submitInfo;
+            submitInfo.pWaitDstStageMask = this->submitInfo.pWaitDstStageMask;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &offScreenCmdBuffer;
+            submitInfo.waitSemaphoreCount = 1;
+            submitInfo.pWaitSemaphores = &semaphores.presentComplete;
+            submitInfo.signalSemaphoreCount = 1;
+            submitInfo.pSignalSemaphores = &offscreenSemaphore;
+            queue.submit(submitInfo, VK_NULL_HANDLE);
+        } 
+        drawCurrentCommandBuffer(offscreenSemaphore);
         submitFrame();
     }
 
@@ -988,6 +957,7 @@ public:
 
     void prepare() {
         ExampleBase::prepare();
+        offscreenSemaphore = device.createSemaphore(vk::SemaphoreCreateInfo());
         loadTextures();
         generateQuads();
         loadMeshes();
@@ -1001,7 +971,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         buildDeferredCommandBuffer();
         prepared = true;
     }
@@ -1019,8 +989,11 @@ public:
     }
 
     void toggleDebugDisplay() {
+        queue.waitIdle();
+        device.waitIdle();
         debugDisplay = !debugDisplay;
-        reBuildCommandBuffers();
+        updateDrawCommandBuffers();
+        buildDeferredCommandBuffer();
         updateUniformBuffersScreen();
     }
 

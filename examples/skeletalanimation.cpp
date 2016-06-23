@@ -364,57 +364,28 @@ public:
         delete(skinnedMesh);
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = vkx::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        vk::DeviceSize offsets = 0;
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+        // Skinned mesh
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skinning);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, skinnedMesh->meshBuffer.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(skinnedMesh->meshBuffer.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(skinnedMesh->meshBuffer.indexCount, 1, 0, 0, 0);
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            vk::DeviceSize offsets = 0;
-
-            // Skinned mesh
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skinning);
-
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, skinnedMesh->meshBuffer.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(skinnedMesh->meshBuffer.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(skinnedMesh->meshBuffer.indexCount, 1, 0, 0, 0);
-
-            // Floor
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.floor, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.texture);
-
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.floor.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.floor.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.floor.indexCount, 1, 0, 0, 0);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-        }
+        // Floor
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.floor, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.texture);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.floor.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.floor.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.floor.indexCount, 1, 0, 0, 0);
     }
 
     // Load a mesh based on data read via assimp 
@@ -484,11 +455,11 @@ public:
     void loadTextures() {
         textures.colorMap = textureLoader->loadTexture(
             getAssetPath() + "textures/goblin_bc3.ktx",
-             vk::Format::eBc3UnormBlock);
+            vk::Format::eBc3UnormBlock);
 
         textures.floor = textureLoader->loadTexture(
             getAssetPath() + "textures/pattern_35_bc3.ktx",
-             vk::Format::eBc3UnormBlock);
+            vk::Format::eBc3UnormBlock);
     }
 
     void loadMeshes() {
@@ -506,22 +477,22 @@ public:
         vertices.attributeDescriptions.resize(6);
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0,  vk::Format::eR32G32B32Sfloat, 0);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
         // Location 1 : Normal
         vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
         // Location 2 : Texture coordinates
         vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2,  vk::Format::eR32G32Sfloat, sizeof(float) * 6);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
         // Location 3 : Color
         vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
         // Location 4 : Bone weights
         vertices.attributeDescriptions[4] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 4,  vk::Format::eR32G32B32A32Sfloat, sizeof(float) * 11);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 4, vk::Format::eR32G32B32A32Sfloat, sizeof(float) * 11);
         // Location 5 : Bone IDs
         vertices.attributeDescriptions[5] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 5,  vk::Format::eR32G32B32A32Sint, sizeof(float) * 15);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 5, vk::Format::eR32G32B32A32Sint, sizeof(float) * 15);
 
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -732,7 +703,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 

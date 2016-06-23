@@ -25,6 +25,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <fstream>
@@ -36,6 +37,7 @@
 #include <random>
 #include <string>
 #include <sstream>
+#include <stdexcept>
 #include <streambuf>
 #include <thread>
 #include <vector>

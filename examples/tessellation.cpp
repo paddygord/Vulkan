@@ -97,67 +97,32 @@ public:
         textures.colorMap.destroy();
     }
 
-    void reBuildCommandBuffers() {
-        if (!checkCommandBuffers()) {
-            destroyCommandBuffers();
-            createCommandBuffers();
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+
+        vk::Viewport viewport = vkx::viewport(splitScreen ? (float)width / 2.0f : (float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
+
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
+
+        cmdBuffer.setLineWidth(1.0f);
+
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+
+        vk::DeviceSize offsets = 0;
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.object.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.object.indices.buffer, 0, vk::IndexType::eUint32);
+
+        if (splitScreen) {
+            cmdBuffer.setViewport(0, viewport);
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipelineLeft);
+            cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
+            viewport.x = float(width) / 2;
         }
-        buildCommandBuffers();
-    }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
-
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = vkx::clearColor({ 0.5f, 0.5f, 0.5f, 0.0f });
-        clearValues[1].depthStencil = { 1.0f, 0 };
-
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
-
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport(splitScreen ? (float)width / 2.0f : (float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            drawCmdBuffers[i].setLineWidth(1.0f);
-
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-
-            vk::DeviceSize offsets = 0;
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.object.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.object.indices.buffer, 0, vk::IndexType::eUint32);
-
-            if (splitScreen) {
-                drawCmdBuffers[i].setViewport(0, viewport);
-                drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, *pipelineLeft);
-                drawCmdBuffers[i].drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
-                viewport.x = float(width) / 2;
-            }
-
-            drawCmdBuffers[i].setViewport(0, viewport);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, *pipelineRight);
-            drawCmdBuffers[i].drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-        }
+        cmdBuffer.setViewport(0, viewport);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipelineRight);
+        cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
     }
 
     void loadMeshes() {
@@ -167,7 +132,7 @@ public:
     void loadTextures() {
         textures.colorMap = textureLoader->loadTexture(
             getAssetPath() + "textures/deer.ktx",
-             vk::Format::eBc3UnormBlock);
+            vk::Format::eBc3UnormBlock);
     }
 
     void setupVertexDescriptions() {
@@ -182,15 +147,15 @@ public:
 
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0,  vk::Format::eR32G32B32Sfloat, 0);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
 
         // Location 1 : Normals
         vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
 
         // Location 2 : Texture coordinates
         vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2,  vk::Format::eR32G32Sfloat, sizeof(float) * 6);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
 
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -401,16 +366,14 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 
     virtual void render() {
         if (!prepared)
             return;
-        vkDeviceWaitIdle(device);
         draw();
-        vkDeviceWaitIdle(device);
     }
 
     virtual void viewChanged() {
@@ -464,13 +427,13 @@ public:
             pipelineRight = &pipelines.solid;
             pipelineLeft = &pipelines.solidPassThrough;
         }
-        reBuildCommandBuffers();
+        updateDrawCommandBuffers();
     }
 
     void toggleSplitScreen() {
         splitScreen = !splitScreen;
         updateUniformBuffers();
-        reBuildCommandBuffers();
+        updateDrawCommandBuffers();
     }
 
 };

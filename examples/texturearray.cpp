@@ -91,47 +91,20 @@ public:
         textureArray = textureLoader->loadTextureArray(getAssetPath() + "textures/texturearray_bc3.ktx", vk::Format::eBc3UnormBlock);
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-
-            vk::DeviceSize offsets = 0;
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
-
-            drawCmdBuffers[i].drawIndexed(meshes.quad.indexCount, textureArray.layerCount, 0, 0, 0);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-        }
+        vk::DeviceSize offsets = 0;
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
+        cmdBuffer.drawIndexed(meshes.quad.indexCount, textureArray.layerCount, 0, 0, 0);
     }
 
     // Setup vertices for a single uv-mapped quad
@@ -350,7 +323,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 

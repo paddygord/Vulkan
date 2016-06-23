@@ -84,59 +84,23 @@ public:
         uniformData.vsScene.destroy();
     }
 
-    void reBuildCommandBuffers() {
-        if (!checkCommandBuffers()) {
-            destroyCommandBuffers();
-            createCommandBuffers();
-        }
-        buildCommandBuffers();
-    }
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, wireframe ? pipelines.wireframe : pipelines.solid);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
-
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, wireframe ? pipelines.wireframe : pipelines.solid);
-
-            vk::DeviceSize offsets = 0;
-            // Bind mesh vertex buffer
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, mesh.vertices.buffer, offsets);
-            // Bind mesh index buffer
-            drawCmdBuffers[i].bindIndexBuffer(mesh.indices.buffer, 0, vk::IndexType::eUint32);
-            // Render mesh vertex buffer using it's indices
-            drawCmdBuffers[i].drawIndexed(mesh.indexCount, 1, 0, 0, 0);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-        }
+        vk::DeviceSize offsets = 0;
+        // Bind mesh vertex buffer
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, mesh.vertices.buffer, offsets);
+        // Bind mesh index buffer
+        cmdBuffer.bindIndexBuffer(mesh.indices.buffer, 0, vk::IndexType::eUint32);
+        // Render mesh vertex buffer using it's indices
+        cmdBuffer.drawIndexed(mesh.indexCount, 1, 0, 0, 0);
     }
 
     // Load a mesh based on data read via assimp 
@@ -190,7 +154,7 @@ public:
     void loadTextures() {
         textures.colorMap = textureLoader->loadTexture(
             getAssetPath() + "models/voyager/voyager.ktx",
-             vk::Format::eBc3UnormBlock);
+            vk::Format::eBc3UnormBlock);
     }
 
     void setupVertexDescriptions() {
@@ -204,16 +168,16 @@ public:
         vertices.attributeDescriptions.resize(4);
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0,  vk::Format::eR32G32B32Sfloat, 0);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
         // Location 1 : Normal
         vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
         // Location 2 : Texture coordinates
         vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2,  vk::Format::eR32G32Sfloat, sizeof(float) * 6);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
         // Location 3 : Color
         vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
 
         vertices.inputState;
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -380,7 +344,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 
@@ -400,7 +364,7 @@ public:
         case GLFW_KEY_W:
         case GAMEPAD_BUTTON_A:
             wireframe = !wireframe;
-            reBuildCommandBuffers();
+            updateDrawCommandBuffers();
             break;
         }
     }

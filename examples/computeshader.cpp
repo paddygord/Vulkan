@@ -555,7 +555,6 @@ public:
         setupDescriptorSet();
         prepareCompute();
         updateDrawCommandBuffers();
-        buildCommandBuffers();
         buildComputeCommandBuffer();
         prepared = true;
     }

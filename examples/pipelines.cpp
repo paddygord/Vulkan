@@ -80,70 +80,43 @@ public:
         device.freeMemory(uniformDataVS.memory);
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
+        vk::DeviceSize offsets = 0;
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.cube.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.cube.indices.buffer, 0, vk::IndexType::eUint32);
 
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        // Left : Solid colored 
+        viewport.width = (float)width / 3.0;
+        cmdBuffer.setViewport(0, viewport);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phong);
 
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
+        cmdBuffer.drawIndexed(meshes.cube.indexCount, 1, 0, 0, 0);
 
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
+        // Center : Toon
+        viewport.x = (float)width / 3.0;
+        cmdBuffer.setViewport(0, viewport);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.toon);
+        cmdBuffer.setLineWidth(2.0f);
+        cmdBuffer.drawIndexed(meshes.cube.indexCount, 1, 0, 0, 0);
 
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        auto lineWidthGranularity = deviceProperties.limits.lineWidthGranularity;
+        auto lineWidthRange = deviceProperties.limits.lineWidthRange;
 
-            vk::DeviceSize offsets = 0;
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.cube.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.cube.indices.buffer, 0, vk::IndexType::eUint32);
-
-            // Left : Solid colored 
-            viewport.width = (float)width / 3.0;
-            drawCmdBuffers[i].setViewport(0, viewport);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phong);
-
-            drawCmdBuffers[i].drawIndexed(meshes.cube.indexCount, 1, 0, 0, 0);
-
-            // Center : Toon
-            viewport.x = (float)width / 3.0;
-            drawCmdBuffers[i].setViewport(0, viewport);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.toon);
-            drawCmdBuffers[i].setLineWidth(2.0f);
-            drawCmdBuffers[i].drawIndexed(meshes.cube.indexCount, 1, 0, 0, 0);
-
-            auto lineWidthGranularity = deviceProperties.limits.lineWidthGranularity;
-            auto lineWidthRange = deviceProperties.limits.lineWidthRange;
-
-            if (deviceFeatures.fillModeNonSolid) {
-                // Right : Wireframe 
-                viewport.x = (float)width / 3.0 + (float)width / 3.0;
-                drawCmdBuffers[i].setViewport(0, viewport);
-                drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.wireframe);
-                drawCmdBuffers[i].drawIndexed(meshes.cube.indexCount, 1, 0, 0, 0);
-            }
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
+        if (deviceFeatures.fillModeNonSolid) {
+            // Right : Wireframe 
+            viewport.x = (float)width / 3.0 + (float)width / 3.0;
+            cmdBuffer.setViewport(0, viewport);
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.wireframe);
+            cmdBuffer.drawIndexed(meshes.cube.indexCount, 1, 0, 0, 0);
         }
     }
 
@@ -345,7 +318,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 

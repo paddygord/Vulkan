@@ -85,79 +85,42 @@ public:
         uniformData.vertexShader.destroy();
     }
 
-    void reBuildCommandBuffers() {
-        if (!checkCommandBuffers()) {
-            destroyCommandBuffers();
-            createCommandBuffers();
-        }
-        buildCommandBuffers();
-    }
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
-
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            // Update light positions
-            // w component = light radius scale
+        // Update light positions
+        // w component = light radius scale
 #define r 7.5f
 #define sin_t sin(glm::radians(timer * 360))
 #define cos_t cos(glm::radians(timer * 360))
 #define y -4.0f
-            pushConstants[0] = glm::vec4(r * 1.1 * sin_t, y, r * 1.1 * cos_t, 1.0f);
-            pushConstants[1] = glm::vec4(-r * sin_t, y, -r * cos_t, 1.0f);
-            pushConstants[2] = glm::vec4(r * 0.85f * sin_t, y, -sin_t * 2.5f, 1.5f);
-            pushConstants[3] = glm::vec4(0.0f, y, r * 1.25f * cos_t, 1.5f);
-            pushConstants[4] = glm::vec4(r * 2.25f * cos_t, y, 0.0f, 1.25f);
-            pushConstants[5] = glm::vec4(r * 2.5f * cos(glm::radians(timer * 360)), y, r * 2.5f * sin_t, 1.25f);
+        pushConstants[0] = glm::vec4(r * 1.1 * sin_t, y, r * 1.1 * cos_t, 1.0f);
+        pushConstants[1] = glm::vec4(-r * sin_t, y, -r * cos_t, 1.0f);
+        pushConstants[2] = glm::vec4(r * 0.85f * sin_t, y, -sin_t * 2.5f, 1.5f);
+        pushConstants[3] = glm::vec4(0.0f, y, r * 1.25f * cos_t, 1.5f);
+        pushConstants[4] = glm::vec4(r * 2.25f * cos_t, y, 0.0f, 1.25f);
+        pushConstants[5] = glm::vec4(r * 2.5f * cos(glm::radians(timer * 360)), y, r * 2.5f * sin_t, 1.25f);
 #undef r
 #undef y
 #undef sin_t
 #undef cos_t
 
-            // Submit via push constant (rather than a UBO)
-            drawCmdBuffers[i].pushConstants(pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(pushConstants), pushConstants.data());
+        // Submit via push constant (rather than a UBO)
+        cmdBuffer.pushConstants(pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(pushConstants), pushConstants.data());
 
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
-            vk::DeviceSize offsets = 0;
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
+        vk::DeviceSize offsets = 0;
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
 
-            drawCmdBuffers[i].drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-
-        }
+        cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
     }
 
 
@@ -342,7 +305,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 
@@ -351,13 +314,13 @@ public:
             return;
         draw();
         if (!paused) {
-            vkDeviceWaitIdle(device);
-            reBuildCommandBuffers();
+            device.waitIdle();
+            updateDrawCommandBuffers();
         }
     }
 
     virtual void viewChanged() {
-        vkDeviceWaitIdle(device);
+        device.waitIdle();
         updateUniformBuffers();
     }
 };

@@ -375,7 +375,7 @@ public:
 
     void draw() override {
         prepareFrame();
-        updateCommandBuffers(frameBuffers[currentBuffer]);
+        updateCommandBuffers(framebuffers[currentBuffer]);
 
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &primaryCommandBuffer;

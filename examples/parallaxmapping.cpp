@@ -105,73 +105,36 @@ public:
     void loadTextures() {
         textures.colorMap = textureLoader->loadTexture(
             getAssetPath() + "textures/rocks_color_bc3.dds",
-             vk::Format::eBc3UnormBlock);
+            vk::Format::eBc3UnormBlock);
         textures.normalHeightMap = textureLoader->loadTexture(
             getAssetPath() + "textures/rocks_normal_height_rgba.dds",
-             vk::Format::eR8G8B8A8Unorm);
-    }
-    void reBuildCommandBuffers() {
-        if (!checkCommandBuffers()) {
-            destroyCommandBuffers();
-            createCommandBuffers();
-        }
-        buildCommandBuffers();
+            vk::Format::eR8G8B8A8Unorm);
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
+        vk::Viewport viewport = vkx::viewport((splitScreen) ? (float)width / 2.0f : (float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+        vk::DeviceSize offsets = 0;
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
+        // Parallax enabled
+        cmdBuffer.setViewport(0, viewport);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.parallaxMapping);
+        cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 1);
 
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((splitScreen) ? (float)width / 2.0f : (float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-
-            vk::DeviceSize offsets = 0;
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-
-            // Parallax enabled
-            drawCmdBuffers[i].setViewport(0, viewport);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.parallaxMapping);
-            drawCmdBuffers[i].drawIndexed(meshes.quad.indexCount, 1, 0, 0, 1);
-
-            // Normal mapping
-            if (splitScreen) {
-                viewport.x = (float)width / 2.0f;
-                drawCmdBuffers[i].setViewport(0, viewport);
-                drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.normalMapping);
-                drawCmdBuffers[i].drawIndexed(meshes.quad.indexCount, 1, 0, 0, 1);
-            }
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-
+        // Normal mapping
+        if (splitScreen) {
+            viewport.x = (float)width / 2.0f;
+            cmdBuffer.setViewport(0, viewport);
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.normalMapping);
+            cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 1);
         }
     }
 
@@ -190,19 +153,19 @@ public:
         vertices.attributeDescriptions.resize(5);
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0,  vk::Format::eR32G32B32Sfloat, 0);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
         // Location 1 : Texture coordinates
         vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1,  vk::Format::eR32G32Sfloat, sizeof(float) * 3);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32Sfloat, sizeof(float) * 3);
         // Location 2 : Normal
         vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 5);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5);
         // Location 3 : Tangent
         vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
         // Location 4 : Bitangent
         vertices.attributeDescriptions[4] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 4,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 11);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 4, vk::Format::eR32G32B32Sfloat, sizeof(float) * 11);
 
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -413,16 +376,14 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 
     virtual void render() {
         if (!prepared)
             return;
-        vkDeviceWaitIdle(device);
         draw();
-        vkDeviceWaitIdle(device);
         if (!paused) {
             updateUniformBuffers();
         }
@@ -445,7 +406,7 @@ public:
     void toggleSplitScreen() {
         splitScreen = !splitScreen;
         updateUniformBuffers();
-        reBuildCommandBuffers();
+        updateDrawCommandBuffers();
     }
 
 };

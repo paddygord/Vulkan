@@ -62,7 +62,63 @@ namespace vkx {
         std::vector<vk::CommandBuffer> primaryCmdBuffers;
         std::vector<vk::CommandBuffer> textCmdBuffers;
         std::vector<vk::CommandBuffer> drawCmdBuffers;
+        bool primaryCmdBuffersDirty{ true };
 
+        virtual void buildCommandBuffers() final {
+            if (drawCmdBuffers.empty()) {
+                throw std::runtime_error("Draw command buffers have not been populated.");
+            }
+            trashCommandBuffers(primaryCmdBuffers);
+
+            // Destroy command buffers if already present
+            if (primaryCmdBuffers.empty()) {
+                // Create one command buffer per image in the swap chain
+
+                // Command buffers store a reference to the
+                // frame buffer inside their render pass info
+                // so for static usage without having to rebuild
+                // them each frame, we use one per frame buffer
+                vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+                cmdBufAllocateInfo.commandPool = cmdPool;
+                cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
+                primaryCmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
+            }
+
+
+            vk::CommandBufferBeginInfo cmdBufInfo;
+            vk::ClearValue clearValues[2];
+            clearValues[0].color = defaultClearColor;
+            clearValues[1].depthStencil = { 1.0f, 0 };
+
+            vk::RenderPassBeginInfo renderPassBeginInfo;
+            renderPassBeginInfo.renderPass = renderPass;
+            renderPassBeginInfo.renderArea.offset.x = 0;
+            renderPassBeginInfo.renderArea.offset.y = 0;
+            renderPassBeginInfo.renderArea.extent.width = width;
+            renderPassBeginInfo.renderArea.extent.height = height;
+            renderPassBeginInfo.clearValueCount = 2;
+            renderPassBeginInfo.pClearValues = clearValues;
+            for (size_t i = 0; i < swapChain.imageCount; ++i) {
+                const auto& cmdBuffer = primaryCmdBuffers[i];
+                cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+                cmdBuffer.begin(cmdBufInfo);
+
+                // Let child classes execute operations outside the renderpass, like buffer barriers or query pool operations
+                updatePrimaryCommandBuffer(cmdBuffer);
+
+                renderPassBeginInfo.framebuffer = framebuffers[i];
+                cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eSecondaryCommandBuffers);
+                if (!drawCmdBuffers.empty()) {
+                    cmdBuffer.executeCommands(drawCmdBuffers[i]);
+                }
+                if (enableTextOverlay && !textCmdBuffers.empty() && textOverlay && textOverlay->visible) {
+                    cmdBuffer.executeCommands(textCmdBuffers[i]);
+                }
+                cmdBuffer.endRenderPass();
+                cmdBuffer.end();
+            }
+            primaryCmdBuffersDirty = false;
+        }
     protected:
         // Last frame time, measured using a high performance timer (if available)
         float frameTimer{ 1.0f };
@@ -252,56 +308,15 @@ namespace vkx {
             }
         }
 
+        virtual void updatePrimaryCommandBuffer(const vk::CommandBuffer& cmdBuffer) {}
+
         virtual void updateDrawCommandBuffers() final {
             populateSubCommandBuffers(drawCmdBuffers, [&](const vk::CommandBuffer& cmdBuffer) {
                 updateDrawCommandBuffer(cmdBuffer);
             });
+            primaryCmdBuffersDirty = true;
         }
 
-        virtual void buildCommandBuffers() final {
-            // Destroy command buffers if already present
-            if (primaryCmdBuffers.empty()) {
-                // Create one command buffer per frame buffer
-                // in the swap chain
-                // Command buffers store a reference to the
-                // frame buffer inside their render pass info
-                // so for static usage withouth having to rebuild
-                // them each frame, we use one per frame buffer
-                vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
-                cmdBufAllocateInfo.commandPool = cmdPool;
-                cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
-                primaryCmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
-            }
-
-            vk::CommandBufferBeginInfo cmdBufInfo;
-            vk::ClearValue clearValues[2];
-            clearValues[0].color = defaultClearColor;
-            clearValues[1].depthStencil = { 1.0f, 0 };
-
-            vk::RenderPassBeginInfo renderPassBeginInfo;
-            renderPassBeginInfo.renderPass = renderPass;
-            renderPassBeginInfo.renderArea.offset.x = 0;
-            renderPassBeginInfo.renderArea.offset.y = 0;
-            renderPassBeginInfo.renderArea.extent.width = width;
-            renderPassBeginInfo.renderArea.extent.height = height;
-            renderPassBeginInfo.clearValueCount = 2;
-            renderPassBeginInfo.pClearValues = clearValues;
-            for (size_t i = 0; i < swapChain.imageCount; ++i) {
-                const auto& cmdBuffer = primaryCmdBuffers[i];
-                cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-                cmdBuffer.begin(cmdBufInfo);
-                renderPassBeginInfo.framebuffer = framebuffers[i];
-                cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eSecondaryCommandBuffers);
-                if (!drawCmdBuffers.empty()) {
-                    cmdBuffer.executeCommands(drawCmdBuffers[i]);
-                }
-                if (enableTextOverlay && !textCmdBuffers.empty() && textOverlay && textOverlay->visible) {
-                    cmdBuffer.executeCommands(textCmdBuffers[i]);
-                }
-                cmdBuffer.endRenderPass();
-                cmdBuffer.end();
-            }
-        }
 
         // Pure virtual function to be overriden by the dervice class
         // Called in case of an event where e.g. the framebuffer has to be rebuild and thus
@@ -313,9 +328,6 @@ namespace vkx {
         // Create swap chain images
         void setupSwapChain();
 
-        // Destroy all command buffers and set their handles to VK_NULL_HANDLE
-        // May be necessary during runtime if options are toggled 
-        void destroyCommandBuffers();
         void drawCurrentCommandBuffer(const vk::Semaphore& semaphore = vk::Semaphore());
 
         // Prepare commonly used Vulkan functions

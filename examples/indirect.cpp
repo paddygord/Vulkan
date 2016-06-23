@@ -80,47 +80,25 @@ public:
         uniformData.vsScene.destroy();
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
-
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = vkx::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
-        clearValues[1].depthStencil = { 1.0f, 0 };
-
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = primaryRenderPass;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
-
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
         vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
         vk::DeviceSize offset = 0;
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            drawCmdBuffers[i].setViewport(0, viewport);
-            drawCmdBuffers[i].setScissor(0, scissor);
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
-            // Binding point 0 : Mesh vertex buffer
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.buffer, offset);
-            // Binding point 1 : Instance data buffer
-            drawCmdBuffers[i].bindVertexBuffers(INSTANCE_BUFFER_BIND_ID, instanceBuffer.buffer, offset);
-            // Equivlant non-indirect commands:
-            //for (size_t j = 0; j < SHAPES_COUNT; ++j) {
-            //    auto shape = shapes[j];
-            //    drawCmdBuffers[i].draw(shape.vertices, INSTANCES_PER_SHAPE, shape.baseVertex, j * INSTANCES_PER_SHAPE);
-            //}
-            drawCmdBuffers[i].drawIndirect(indirectBuffer.buffer, 0, SHAPES_COUNT, sizeof(vk::DrawIndirectCommand));
-            drawCmdBuffers[i].endRenderPass();
-            drawCmdBuffers[i].end();
-        }
+        cmdBuffer.setViewport(0, viewport);
+        cmdBuffer.setScissor(0, scissor);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
+        // Binding point 0 : Mesh vertex buffer
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.buffer, offset);
+        // Binding point 1 : Instance data buffer
+        cmdBuffer.bindVertexBuffers(INSTANCE_BUFFER_BIND_ID, instanceBuffer.buffer, offset);
+        // Equivlant non-indirect commands:
+        //for (size_t j = 0; j < SHAPES_COUNT; ++j) {
+        //    auto shape = shapes[j];
+        //    cmdBuffer.draw(shape.vertices, INSTANCES_PER_SHAPE, shape.baseVertex, j * INSTANCES_PER_SHAPE);
+        //}
+        cmdBuffer.drawIndirect(indirectBuffer.buffer, 0, SHAPES_COUNT, sizeof(vk::DrawIndirectCommand));
     }
 
     template<size_t N>
@@ -294,7 +272,7 @@ public:
 
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, primaryRenderPass);
+            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
 
         vk::PipelineVertexInputStateCreateInfo vertexInputState;
         vertexInputState.vertexBindingDescriptionCount = bindingDescriptions.size();
@@ -380,13 +358,12 @@ public:
         loadShapes();
         prepareInstanceData();
         prepareIndirectData();
-//        setupVertexDescriptions();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 
@@ -395,24 +372,6 @@ public:
     float zoomDelta = 135;
     float zoomStart;
     float accumulator = FLT_MAX;
-
-    void draw() {
-        // Acquire the next image from the swap chaing
-        currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
-        vk::PipelineStageFlags dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-        vk::SubmitInfo submitInfo;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = drawCmdBuffers.data() + currentBuffer;
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &semaphores.presentComplete;
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = &semaphores.renderComplete;
-        submitInfo.pWaitDstStageMask = &dstStageMask;
-        queue.submit(submitInfo, VK_NULL_HANDLE);
-        swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-        queue.waitIdle();
-    }
-
 
     virtual void render() {
         if (!prepared) {

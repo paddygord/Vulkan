@@ -195,69 +195,32 @@ public:
              vk::Format::eR8G8B8A8Unorm);
     }
 
-    void reBuildCommandBuffers() {
-        if (!checkCommandBuffers()) {
-            destroyCommandBuffers();
-            createCommandBuffers();
-        }
-        buildCommandBuffers();
-    }
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+        vk::Viewport viewport = vkx::viewport((float)width, (splitScreen) ? (float)height / 2.0f : (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        vk::DeviceSize offsets = 0;
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+        // Signed distance field font
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sdf, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.sdf);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(indices.count, 1, 0, 0, 0);
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (splitScreen) ? (float)height / 2.0f : (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            vk::DeviceSize offsets = 0;
-
-            // Signed distance field font
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sdf, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.sdf);
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(indices.count, 1, 0, 0, 0);
-
-            // Linear filtered bitmap font
-            if (splitScreen) {
-                viewport.y = (float)height / 2.0f;
-                drawCmdBuffers[i].setViewport(0, viewport);
-                drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.bitmap, nullptr);
-                drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.bitmap);
-                drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
-                drawCmdBuffers[i].bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
-                drawCmdBuffers[i].drawIndexed(indices.count, 1, 0, 0, 0);
-            }
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-
+        // Linear filtered bitmap font
+        if (splitScreen) {
+            viewport.y = (float)height / 2.0f;
+            cmdBuffer.setViewport(0, viewport);
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.bitmap, nullptr);
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.bitmap);
+            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
+            cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
+            cmdBuffer.drawIndexed(indices.count, 1, 0, 0, 0);
         }
     }
 
@@ -563,7 +526,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 
@@ -581,7 +544,7 @@ public:
 
     void toggleSplitScreen() {
         splitScreen = !splitScreen;
-        reBuildCommandBuffers();
+        updateDrawCommandBuffers();
         updateUniformBuffers();
     }
 

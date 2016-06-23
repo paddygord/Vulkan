@@ -6,12 +6,10 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
+#include "vulkanOffscreenExampleBase.hpp"
 
 // Texture properties
 #define TEX_DIM 256
-#define TEX_FORMAT  vk::Format::eR8G8B8A8Unorm
-#define TEX_FILTER vk::Filter::eLinear;
 
 // Offscreen frame buffer properties
 #define FB_DIM TEX_DIM
@@ -144,14 +142,11 @@ public:
         textures.cubemap.destroy();
     }
 
-    vk::RenderPass offscreenRenderPass;
-
     // Prepare a new framebuffer for offscreen rendering
     // The contents of this framebuffer are then
     // blitted to our render target
     void prepareOffscreenFramebuffer(vkx::Framebuffer &frameBuf) {
         frameBuf.size = glm::uvec2(FB_DIM);
-        frameBuf.colorFormat = FB_COLOR_FORMAT;
         // Find a suitable depth format
         frameBuf.depthFormat = vkx::getSupportedDepthFormat(physicalDevice);
         frameBuf.create(*this, offscreenRenderPass);
@@ -253,6 +248,7 @@ public:
 
 
         vk::CommandBufferBeginInfo cmdBufInfo;
+        offScreenCmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
         offScreenCmdBuffer.begin(cmdBufInfo);
 
         // Draw the unblurred geometry to framebuffer 1
@@ -302,14 +298,6 @@ public:
         textures.cubemap = textureLoader->loadCubemap(
             getAssetPath() + "textures/cubemap_space.ktx",
             vk::Format::eR8G8B8A8Unorm);
-    }
-
-    void reBuildCommandBuffers() {
-        updateDrawCommandBuffers();
-        if (bloom) {
-            buildOffscreenCommandBuffer();
-        }
-        buildCommandBuffers();
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
@@ -732,11 +720,10 @@ public:
             submitInfo.signalSemaphoreCount = 1;
             submitInfo.pSignalSemaphores = &offscreenSemaphore;
             queue.submit(submitInfo, VK_NULL_HANDLE);
-        }
+        } 
 
         // Scene rendering
-        drawCurrentCommandBuffer();
-
+        drawCurrentCommandBuffer(bloom ? offscreenSemaphore : semaphores.presentComplete);
         submitFrame();
     }
 
@@ -756,10 +743,7 @@ public:
         setupDescriptorSet();
         createOffscreenCommandBuffer();
         updateDrawCommandBuffers();
-        if (bloom) {
-            buildOffscreenCommandBuffer();
-        }
-        buildCommandBuffers();
+        buildOffscreenCommandBuffer();
         prepared = true;
     }
 
@@ -812,7 +796,12 @@ public:
 
     void toggleBloom() {
         bloom = !bloom;
-        reBuildCommandBuffers();
+        queue.waitIdle();
+        device.waitIdle();
+        updateDrawCommandBuffers();
+        if (bloom) {
+            buildOffscreenCommandBuffer();
+        }
     }
 };
 

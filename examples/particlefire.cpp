@@ -134,51 +134,22 @@ public:
         device.destroySampler(textures.particles.sampler);
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = vkx::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        // Environment
+        meshes.environment.drawIndexed(cmdBuffer);
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            // Environment
-            meshes.environment.drawIndexed(drawCmdBuffers[i]);
-
-            // Particle system
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.particles);
-            vk::DeviceSize offsets = 0;
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, particles.buffer.buffer, offsets);
-            drawCmdBuffers[i].draw(PARTICLE_COUNT, 1, 0, 0);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-
-        }
+        // Particle system
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.particles);
+        vk::DeviceSize offsets = 0;
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, particles.buffer.buffer, offsets);
+        cmdBuffer.draw(PARTICLE_COUNT, 1, 0, 0);
     }
 
 
@@ -272,18 +243,18 @@ public:
         // Particles
         textures.particles.smoke = textureLoader->loadTexture(
             getAssetPath() + "textures/particle_smoke.ktx",
-             vk::Format::eBc3UnormBlock);
+            vk::Format::eBc3UnormBlock);
         textures.particles.fire = textureLoader->loadTexture(
             getAssetPath() + "textures/particle_fire.ktx",
-             vk::Format::eBc3UnormBlock);
+            vk::Format::eBc3UnormBlock);
 
         // Floor
         textures.floor.colorMap = textureLoader->loadTexture(
             getAssetPath() + "textures/fireplace_colormap_bc3.ktx",
-             vk::Format::eBc3UnormBlock);
+            vk::Format::eBc3UnormBlock);
         textures.floor.normalMap = textureLoader->loadTexture(
             getAssetPath() + "textures/fireplace_normalmap_bc3.ktx",
-             vk::Format::eBc3UnormBlock);
+            vk::Format::eBc3UnormBlock);
 
         // Create a custom sampler to be used with the particle textures
         // Create sampler
@@ -327,41 +298,41 @@ public:
             vkx::vertexInputAttributeDescription(
                 VERTEX_BUFFER_BIND_ID,
                 0,
-                 vk::Format::eR32G32B32A32Sfloat,
+                vk::Format::eR32G32B32A32Sfloat,
                 0));
         // Location 1 : Color
         particles.attributeDescriptions.push_back(
             vkx::vertexInputAttributeDescription(
                 VERTEX_BUFFER_BIND_ID,
                 1,
-                 vk::Format::eR32G32B32A32Sfloat,
+                vk::Format::eR32G32B32A32Sfloat,
                 sizeof(float) * 4));
         // Location 2 : Alpha
         particles.attributeDescriptions.push_back(
             vkx::vertexInputAttributeDescription(
                 VERTEX_BUFFER_BIND_ID,
                 2,
-                 vk::Format::eR32Sfloat,
+                vk::Format::eR32Sfloat,
                 sizeof(float) * 8));
         // Location 3 : Size
         particles.attributeDescriptions.push_back(
             vkx::vertexInputAttributeDescription(
                 VERTEX_BUFFER_BIND_ID,
                 3,
-                 vk::Format::eR32Sfloat,
+                vk::Format::eR32Sfloat,
                 sizeof(float) * 9));
         // Location 4 : Rotation
         particles.attributeDescriptions.push_back(
             vkx::vertexInputAttributeDescription(
                 VERTEX_BUFFER_BIND_ID,
                 4,
-                 vk::Format::eR32Sfloat,
+                vk::Format::eR32Sfloat,
                 sizeof(float) * 10));
         // Location 5 : Type
         particles.attributeDescriptions.push_back(
             vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID,
                 5,
-                 vk::Format::eR32Sint,
+                vk::Format::eR32Sint,
                 sizeof(float) * 11));
 
         particles.inputState = vk::PipelineVertexInputStateCreateInfo();
@@ -607,7 +578,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSets();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 

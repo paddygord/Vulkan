@@ -298,76 +298,56 @@ public:
         frameBufferCreateInfo.layers = 1;
 
         // Create frame buffers for every swap chain image
-        frameBuffers.resize(swapChain.imageCount);
-        for (uint32_t i = 0; i < frameBuffers.size(); i++) {
+        framebuffers.resize(swapChain.imageCount);
+        for (uint32_t i = 0; i < framebuffers.size(); i++) {
             attachments[1] = swapChain.buffers[i].view;
-            frameBuffers[i] = device.createFramebuffer(frameBufferCreateInfo);
+            framebuffers[i] = device.createFramebuffer(frameBufferCreateInfo);
         }
     }
 
-    void buildCommandBuffers() {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
 
-        // Initial image layout transitions
-        // We need to transform the MSAA target layouts before using them
-        withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
-            // Tansform MSAA color target
-            vkx::setImageLayout(
-                setupCmdBuffer,
-                multisampleTarget.color.image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eColorAttachmentOptimal);
+        //// Initial image layout transitions
+        //// We need to transform the MSAA target layouts before using them
+        //withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
+        //    // Tansform MSAA color target
+        //    vkx::setImageLayout(
+        //        setupCmdBuffer,
+        //        multisampleTarget.color.image,
+        //        vk::ImageAspectFlagBits::eColor,
+        //        vk::ImageLayout::eUndefined,
+        //        vk::ImageLayout::eColorAttachmentOptimal);
 
-            // Tansform MSAA depth target
-            vkx::setImageLayout(
-                setupCmdBuffer,
-                multisampleTarget.depth.image,
-                vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
-                vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eDepthStencilAttachmentOptimal);
-        });
+        //    // Tansform MSAA depth target
+        //    vkx::setImageLayout(
+        //        setupCmdBuffer,
+        //        multisampleTarget.depth.image,
+        //        vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
+        //        vk::ImageLayout::eUndefined,
+        //        vk::ImageLayout::eDepthStencilAttachmentOptimal);
+        //});
 
-        vk::CommandBufferBeginInfo cmdBufInfo;
+        //vk::CommandBufferBeginInfo cmdBufInfo;
 
-        vk::ClearValue clearValues[3];
-        // Clear to a white background for higher contrast
-        clearValues[0].color = vkx::clearColor({ 1.0f, 1.0f, 1.0f, 1.0f });
-        clearValues[1].color = vkx::clearColor({ 1.0f, 1.0f, 1.0f, 1.0f });
-        clearValues[2].depthStencil = { 1.0f, 0 };
+        //vk::ClearValue clearValues[3];
+        //// Clear to a white background for higher contrast
+        //clearValues[0].color = vkx::clearColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+        //clearValues[1].color = vkx::clearColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+        //clearValues[2].depthStencil = { 1.0f, 0 };
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 3;
-        renderPassBeginInfo.pClearValues = clearValues;
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
 
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
-
-            vk::DeviceSize offsets = 0;
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-        }
+        vk::DeviceSize offsets = 0;
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
     }
 
     void loadTextures() {
@@ -565,7 +545,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 

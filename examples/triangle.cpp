@@ -93,116 +93,43 @@ public:
     // Build separate command buffers for every framebuffer image
     // Unlike in OpenGL all rendering commands are recorded once
     // into command buffers that are then resubmitted to the queue
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        // Update dynamic viewport state
+        vk::Viewport viewport;
+        viewport.height = (float)height;
+        viewport.width = (float)width;
+        viewport.minDepth = (float) 0.0f;
+        viewport.maxDepth = (float) 1.0f;
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        // Update dynamic scissor state
+        vk::Rect2D scissor;
+        scissor.extent.width = width;
+        scissor.extent.height = height;
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        // Bind descriptor sets describing shader binding points
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
+        // Bind the rendering pipeline (including the shaders)
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+        // Bind triangle vertices
+        vk::DeviceSize offsets = 0;
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
+        // Bind triangle indices
+        cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
 
-            // Start the first sub pass specified in our default render pass setup by the base class
-            // This will clear the color and depth attachment
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            // Update dynamic viewport state
-            vk::Viewport viewport;
-            viewport.height = (float)height;
-            viewport.width = (float)width;
-            viewport.minDepth = (float) 0.0f;
-            viewport.maxDepth = (float) 1.0f;
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            // Update dynamic scissor state
-            vk::Rect2D scissor;
-            scissor.extent.width = width;
-            scissor.extent.height = height;
-            scissor.offset.x = 0;
-            scissor.offset.y = 0;
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            // Bind descriptor sets describing shader binding points
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-
-            // Bind the rendering pipeline (including the shaders)
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
-
-            // Bind triangle vertices
-            vk::DeviceSize offsets = 0;
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
-
-            // Bind triangle indices
-            drawCmdBuffers[i].bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
-
-            // Draw indexed triangle
-            drawCmdBuffers[i].drawIndexed(indices.count, 1, 0, 0, 1);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            // Add a present memory barrier to the end of the command buffer
-            // This will transform the frame buffer color attachment to a
-            // new layout for presenting it to the windowing system integration 
-            vk::ImageMemoryBarrier prePresentBarrier;
-            prePresentBarrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-            prePresentBarrier.dstAccessMask = vk::AccessFlagBits::eMemoryRead;
-            prePresentBarrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
-            prePresentBarrier.newLayout = vk::ImageLayout::ePresentSrcKHR;
-            prePresentBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-            prePresentBarrier.image = swapChain.buffers[i].image;
-
-            vk::ImageMemoryBarrier *pMemoryBarrier = &prePresentBarrier;
-            drawCmdBuffers[i].pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eBottomOfPipe, vk::DependencyFlags(), nullptr, nullptr, prePresentBarrier);
-
-            drawCmdBuffers[i].end();
-        }
+        // Draw indexed triangle
+        cmdBuffer.drawIndexed(indices.count, 1, 0, 0, 1);
     }
 
     void draw() {
         // Get next image in the swap chain (back/front buffer)
         currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
-
-        // Add a post present image memory barrier
-        // This will transform the frame buffer color attachment back
-        // to it's initial layout after it has been presented to the
-        // windowing system
-        vk::ImageMemoryBarrier postPresentBarrier;
-        postPresentBarrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-        postPresentBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
-        postPresentBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-        postPresentBarrier.image = swapChain.buffers[currentBuffer].image;
-
-        // Use dedicated command buffer from example base class for submitting the post present barrier
-        vk::CommandBufferBeginInfo cmdBufInfo;
-        postPresentCmdBuffer.begin(cmdBufInfo);
-
-        // Put post present barrier into command buffer
-        postPresentCmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTopOfPipe, vk::DependencyFlags(), nullptr, nullptr, postPresentBarrier);
-
-        postPresentCmdBuffer.end();
-
-        // Submit the image barrier to the current queue
-        submitInfo = vk::SubmitInfo();
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &postPresentCmdBuffer;
-
-        queue.submit(submitInfo, VK_NULL_HANDLE);
-
-        // Make sure that the image barrier command submitted to the queue 
-        // has finished executing
-        queue.waitIdle();
 
         // The submit infor strcuture contains a list of
         // command buffers and semaphores to be submitted to a queue
@@ -717,7 +644,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 

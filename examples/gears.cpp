@@ -40,7 +40,6 @@ public:
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
         device.destroyPipeline(pipelines.solid);
-
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
 
@@ -49,47 +48,14 @@ public:
         }
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
-
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
-
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
-
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = framebuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
-
-            for (auto& gear : gears) {
-                gear->draw(drawCmdBuffers[i], pipelineLayout);
-            }
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height);
+        cmdBuffer.setViewport(0, viewport);
+        vk::Rect2D scissor = vkx::rect2D(width, height);
+        cmdBuffer.setScissor(0, scissor);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
+        for (auto& gear : gears) {
+            gear->draw(cmdBuffer, pipelineLayout);
         }
     }
 
@@ -233,7 +199,7 @@ public:
         shaderStages[1] = loadShader(getAssetPath() + "shaders/gears.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, vk::RenderPass());
+            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
 
         pipelineCreateInfo.pVertexInputState = &vertices.inputState;
         pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -245,7 +211,6 @@ public:
         pipelineCreateInfo.pDynamicState = &dynamicState;
         pipelineCreateInfo.stageCount = shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
-
         pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
@@ -264,7 +229,7 @@ public:
         setupDescriptorPool();
         setupDescriptorSets();
         updateUniformBuffers();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 

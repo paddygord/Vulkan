@@ -5,29 +5,11 @@
 *
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
-#include <algorithm>
-#include <initializer_list>
-#include <stdexcept>
-
-#include "vulkanExampleBase.h"
-
-using namespace vkx;
-
-/*
-* Vulkan Example base class
-*
-* Copyright (C) 2016 by Sascha Willems - www.saschawillems.de
-*
-* This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
-*/
-
 #pragma once
 
-#include "common.hpp"
 #include "vulkanExampleBase.h"
 
 using namespace vkx;
-
 
 ExampleBase::ExampleBase(bool enableValidation) {
     // Check for validation command line flag
@@ -55,7 +37,18 @@ ExampleBase::~ExampleBase() {
     if (descriptorPool) {
         device.destroyDescriptorPool(descriptorPool);
     }
-    destroyCommandBuffers();
+    if (!primaryCmdBuffers.empty()) {
+        device.freeCommandBuffers(cmdPool, primaryCmdBuffers);
+        primaryCmdBuffers.clear();
+    }
+    if (!drawCmdBuffers.empty()) {
+        device.freeCommandBuffers(cmdPool, drawCmdBuffers);
+        drawCmdBuffers.clear();
+    }
+    if (!textCmdBuffers.empty()) {
+        device.freeCommandBuffers(cmdPool, textCmdBuffers);
+        textCmdBuffers.clear();
+    }
     device.destroyRenderPass(renderPass);
     for (uint32_t i = 0; i < framebuffers.size(); i++) {
         device.destroyFramebuffer(framebuffers[i]);
@@ -235,7 +228,6 @@ void ExampleBase::renderLoop() {
             }
             lastFPS = frameCounter;
             updateTextOverlay();
-            buildCommandBuffers();
             fpsTimer = 0.0f;
             frameCounter = 0;
         }
@@ -256,21 +248,6 @@ const std::string ExampleBase::getAssetPath() {
 #else
     return "./../data/";
 #endif
-}
-
-void ExampleBase::destroyCommandBuffers() {
-    if (!primaryCmdBuffers.empty()) {
-        device.freeCommandBuffers(cmdPool, primaryCmdBuffers);
-        primaryCmdBuffers.clear();
-    }
-    if (!drawCmdBuffers.empty()) {
-        device.freeCommandBuffers(cmdPool, drawCmdBuffers);
-        drawCmdBuffers.clear();
-    }
-    if (!textCmdBuffers.empty()) {
-        device.freeCommandBuffers(cmdPool, textCmdBuffers);
-        textCmdBuffers.clear();
-    }
 }
 
 void ExampleBase::prepare() {
@@ -375,6 +352,7 @@ void ExampleBase::updateTextOverlay() {
     populateSubCommandBuffers(textCmdBuffers, [&](const vk::CommandBuffer& cmdBuffer) {
         textOverlay->writeCommandBuffer(cmdBuffer);
     });
+    primaryCmdBuffersDirty = true;
 }
 
 void ExampleBase::getOverlayText(vkx::TextOverlay *textOverlay) {
@@ -382,6 +360,9 @@ void ExampleBase::getOverlayText(vkx::TextOverlay *textOverlay) {
 }
 
 void ExampleBase::prepareFrame() {
+    if (primaryCmdBuffersDirty) {
+        buildCommandBuffers();
+    }
     // Acquire the next image from the swap chaing
     currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
 }
@@ -810,7 +791,7 @@ void ExampleBase::setupSwapChain() {
 void ExampleBase::drawCurrentCommandBuffer(const vk::Semaphore& semaphore) {
     // Command buffer(s) to be sumitted to the queue
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
+    submitInfo.pCommandBuffers = &primaryCmdBuffers[currentBuffer];
     submitInfo.pWaitSemaphores = semaphore == vk::Semaphore() ? &semaphores.presentComplete : &semaphore;
 
     vk::Fence fence;

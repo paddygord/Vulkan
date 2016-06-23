@@ -154,122 +154,94 @@ public:
             vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+    void updatePrimaryCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
+        // Reset query pool
+        // Must be done outside of render pass
+        cmdBuffer.resetQueryPool(queryPool, 0, 2);
+    }
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+        vk::DeviceSize offsets = 0;
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
+        glm::mat4 modelMatrix = glm::mat4();
 
-            // Reset query pool
-            // Must be done outside of render pass
-            drawCmdBuffers[i].resetQueryPool(queryPool, 0, 2);
+        // Occlusion pass
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.simple);
 
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        // Occluder first
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.plane.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.plane.indexCount, 1, 0, 0, 0);
 
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
+        // Teapot
+        cmdBuffer.beginQuery(queryPool, 0, vk::QueryControlFlags());
 
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.teapot, nullptr);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.teapot.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.teapot.indexCount, 1, 0, 0, 0);
 
-            vk::DeviceSize offsets = 0;
+        cmdBuffer.endQuery(queryPool, 0);
 
-            glm::mat4 modelMatrix = glm::mat4();
+        // Sphere
+        cmdBuffer.beginQuery(queryPool, 1, vk::QueryControlFlags());
 
-            // Occlusion pass
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.simple);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sphere, nullptr);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.sphere.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.sphere.indexCount, 1, 0, 0, 0);
 
-            // Occluder first
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.plane.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.plane.indexCount, 1, 0, 0, 0);
+        cmdBuffer.endQuery(queryPool, 1);
 
-            // Teapot
-            drawCmdBuffers[i].beginQuery(queryPool, 0, vk::QueryControlFlags());
+        // Visible pass
+        // Clear color and depth attachments
+        std::array<vk::ClearAttachment, 2> clearAttachments;
+        clearAttachments[0].aspectMask = vk::ImageAspectFlagBits::eColor;
+        clearAttachments[0].clearValue.color = defaultClearColor;
+        clearAttachments[0].colorAttachment = 0;
 
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.teapot, nullptr);
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.teapot.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.teapot.indexCount, 1, 0, 0, 0);
+        clearAttachments[1].aspectMask = vk::ImageAspectFlagBits::eDepth;
+        clearAttachments[1].clearValue.depthStencil = { 1.0f, 0 };
 
-            drawCmdBuffers[i].endQuery(queryPool, 0);
+        vk::ClearRect clearRect;
+        clearRect.layerCount = 1;
+        clearRect.rect.extent = vk::Extent2D{ width, height };
 
-            // Sphere
-            drawCmdBuffers[i].beginQuery(queryPool, 1, vk::QueryControlFlags());
+        cmdBuffer.clearAttachments(clearAttachments, clearRect);
 
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sphere, nullptr);
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.sphere.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.sphere.indexCount, 1, 0, 0, 0);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
 
-            drawCmdBuffers[i].endQuery(queryPool, 1);
+        // Teapot
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.teapot, nullptr);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.teapot.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.teapot.indexCount, 1, 0, 0, 0);
 
-            // Visible pass
-            // Clear color and depth attachments
-            std::array<vk::ClearAttachment, 2> clearAttachments;
-            clearAttachments[0].aspectMask = vk::ImageAspectFlagBits::eColor;
-            clearAttachments[0].clearValue.color = defaultClearColor;
-            clearAttachments[0].colorAttachment = 0;
+        // Sphere
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sphere, nullptr);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.sphere.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.sphere.indexCount, 1, 0, 0, 0);
 
-            clearAttachments[1].aspectMask = vk::ImageAspectFlagBits::eDepth;
-            clearAttachments[1].clearValue.depthStencil = { 1.0f, 0 };
-
-            vk::ClearRect clearRect;
-            clearRect.layerCount = 1;
-            clearRect.rect.extent = vk::Extent2D{ width, height };
-
-            drawCmdBuffers[i].clearAttachments(clearAttachments, clearRect);
-
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
-
-            // Teapot
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.teapot, nullptr);
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.teapot.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.teapot.indexCount, 1, 0, 0, 0);
-
-            // Sphere
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sphere, nullptr);
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.sphere.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.sphere.indexCount, 1, 0, 0, 0);
-
-            // Occluder
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.occluder);
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.plane.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.plane.indexCount, 1, 0, 0, 0);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-        }
+        // Occluder
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.occluder);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.plane.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.plane.indexCount, 1, 0, 0, 0);
     }
 
     void draw() override {
         prepareFrame();
 
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-        queue.submit(submitInfo, VK_NULL_HANDLE);
+        drawCurrentCommandBuffer();
 
         // Read query results for displaying in next frame
         getQueryResults();
@@ -294,13 +266,13 @@ public:
         vertices.attributeDescriptions.resize(3);
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0,  vk::Format::eR32G32B32Sfloat, 0);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
         // Location 1 : Normal
         vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
         // Location 3 : Color
         vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 6);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 6);
 
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -502,7 +474,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSets();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 

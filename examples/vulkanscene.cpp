@@ -98,48 +98,21 @@ public:
         textures.skybox = textureLoader->loadCubemap(getAssetPath() + "textures/cubemap_vulkan.ktx", vk::Format::eR8G8B8A8Unorm);
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-
-            vk::DeviceSize offsets = 0;
-            for (auto& mesh : meshes) {
-                drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, mesh->pipeline);
-                drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, mesh->vertexBuffer.buf, offsets);
-                drawCmdBuffers[i].bindIndexBuffer(mesh->indexBuffer.buf, 0, vk::IndexType::eUint32);
-                drawCmdBuffers[i].drawIndexed(mesh->indexBuffer.count, 1, 0, 0, 0);
-            }
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
-
+        vk::DeviceSize offsets = 0;
+        for (auto& mesh : meshes) {
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, mesh->pipeline);
+            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, mesh->vertexBuffer.buf, offsets);
+            cmdBuffer.bindIndexBuffer(mesh->indexBuffer.buf, 0, vk::IndexType::eUint32);
+            cmdBuffer.drawIndexed(mesh->indexBuffer.count, 1, 0, 0, 0);
         }
     }
 
@@ -200,8 +173,8 @@ public:
                     }
 
                     vertexBuffer.push_back(vert);
-                }
-            }
+    }
+}
             auto result = createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
             mesh->vertexBuffer.buf = result.buffer;
             mesh->vertexBuffer.mem = result.memory;
@@ -229,16 +202,16 @@ public:
         // Location 0 : Position
         demoMeshes.attributeDescriptions.resize(4);
         demoMeshes.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0,  vk::Format::eR32G32B32Sfloat, 0);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
         // Location 1 : Normal
         demoMeshes.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
         // Location 2 : Texture coordinates
         demoMeshes.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2,  vk::Format::eR32G32Sfloat, sizeof(float) * 6);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
         // Location 3 : Color
         demoMeshes.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
 
         demoMeshes.inputState.vertexBindingDescriptionCount = demoMeshes.bindingDescriptions.size();
         demoMeshes.inputState.pVertexBindingDescriptions = demoMeshes.bindingDescriptions.data();
@@ -435,7 +408,6 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        buildCommandBuffers();
         prepared = true;
     }
 

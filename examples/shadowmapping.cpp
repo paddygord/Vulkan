@@ -113,9 +113,9 @@ public:
         FrameBufferAttachment color, depth;
         vk::RenderPass renderPass;
         vkx::Texture textureTarget;
-    } offScreenFrameBuf;
+    } offscreenFrameBuf;
 
-    vk::CommandBuffer offScreenCmdBuffer;
+    vk::CommandBuffer offscreenCmdBuffer;
 
     // vk::Semaphore used to synchronize offscreen rendering before using it's texture target for sampling
     vk::Semaphore offscreenSemaphore;
@@ -132,18 +132,18 @@ public:
         // Note : Inherited destructor cleans up resources stored in base class
 
         // Texture target
-        offScreenFrameBuf.textureTarget.destroy();
+        offscreenFrameBuf.textureTarget.destroy();
 
         // Frame buffer
-        device.destroyFramebuffer(offScreenFrameBuf.frameBuffer);
+        device.destroyFramebuffer(offscreenFrameBuf.frameBuffer);
 
         // Color attachment
-        offScreenFrameBuf.color.destroy();
+        offscreenFrameBuf.color.destroy();
 
         // Depth attachment
-        offScreenFrameBuf.depth.destroy();
+        offscreenFrameBuf.depth.destroy();
 
-        device.destroyRenderPass(offScreenFrameBuf.renderPass);
+        device.destroyRenderPass(offscreenFrameBuf.renderPass);
 
         device.destroyPipeline(pipelines.quad);
         device.destroyPipeline(pipelines.offscreen);
@@ -162,7 +162,7 @@ public:
         uniformDataVS.destroy();
         uniformDataOffscreenVS.destroy();
 
-        device.freeCommandBuffers(cmdPool, offScreenCmdBuffer);
+        device.freeCommandBuffers(cmdPool, offscreenCmdBuffer);
         device.destroySemaphore(offscreenSemaphore);
     }
 
@@ -176,8 +176,8 @@ public:
         assert(formatProperties.optimalTilingFeatures &  vk::FormatFeatureFlagBits::eDepthStencilAttachment);
 
         // Prepare blit target texture
-        offScreenFrameBuf.textureTarget.extent.width = width;
-        offScreenFrameBuf.textureTarget.extent.height = height;
+        offscreenFrameBuf.textureTarget.extent.width = width;
+        offscreenFrameBuf.textureTarget.extent.height = height;
 
         vk::ImageCreateInfo imageCreateInfo;
         imageCreateInfo.imageType = vk::ImageType::e2D;
@@ -191,17 +191,17 @@ public:
         imageCreateInfo.initialLayout = vk::ImageLayout::eTransferDstOptimal;
         imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
 
-        offScreenFrameBuf.textureTarget = createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+        offscreenFrameBuf.textureTarget = createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-        offScreenFrameBuf.textureTarget.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        offscreenFrameBuf.textureTarget.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
         withPrimaryCommandBuffer([&](const vk::CommandBuffer& layoutCmd) {
             vkx::setImageLayout(
                 layoutCmd,
-                offScreenFrameBuf.textureTarget.image,
+                offscreenFrameBuf.textureTarget.image,
                 vk::ImageAspectFlagBits::eDepth,
                 vk::ImageLayout::ePreinitialized,
-                offScreenFrameBuf.textureTarget.imageLayout);
+                offscreenFrameBuf.textureTarget.imageLayout);
         });
 
         // Create sampler
@@ -219,7 +219,7 @@ public:
             sampler.minLod = 0.0f;
             sampler.maxLod = 1.0f;
             sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-            offScreenFrameBuf.textureTarget.sampler = device.createSampler(sampler);
+            offscreenFrameBuf.textureTarget.sampler = device.createSampler(sampler);
         }
 
         // Create image view
@@ -229,8 +229,8 @@ public:
             view.format = format;
             view.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
             view.subresourceRange = { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 };
-            view.image = offScreenFrameBuf.textureTarget.image;
-            offScreenFrameBuf.textureTarget.view = device.createImageView(view);
+            view.image = offscreenFrameBuf.textureTarget.image;
+            offscreenFrameBuf.textureTarget.view = device.createImageView(view);
         }
     }
 
@@ -282,12 +282,12 @@ public:
         renderPassCreateInfo.subpassCount = 1;
         renderPassCreateInfo.pSubpasses = &subpass;
 
-        offScreenFrameBuf.renderPass = device.createRenderPass(renderPassCreateInfo);
+        offscreenFrameBuf.renderPass = device.createRenderPass(renderPassCreateInfo);
     }
 
     void prepareOffscreenFramebuffer() {
-        offScreenFrameBuf.width = FB_DIM;
-        offScreenFrameBuf.height = FB_DIM;
+        offscreenFrameBuf.width = FB_DIM;
+        offscreenFrameBuf.height = FB_DIM;
 
         vk::Format fbColorFormat = FB_COLOR_FORMAT;
 
@@ -295,8 +295,8 @@ public:
         vk::ImageCreateInfo image;
         image.imageType = vk::ImageType::e2D;
         image.format = fbColorFormat;
-        image.extent.width = offScreenFrameBuf.width;
-        image.extent.height = offScreenFrameBuf.height;
+        image.extent.width = offscreenFrameBuf.width;
+        image.extent.height = offscreenFrameBuf.height;
         image.extent.depth = 1;
         image.mipLevels = 1;
         image.arrayLayers = 1;
@@ -305,24 +305,24 @@ public:
         // vk::Image of the framebuffer is blit source
         image.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc;
 
-        offScreenFrameBuf.color = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
+        offscreenFrameBuf.color = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
         // Depth stencil attachment
         image.format = DEPTH_FORMAT;
         image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferSrc;
-        offScreenFrameBuf.depth = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
+        offscreenFrameBuf.depth = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
 
 
         withPrimaryCommandBuffer([&](const vk::CommandBuffer& layoutCmd) {
             vkx::setImageLayout(
                 layoutCmd,
-                offScreenFrameBuf.color.image,
+                offscreenFrameBuf.color.image,
                 vk::ImageAspectFlagBits::eColor,
                 vk::ImageLayout::eUndefined,
                 vk::ImageLayout::eColorAttachmentOptimal);
             vkx::setImageLayout(
                 layoutCmd,
-                offScreenFrameBuf.depth.image,
+                offscreenFrameBuf.depth.image,
                 vk::ImageAspectFlagBits::eDepth,
                 vk::ImageLayout::eUndefined,
                 vk::ImageLayout::eDepthStencilAttachmentOptimal);
@@ -334,8 +334,8 @@ public:
             colorImageView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
             colorImageView.subresourceRange.levelCount = 1;
             colorImageView.subresourceRange.layerCount = 1;
-            colorImageView.image = offScreenFrameBuf.color.image;
-            offScreenFrameBuf.color.view = device.createImageView(colorImageView);
+            colorImageView.image = offscreenFrameBuf.color.image;
+            offscreenFrameBuf.color.view = device.createImageView(colorImageView);
         }
 
         {
@@ -345,36 +345,36 @@ public:
             depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
             depthStencilView.subresourceRange.levelCount = 1;
             depthStencilView.subresourceRange.layerCount = 1;
-            depthStencilView.image = offScreenFrameBuf.depth.image;
-            offScreenFrameBuf.depth.view = device.createImageView(depthStencilView);
+            depthStencilView.image = offscreenFrameBuf.depth.image;
+            offscreenFrameBuf.depth.view = device.createImageView(depthStencilView);
         }
 
         setupOffScreenRenderPass();
 
         {
             vk::ImageView attachments[2];
-            attachments[0] = offScreenFrameBuf.color.view;
-            attachments[1] = offScreenFrameBuf.depth.view;
+            attachments[0] = offscreenFrameBuf.color.view;
+            attachments[1] = offscreenFrameBuf.depth.view;
 
             // Create frame buffer
             vk::FramebufferCreateInfo fbufCreateInfo;
-            fbufCreateInfo.renderPass = offScreenFrameBuf.renderPass;
+            fbufCreateInfo.renderPass = offscreenFrameBuf.renderPass;
             fbufCreateInfo.attachmentCount = 2;
             fbufCreateInfo.pAttachments = attachments;
-            fbufCreateInfo.width = offScreenFrameBuf.width;
-            fbufCreateInfo.height = offScreenFrameBuf.height;
+            fbufCreateInfo.width = offscreenFrameBuf.width;
+            fbufCreateInfo.height = offscreenFrameBuf.height;
             fbufCreateInfo.layers = 1;
 
-            offScreenFrameBuf.frameBuffer = device.createFramebuffer(fbufCreateInfo);
+            offscreenFrameBuf.frameBuffer = device.createFramebuffer(fbufCreateInfo);
         }
     }
 
     void buildOffscreenCommandBuffer() {
         // Create separate command buffer for offscreen 
         // rendering
-        if (!offScreenCmdBuffer) {
+        if (!offscreenCmdBuffer) {
             vk::CommandBufferAllocateInfo cmd = vkx::commandBufferAllocateInfo(cmdPool, vk::CommandBufferLevel::ePrimary, 1);
-            offScreenCmdBuffer = device.allocateCommandBuffers(cmd)[0];
+            offscreenCmdBuffer = device.allocateCommandBuffers(cmd)[0];
         }
 
         // Create a semaphore used to synchronize offscreen rendering and usage
@@ -388,97 +388,69 @@ public:
         clearValues[1].depthStencil = { 1.0f, 0 };
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = offScreenFrameBuf.renderPass;
-        renderPassBeginInfo.framebuffer = offScreenFrameBuf.frameBuffer;
+        renderPassBeginInfo.renderPass = offscreenFrameBuf.renderPass;
+        renderPassBeginInfo.framebuffer = offscreenFrameBuf.frameBuffer;
         renderPassBeginInfo.renderArea.offset.x = 0;
         renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = offScreenFrameBuf.width;
-        renderPassBeginInfo.renderArea.extent.height = offScreenFrameBuf.height;
+        renderPassBeginInfo.renderArea.extent.width = offscreenFrameBuf.width;
+        renderPassBeginInfo.renderArea.extent.height = offscreenFrameBuf.height;
         renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
 
-        offScreenCmdBuffer.begin(cmdBufInfo);
+        offscreenCmdBuffer.begin(cmdBufInfo);
 
-        vk::Viewport viewport = vkx::viewport((float)offScreenFrameBuf.width, (float)offScreenFrameBuf.height, 0.0f, 1.0f);
-        offScreenCmdBuffer.setViewport(0, viewport);
+        vk::Viewport viewport = vkx::viewport((float)offscreenFrameBuf.width, (float)offscreenFrameBuf.height, 0.0f, 1.0f);
+        offscreenCmdBuffer.setViewport(0, viewport);
 
-        vk::Rect2D scissor = vkx::rect2D(offScreenFrameBuf.width, offScreenFrameBuf.height, 0, 0);
-        offScreenCmdBuffer.setScissor(0, scissor);
+        vk::Rect2D scissor = vkx::rect2D(offscreenFrameBuf.width, offscreenFrameBuf.height, 0, 0);
+        offscreenCmdBuffer.setScissor(0, scissor);
 
         // Set depth bias (aka "Polygon offset")
-        offScreenCmdBuffer.setDepthBias(depthBiasConstant, 0.0f, depthBiasSlope);
+        offscreenCmdBuffer.setDepthBias(depthBiasConstant, 0.0f, depthBiasSlope);
 
-        offScreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        offscreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
-        offScreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
-        offScreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
+        offscreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
+        offscreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
 
         vk::DeviceSize offsets = 0;
-        offScreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, offsets);
-        offScreenCmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
-        offScreenCmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
+        offscreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, offsets);
+        offscreenCmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
+        offscreenCmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
 
-        offScreenCmdBuffer.endRenderPass();
+        offscreenCmdBuffer.endRenderPass();
 
         updateTexture();
 
-        offScreenCmdBuffer.end();
+        offscreenCmdBuffer.end();
     }
 
-    void buildCommandBuffers() {
-        vk::CommandBufferBeginInfo cmdBufInfo;
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
 
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = defaultClearColor;
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
+        cmdBuffer.setScissor(0, scissor);
 
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
+        vk::DeviceSize offsets = 0;
 
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = frameBuffers[i];
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.quad, 0, descriptorSet, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.quad);
 
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-            drawCmdBuffers[i].setViewport(0, viewport);
-
-            vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-            drawCmdBuffers[i].setScissor(0, scissor);
-
-            vk::DeviceSize offsets = 0;
-
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.quad, 0, descriptorSet, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.quad);
-
-            // Visualize shadow map
-            if (displayShadowMap) {
-                drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
-                drawCmdBuffers[i].bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-                drawCmdBuffers[i].drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
-            }
-
-            // 3D scene
-            drawCmdBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.quad, 0, descriptorSets.scene, nullptr);
-            drawCmdBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.scene);
-
-            drawCmdBuffers[i].bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, offsets);
-            drawCmdBuffers[i].bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
-            drawCmdBuffers[i].drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
-
-            drawCmdBuffers[i].endRenderPass();
-
-            drawCmdBuffers[i].end();
+        // Visualize shadow map
+        if (displayShadowMap) {
+            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
+            cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
+            cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
         }
+
+        // 3D scene
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.quad, 0, descriptorSets.scene, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.scene);
+
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
     }
 
     void draw() override {
@@ -494,25 +466,12 @@ public:
         submitInfo.pSignalSemaphores = &offscreenSemaphore;
 
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &offScreenCmdBuffer;
+        submitInfo.pCommandBuffers = &offscreenCmdBuffer;
 
         queue.submit(submitInfo, VK_NULL_HANDLE);
 
         // Submit current render command buffer
-
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-
-        // Wait for offscreen semaphore
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &offscreenSemaphore;
-        // Signal ready with render complete semaphpre
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = &semaphores.renderComplete;
-
-        // Submit to queue
-        queue.submit(submitInfo, VK_NULL_HANDLE);
-
+        drawCurrentCommandBuffer(offscreenSemaphore);
         submitFrame();
     }
 
@@ -626,7 +585,7 @@ public:
 
         // vk::Image descriptor for the shadow map texture
         vk::DescriptorImageInfo texDescriptor =
-            vkx::descriptorImageInfo(offScreenFrameBuf.textureTarget.sampler, offScreenFrameBuf.textureTarget.view, vk::ImageLayout::eGeneral);
+            vkx::descriptorImageInfo(offscreenFrameBuf.textureTarget.sampler, offscreenFrameBuf.textureTarget.view, vk::ImageLayout::eGeneral);
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
         {
@@ -649,7 +608,7 @@ public:
         // Offscreen
         descriptorSets.offscreen = device.allocateDescriptorSets(allocInfo)[0];
 
-        std::vector<vk::WriteDescriptorSet> offScreenWriteDescriptorSets =
+        std::vector<vk::WriteDescriptorSet> offscreenWriteDescriptorSets =
         {
             // Binding 0 : Vertex shader uniform buffer
             vkx::writeDescriptorSet(
@@ -658,14 +617,14 @@ public:
                 0,
                 &uniformDataOffscreenVS.descriptor),
         };
-        device.updateDescriptorSets(offScreenWriteDescriptorSets.size(), offScreenWriteDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(offscreenWriteDescriptorSets.size(), offscreenWriteDescriptorSets.data(), 0, NULL);
 
         // 3D scene
         descriptorSets.scene = device.allocateDescriptorSets(allocInfo)[0];
 
         // vk::Image descriptor for the shadow map texture
-        texDescriptor.sampler = offScreenFrameBuf.textureTarget.sampler;
-        texDescriptor.imageView = offScreenFrameBuf.textureTarget.view;
+        texDescriptor.sampler = offscreenFrameBuf.textureTarget.sampler;
+        texDescriptor.imageView = offscreenFrameBuf.textureTarget.view;
 
         std::vector<vk::WriteDescriptorSet> sceneDescriptorSets =
         {
@@ -835,16 +794,16 @@ public:
     void updateTexture() {
         // Make sure color writes to the framebuffer are finished before using it as transfer source
         vkx::setImageLayout(
-            offScreenCmdBuffer,
-            offScreenFrameBuf.depth.image,
+            offscreenCmdBuffer,
+            offscreenFrameBuf.depth.image,
             vk::ImageAspectFlagBits::eDepth,
             vk::ImageLayout::eDepthStencilAttachmentOptimal,
             vk::ImageLayout::eTransferSrcOptimal);
 
         // Transform texture target to transfer source
         vkx::setImageLayout(
-            offScreenCmdBuffer,
-            offScreenFrameBuf.textureTarget.image,
+            offscreenCmdBuffer,
+            offscreenFrameBuf.textureTarget.image,
             vk::ImageAspectFlagBits::eDepth,
             vk::ImageLayout::eShaderReadOnlyOptimal,
             vk::ImageLayout::eTransferDstOptimal);
@@ -861,12 +820,12 @@ public:
         imgCopy.extent.height = TEX_DIM;
         imgCopy.extent.depth = 1;
 
-        offScreenCmdBuffer.copyImage(offScreenFrameBuf.depth.image, vk::ImageLayout::eTransferSrcOptimal, offScreenFrameBuf.textureTarget.image, vk::ImageLayout::eTransferDstOptimal, imgCopy);
+        offscreenCmdBuffer.copyImage(offscreenFrameBuf.depth.image, vk::ImageLayout::eTransferSrcOptimal, offscreenFrameBuf.textureTarget.image, vk::ImageLayout::eTransferDstOptimal, imgCopy);
 
         // Transform framebuffer color attachment back 
         vkx::setImageLayout(
-            offScreenCmdBuffer,
-            offScreenFrameBuf.depth.image,
+            offscreenCmdBuffer,
+            offscreenFrameBuf.depth.image,
             vk::ImageAspectFlagBits::eDepth,
             vk::ImageLayout::eTransferSrcOptimal,
             vk::ImageLayout::eDepthStencilAttachmentOptimal);
@@ -875,8 +834,8 @@ public:
         // Makes sure that writes to the textuer are finished before
         // it's accessed in the shader
         vkx::setImageLayout(
-            offScreenCmdBuffer,
-            offScreenFrameBuf.textureTarget.image,
+            offscreenCmdBuffer,
+            offscreenFrameBuf.textureTarget.image,
             vk::ImageAspectFlagBits::eDepth,
             vk::ImageLayout::eTransferDstOptimal,
             vk::ImageLayout::eShaderReadOnlyOptimal);
@@ -894,7 +853,7 @@ public:
         setupDescriptorPool();
         setupDescriptorSets();
         prepareOffscreenFramebuffer();
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
         buildOffscreenCommandBuffer();
         prepared = true;
     }
@@ -919,7 +878,7 @@ public:
 
     void toggleShadowMapDisplay() {
         displayShadowMap = !displayShadowMap;
-        buildCommandBuffers();
+        updateDrawCommandBuffers();
     }
 
     void toogleLightPOV() {
