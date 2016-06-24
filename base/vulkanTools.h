@@ -8,10 +8,7 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <algorithm>
-#include <vulkan/vk_cpp.hpp>
-#include <glm/glm.hpp>
+#include "common.hpp"
 
 // Default fence timeout in nanoseconds
 #define DEFAULT_FENCE_TIMEOUT 100000000000
@@ -175,8 +172,14 @@ namespace vkx {
         float height,
         float minDepth = 0,
         float maxDepth = 1);
+
     vk::Viewport viewport(
         const glm::uvec2& size,
+        float minDepth = 0,
+        float maxDepth = 1);
+
+    vk::Viewport viewport(
+        const vk::Extent2D& size,
         float minDepth = 0,
         float maxDepth = 1);
 
@@ -189,6 +192,10 @@ namespace vkx {
     vk::Rect2D rect2D(
         const glm::uvec2& size,
         const glm::ivec2& offset = glm::ivec2(0));
+
+    vk::Rect2D rect2D(
+        const vk::Extent2D& size,
+        const vk::Offset2D& offset = vk::Offset2D());
 
     vk::BufferCreateInfo bufferCreateInfo(
         vk::BufferUsageFlags usage,

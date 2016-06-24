@@ -11,71 +11,57 @@
 
 #pragma once
 
-#include <stdlib.h>
-#include <string>
-#include <fstream>
-#include <assert.h>
-#include <stdio.h>
-#include <vector>
-#ifdef _WIN32
-#include <windows.h>
-#include <fcntl.h>
-#include <io.h>
-#else
-#endif
-
-#include <vulkan/vulkan.h>
+#include "common.hpp"
 #include "vulkanTools.h"
 
-#ifdef __ANDROID__
-#include "vulkanAndroid.h"
-#endif
-
 namespace vkx {
-    typedef struct SwapChainImage {
+    struct SwapChainImage {
         vk::Image image;
         vk::ImageView view;
-    } SwapChainBuffer;
+        vk::Fence fence;
+    };
 
     class SwapChain {
     private:
-        vkx::Context context;
+        const vkx::Context& context;
         vk::SurfaceKHR surface;
+        vk::SwapchainKHR swapChain;
+        std::vector<SwapChainImage> images;
+        vk::PresentInfoKHR presentInfo;
+
     public:
-        std::vector<SwapChainBuffer> buffers;
         vk::Format colorFormat;
         vk::ColorSpaceKHR colorSpace;
-        vk::SwapchainKHR swapChain;
-
         uint32_t imageCount{ 0 };
-
+        uint32_t currentImage{ 0 };
         // Index of the deteced graphics and presenting device queue
         uint32_t queueNodeIndex = UINT32_MAX;
 
-        // Creates an os specific surface
-        // Tries to find a graphics and a present queue
-        void initSurface(
-#ifdef _WIN32
-            void* platformHandle, void* platformWindow
-#else
+        SwapChain(const vkx::Context& context) : context(context) {
+            presentInfo.swapchainCount = 1;
+            presentInfo.pSwapchains = &swapChain;
+            presentInfo.pImageIndices = &currentImage;
+        }
+
+        void createSurface(
 #ifdef __ANDROID__
             ANativeWindow* window
 #else
             GLFWwindow* window
 #endif
-#endif
-            ) {
+        ) {
             // Create surface depending on OS
-#ifdef _WIN32
-            vk::Win32SurfaceCreateInfoKHR surfaceCreateInfo;
-            surfaceCreateInfo.hinstance = (HINSTANCE)platformHandle;
-            surfaceCreateInfo.hwnd = (HWND)platformWindow;
-            surface = context.instance.createWin32SurfaceKHR(surfaceCreateInfo);
-#else
 #ifdef __ANDROID__
             vk::AndroidSurfaceCreateInfoKHR surfaceCreateInfo;
             surfaceCreateInfo.window = window;
             surface = instance.createAndroidSurfaceKHR(surfaceCreateInfo);
+#else
+#ifdef WIN32
+            // Create surface depending on OS
+            vk::Win32SurfaceCreateInfoKHR surfaceCreateInfo;
+            surfaceCreateInfo.hinstance = GetModuleHandle(NULL);
+            surfaceCreateInfo.hwnd = glfwGetWin32Window(window);
+            surface = context.instance.createWin32SurfaceKHR(surfaceCreateInfo);
 #else
             //vk::XcbSurfaceCreateInfoKHR surfaceCreateInfo;
             //surfaceCreateInfo.connection = connection;
@@ -91,9 +77,6 @@ namespace vkx {
             surface = vk_surf;
 #endif
 #endif
-
-            // Find a queue for both present and graphics
-            queueNodeIndex = context.findQueue(vk::QueueFlagBits::eGraphics, surface);
 
             // Get list of supported surface formats
             std::vector<vk::SurfaceFormatKHR> surfaceFormats = context.physicalDevice.getSurfaceFormatsKHR(surface);
@@ -112,16 +95,20 @@ namespace vkx {
                 colorFormat = surfaceFormats[0].format;
             }
             colorSpace = surfaceFormats[0].colorSpace;
+
+            // Find a queue for both present and graphics
+            queueNodeIndex = context.findQueue(vk::QueueFlagBits::eGraphics, surface);
         }
 
-        // Connect to the instance und device and get all required function pointers
-        void connect(vkx::Context& context) {
-            this->context = context;
-        }
-
-        // Create the swap chain and get images with given width and height
-        void create(uint32_t *width, uint32_t *height) {
+        // Creates an os specific surface
+        // Tries to find a graphics and a present queue
+        void create(
+            vk::Extent2D& size
+        ) {
+            assert(surface);
+            assert(queueNodeIndex != UINT32_MAX);
             vk::SwapchainKHR oldSwapchain = swapChain;
+            currentImage = 0;
 
             // Get physical device surface properties and formats
             vk::SurfaceCapabilitiesKHR surfCaps = context.physicalDevice.getSurfaceCapabilitiesKHR(surface);
@@ -134,13 +121,11 @@ namespace vkx {
             if (surfCaps.currentExtent.width == -1) {
                 // If the surface size is undefined, the size is set to
                 // the size of the images requested.
-                swapchainExtent.width = *width;
-                swapchainExtent.height = *height;
+                swapchainExtent = size;
             } else {
                 // If the surface size is defined, the swap chain size must match
                 swapchainExtent = surfCaps.currentExtent;
-                *width = surfCaps.currentExtent.width;
-                *height = surfCaps.currentExtent.height;
+                size = surfCaps.currentExtent;
             }
 
             // Prefer mailbox mode if present, it's the lowest latency non-tearing present  mode
@@ -168,9 +153,7 @@ namespace vkx {
                 preTransform = surfCaps.currentTransform;
             }
 
-
-            auto imageFormat = context.physicalDevice.getImageFormatProperties(colorFormat, vk::ImageType::e2D, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eColorAttachment, vk::ImageCreateFlags());
-
+            //auto imageFormat = context.physicalDevice.getImageFormatProperties(colorFormat, vk::ImageType::e2D, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eColorAttachment, vk::ImageCreateFlags());
             vk::SwapchainCreateInfoKHR swapchainCI;
             swapchainCI.surface = surface;
             swapchainCI.minImageCount = desiredNumberOfSwapchainImages;
@@ -195,7 +178,7 @@ namespace vkx {
             // This also cleans up all the presentable images
             if (oldSwapchain) {
                 for (uint32_t i = 0; i < imageCount; i++) {
-                    context.device.destroyImageView(buffers[i].view);
+                    context.device.destroyImageView(images[i].view);
                 }
                 context.device.destroySwapchainKHR(oldSwapchain);
             }
@@ -208,14 +191,16 @@ namespace vkx {
             colorAttachmentView.viewType = vk::ImageViewType::e2D;
 
             // Get the swap chain images
-            auto images = context.device.getSwapchainImagesKHR(swapChain);
-            imageCount = (uint32_t)images.size();
+            auto swapChainImages = context.device.getSwapchainImagesKHR(swapChain);
+            imageCount = (uint32_t)swapChainImages.size();
 
             // Get the swap chain buffers containing the image and imageview
-            buffers.resize(imageCount);
+            images.resize(imageCount);
             for (uint32_t i = 0; i < imageCount; i++) {
-                buffers[i].image = images[i];
-                buffers[i].view = context.device.createImageView(colorAttachmentView.setImage(images[i]));
+                images[i].image = swapChainImages[i];
+                colorAttachmentView.image = swapChainImages[i];
+                images[i].view = context.device.createImageView(colorAttachmentView);
+                images[i].fence = vk::Fence();
             }
         }
 
@@ -234,7 +219,7 @@ namespace vkx {
             std::vector<vk::Framebuffer> framebuffers;
             framebuffers.resize(imageCount);
             for (uint32_t i = 0; i < imageCount; i++) {
-                attachments[0] = buffers[i].view;
+                attachments[0] = images[i].view;
                 framebuffers[i] = context.device.createFramebuffer(framebufferCreateInfo);
             }
             return framebuffers;
@@ -250,32 +235,42 @@ namespace vkx {
                 throw std::error_code(result);
             }
 
-            return resultValue.value;
+            currentImage = resultValue.value;
+            return currentImage;
+        }
+        
+        void clearSubmitFence(uint32_t index) {
+            images[index].fence = vk::Fence();
+        }
+
+        vk::Fence getSubmitFence() {
+            auto& image = images[currentImage];
+            while (image.fence) {
+                vk::Result fenceRes = context.device.waitForFences(image.fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
+                if (fenceRes == vk::Result::eSuccess) {
+                    image.fence = vk::Fence();
+                }
+            }
+
+            image.fence = context.device.createFence(vk::FenceCreateFlags());
+            return image.fence;
         }
 
         // Present the current image to the queue
-        vk::Result queuePresent(vk::Queue queue, uint32_t currentBuffer, vk::Semaphore waitSemaphore) {
-            vk::PresentInfoKHR presentInfo;
-            presentInfo.swapchainCount = 1;
-            presentInfo.pSwapchains = &swapChain;
-            presentInfo.pImageIndices = &currentBuffer;
-            if (waitSemaphore) {
-                presentInfo.pWaitSemaphores = &waitSemaphore;
-                presentInfo.waitSemaphoreCount = 1;
-            }
-            return queue.presentKHR(presentInfo);
+        vk::Result queuePresent(vk::Semaphore waitSemaphore) {
+            presentInfo.waitSemaphoreCount = waitSemaphore ? 1 : 0;
+            presentInfo.pWaitSemaphores = &waitSemaphore;
+            return context.queue.presentKHR(presentInfo);
         }
-
 
         // Free all Vulkan resources used by the swap chain
         void cleanup() {
             for (uint32_t i = 0; i < imageCount; i++) {
-                context.device.destroyImageView(buffers[i].view);
+                context.device.destroyImageView(images[i].view);
             }
             context.device.destroySwapchainKHR(swapChain);
             context.instance.destroySurfaceKHR(surface);
         }
-
     };
 }
 

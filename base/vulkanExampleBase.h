@@ -70,6 +70,10 @@ namespace vkx {
             }
             trashCommandBuffers(primaryCmdBuffers);
 
+            // FIXME find a better way to ensure that the draw and text buffers are no longer in use before 
+            // executing them within this command buffer.
+            queue.waitIdle();
+
             // Destroy command buffers if already present
             if (primaryCmdBuffers.empty()) {
                 // Create one command buffer per image in the swap chain
@@ -92,10 +96,7 @@ namespace vkx {
 
             vk::RenderPassBeginInfo renderPassBeginInfo;
             renderPassBeginInfo.renderPass = renderPass;
-            renderPassBeginInfo.renderArea.offset.x = 0;
-            renderPassBeginInfo.renderArea.offset.y = 0;
-            renderPassBeginInfo.renderArea.extent.width = width;
-            renderPassBeginInfo.renderArea.extent.height = height;
+            renderPassBeginInfo.renderArea.extent = size;
             renderPassBeginInfo.clearValueCount = 2;
             renderPassBeginInfo.pClearValues = clearValues;
             for (size_t i = 0; i < swapChain.imageCount; ++i) {
@@ -154,7 +155,7 @@ namespace vkx {
         // Synchronization semaphores
         struct {
             // Swap chain image presentation
-            vk::Semaphore presentComplete;
+            vk::Semaphore acquireComplete;
             // Command buffer submission and execution
             vk::Semaphore renderComplete;
         } semaphores;
@@ -180,8 +181,7 @@ namespace vkx {
         vk::CommandPool cmdPool;
 
         bool prepared = false;
-        uint32_t width = 1280;
-        uint32_t height = 720;
+        vk::Extent2D size{ 1280, 720 };
 
         VK_CLEAR_COLOR_TYPE defaultClearColor = clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
 
@@ -203,7 +203,7 @@ namespace vkx {
         // Use to adjust mouse zoom speed
         float zoomSpeed = 1.0f;
 
-        glm::vec3 rotation = glm::vec3();
+        glm::quat orientation;
         glm::vec3 cameraPos = glm::vec3();
         glm::vec2 mousePos;
 
@@ -272,15 +272,41 @@ namespace vkx {
         // Can be overriden in derived class to setup a custom render pass (e.g. for MSAA)
         virtual void setupRenderPass();
 
-        void trashCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers) {
-            if (cmdBuffers.empty()) {
+        template<typename T>
+        void trash(T& value, std::function<void(const T& t)> destructor) {
+            T trashedValue;
+            std::swap(trashedValue, value);
+            dumpster.push_back([trashedValue, destructor] {
+                destructor(trashedValue);
+            });
+        }
+
+        template<typename T>
+        void trash(std::vector<T>& values, std::function<void(const std::vector<T>& t)> destructor) {
+            if (values.empty()) {
                 return;
             }
-            std::vector<vk::CommandBuffer> trashCmdBuffers;
-            trashCmdBuffers.swap(cmdBuffers);
-            dumpster.push_back([trashCmdBuffers, this] {
-                device.freeCommandBuffers(getCommandPool(), trashCmdBuffers);
+            std::vector<T> trashedValues;
+            trashedValues.swap(values);
+            dumpster.push_back([trashedValues, destructor] {
+                destructor(trashedValues);
             });
+        }
+
+        void trashCommandBuffer(vk::CommandBuffer& cmdBuffer) {
+            std::function<void(const vk::CommandBuffer& t)> destructor = 
+                [this](const vk::CommandBuffer& cmdBuffer) {
+                    device.freeCommandBuffers(getCommandPool(), cmdBuffer);
+                };
+            trash(cmdBuffer, destructor);
+        }
+
+        void trashCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers) {
+            std::function<void(const std::vector<vk::CommandBuffer>& t)> destructor = 
+                [this](const std::vector<vk::CommandBuffer>& cmdBuffers) {
+                    device.freeCommandBuffers(getCommandPool(), cmdBuffers);
+                };
+            trash(cmdBuffers, destructor);
         }
 
         void populateSubCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers, std::function<void(const vk::CommandBuffer& commandBuffer)> f) {
@@ -296,7 +322,7 @@ namespace vkx {
             inheritance.renderPass = renderPass;
             inheritance.subpass = 0;
             vk::CommandBufferBeginInfo beginInfo;
-            beginInfo.flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue;
+            beginInfo.flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse;
             beginInfo.pInheritanceInfo = &inheritance;
             for (size_t i = 0; i < swapChain.imageCount; ++i) {
                 inheritance.framebuffer = framebuffers[i];
@@ -323,8 +349,6 @@ namespace vkx {
         // all command buffers that may reference this
         virtual void updateDrawCommandBuffer(const vk::CommandBuffer& drawCommand) = 0;
 
-        // Connect and prepare the swap chain
-        void initSwapchain();
         // Create swap chain images
         void setupSwapChain();
 
@@ -370,6 +394,14 @@ namespace vkx {
         // - Submits the text overlay (if enabled)
         // - 
         void submitFrame();
+
+        virtual glm::mat4 getProjection() {
+            return glm::perspective(glm::radians(60.0f), (float)size.width / (float)size.height, 0.001f, 256.0f);
+        }
+
+        virtual glm::mat4 getCamera() {
+            return glm::translate(glm::mat4(), glm::vec3(cameraPos.x, cameraPos.y, zoom)) * glm::mat4_cast(orientation);
+        }
 
         static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);
         static void MouseHandler(GLFWwindow* window, int button, int action, int mods);

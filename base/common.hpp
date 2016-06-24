@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vulkan/vk_cpp.hpp>
-
 #if defined(__ANDROID__)
 #include <android/native_activity.h>
 #include <android/asset_manager.h>
@@ -14,6 +12,7 @@
 #define GLFW_EXPOSE_NATIVE_X11 1
 #define GLFW_EXPOSE_NATIVE_GLX 1
 #endif
+// Cross platform window creation
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 #endif
@@ -22,6 +21,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 
@@ -36,6 +36,7 @@
 #include <list>
 #include <random>
 #include <string>
+#include <fstream>
 #include <sstream>
 #include <stdexcept>
 #include <streambuf>
@@ -47,11 +48,20 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 
+using glm::ivec2;
+using glm::uvec2;
+using glm::vec2;
 using glm::vec3;
 using glm::vec4;
 using glm::mat3;
 using glm::mat4;
 using glm::quat;
+
+// Image loading 
+#include <gli/gli.hpp>
+
+// Vulkan!
+#include <vulkan/vk_cpp.hpp>
 
 // Boilerplate for running an example
 #if defined(__ANDROID__)

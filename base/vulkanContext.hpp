@@ -1,11 +1,6 @@
 #pragma once
 
-#include <iostream>
-#include <algorithm>
-
-#include <vulkan/vk_cpp.hpp>
-#include <gli/gli.hpp>
-
+#include "common.hpp"
 #include "vulkanDebug.h"
 #include "vulkanTools.h"
 

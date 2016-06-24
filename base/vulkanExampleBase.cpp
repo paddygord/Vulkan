@@ -11,7 +11,7 @@
 
 using namespace vkx;
 
-ExampleBase::ExampleBase(bool enableValidation) {
+ExampleBase::ExampleBase(bool enableValidation) : swapChain(*this) {
     // Check for validation command line flag
 #if defined(_WIN32)
     for (int32_t i = 0; i < __argc; i++) {
@@ -32,6 +32,15 @@ ExampleBase::ExampleBase(bool enableValidation) {
 }
 
 ExampleBase::~ExampleBase() {
+
+    while (!recycler.empty()) {
+        while (vk::Result::eSuccess != device.getFenceStatus(recycler.front().first)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
+        recycler.front().second();
+        recycler.pop();
+    }
+
     // Clean up Vulkan resources
     swapChain.cleanup();
     if (descriptorPool) {
@@ -67,7 +76,7 @@ ExampleBase::~ExampleBase() {
         delete textOverlay;
     }
 
-    device.destroySemaphore(semaphores.presentComplete);
+    device.destroySemaphore(semaphores.acquireComplete);
     device.destroySemaphore(semaphores.renderComplete);
 
     destroyContext();
@@ -94,10 +103,13 @@ void ExampleBase::run() {
     setupWindow();
 #endif
 #if !defined(__ANDROID__)
-    initSwapchain();
     prepare();
 #endif
     renderLoop();
+
+    // Once we exit the render loop, wait for everything to become idle before proceeding to the descructor.
+    queue.waitIdle();
+    device.waitIdle();
 }
 
 void ExampleBase::initVulkan(bool enableValidation) {
@@ -105,13 +117,11 @@ void ExampleBase::initVulkan(bool enableValidation) {
     // Find a suitable depth format
     depthFormat = getSupportedDepthFormat(physicalDevice);
 
-    swapChain.connect(*this);
-
     // Create synchronization objects
     vk::SemaphoreCreateInfo semaphoreCreateInfo;
     // Create a semaphore used to synchronize image presentation
     // Ensures that the image is displayed before we start submitting new commands to the queu
-    semaphores.presentComplete = device.createSemaphore(semaphoreCreateInfo);
+    semaphores.acquireComplete = device.createSemaphore(semaphoreCreateInfo);
     // Create a semaphore used to synchronize command submission
     // Ensures that the image is not presented until all commands have been sumbitted and executed
     semaphores.renderComplete = device.createSemaphore(semaphoreCreateInfo);
@@ -122,14 +132,14 @@ void ExampleBase::initVulkan(bool enableValidation) {
     submitInfo = vk::SubmitInfo();
     submitInfo.pWaitDstStageMask = &submitPipelineStages;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &semaphores.presentComplete;
+    submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &semaphores.renderComplete;
 }
 
 void ExampleBase::renderLoop() {
-    destWidth = width;
-    destHeight = height;
+    destWidth = size.width;
+    destHeight = size.height;
 #if defined(__ANDROID__)
     while (1) {
         int ident;
@@ -277,8 +287,8 @@ void ExampleBase::prepare() {
         shaderStages.push_back(loadShader(getAssetPath() + "shaders/base/textoverlay.vert.spv", vk::ShaderStageFlagBits::eVertex));
         shaderStages.push_back(loadShader(getAssetPath() + "shaders/base/textoverlay.frag.spv", vk::ShaderStageFlagBits::eFragment));
         textOverlay = new TextOverlay(*this,
-            width,
-            height,
+            size.width,
+            size.height,
             pipelineCache,
             shaderStages,
             renderPass);
@@ -326,7 +336,7 @@ vk::SubmitInfo ExampleBase::prepareSubmitInfo(
     vk::SubmitInfo submitInfo;
     submitInfo.pWaitDstStageMask = pipelineStages;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &semaphores.presentComplete;
+    submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
     submitInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
     submitInfo.pCommandBuffers = commandBuffers.data();
     submitInfo.signalSemaphoreCount = 1;
@@ -364,12 +374,11 @@ void ExampleBase::prepareFrame() {
         buildCommandBuffers();
     }
     // Acquire the next image from the swap chaing
-    currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
+    currentBuffer = swapChain.acquireNextImage(semaphores.acquireComplete);
 }
 
 void ExampleBase::submitFrame() {
-    swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-    queue.waitIdle();
+    swapChain.queuePresent(semaphores.renderComplete);
 }
 
 #if defined(__ANDROID__)
@@ -487,24 +496,27 @@ void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int
 }
 
 void ExampleBase::mouseMoved(double posx, double posy) {
+    glm::vec2 newPos = glm::vec2((float)posx, (float)posy);
+    glm::vec2 deltaPos = mousePos - newPos;
+    if (deltaPos.x == 0 && deltaPos.y == 0) {
+        return;
+    }
     if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT)) {
         zoom += (mousePos.y - (float)posy) * .005f * zoomSpeed;
-        mousePos = glm::vec2((float)posx, (float)posy);
         viewChanged();
     }
     if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)) {
-        rotation.x += (mousePos.y - (float)posy) * 1.25f * rotationSpeed;
-        rotation.y -= (mousePos.x - (float)posx) * 1.25f * rotationSpeed;
-        mousePos = glm::vec2((float)posx, (float)posy);
+        glm::vec3 rotationAxis = glm::normalize(glm::vec3(deltaPos.y, -deltaPos.x, 0));
+        float length = glm::length(deltaPos) * 0.01f;
+        orientation = glm::angleAxis(length, rotationAxis) * orientation;
         viewChanged();
     }
     if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE)) {
         cameraPos.x -= (mousePos.x - (float)posx) * 0.01f;
         cameraPos.y -= (mousePos.y - (float)posy) * 0.01f;
         viewChanged();
-        mousePos.x = (float)posx;
-        mousePos.y = (float)posy;
     }
+    mousePos = newPos;
 }
 
 void ExampleBase::MouseHandler(GLFWwindow* window, int button, int action, int mods) {
@@ -588,6 +600,8 @@ void ExampleBase::setupWindow() {
     if (!window) {
         throw std::runtime_error("Could not create window");
     }
+
+    swapChain.createSurface(window);
 }
 
 #endif
@@ -621,7 +635,7 @@ void ExampleBase::setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer) {
     vk::ImageCreateInfo image;
     image.imageType = vk::ImageType::e2D;
     image.format = depthFormat;
-    image.extent = vk::Extent3D{ width, height, 1 };
+    image.extent = vk::Extent3D{ size.width, size.height, 1 };
     image.mipLevels = 1;
     image.arrayLayers = 1;
     image.samples = vk::SampleCountFlagBits::e1;
@@ -657,8 +671,8 @@ void ExampleBase::setupFrameBuffer() {
     framebufferCreateInfo.renderPass = renderPass;
     framebufferCreateInfo.attachmentCount = 2;
     framebufferCreateInfo.pAttachments = attachments;
-    framebufferCreateInfo.width = width;
-    framebufferCreateInfo.height = height;
+    framebufferCreateInfo.width = size.width;
+    framebufferCreateInfo.height = size.height;
     framebufferCreateInfo.layers = 1;
 
     // Create frame buffers for every swap chain image
@@ -738,8 +752,8 @@ void ExampleBase::windowResize() {
     device.waitIdle();
 
     // Recreate swap chain
-    width = destWidth;
-    height = destHeight;
+    size.width = destWidth;
+    size.height = destHeight;
 
     setupSwapChain();
     withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
@@ -774,34 +788,25 @@ void ExampleBase::windowResized() {
     // Can be overriden in derived class
 }
 
-void ExampleBase::initSwapchain() {
-#if defined(_WIN32)
-    swapChain.initSurface(GetModuleHandle(NULL), glfwGetWin32Window(window));
-#elif defined(__ANDROID__)    
-    swapChain.initSurface(androidApp->window);
-#elif defined(__linux__)
-    swapChain.initSurface(window);
-#endif
-}
-
 void ExampleBase::setupSwapChain() {
-    swapChain.create(&width, &height);
+    swapChain.create(size);
 }
 
 void ExampleBase::drawCurrentCommandBuffer(const vk::Semaphore& semaphore) {
     // Command buffer(s) to be sumitted to the queue
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &primaryCmdBuffers[currentBuffer];
-    submitInfo.pWaitSemaphores = semaphore == vk::Semaphore() ? &semaphores.presentComplete : &semaphore;
+    submitInfo.pWaitSemaphores = semaphore == vk::Semaphore() ? &semaphores.acquireComplete : &semaphore;
 
-    vk::Fence fence;
-    if (!dumpster.empty()) {
-        fence = device.createFence(vk::FenceCreateInfo());
+    vk::Fence fence = swapChain.getSubmitFence();
+    {
         VoidLambdaList newDumpster;
         newDumpster.swap(dumpster);
-        recycler.push(FencedLambda{ fence, [fence, newDumpster, this] {
+        uint32_t fenceIndex = currentBuffer;
+        recycler.push(FencedLambda{ fence, [fence, newDumpster, fenceIndex, this] {
             for (const auto & f : newDumpster) { f(); }
             device.destroyFence(fence);
+            swapChain.clearSubmitFence(fenceIndex);
         } });
     }
 

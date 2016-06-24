@@ -81,33 +81,59 @@ if (NOT WIN32)
     link_libraries(${CMAKE_THREAD_LIBS_INIT})
 endif()
 
-file(GLOB EXAMPLES examples/*.cpp)
-foreach(EXAMPLE ${EXAMPLES})
-    get_filename_component(EXAMPLE_NAME ${EXAMPLE} NAME_WE)
-    # Find any shaders
-    set(SHADER_DIR "data/shaders/${EXAMPLE_NAME}")
-    file(GLOB SHADERS 
-        ${SHADER_DIR}/*.vert 
-        ${SHADER_DIR}/*.frag 
-        ${SHADER_DIR}/*.comp 
-        ${SHADER_DIR}/*.tesc 
-        ${SHADER_DIR}/*.tese
-        ${SHADER_DIR}/*.geom
-    )
-    source_group("Shaders" FILES ${SHADERS})
-    add_executable(${EXAMPLE_NAME} ${EXAMPLE} ${SHADERS})
-    add_dependencies(${EXAMPLE_NAME} base)
-    target_link_libraries(${EXAMPLE_NAME} ${EXAMPLE_LIBS})
-    if (NOT WIN32)
-        target_link_libraries(${EXAMPLE_NAME} Threads::Threads)
-    endif()
-endforeach()
+
+macro(BUILD_EXAMPLES)
+    foreach(_FOLDER_NAME ${ARGN})
+        message("Folder ${_FOLDER_NAME}")
+        file(GLOB EXAMPLES examples/${_FOLDER_NAME}/*.cpp)
+        foreach(EXAMPLE ${EXAMPLES})
+            get_filename_component(EXAMPLE_NAME ${EXAMPLE} NAME_WE)
+            set(TARGET ${EXAMPLE_NAME}) 
+            # Find any shaders
+            string(REGEX REPLACE "^.._" "" EXAMPLE_BASE_NAME ${EXAMPLE_NAME})
+            set(SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/data/shaders/${EXAMPLE_BASE_NAME}")
+            file(GLOB SHADERS 
+                ${SHADER_DIR}/*.vert 
+                ${SHADER_DIR}/*.frag 
+                ${SHADER_DIR}/*.comp 
+                ${SHADER_DIR}/*.tesc 
+                ${SHADER_DIR}/*.tese
+                ${SHADER_DIR}/*.geom
+            )
+            source_group("Shaders" FILES ${SHADERS})
+            add_executable(${EXAMPLE_NAME} ${EXAMPLE} ${SHADERS})
+            set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "examples/${_FOLDER_NAME}")
+            foreach(SHADER ${SHADERS})
+                compile_spirv_shader(${SHADER})
+            endforeach()
+            add_dependencies(${EXAMPLE_NAME} base)
+            target_link_libraries(${EXAMPLE_NAME} ${EXAMPLE_LIBS})
+            if (NOT WIN32)
+                target_link_libraries(${EXAMPLE_NAME} Threads::Threads)
+            endif()
+        endforeach()
+    endforeach()
+endmacro()
 
 
-set(TARGET_NAME glinterop)
-add_dependency_external_projects(glew)
-target_include_directories(${TARGET_NAME} PUBLIC ${GLEW_INCLUDE_DIRS})
-target_compile_definitions(${TARGET_NAME} PUBLIC -DGLEW_STATIC)
-target_link_libraries(${TARGET_NAME} ${GLEW_LIBRARY})
-add_dependencies(${TARGET_NAME} glew) 
-target_opengl()
+MACRO(SUBDIRLIST result curdir)
+  FILE(GLOB children RELATIVE ${curdir} ${curdir}/*)
+  SET(dirlist "")
+  FOREACH(child ${children})
+    IF(IS_DIRECTORY ${curdir}/${child})
+        LIST(APPEND dirlist ${child})
+    ENDIF()
+  ENDFOREACH()
+  SET(${result} ${dirlist})
+ENDMACRO()
+
+subdirlist(SUBDIRS ${CMAKE_CURRENT_SOURCE_DIR}/examples)
+build_examples(${SUBDIRS})
+
+#set(TARGET_NAME glinterop)
+#add_dependency_external_projects(glew)
+#target_include_directories(${TARGET_NAME} PUBLIC ${GLEW_INCLUDE_DIRS})
+#target_compile_definitions(${TARGET_NAME} PUBLIC -DGLEW_STATIC)
+#target_link_libraries(${TARGET_NAME} ${GLEW_LIBRARY})
+#add_dependencies(${TARGET_NAME} glew) 
+#target_opengl()

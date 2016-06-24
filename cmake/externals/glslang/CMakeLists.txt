@@ -51,3 +51,4 @@ select_library_configurations(${EXTERNAL_NAME_UPPER})
 
 set(${EXTERNAL_NAME_UPPER}_LIBRARY ${${EXTERNAL_NAME_UPPER}_LIBRARY} CACHE FILEPATH "Location of glslang libraries")
 set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${${EXTERNAL_NAME_UPPER}_LIBRARIES} CACHE FILEPATH "Location of glslang libraries")
+set(${EXTERNAL_NAME_UPPER}_EXEC ${INSTALL_DIR}/bin/glslangValidator CACHE FILEPATH "Location of glslang executable")

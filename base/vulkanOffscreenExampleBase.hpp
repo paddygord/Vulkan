@@ -25,9 +25,6 @@ namespace vkx {
         }
 
         void prepareOffscreenSampler() {
-            // Get device properites for the requested texture format
-            vk::FormatProperties formatProperties = physicalDevice.getFormatProperties(offscreen.framebuffer.colorFormat);
-
             // Create sampler
             vk::SamplerCreateInfo sampler;
             sampler.magFilter = vk::Filter::eLinear;
@@ -42,55 +39,64 @@ namespace vkx {
             sampler.minLod = 0.0f;
             sampler.maxLod = 0.0f;
             sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-            offscreen.framebuffer.color.sampler = device.createSampler(sampler);
+            for (auto& color : offscreen.framebuffer.colors) {
+                color.sampler = device.createSampler(sampler);
+            }
         }
 
         void prepareOffscreenRenderPass() {
             std::vector<vk::AttachmentDescription> attachments;
-            std::vector<vk::AttachmentReference> attachmentReferences;
-            attachments.resize(2);
-            attachmentReferences.resize(2);
-
+            std::vector<vk::AttachmentReference> colorAttachmentReferences;
+            attachments.resize(offscreen.framebuffer.colorFormats.size());
+            colorAttachmentReferences.resize(attachments.size());
             // Color attachment
-            attachments[0].format = colorformat;
-            attachments[0].loadOp = vk::AttachmentLoadOp::eClear;
-            attachments[0].storeOp = vk::AttachmentStoreOp::eStore;
-            attachments[0].initialLayout = vk::ImageLayout::eUndefined;
-            attachments[0].finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+            for (size_t i = 0; i < attachments.size(); ++i) {
+                attachments[i].format = colorformat;
+                attachments[i].loadOp = vk::AttachmentLoadOp::eClear;
+                attachments[i].storeOp = vk::AttachmentStoreOp::eStore;
+                attachments[i].initialLayout = vk::ImageLayout::eUndefined;
+                attachments[i].finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+                vk::AttachmentReference& attachmentReference = colorAttachmentReferences[i];
+                attachmentReference.attachment = i;
+                attachmentReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
+            }
 
             // Depth attachment
-            attachments[1].format = depthFormat;
-            attachments[1].loadOp = vk::AttachmentLoadOp::eClear;
-            attachments[1].storeOp = vk::AttachmentStoreOp::eDontCare;
-            attachments[1].initialLayout = vk::ImageLayout::eUndefined;
-            attachments[1].finalLayout = vk::ImageLayout::eUndefined;
-
-            vk::AttachmentReference& depthReference = attachmentReferences[0];
-            depthReference.attachment = 1;
-            depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-
-            vk::AttachmentReference& colorReference = attachmentReferences[1];
-            colorReference.attachment = 0;
-            colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
+            vk::AttachmentReference depthAttachmentReference;
+            {
+                vk::AttachmentDescription depthAttachment;
+                depthAttachment.format = depthFormat;
+                depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+                depthAttachment.storeOp = vk::AttachmentStoreOp::eDontCare;
+                depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
+                depthAttachment.finalLayout = vk::ImageLayout::eUndefined;
+                attachments.push_back(depthAttachment);
+                depthAttachmentReference.attachment = attachments.size() - 1;
+                depthAttachmentReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+            }
 
             std::vector<vk::SubpassDescription> subpasses;
+            {
+                vk::SubpassDescription subpass;
+                subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+                subpass.pDepthStencilAttachment = &depthAttachmentReference;
+                subpass.colorAttachmentCount = colorAttachmentReferences.size();
+                subpass.pColorAttachments = colorAttachmentReferences.data();
+                subpasses.push_back(subpass);
+            }
+
+
             std::vector<vk::SubpassDependency> subpassDependencies;
-
-            vk::SubpassDependency dependency;
-            dependency.srcSubpass = 0;
-            dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-            dependency.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-            dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-            dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
-            subpassDependencies.push_back(dependency);
-
-            vk::SubpassDescription subpass;
-            subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-            subpass.pDepthStencilAttachment = attachmentReferences.data();
-            subpass.colorAttachmentCount = attachmentReferences.size() - 1;
-            subpass.pColorAttachments = attachmentReferences.data() + 1;
-            subpasses.push_back(subpass);
+            {
+                vk::SubpassDependency dependency;
+                dependency.srcSubpass = 0;
+                dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+                dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+                dependency.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+                dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+                dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+                subpassDependencies.push_back(dependency);
+            }
 
             if (offscreen.renderPass) {
                 device.destroyRenderPass(offscreen.renderPass);
@@ -107,18 +113,21 @@ namespace vkx {
         }
 
         virtual void prepareOffscreen() {
+            assert(!offscreen.framebuffer.colorFormats.empty());
             offscreen.cmdBuffer = device.allocateCommandBuffers(vkx::commandBufferAllocateInfo(cmdPool, vk::CommandBufferLevel::ePrimary, 1))[0];
             offscreen.renderComplete = device.createSemaphore(vk::SemaphoreCreateInfo());
             prepareOffscreenRenderPass();
             if (offscreen.framebuffer.size == glm::uvec2()) {
                 throw std::runtime_error("Framebuffer size has not been set");
             }
-            offscreen.framebuffer.colorFormat = vk::Format::eB8G8R8A8Unorm;
             offscreen.framebuffer.depthFormat = vkx::getSupportedDepthFormat(physicalDevice);
             offscreen.framebuffer.create(*this, offscreen.renderPass);
             offscreen.submitInfo = submitInfo;
+            offscreen.submitInfo.commandBufferCount = 1;
             offscreen.submitInfo.pCommandBuffers = &offscreen.cmdBuffer;
-            offscreen.submitInfo.pWaitSemaphores = &semaphores.presentComplete;
+            offscreen.submitInfo.waitSemaphoreCount = 1;
+            offscreen.submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
+            offscreen.submitInfo.signalSemaphoreCount = 1;
             offscreen.submitInfo.pSignalSemaphores = &offscreen.renderComplete;
 
             prepareOffscreenSampler();
@@ -128,13 +137,10 @@ namespace vkx {
 
         void draw() override {
             prepareFrame();
-
             if (offscreen.active) {
                 queue.submit(offscreen.submitInfo, VK_NULL_HANDLE);
             }
-
             drawCurrentCommandBuffer(offscreen.active ? offscreen.renderComplete : vk::Semaphore());
-
             submitFrame();
         }
 
