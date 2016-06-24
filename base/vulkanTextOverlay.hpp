@@ -41,8 +41,8 @@ namespace vkx {
     private:
         Context context;
 
-        uint32_t& frameBufferWidth;
-        uint32_t& frameBufferHeight;
+        uint32_t& framebufferWidth;
+        uint32_t& framebufferHeight;
 
         CreateImageResult texture;
         CreateBufferResult vertexBuffer;
@@ -73,7 +73,7 @@ namespace vkx {
             vk::PipelineCache pipelineCache,
             std::vector<vk::PipelineShaderStageCreateInfo> shaderstages,
             vk::RenderPass renderPass) 
-            : frameBufferHeight(framebufferheight), frameBufferWidth(framebufferwidth)
+            : framebufferHeight(framebufferheight), framebufferWidth(framebufferwidth)
         {
             this->context = context;
             prepareResources();
@@ -290,11 +290,11 @@ namespace vkx {
         void addText(std::string text, float x, float y, TextAlign align) {
             assert(mapped != nullptr);
 
-            const float charW = 1.5f / frameBufferWidth;
-            const float charH = 1.5f / frameBufferHeight;
+            const float charW = 1.5f / framebufferWidth;
+            const float charH = 1.5f / framebufferHeight;
 
-            float fbW = (float)frameBufferWidth;
-            float fbH = (float)frameBufferHeight;
+            float fbW = (float)framebufferWidth;
+            float fbH = (float)framebufferHeight;
             x = (x / fbW * 2.0f) - 1.0f;
             y = (y / fbH * 2.0f) - 1.0f;
 
@@ -359,9 +359,9 @@ namespace vkx {
         // Needs to be called by the application
         void writeCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
             debug::marker::Marker(cmdBuffer, "Text overlay", glm::vec4(1.0f, 0.94f, 0.3f, 1.0f));
-            vk::Viewport viewport = vkx::viewport((float)frameBufferWidth, (float)frameBufferHeight, 0.0f, 1.0f);
+            vk::Viewport viewport = vkx::viewport((float)framebufferWidth, (float)framebufferHeight, 0.0f, 1.0f);
             cmdBuffer.setViewport(0, viewport);
-            vk::Rect2D scissor = vkx::rect2D(frameBufferWidth, frameBufferHeight, 0, 0);
+            vk::Rect2D scissor = vkx::rect2D(framebufferWidth, framebufferHeight, 0, 0);
             cmdBuffer.setScissor(0, scissor);
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
             cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);

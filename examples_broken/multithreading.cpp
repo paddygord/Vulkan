@@ -312,7 +312,7 @@ public:
     // Updates the secondary command buffers using a thread pool 
     // and puts them into the primary command buffer that's 
     // lat submitted to the queue for rendering
-    void updateCommandBuffers(vk::Framebuffer frameBuffer) {
+    void updateCommandBuffers(vk::Framebuffer framebuffer) {
         vk::CommandBufferBeginInfo cmdBufInfo;
 
         vk::ClearValue clearValues[2];
@@ -325,7 +325,7 @@ public:
         renderPassBeginInfo.renderArea.extent.height = height;
         renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
-        renderPassBeginInfo.framebuffer = frameBuffer;
+        renderPassBeginInfo.framebuffer = framebuffer;
 
         // Set target frame buffer
         primaryCommandBuffer.begin(cmdBufInfo);
@@ -338,7 +338,7 @@ public:
         vk::CommandBufferInheritanceInfo inheritanceInfo;
         inheritanceInfo.renderPass = renderPass;
         // Secondary command buffer also use the currently active framebuffer
-        inheritanceInfo.framebuffer = frameBuffer;
+        inheritanceInfo.framebuffer = framebuffer;
 
         // Contains the list of secondary command buffers to be executed
         std::vector<vk::CommandBuffer> commandBuffers;

@@ -81,6 +81,7 @@ namespace vkx {
         }
 
         void freeDebugCallback(vk::Instance instance) {
+            DestroyDebugReportCallback(instance, msgCallback, nullptr);
         }
 
         namespace marker {

@@ -157,19 +157,17 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        vk::Viewport viewport = vkx::viewport((float)width * 0.5f, (float)height, 0.0f, 1.0f);
-        cmdBuffer.setViewport(0, viewport);
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        cmdBuffer.setScissor(0, scissor);
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
 
-        vk::DeviceSize offsets = 0;
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, { 0 });
+
         cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-
         // Left (pre compute)
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetBaseImage, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
 
+        vk::Viewport viewport = vkx::viewport((float)size.width / 2, (float)size.height, 0.0f, 1.0f);
+        cmdBuffer.setViewport(0, viewport);
         cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
 
         // vk::Image memory barrier to make sure that compute
@@ -182,6 +180,7 @@ public:
         imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
         imageMemoryBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
         imageMemoryBarrier.dstAccessMask = vk::AccessFlagBits::eInputAttachmentRead;
+
         // todo : use different pipeline stage bits
         cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe, vk::DependencyFlags(), nullptr, nullptr, imageMemoryBarrier);
 
@@ -189,7 +188,7 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetPostCompute, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
 
-        viewport.x = (float)width / 2.0f;
+        viewport.x = viewport.width;
         cmdBuffer.setViewport(0, viewport);
         cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
     }
@@ -198,6 +197,7 @@ public:
         // FIXME find a better way to block on re-using the compute command, or build multiple command buffers
         queue.waitIdle();
         vk::CommandBufferBeginInfo cmdBufInfo;
+        cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
         computeCmdBuffer.begin(cmdBufInfo);
         computeCmdBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipelines.compute[pipelines.computeIndex]);
         computeCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, computePipelineLayout, 0, computeDescriptorSet, nullptr);
@@ -494,23 +494,15 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformDataVS = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, uboVS);
-
+        uniformDataVS.map();
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
         // Vertex shader uniform buffer block
-        uboVS.projection = glm::perspective(glm::radians(60.0f), (float)width*0.5f / (float)height, 0.1f, 256.0f);
-        glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-
-        uboVS.model = viewMatrix * glm::translate(glm::mat4(), cameraPos);
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
-        void *pData = device.mapMemory(uniformDataVS.memory, 0, sizeof(uboVS), vk::MemoryMapFlags());
-        memcpy(pData, &uboVS, sizeof(uboVS));
-        device.unmapMemory(uniformDataVS.memory);
+        uboVS.projection = glm::perspective(glm::radians(60.0f), (float)(size.width/ 2) / size.height, 0.1f, 256.0f);
+        uboVS.model = getCamera();
+        uniformDataVS.copy(uboVS);
     }
 
     // Find and create a compute capable device queue

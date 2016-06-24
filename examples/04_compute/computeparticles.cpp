@@ -138,18 +138,11 @@ public:
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
         // Draw the particle system using the update vertex buffer
-
-        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-        cmdBuffer.setViewport(0, viewport);
-
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        cmdBuffer.setScissor(0, scissor);
-
+        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetPostCompute, nullptr);
-
-        vk::DeviceSize offsets = 0;
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, computeStorageBuffer.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, computeStorageBuffer.buffer, { 0 });
         cmdBuffer.draw(PARTICLE_COUNT, 1, 0, 0);
     }
 
@@ -393,8 +386,8 @@ public:
             computeUbo.destX = sin(glm::radians(timer*360.0)) * 0.75f;
             computeUbo.destY = 0.f;
         } else {
-            float normalizedMx = (mousePos.x - static_cast<float>(width / 2)) / static_cast<float>(width / 2);
-            float normalizedMy = (mousePos.y - static_cast<float>(height / 2)) / static_cast<float>(height / 2);
+            float normalizedMx = (mousePos.x - static_cast<float>(size.width / 2)) / static_cast<float>(size.width / 2);
+            float normalizedMy = (mousePos.y - static_cast<float>(size.height / 2)) / static_cast<float>(size.height / 2);
             computeUbo.destX = normalizedMx;
             computeUbo.destY = normalizedMy;
         }

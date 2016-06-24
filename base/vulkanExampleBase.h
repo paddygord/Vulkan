@@ -34,6 +34,20 @@
 #define ENABLE_VALIDATION true
 
 namespace vkx {
+    struct UpdateOperation {
+        const vk::Buffer buffer;
+        const vk::DeviceSize size;
+        const vk::DeviceSize offset;
+        const uint32_t* data;
+
+        template <typename T>
+        UpdateOperation(const vk::Buffer& buffer, const T& data, vk::DeviceSize offset = 0) : buffer(buffer), size(sizeof(T)), offset(offset), data((uint32_t*)&data) {
+            assert(0 == (sizeof(T) % 4));
+            assert(0 == (offset % 4));
+        }
+    };
+
+
     class ExampleBase : public Context {
     protected:
         ExampleBase(bool enableValidation);
@@ -126,6 +140,7 @@ namespace vkx {
         // Frame counter to display fps
         uint32_t frameCounter{ 0 };
         uint32_t lastFPS{ 0 };
+        std::list<UpdateOperation> pendingUpdates;
 
         // Color buffer format
         vk::Format colorformat{ vk::Format::eB8G8R8A8Unorm };
@@ -158,6 +173,7 @@ namespace vkx {
             vk::Semaphore acquireComplete;
             // Command buffer submission and execution
             vk::Semaphore renderComplete;
+            vk::Semaphore transferComplete;
         } semaphores;
 
         // Simple texture loader
@@ -243,7 +259,14 @@ namespace vkx {
 #endif
 
         // A default draw implementation
-        virtual void draw();
+        virtual void draw() {
+            // Get next image in the swap chain (back/front buffer)
+            prepareFrame();
+            drawCurrentCommandBuffer();
+            // Push the rendered frame to the surface
+            submitFrame();
+        }
+
         // Pure virtual render function (override in derived class)
         virtual void render() = 0;
 
@@ -294,18 +317,18 @@ namespace vkx {
         }
 
         void trashCommandBuffer(vk::CommandBuffer& cmdBuffer) {
-            std::function<void(const vk::CommandBuffer& t)> destructor = 
+            std::function<void(const vk::CommandBuffer& t)> destructor =
                 [this](const vk::CommandBuffer& cmdBuffer) {
-                    device.freeCommandBuffers(getCommandPool(), cmdBuffer);
-                };
+                device.freeCommandBuffers(getCommandPool(), cmdBuffer);
+            };
             trash(cmdBuffer, destructor);
         }
 
         void trashCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers) {
-            std::function<void(const std::vector<vk::CommandBuffer>& t)> destructor = 
+            std::function<void(const std::vector<vk::CommandBuffer>& t)> destructor =
                 [this](const std::vector<vk::CommandBuffer>& cmdBuffers) {
-                    device.freeCommandBuffers(getCommandPool(), cmdBuffers);
-                };
+                device.freeCommandBuffers(getCommandPool(), cmdBuffers);
+            };
             trash(cmdBuffers, destructor);
         }
 
@@ -325,6 +348,7 @@ namespace vkx {
             beginInfo.flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse;
             beginInfo.pInheritanceInfo = &inheritance;
             for (size_t i = 0; i < swapChain.imageCount; ++i) {
+                currentBuffer = i;
                 inheritance.framebuffer = framebuffers[i];
                 vk::CommandBuffer& cmdBuffer = cmdBuffers[i];
                 cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
@@ -332,6 +356,7 @@ namespace vkx {
                 f(cmdBuffer);
                 cmdBuffer.end();
             }
+            currentBuffer = 0;
         }
 
         virtual void updatePrimaryCommandBuffer(const vk::CommandBuffer& cmdBuffer) {}
@@ -350,9 +375,121 @@ namespace vkx {
         virtual void updateDrawCommandBuffer(const vk::CommandBuffer& drawCommand) = 0;
 
         // Create swap chain images
-        void setupSwapChain();
+        void setupSwapChain() {
+            swapChain.create(size);
+        }
 
-        void drawCurrentCommandBuffer(const vk::Semaphore& semaphore = vk::Semaphore());
+        void drawCurrentCommandBuffer(const vk::Semaphore& semaphore = vk::Semaphore()) {
+            vk::Fence fence = swapChain.getSubmitFence();
+            {
+                VoidLambdaList newDumpster;
+                newDumpster.swap(dumpster);
+                uint32_t fenceIndex = currentBuffer;
+                recycler.push(FencedLambda{ fence, [fence, newDumpster, fenceIndex, this] {
+                    for (const auto & f : newDumpster) { f(); }
+                    swapChain.clearSubmitFence(fenceIndex);
+                } });
+            }
+
+            // Command buffer(s) to be sumitted to the queue
+            std::vector<vk::Semaphore> waitSemaphores{ { semaphore == vk::Semaphore() ? semaphores.acquireComplete : semaphore } };
+            std::vector<vk::PipelineStageFlags> waitStages{ submitPipelineStages };
+            if (semaphores.transferComplete) {
+                auto transferComplete = semaphores.transferComplete;
+                semaphores.transferComplete = vk::Semaphore();
+                waitSemaphores.push_back(transferComplete);
+                waitStages.push_back(vk::PipelineStageFlagBits::eTransfer);
+                recycler.push(FencedLambda{ fence, [transferComplete, this] {
+                    device.destroySemaphore(transferComplete);
+                } });
+            }
+
+            vk::Semaphore transferPending;
+            std::vector<vk::Semaphore> signalSemaphores{ { semaphores.renderComplete } };
+            if (!pendingUpdates.empty()) {
+                transferPending = device.createSemaphore(vk::SemaphoreCreateInfo());
+                signalSemaphores.push_back(transferPending);
+            }
+
+            {
+                vk::SubmitInfo submitInfo;
+                submitInfo.waitSemaphoreCount = (uint32_t)waitSemaphores.size();
+                submitInfo.pWaitSemaphores = waitSemaphores.data();
+                submitInfo.pWaitDstStageMask = waitStages.data();
+                submitInfo.signalSemaphoreCount = signalSemaphores.size();
+                submitInfo.pSignalSemaphores = signalSemaphores.data();
+                submitInfo.commandBufferCount = 1;
+                submitInfo.pCommandBuffers = &primaryCmdBuffers[currentBuffer];
+                // Submit to queue
+                queue.submit(submitInfo, fence);
+            }
+
+            executePendingTransfers(transferPending);
+            recycle();
+        }
+
+        void executePendingTransfers(vk::Semaphore transferPending) {
+            if (!pendingUpdates.empty()) {
+                vk::Fence transferFence = device.createFence(vk::FenceCreateInfo());
+                semaphores.transferComplete = device.createSemaphore(vk::SemaphoreCreateInfo());
+                assert(transferPending);
+                assert(semaphores.transferComplete);
+                // Command buffers store a reference to the
+                // frame buffer inside their render pass info
+                // so for static usage without having to rebuild
+                // them each frame, we use one per frame buffer
+                vk::CommandBuffer transferCmdBuffer;
+                {
+                    vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+                    cmdBufAllocateInfo.commandPool = cmdPool;
+                    cmdBufAllocateInfo.commandBufferCount = 1;
+                    transferCmdBuffer = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
+                }
+
+
+                {
+                    vk::CommandBufferBeginInfo cmdBufferBeginInfo;
+                    cmdBufferBeginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+                    transferCmdBuffer.begin(cmdBufferBeginInfo);
+                    for (const auto& update : pendingUpdates) {
+                        transferCmdBuffer.updateBuffer(update.buffer, update.offset, update.size, update.data);
+                    }
+                    transferCmdBuffer.end();
+                }
+
+                {
+                    vk::PipelineStageFlags stageFlagBits = vk::PipelineStageFlagBits::eAllCommands;
+                    vk::SubmitInfo transferSubmitInfo;
+                    transferSubmitInfo.pWaitDstStageMask = &stageFlagBits;
+                    transferSubmitInfo.pWaitSemaphores = &transferPending;
+                    transferSubmitInfo.signalSemaphoreCount = 1;
+                    transferSubmitInfo.pSignalSemaphores = &semaphores.transferComplete;
+                    transferSubmitInfo.waitSemaphoreCount = 1;
+                    transferSubmitInfo.commandBufferCount = 1;
+                    transferSubmitInfo.pCommandBuffers = &transferCmdBuffer;
+                    queue.submit(transferSubmitInfo, transferFence);
+                }
+
+                recycler.push({ transferFence, [transferPending, transferCmdBuffer, this] {
+                    device.destroySemaphore(transferPending);
+                    device.freeCommandBuffers(cmdPool, transferCmdBuffer);
+                } });
+                pendingUpdates.clear();
+            }
+        }
+
+        void recycle() {
+            while (!recycler.empty() && vk::Result::eSuccess == device.getFenceStatus(recycler.front().first)) {
+                vk::Fence fence = recycler.front().first;
+                VoidLambda lambda = recycler.front().second;
+                recycler.pop();
+
+                lambda();
+                if (recycler.empty() || fence != recycler.front().first) {
+                    device.destroyFence(fence);
+                }
+            }
+        }
 
         // Prepare commonly used Vulkan functions
         virtual void prepare();

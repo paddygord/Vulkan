@@ -131,7 +131,7 @@ public:
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.framebuffer = offscreen.framebuffer.frameBuffer;
+        renderPassBeginInfo.framebuffer = offscreen.framebuffer.framebuffer;
         renderPassBeginInfo.renderArea.extent.width = offscreen.framebuffer.size.x;
         renderPassBeginInfo.renderArea.extent.height = offscreen.framebuffer.size.y;
         renderPassBeginInfo.clearValueCount = 2;
@@ -319,7 +319,7 @@ public:
         // Offscreen 3D scene descriptor set
         descriptorSets.scene = device.allocateDescriptorSets(allocInfo)[0];
 
-        std::vector<vk::WriteDescriptorSet> offScreenWriteDescriptorSets =
+        std::vector<vk::WriteDescriptorSet> offscreenWriteDescriptorSets =
         {
             // Binding 0 : Vertex shader uniform buffer
             vkx::writeDescriptorSet(
@@ -328,7 +328,7 @@ public:
                 0,
                 &uniformData.vsQuad.descriptor)
         };
-        device.updateDescriptorSets(offScreenWriteDescriptorSets.size(), offScreenWriteDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(offscreenWriteDescriptorSets.size(), offscreenWriteDescriptorSets.data(), 0, NULL);
     }
 
     void preparePipelines() {

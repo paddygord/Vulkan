@@ -78,7 +78,7 @@ public:
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         zoom = -1.25f;
-        rotation = glm::vec3(40.0, -33.0, 0.0);
+        orientation = glm::quat(glm::radians(glm::vec3(40.0, -33.0, 0.0)));
         rotationSpeed = 0.25f;
         paused = true;
         title = "Vulkan Example - Parallax Mapping";
@@ -112,11 +112,9 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        vk::Viewport viewport = vkx::viewport((splitScreen) ? (float)width / 2.0f : (float)width, (float)height, 0.0f, 1.0f);
+        vk::Viewport viewport = vkx::viewport((splitScreen) ? (float)size.width / 2.0f : (float)size.width, (float)size.height, 0.0f, 1.0f);
         cmdBuffer.setViewport(0, viewport);
-
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        cmdBuffer.setScissor(0, scissor);
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
@@ -131,7 +129,7 @@ public:
 
         // Normal mapping
         if (splitScreen) {
-            viewport.x = (float)width / 2.0f;
+            viewport.x = viewport.width;
             cmdBuffer.setViewport(0, viewport);
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.normalMapping);
             cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 1);
@@ -342,16 +340,8 @@ public:
 
     void updateUniformBuffers() {
         // Vertex shader
-        glm::mat4 viewMatrix = glm::mat4();
-        ubos.vertexShader.projection = glm::perspective(glm::radians(45.0f), (float)(width* ((splitScreen) ? 0.5f : 1.0f)) / (float)height, 0.001f, 256.0f);
-        viewMatrix = glm::translate(viewMatrix, glm::vec3(0.0f, 0.0f, zoom));
-
-        ubos.vertexShader.model = glm::mat4();
-        ubos.vertexShader.model = viewMatrix * glm::translate(ubos.vertexShader.model, glm::vec3(0, 0, 0));
-        ubos.vertexShader.model = glm::rotate(ubos.vertexShader.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        ubos.vertexShader.model = glm::rotate(ubos.vertexShader.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubos.vertexShader.model = glm::rotate(ubos.vertexShader.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
+        ubos.vertexShader.projection = glm::perspective(glm::radians(45.0f), (float)(size.width* ((splitScreen) ? 0.5f : 1.0f)) / (float)size.height, 0.001f, 256.0f);
+        ubos.vertexShader.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
         ubos.vertexShader.normal = glm::inverseTranspose(ubos.vertexShader.model);
 
         if (!paused) {

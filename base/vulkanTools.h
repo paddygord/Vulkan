@@ -27,7 +27,7 @@ namespace vkx {
     vk::Bool32 checkDeviceExtensionPresent(vk::PhysicalDevice physicalDevice, const char* extensionName);
     // Selected a suitable supported depth format starting with 32 bit down to 16 bit
     // Returns false if none of the depth formats in the list is supported by the device
-     vk::Format getSupportedDepthFormat(vk::PhysicalDevice physicalDevice);
+    vk::Format getSupportedDepthFormat(vk::PhysicalDevice physicalDevice);
 
     // Put an image memory barrier for setting an image layout on the sub resource into the given command buffer
     void setImageLayout(
@@ -75,7 +75,9 @@ namespace vkx {
     struct AllocatedResult {
         vk::Device device;
         vk::DeviceMemory memory;
-        size_t allocSize{ 0 };
+        vk::DeviceSize size{ 0 };
+        vk::DeviceSize alignment{ 0 };
+        vk::DeviceSize allocSize{ 0 };
         void* mapped{ nullptr };
 
         template <typename T = void>
@@ -113,14 +115,19 @@ namespace vkx {
             }
         }
     };
-    struct CreateImageResult : public AllocatedResult{
+
+    struct CreateImageResult : public AllocatedResult {
+    private:
+        using Parent = AllocatedResult;
+    public:
+
         vk::Image image;
         vk::ImageView view;
         vk::Sampler sampler;
         vk::Format format{ vk::Format::eUndefined };
-        size_t size{ 0 };
 
         void destroy() override {
+            Parent::destroy();
             if (mapped) {
                 unmap();
             }
@@ -132,14 +139,25 @@ namespace vkx {
                 device.destroyImage(image);
                 image = vk::Image();
             }
-            AllocatedResult::destroy();
+            Parent::destroy();
         }
     };
 
-    struct CreateBufferResult : public AllocatedResult{
+    struct CreateBufferResult : public AllocatedResult {
+    private:
+        using Parent = AllocatedResult;
+    public:
         vk::Buffer buffer;
-        size_t size{ 0 };
         vk::DescriptorBufferInfo descriptor;
+
+        template<typename T>
+        inline void updateNext(const T& data) {
+            descriptor.offset += alignment;
+            descriptor.offset %= size;
+            std::cout << "Updating uniform data at offset " << std::hex << descriptor.offset << std::endl;
+
+            copy(data, descriptor.offset);
+        }
 
         void destroy() override {
             if (mapped) {
@@ -149,9 +167,8 @@ namespace vkx {
                 device.destroyBuffer(buffer);
                 buffer = vk::Buffer();
             }
-            AllocatedResult::destroy();
+            Parent::destroy();
         }
-
     };
 
     // Contains all vulkan objects
@@ -163,7 +180,7 @@ namespace vkx {
     // Some initializers are parameterized for convenience
     VK_CLEAR_COLOR_TYPE clearColor(const glm::vec4& v);
 
-    vk::CommandBufferAllocateInfo commandBufferAllocateInfo( vk::CommandPool commandPool, vk::CommandBufferLevel level, uint32_t bufferCount);
+    vk::CommandBufferAllocateInfo commandBufferAllocateInfo(vk::CommandPool commandPool, vk::CommandBufferLevel level, uint32_t bufferCount);
 
     vk::FenceCreateInfo fenceCreateInfo(vk::FenceCreateFlags flags);
 
@@ -253,7 +270,7 @@ namespace vkx {
     vk::VertexInputAttributeDescription vertexInputAttributeDescription(
         uint32_t binding,
         uint32_t location,
-            vk::Format format,
+        vk::Format format,
         uint32_t offset);
 
     vk::PipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo(

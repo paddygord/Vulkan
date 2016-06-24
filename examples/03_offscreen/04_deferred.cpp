@@ -13,10 +13,6 @@
 
 // Texture properties
 #define TEX_DIM 1024
-#define TEX_FILTER vk::Filter::eLinear
-
-// Offscreen frame buffer properties
-#define FB_DIM TEX_DIM
 
 // Vertex layout for this example
 std::vector<vkx::VertexLayout> vertexLayout =
@@ -89,7 +85,7 @@ public:
 
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
-    vk::CommandBuffer offScreenCmdBuffer;
+    vk::CommandBuffer offscreenCmdBuffer;
     
     VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
         
@@ -120,7 +116,7 @@ public:
         uniformData.vsOffscreen.destroy();
         uniformData.vsFullScreen.destroy();
         uniformData.fsLights.destroy();
-        device.freeCommandBuffers(cmdPool, offScreenCmdBuffer);
+        device.freeCommandBuffers(cmdPool, offscreenCmdBuffer);
         textures.colorMap.destroy();
     }
 
@@ -130,9 +126,9 @@ public:
     void buildOffscreenCommandBuffer() override {
         // Create separate command buffer for offscreen 
         // rendering
-        if (!offScreenCmdBuffer) {
+        if (!offscreenCmdBuffer) {
             vk::CommandBufferAllocateInfo cmd = vkx::commandBufferAllocateInfo(cmdPool, vk::CommandBufferLevel::ePrimary, 1);
-            offScreenCmdBuffer = device.allocateCommandBuffers(cmd)[0];
+            offscreenCmdBuffer = device.allocateCommandBuffers(cmd)[0];
         }
 
         vk::CommandBufferBeginInfo cmdBufInfo;
@@ -147,30 +143,30 @@ public:
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = offscreen.renderPass;
-        renderPassBeginInfo.framebuffer = offscreen.framebuffer.frameBuffer;
+        renderPassBeginInfo.framebuffer = offscreen.framebuffer.framebuffer;
         renderPassBeginInfo.renderArea.extent.width = offscreen.framebuffer.size.x;
         renderPassBeginInfo.renderArea.extent.height = offscreen.framebuffer.size.y;
         renderPassBeginInfo.clearValueCount = clearValues.size();
         renderPassBeginInfo.pClearValues = clearValues.data();
 
-        offScreenCmdBuffer.begin(cmdBufInfo);
-        offScreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        offscreenCmdBuffer.begin(cmdBufInfo);
+        offscreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
         vk::Viewport viewport = vkx::viewport(offscreen.framebuffer.size, 0.0f, 1.0f);
-        offScreenCmdBuffer.setViewport(0, viewport);
+        offscreenCmdBuffer.setViewport(0, viewport);
 
         vk::Rect2D scissor = vkx::rect2D(offscreen.framebuffer.size);
-        offScreenCmdBuffer.setScissor(0, scissor);
+        offscreenCmdBuffer.setScissor(0, scissor);
 
-        offScreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
-        offScreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
+        offscreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
+        offscreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
 
         vk::DeviceSize offsets = { 0 };
-        offScreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, { 0 });
-        offScreenCmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
-        offScreenCmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
-        offScreenCmdBuffer.endRenderPass();
-        offScreenCmdBuffer.end();
+        offscreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, { 0 });
+        offscreenCmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
+        offscreenCmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
+        offscreenCmdBuffer.endRenderPass();
+        offscreenCmdBuffer.end();
     }
 
     void loadTextures() {
@@ -209,7 +205,7 @@ public:
             vk::SubmitInfo submitInfo;
             submitInfo.pWaitDstStageMask = this->submitInfo.pWaitDstStageMask;
             submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &offScreenCmdBuffer;
+            submitInfo.pCommandBuffers = &offscreenCmdBuffer;
             submitInfo.waitSemaphoreCount = 1;
             submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
             submitInfo.signalSemaphoreCount = 1;
@@ -412,7 +408,7 @@ public:
         vk::DescriptorImageInfo texDescriptorSceneColormap =
             vkx::descriptorImageInfo(textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral);
 
-        std::vector<vk::WriteDescriptorSet> offScreenWriteDescriptorSets =
+        std::vector<vk::WriteDescriptorSet> offscreenWriteDescriptorSets =
         {
             // Binding 0 : Vertex shader uniform buffer
             vkx::writeDescriptorSet(
@@ -427,7 +423,7 @@ public:
                 1,
                 &texDescriptorSceneColormap)
         };
-        device.updateDescriptorSets(offScreenWriteDescriptorSets, nullptr);
+        device.updateDescriptorSets(offscreenWriteDescriptorSets, nullptr);
     }
 
     void preparePipelines() {

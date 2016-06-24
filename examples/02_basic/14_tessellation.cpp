@@ -65,7 +65,7 @@ public:
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         zoom = -6.5f;
-        rotation = glm::vec3(-350.0f, 60.0f, 0.0f);
+        orientation = glm::quat(glm::radians(glm::vec3(-350.0f, 60.0f, 0.0f)));
         cameraPos = glm::vec3(-3.0f, 2.3f, 0.0f);
         title = "Vulkan Example - Tessellation shader (PN Triangles)";
         enableTextOverlay = true;
@@ -99,12 +99,9 @@ public:
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
 
-        vk::Viewport viewport = vkx::viewport(splitScreen ? (float)width / 2.0f : (float)width, (float)height, 0.0f, 1.0f);
+        vk::Viewport viewport = vkx::viewport(splitScreen ? (float)size.width / 2.0f : (float)size.width, (float)size.height, 0.0f, 1.0f);
         cmdBuffer.setViewport(0, viewport);
-
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        cmdBuffer.setScissor(0, scissor);
-
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
         cmdBuffer.setLineWidth(1.0f);
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
@@ -117,7 +114,7 @@ public:
             cmdBuffer.setViewport(0, viewport);
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipelineLeft);
             cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
-            viewport.x = float(width) / 2;
+            viewport.x = float(size.width) / 2;
         }
 
         cmdBuffer.setViewport(0, viewport);
@@ -324,36 +321,23 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Tessellation evaluation shader uniform buffer
-        uniformDataTE = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, uboTE);
+        uniformDataTE = createUniformBuffer(uboTE);
+        uniformDataTE.map();
 
         // Tessellation control shader uniform buffer
-        uniformDataTC = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, uboTC);;
-
+        uniformDataTC = createUniformBuffer(uboTC);
+        uniformDataTC.map();
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
         // Tessellation eval
-        glm::mat4 viewMatrix = glm::mat4();
-        uboTE.projection = glm::perspective(glm::radians(45.0f), (float)(width* ((splitScreen) ? 0.5f : 1.0f)) / (float)height, 0.1f, 256.0f);
-        viewMatrix = glm::translate(viewMatrix, glm::vec3(0.0f, 0.0f, zoom));
-
-        uboTE.model = glm::mat4();
-        uboTE.model = viewMatrix * glm::translate(uboTE.model, cameraPos);
-        uboTE.model = glm::rotate(uboTE.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        uboTE.model = glm::rotate(uboTE.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        uboTE.model = glm::rotate(uboTE.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
-        void *pData = device.mapMemory(uniformDataTE.memory, 0, sizeof(uboTE), vk::MemoryMapFlags());
-        memcpy(pData, &uboTE, sizeof(uboTE));
-        device.unmapMemory(uniformDataTE.memory);
+        uboTE.projection = glm::perspective(glm::radians(45.0f), (float)(size.width* ((splitScreen) ? 0.5f : 1.0f)) / (float)size.height, 0.1f, 256.0f);
+        uboTE.model = getCamera();
+        uniformDataTE.copy(uboTE);
 
         // Tessellation control uniform block
-        pData = device.mapMemory(uniformDataTC.memory, 0, sizeof(uboTC), vk::MemoryMapFlags());
-        memcpy(pData, &uboTC, sizeof(uboTC));
-        device.unmapMemory(uniformDataTC.memory);
+        uniformDataTC.copy(uboTC);
     }
 
     void prepare() {

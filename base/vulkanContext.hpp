@@ -127,7 +127,6 @@ namespace vkx {
             if (enableValidation) {
                 debug::freeDebugCallback(instance);
             }
-
             instance.destroy();
         }
 
@@ -316,8 +315,16 @@ namespace vkx {
         }
 
         template <typename T>
-        CreateBufferResult createUniformBuffer(const T& data) const {
-            return createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, data);
+        CreateBufferResult createUniformBuffer(const T& data, size_t count = 3) const {
+            auto alignment = deviceProperties.limits.minUniformBufferOffsetAlignment;
+            auto extra = sizeof(T) % alignment;
+            auto alignedSize = sizeof(T) + (alignment - extra);
+            auto allocatedSize = count * alignedSize;
+            CreateBufferResult result = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, allocatedSize);
+            result.alignment = alignedSize;
+            result.map();
+            result.copy(data);
+            return result;
         }
 
         void copyToMemory(const vk::DeviceMemory & memory, const void* data, vk::DeviceSize size, vk::DeviceSize offset = 0) const {

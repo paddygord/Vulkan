@@ -32,13 +32,8 @@ ExampleBase::ExampleBase(bool enableValidation) : swapChain(*this) {
 }
 
 ExampleBase::~ExampleBase() {
-
     while (!recycler.empty()) {
-        while (vk::Result::eSuccess != device.getFenceStatus(recycler.front().first)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        }
-        recycler.front().second();
-        recycler.pop();
+        recycle();
     }
 
     // Clean up Vulkan resources
@@ -788,71 +783,4 @@ void ExampleBase::windowResized() {
     // Can be overriden in derived class
 }
 
-void ExampleBase::setupSwapChain() {
-    swapChain.create(size);
-}
-
-void ExampleBase::drawCurrentCommandBuffer(const vk::Semaphore& semaphore) {
-    // Command buffer(s) to be sumitted to the queue
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &primaryCmdBuffers[currentBuffer];
-    submitInfo.pWaitSemaphores = semaphore == vk::Semaphore() ? &semaphores.acquireComplete : &semaphore;
-
-    vk::Fence fence = swapChain.getSubmitFence();
-    {
-        VoidLambdaList newDumpster;
-        newDumpster.swap(dumpster);
-        uint32_t fenceIndex = currentBuffer;
-        recycler.push(FencedLambda{ fence, [fence, newDumpster, fenceIndex, this] {
-            for (const auto & f : newDumpster) { f(); }
-            device.destroyFence(fence);
-            swapChain.clearSubmitFence(fenceIndex);
-        } });
-    }
-
-    // Submit to queue
-    queue.submit(submitInfo, fence);
-
-    while (!recycler.empty() && vk::Result::eSuccess == device.getFenceStatus(recycler.front().first)) {
-        recycler.front().second();
-        recycler.pop();
-    }
-}
-
-#if 0
-void ExampleBase::drawCommandBuffers(const std::vector<vk::CommandBuffer>& commandBuffers) {
-    // Command buffer(s) to be sumitted to the queue
-    submitInfo.commandBufferCount = commandBuffers.size();
-    submitInfo.pCommandBuffers = commandBuffers.data();
-
-    vk::Fence fence;
-    if (!dumpster.empty()) {
-        fence = device.createFence(vk::FenceCreateInfo());
-        VoidLambdaList newDumpster;
-        newDumpster.swap(dumpster);
-        recycler.push(FencedLambda{ fence, [fence, newDumpster, this] {
-            for (const auto & f : newDumpster) { f(); }
-            device.destroyFence(fence);
-        } });
-    }
-
-    // Submit to queue
-    queue.submit(submitInfo, fence);
-
-    while (!recycler.empty() && vk::Result::eSuccess == device.getFenceStatus(recycler.front().first)) {
-        recycler.front().second();
-        recycler.pop();
-    }
-}
-#endif
-
-
-void ExampleBase::draw() {
-    // Get next image in the swap chain (back/front buffer)
-    prepareFrame();
-
-    drawCurrentCommandBuffer();
-    // Push the rendered frame to the surface
-    submitFrame();
-}
 

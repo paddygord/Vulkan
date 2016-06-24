@@ -72,7 +72,7 @@ public:
 
     VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
         zoom = -6.5f;
-        rotation = { -11.25f, 45.0f, 0.0f };
+        orientation = glm::quat(glm::radians(glm::vec3({ -11.25f, 45.0f, 0.0f })));
         timerSpeed *= 0.25f;
         title = "Vulkan Example - Offscreen rendering";
     }
@@ -88,7 +88,7 @@ public:
 #if OFFSCREEN
         // Frame buffer
         offscreenFramebuffer.destroy();
-        device.freeCommandBuffers(cmdPool, offScreen.cmdBuffer);
+        device.freeCommandBuffers(cmdPool, offscreen.cmdBuffer);
         device.destroyPipeline(pipelines.mirror);
         device.destroyPipelineLayout(pipelineLayouts.offscreen);
 #endif
@@ -115,7 +115,6 @@ public:
     // the texture target is only build once
     // and gets resubmitted 
     void buildOffscreenCommandBuffer() override {
-        vk::CommandBufferBeginInfo cmdBufInfo;
 
         vk::ClearValue clearValues[2];
         clearValues[0].color = vkx::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
@@ -123,20 +122,21 @@ public:
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = offscreen.renderPass;
-        renderPassBeginInfo.framebuffer = offscreen.framebuffer.frameBuffer;
+        renderPassBeginInfo.framebuffer = offscreen.framebuffer.framebuffer;
         renderPassBeginInfo.renderArea.extent.width = offscreen.framebuffer.size.x;
         renderPassBeginInfo.renderArea.extent.height = offscreen.framebuffer.size.y;
         renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
 
-        vk::DeviceSize offsets = 0;
+        vk::CommandBufferBeginInfo cmdBufInfo;
+        cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
         offscreen.cmdBuffer.begin(cmdBufInfo);
         offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
         offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.framebuffer.size));
         offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.framebuffer.size));
         offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
         offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.shaded);
-        offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, offsets);
+        offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, { 0 });
         offscreen.cmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
         offscreen.cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
         offscreen.cmdBuffer.endRenderPass();
@@ -145,8 +145,8 @@ public:
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
         vk::DeviceSize offsets = 0;
-        cmdBuffer.setViewport(0, vkx::viewport(glm::uvec2(width, height)));
-        cmdBuffer.setScissor(0, vkx::rect2D(glm::uvec2(width, height)));
+        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
 
         // Reflection plane
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.quad, 0, descriptorSets.mirror, nullptr);
@@ -260,7 +260,7 @@ public:
         
         // vk::Image descriptor for the offscreen mirror texture
         vk::DescriptorImageInfo texDescriptorMirror =
-            vkx::descriptorImageInfo(offscreen.framebuffer.color.sampler, offscreen.framebuffer.color.view, vk::ImageLayout::eShaderReadOnlyOptimal);
+            vkx::descriptorImageInfo(offscreen.framebuffer.colors[0].sampler, offscreen.framebuffer.colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal);
         // vk::Image descriptor for the color map
         vk::DescriptorImageInfo texDescriptorColorMap =
             vkx::descriptorImageInfo(textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral);
@@ -303,7 +303,7 @@ public:
 
         // Offscreen
         descriptorSets.offscreen = device.allocateDescriptorSets(allocInfo)[0];
-        std::vector<vk::WriteDescriptorSet> offScreenWriteDescriptorSets =
+        std::vector<vk::WriteDescriptorSet> offscreenWriteDescriptorSets =
         {
             // Binding 0 : Vertex shader uniform buffer
             vkx::writeDescriptorSet(
@@ -312,7 +312,7 @@ public:
                 0,
                 &uniformData.vsOffScreen.descriptor)
         };
-        device.updateDescriptorSets(offScreenWriteDescriptorSets, {});
+        device.updateDescriptorSets(offscreenWriteDescriptorSets, {});
     }
 
     void preparePipelines() {
@@ -398,34 +398,18 @@ public:
 
     void updateUniformBuffers() {
         // Mesh
-        ubos.vsShared.projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.1f, 256.0f);
-        glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-
-        ubos.vsShared.model = viewMatrix * glm::translate(glm::mat4(), glm::vec3(0, 0, 0));
-        ubos.vsShared.model = glm::rotate(ubos.vsShared.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        ubos.vsShared.model = glm::rotate(ubos.vsShared.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubos.vsShared.model = glm::rotate(ubos.vsShared.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
-        ubos.vsShared.model = glm::translate(ubos.vsShared.model, meshPos);
+        ubos.vsShared.projection = getProjection();
+        ubos.vsShared.model = glm::translate(glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation), meshPos);
         uniformData.vsShared.copy(ubos.vsShared);
 
         // Mirror
-        ubos.vsShared.model = viewMatrix * glm::translate(glm::mat4(), glm::vec3(0, 0, 0));
-        ubos.vsShared.model = glm::rotate(ubos.vsShared.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        ubos.vsShared.model = glm::rotate(ubos.vsShared.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubos.vsShared.model = glm::rotate(ubos.vsShared.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubos.vsShared.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
         uniformData.vsMirror.copy(ubos.vsShared);
     }
 
     void updateUniformBufferOffscreen() {
-        ubos.vsShared.projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.1f, 256.0f);
-        glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-
-        ubos.vsShared.model = viewMatrix * glm::translate(glm::mat4(), glm::vec3(0, 0, 0));
-        ubos.vsShared.model = glm::rotate(ubos.vsShared.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        ubos.vsShared.model = glm::rotate(ubos.vsShared.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubos.vsShared.model = glm::rotate(ubos.vsShared.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
+        ubos.vsShared.projection = getProjection();
+        ubos.vsShared.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
         ubos.vsShared.model = glm::scale(ubos.vsShared.model, glm::vec3(1.0f, -1.0f, 1.0f));
         ubos.vsShared.model = glm::translate(ubos.vsShared.model, meshPos);
         uniformData.vsOffScreen.copy(ubos.vsShared);

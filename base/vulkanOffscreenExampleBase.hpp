@@ -15,6 +15,9 @@ namespace vkx {
             vk::Semaphore renderComplete;
             vkx::Framebuffer framebuffer;
             vk::SubmitInfo submitInfo;
+            vk::ImageUsageFlags attachmentUsage{ vk::ImageUsageFlagBits::eSampled };
+            vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eShaderReadOnlyOptimal  };
+            vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eUndefined };
         } offscreen;
 
         void destroyOffscreen() {
@@ -44,7 +47,7 @@ namespace vkx {
             }
         }
 
-        void prepareOffscreenRenderPass() {
+        virtual void prepareOffscreenRenderPass() {
             std::vector<vk::AttachmentDescription> attachments;
             std::vector<vk::AttachmentReference> colorAttachmentReferences;
             attachments.resize(offscreen.framebuffer.colorFormats.size());
@@ -55,7 +58,7 @@ namespace vkx {
                 attachments[i].loadOp = vk::AttachmentLoadOp::eClear;
                 attachments[i].storeOp = vk::AttachmentStoreOp::eStore;
                 attachments[i].initialLayout = vk::ImageLayout::eUndefined;
-                attachments[i].finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+                attachments[i].finalLayout = offscreen.colorFinalLayout;
                 vk::AttachmentReference& attachmentReference = colorAttachmentReferences[i];
                 attachmentReference.attachment = i;
                 attachmentReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
@@ -69,7 +72,7 @@ namespace vkx {
                 depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
                 depthAttachment.storeOp = vk::AttachmentStoreOp::eDontCare;
                 depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
-                depthAttachment.finalLayout = vk::ImageLayout::eUndefined;
+                depthAttachment.finalLayout = offscreen.depthFinalLayout;
                 attachments.push_back(depthAttachment);
                 depthAttachmentReference.attachment = attachments.size() - 1;
                 depthAttachmentReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
@@ -90,11 +93,21 @@ namespace vkx {
             {
                 vk::SubpassDependency dependency;
                 dependency.srcSubpass = 0;
-                dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
                 dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-                dependency.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-                dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-                dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+                dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+
+                dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+                switch (offscreen.colorFinalLayout) {
+                case vk::ImageLayout::eShaderReadOnlyOptimal:
+                    dependency.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+                    break;
+                case vk::ImageLayout::eTransferSrcOptimal:
+                    dependency.dstAccessMask = vk::AccessFlagBits::eTransferRead;
+                    break;
+                default:
+                    throw std::runtime_error("Unhandled color final layout");
+                }
+                dependency.dstStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
                 subpassDependencies.push_back(dependency);
             }
 
@@ -121,7 +134,7 @@ namespace vkx {
                 throw std::runtime_error("Framebuffer size has not been set");
             }
             offscreen.framebuffer.depthFormat = vkx::getSupportedDepthFormat(physicalDevice);
-            offscreen.framebuffer.create(*this, offscreen.renderPass);
+            offscreen.framebuffer.create(*this, offscreen.renderPass, offscreen.attachmentUsage);
             offscreen.submitInfo = submitInfo;
             offscreen.submitInfo.commandBufferCount = 1;
             offscreen.submitInfo.pCommandBuffers = &offscreen.cmdBuffer;

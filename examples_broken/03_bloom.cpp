@@ -24,7 +24,7 @@ vkx::MeshLayout vertexLayout =
     vkx::VertexLayout::VERTEX_LAYOUT_NORMAL
 };
 
-class VulkanExample : public vkx::ExampleBase {
+class VulkanExample : public vkx::OffscreenExampleBase {
 public:
     bool bloom = true;
 
@@ -95,13 +95,13 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     // Framebuffers for offscreen rendering
-    vkx::Framebuffer offScreenFrameBufA, offScreenFrameBufB;
+    vkx::Framebuffer offscreenFrameBufA, offscreenFrameBufB;
     vk::Semaphore offscreenSemaphore;
-    vk::CommandBuffer offScreenCmdBuffer;
+    vk::CommandBuffer offscreenCmdBuffer;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
         zoom = -10.25f;
-        rotation = { 7.5f, -343.0f, 0.0f };
+        orientation = glm::quat(glm::radians(glm::vec3({ 7.5f, -343.0f, 0.0f })));
         timerSpeed *= 0.5f;
         enableTextOverlay = true;
         title = "Vulkan Example - Bloom";
@@ -111,8 +111,8 @@ public:
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
 
-        offScreenFrameBufA.destroy();
-        offScreenFrameBufB.destroy();
+        offscreenFrameBufA.destroy();
+        offscreenFrameBufB.destroy();
 
         device.destroyPipeline(pipelines.blur);
         device.destroyPipeline(pipelines.phongPass);
@@ -137,27 +137,9 @@ public:
         uniformData.fsVertBlur.destroy();
         uniformData.fsHorzBlur.destroy();
 
-        device.freeCommandBuffers(getCommandPool(), offScreenCmdBuffer);
+        device.freeCommandBuffers(getCommandPool(), offscreenCmdBuffer);
 
         textures.cubemap.destroy();
-    }
-
-    // Prepare a new framebuffer for offscreen rendering
-    // The contents of this framebuffer are then
-    // blitted to our render target
-    void prepareOffscreenFramebuffer(vkx::Framebuffer &frameBuf) {
-        frameBuf.size = glm::uvec2(FB_DIM);
-        // Find a suitable depth format
-        frameBuf.depthFormat = vkx::getSupportedDepthFormat(physicalDevice);
-        frameBuf.create(*this, offscreenRenderPass);
-
-        // Create sampler
-        vk::SamplerCreateInfo sampler;
-        sampler.magFilter = TEX_FILTER;
-        sampler.minFilter = TEX_FILTER;
-        sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
-        sampler.addressModeU = sampler.addressModeV = sampler.addressModeW = vk::SamplerAddressMode::eClampToEdge;
-        frameBuf.color.sampler = device.createSampler(sampler);
     }
 
     // Prepare the offscreen framebuffers used for the vertical- and horizontal blur 
@@ -226,19 +208,19 @@ public:
         renderPassInfo.pDependencies = subpassDependencies.data();
         offscreenRenderPass = device.createRenderPass(renderPassInfo);
 
-        prepareOffscreenFramebuffer(offScreenFrameBufA);
-        prepareOffscreenFramebuffer(offScreenFrameBufB);
+        prepareOffscreenFramebuffer(offscreenFrameBufA);
+        prepareOffscreenFramebuffer(offscreenFrameBufB);
     }
 
     void createOffscreenCommandBuffer() {
-        offScreenCmdBuffer = createCommandBuffer();
+        offscreenCmdBuffer = createCommandBuffer();
     }
 
     // Render the 3D scene into a texture target
     void buildOffscreenCommandBuffer() {
 
-        vk::Viewport viewport = vkx::viewport(offScreenFrameBufA.size);
-        vk::Rect2D scissor = vkx::rect2D(offScreenFrameBufA.size);
+        vk::Viewport viewport = vkx::viewport(offscreenFrameBufA.size);
+        vk::Rect2D scissor = vkx::rect2D(offscreenFrameBufA.size);
         vk::DeviceSize offset = 0;
 
         // Horizontal blur
@@ -248,50 +230,50 @@ public:
 
 
         vk::CommandBufferBeginInfo cmdBufInfo;
-        offScreenCmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-        offScreenCmdBuffer.begin(cmdBufInfo);
+        offscreenCmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+        offscreenCmdBuffer.begin(cmdBufInfo);
 
         // Draw the unblurred geometry to framebuffer 1
-        offScreenCmdBuffer.setViewport(0, viewport);
-        offScreenCmdBuffer.setScissor(0, scissor);
+        offscreenCmdBuffer.setViewport(0, viewport);
+        offscreenCmdBuffer.setScissor(0, scissor);
 
         // Draw the bloom geometry.
         {
             vk::RenderPassBeginInfo renderPassBeginInfo;
-            renderPassBeginInfo.renderPass = offscreenRenderPass;
-            renderPassBeginInfo.framebuffer = offScreenFrameBufA.frameBuffer;
-            renderPassBeginInfo.renderArea.extent.width = offScreenFrameBufA.size.x;
-            renderPassBeginInfo.renderArea.extent.height = offScreenFrameBufA.size.y;
+            renderPassBeginInfo.renderPass = offscreen.renderPass;
+            renderPassBeginInfo.framebuffer = offscreenFrameBufA.framebuffer;
+            renderPassBeginInfo.renderArea.extent.width = offscreenFrameBufA.size.x;
+            renderPassBeginInfo.renderArea.extent.height = offscreenFrameBufA.size.y;
             renderPassBeginInfo.clearValueCount = 2;
             renderPassBeginInfo.pClearValues = clearValues;
-            offScreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            offScreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
-            offScreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phongPass);
-            offScreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.ufoGlow.vertices.buffer, offset);
-            offScreenCmdBuffer.bindIndexBuffer(meshes.ufoGlow.indices.buffer, 0, vk::IndexType::eUint32);
-            offScreenCmdBuffer.drawIndexed(meshes.ufoGlow.indexCount, 1, 0, 0, 0);
-            offScreenCmdBuffer.endRenderPass();
+            offscreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+            offscreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
+            offscreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phongPass);
+            offscreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.ufoGlow.vertices.buffer, offset);
+            offscreenCmdBuffer.bindIndexBuffer(meshes.ufoGlow.indices.buffer, 0, vk::IndexType::eUint32);
+            offscreenCmdBuffer.drawIndexed(meshes.ufoGlow.indexCount, 1, 0, 0, 0);
+            offscreenCmdBuffer.endRenderPass();
         }
 
         {
             vk::RenderPassBeginInfo renderPassBeginInfo;
-            renderPassBeginInfo.renderPass = offscreenRenderPass;
-            renderPassBeginInfo.framebuffer = offScreenFrameBufB.frameBuffer;
-            renderPassBeginInfo.renderArea.extent.width = offScreenFrameBufB.size.x;
-            renderPassBeginInfo.renderArea.extent.height = offScreenFrameBufB.size.y;
+            renderPassBeginInfo.renderPass = offscreen.renderPass;
+            renderPassBeginInfo.framebuffer = offscreenFrameBufB.framebuffer;
+            renderPassBeginInfo.renderArea.extent.width = offscreenFrameBufB.size.x;
+            renderPassBeginInfo.renderArea.extent.height = offscreenFrameBufB.size.y;
             renderPassBeginInfo.clearValueCount = 2;
             renderPassBeginInfo.pClearValues = clearValues;
             // Draw a vertical blur pass from framebuffer 1's texture into framebuffer 2
-            offScreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            offScreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.radialBlur, 0, descriptorSets.verticalBlur, nullptr);
-            offScreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blur);
-            offScreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offset);
-            offScreenCmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-            offScreenCmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
-            offScreenCmdBuffer.endRenderPass();
+            offscreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+            offscreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.radialBlur, 0, descriptorSets.verticalBlur, nullptr);
+            offscreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blur);
+            offscreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offset);
+            offscreenCmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
+            offscreenCmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
+            offscreenCmdBuffer.endRenderPass();
         }
 
-        offScreenCmdBuffer.end();
+        offscreenCmdBuffer.end();
     }
 
     void loadTextures() {
@@ -302,8 +284,8 @@ public:
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         vk::DeviceSize offset = 0;
-        cmdBuffer.setViewport(0, vkx::viewport(width, height));
-        cmdBuffer.setScissor(0, vkx::rect2D(width, height));
+        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
 
         // Skybox 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.skyBox, nullptr);
@@ -323,7 +305,7 @@ public:
         if (bloom) {
             vkx::setImageLayout(
                 cmdBuffer,
-                offScreenFrameBufB.color.image,
+                offscreenFrameBufB.color.image,
                 vk::ImageAspectFlagBits::eColor,
                 vk::ImageLayout::eColorAttachmentOptimal,
                 vk::ImageLayout::eShaderReadOnlyOptimal);
@@ -455,7 +437,7 @@ public:
         descriptorSets.verticalBlur = device.allocateDescriptorSets(allocInfo)[0];
 
         vk::DescriptorImageInfo texDescriptorVert =
-            vkx::descriptorImageInfo(offScreenFrameBufA.color.sampler, offScreenFrameBufA.color.view, vk::ImageLayout::eShaderReadOnlyOptimal);
+            vkx::descriptorImageInfo(offscreenFrameBufA.color.sampler, offscreenFrameBufA.color.view, vk::ImageLayout::eShaderReadOnlyOptimal);
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
         {
@@ -485,7 +467,7 @@ public:
         descriptorSets.horizontalBlur = device.allocateDescriptorSets(allocInfo)[0];
 
         vk::DescriptorImageInfo texDescriptorHorz =
-            vkx::descriptorImageInfo(offScreenFrameBufB.color.sampler, offScreenFrameBufB.color.view, vk::ImageLayout::eGeneral);
+            vkx::descriptorImageInfo(offscreenFrameBufB.color.sampler, offscreenFrameBufB.color.view, vk::ImageLayout::eGeneral);
 
         writeDescriptorSets =
         {
@@ -714,7 +696,7 @@ public:
             vk::SubmitInfo submitInfo;
             submitInfo.pWaitDstStageMask = this->submitInfo.pWaitDstStageMask;
             submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &offScreenCmdBuffer;
+            submitInfo.pCommandBuffers = &offscreenCmdBuffer;
             submitInfo.waitSemaphoreCount = 1;
             submitInfo.pWaitSemaphores = &semaphores.presentComplete;
             submitInfo.signalSemaphoreCount = 1;

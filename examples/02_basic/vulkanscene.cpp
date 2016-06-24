@@ -58,11 +58,11 @@ public:
     glm::vec4 lightPos = glm::vec4(1.0f, 2.0f, 0.0f, 0.0f);
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        width = 1280;
-        height = 720;
+        size.width = 1280;
+        size.height = 720;
         zoom = -3.75f;
         rotationSpeed = 0.5f;
-        rotation = glm::vec3(15.0f, 0.f, 0.0f);
+        orientation = glm::quat(glm::radians(glm::vec3(15.0f, 0.f, 0.0f)));
         title = "Vulkan Demo Scene - � 2016 by Sascha Willems";
     }
 
@@ -99,18 +99,12 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-        cmdBuffer.setViewport(0, viewport);
-
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        cmdBuffer.setScissor(0, scissor);
-
+        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-
-        vk::DeviceSize offsets = 0;
         for (auto& mesh : meshes) {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, mesh->pipeline);
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, mesh->vertexBuffer.buf, offsets);
+            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, mesh->vertexBuffer.buf, { 0 });
             cmdBuffer.bindIndexBuffer(mesh->indexBuffer.buf, 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(mesh->indexBuffer.count, 1, 0, 0, 0);
         }
@@ -373,11 +367,12 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformData.meshVS = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, sizeof(uboVS), &uboVS);
+        uniformData.meshVS.map();
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
-        uboVS.projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.1f, 256.0f);
+        uboVS.projection = getProjection();
 
         uboVS.view = glm::lookAt(
             glm::vec3(0, 0, -zoom),
@@ -385,18 +380,10 @@ public:
             glm::vec3(0, 1, 0)
             );
 
-        uboVS.model = glm::mat4();
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
+        uboVS.model = glm::mat4_cast(orientation);
         uboVS.normal = glm::inverseTranspose(uboVS.view * uboVS.model);
-
         uboVS.lightPos = lightPos;
-
-        void *pData = device.mapMemory(uniformData.meshVS.memory, 0, sizeof(uboVS), vk::MemoryMapFlags());
-        memcpy(pData, &uboVS, sizeof(uboVS));
-        device.unmapMemory(uniformData.meshVS.memory);
+        uniformData.meshVS.copy(uboVS);
     }
 
     void prepare() {
@@ -408,6 +395,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
+        updateDrawCommandBuffers();
         prepared = true;
     }
 

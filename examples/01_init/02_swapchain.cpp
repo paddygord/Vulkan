@@ -413,17 +413,17 @@ public:
 
     void createFramebuffers() {
         std::array<vk::ImageView, 1> imageViews;
-        vk::FramebufferCreateInfo frameBufferCreateInfo;
-        frameBufferCreateInfo.renderPass = renderPass;
+        vk::FramebufferCreateInfo framebufferCreateInfo;
+        framebufferCreateInfo.renderPass = renderPass;
         // Create a placeholder image view for the swap chain color attachments
-        frameBufferCreateInfo.attachmentCount = (uint32_t)imageViews.size();
-        frameBufferCreateInfo.pAttachments = imageViews.data();
-        frameBufferCreateInfo.width = size.width;
-        frameBufferCreateInfo.height = size.height;
-        frameBufferCreateInfo.layers = 1;
+        framebufferCreateInfo.attachmentCount = (uint32_t)imageViews.size();
+        framebufferCreateInfo.pAttachments = imageViews.data();
+        framebufferCreateInfo.width = size.width;
+        framebufferCreateInfo.height = size.height;
+        framebufferCreateInfo.layers = 1;
 
         // Create frame buffers for every swap chain image
-        framebuffers =  swapChain.createFramebuffers(frameBufferCreateInfo);
+        framebuffers =  swapChain.createFramebuffers(framebufferCreateInfo);
     }
 
     void createCommandBuffers() {

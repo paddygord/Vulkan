@@ -289,19 +289,19 @@ public:
         attachments[2] = multisampleTarget.depth.view;
         attachments[3] = depthStencil.view;
 
-        vk::FramebufferCreateInfo frameBufferCreateInfo;
-        frameBufferCreateInfo.renderPass = renderPass;
-        frameBufferCreateInfo.attachmentCount = attachments.size();
-        frameBufferCreateInfo.pAttachments = attachments.data();
-        frameBufferCreateInfo.width = size.width;
-        frameBufferCreateInfo.height = size.height;
-        frameBufferCreateInfo.layers = 1;
+        vk::FramebufferCreateInfo framebufferCreateInfo;
+        framebufferCreateInfo.renderPass = renderPass;
+        framebufferCreateInfo.attachmentCount = attachments.size();
+        framebufferCreateInfo.pAttachments = attachments.data();
+        framebufferCreateInfo.width = size.width;
+        framebufferCreateInfo.height = size.height;
+        framebufferCreateInfo.layers = 1;
 
         // Create frame buffers for every swap chain image
         framebuffers.resize(swapChain.imageCount);
         for (uint32_t i = 0; i < framebuffers.size(); i++) {
             attachments[1] = swapChain.buffers[i].view;
-            framebuffers[i] = device.createFramebuffer(frameBufferCreateInfo);
+            framebuffers[i] = device.createFramebuffer(framebufferCreateInfo);
         }
     }
 

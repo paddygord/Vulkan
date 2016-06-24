@@ -22,7 +22,7 @@ namespace vkx {
         vk::Format depthFormat = vk::Format::eUndefined;
         vk::Device device;
         glm::uvec2 size{ 100, 100 };
-        vk::Framebuffer frameBuffer;
+        vk::Framebuffer framebuffer;
         Attachment depth;
         std::vector<Attachment> colors;
 
@@ -31,9 +31,9 @@ namespace vkx {
                 color.destroy();
             }
             depth.destroy();
-            if (frameBuffer) {
-                device.destroyFramebuffer(frameBuffer);
-                frameBuffer = vk::Framebuffer();
+            if (framebuffer) {
+                device.destroyFramebuffer(framebuffer);
+                framebuffer = vk::Framebuffer();
             }
         }
 
@@ -108,7 +108,7 @@ namespace vkx {
             fbufCreateInfo.width = size.x;
             fbufCreateInfo.height = size.y;
             fbufCreateInfo.layers = 1;
-            frameBuffer = context.device.createFramebuffer(fbufCreateInfo);
+            framebuffer = context.device.createFramebuffer(fbufCreateInfo);
         }
     };
 }
