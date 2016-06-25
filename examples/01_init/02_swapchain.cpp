@@ -536,7 +536,6 @@ public:
         queue.waitIdle();
         device.waitIdle();
     }
-
 };
 
 RUN_EXAMPLE(SwapchainExample)

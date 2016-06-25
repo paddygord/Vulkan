@@ -255,7 +255,7 @@ namespace vkx {
         static int32_t handleAppInput(struct android_app* app, AInputEvent* event);
         static void handleAppCommand(android_app* app, int32_t cmd);
 #else
-        void setupWindow();
+        virtual void setupWindow();
 #endif
 
         // A default draw implementation
