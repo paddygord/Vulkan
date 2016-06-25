@@ -161,8 +161,6 @@ namespace vkx {
         uint32_t currentBuffer = 0;
         // Descriptor set pool
         vk::DescriptorPool descriptorPool;
-        // List of shader modules created (stored for cleanup)
-        std::vector<vk::ShaderModule> shaderModules;
 
         // Wraps the swap chain to present images (framebuffers) to the windowing system
         SwapChain swapChain;
@@ -493,12 +491,6 @@ namespace vkx {
 
         // Prepare commonly used Vulkan functions
         virtual void prepare();
-
-        // Load a SPIR-V shader
-        vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage);
-
-        vk::PipelineShaderStageCreateInfo loadGlslShader(const std::string& fileName, vk::ShaderStageFlagBits stage);
-
 
         // Load a mesh (using ASSIMP) and create vulkan vertex and index buffers with given vertex layout
         vkx::MeshBuffer loadMesh(

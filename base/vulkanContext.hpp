@@ -3,6 +3,7 @@
 #include "common.hpp"
 #include "vulkanDebug.h"
 #include "vulkanTools.h"
+#include "vulkanShaders.h"
 
 namespace vkx {
     class Context {
@@ -159,6 +160,8 @@ namespace vkx {
         vk::Device device;
         // vk::Pipeline cache object
         vk::PipelineCache pipelineCache;
+        // List of shader modules created (stored for cleanup)
+        mutable std::vector<vk::ShaderModule> shaderModules;
 
         vk::Queue queue;
         // Find a queue that supports graphics operations
@@ -322,6 +325,7 @@ namespace vkx {
             auto allocatedSize = count * alignedSize;
             CreateBufferResult result = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, allocatedSize);
             result.alignment = alignedSize;
+            result.descriptor.range = result.alignment;
             result.map();
             result.copy(data);
             return result;
@@ -386,6 +390,76 @@ namespace vkx {
             return result;
         }
 
+        // Load a SPIR-V shader
+        inline vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) {
+            vk::PipelineShaderStageCreateInfo shaderStage;
+            shaderStage.stage = stage;
+#if defined(__ANDROID__)
+            shaderStage.module = loadShader(androidApp->activity->assetManager, fileName.c_str(), device, stage);
+#else
+            shaderStage.module = vkx::loadShader(fileName.c_str(), device, stage);
+#endif
+            shaderStage.pName = "main"; // todo : make param
+            assert(shaderStage.module);
+            shaderModules.push_back(shaderStage.module);
+            return shaderStage;
+        }
+
+        inline vk::PipelineShaderStageCreateInfo loadGlslShader(const std::string& fileName, vk::ShaderStageFlagBits stage) const {
+            auto source = readTextFile(fileName.c_str());
+            vk::PipelineShaderStageCreateInfo shaderStage;
+            shaderStage.stage = stage;
+            shaderStage.module = shader::glslToShaderModule(device, stage, source);
+            shaderStage.pName = "main";
+            shaderModules.push_back(shaderStage.module);
+            return shaderStage;
+        }
+
+        void submit(
+            const vk::ArrayProxy<const vk::CommandBuffer>& commandBuffers,
+            const vk::ArrayProxy<const vk::Semaphore>& wait = {},
+            const vk::ArrayProxy<const vk::PipelineStageFlags>& waitStages = {},
+            const vk::ArrayProxy<const vk::Semaphore>& signals = {},
+            const vk::Fence& fence = vk::Fence()
+            ) {
+            vk::SubmitInfo info;
+            info.commandBufferCount = commandBuffers.size();
+            info.pCommandBuffers = commandBuffers.data();
+
+            if (signals.size()) {
+                info.signalSemaphoreCount = signals.size();
+                info.pSignalSemaphores = signals.data();
+            }
+
+            assert(waitStages.size() == wait.size());
+
+            if (wait.size()) {
+                info.waitSemaphoreCount = wait.size();
+                info.pWaitSemaphores = wait.data();
+                info.pWaitDstStageMask = waitStages.data();
+            }
+            info.pWaitDstStageMask = waitStages.data();
+
+            info.signalSemaphoreCount = signals.size();
+            queue.submit(info, fence);
+        }
+
+        using SemaphoreStagePair = std::pair<const vk::Semaphore, const vk::PipelineStageFlags>;
+
+        void submit(
+            const vk::ArrayProxy<const vk::CommandBuffer>& commandBuffers,
+            const vk::ArrayProxy<const SemaphoreStagePair>& wait = {},
+            const vk::ArrayProxy<const vk::Semaphore>& signals = {},
+            const vk::Fence& fence = vk::Fence()) {
+            std::vector<vk::Semaphore> waitSemaphores;
+            std::vector<vk::PipelineStageFlags> waitStages;
+            for (size_t i = 0; i < wait.size(); ++i) {
+                const auto& pair = wait.data()[i];
+                waitSemaphores.push_back(pair.first);
+                waitStages.push_back(pair.second);
+            }
+            submit(commandBuffers, waitSemaphores, waitStages, signals, fence);
+        }
     };
 
     // Template specialization for texture objects

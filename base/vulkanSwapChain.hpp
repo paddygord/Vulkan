@@ -26,10 +26,10 @@ namespace vkx {
         const vkx::Context& context;
         vk::SurfaceKHR surface;
         vk::SwapchainKHR swapChain;
-        std::vector<SwapChainImage> images;
         vk::PresentInfoKHR presentInfo;
 
     public:
+        std::vector<SwapChainImage> images;
         vk::Format colorFormat;
         vk::ColorSpaceKHR colorSpace;
         uint32_t imageCount{ 0 };
@@ -49,7 +49,7 @@ namespace vkx {
 #else
             GLFWwindow* window
 #endif
-        ) {
+            ) {
             // Create surface depending on OS
 #ifdef __ANDROID__
             vk::AndroidSurfaceCreateInfoKHR surfaceCreateInfo;
@@ -85,8 +85,8 @@ namespace vkx {
 
             // If the surface format list only includes one entry with  vk::Format::eUndefined,
             // there is no preferered format, so we assume  vk::Format::eB8G8R8A8Unorm
-            if ((formatCount == 1) && (surfaceFormats[0].format ==  vk::Format::eUndefined)) {
-                colorFormat =  vk::Format::eB8G8R8A8Unorm;
+            if ((formatCount == 1) && (surfaceFormats[0].format == vk::Format::eUndefined)) {
+                colorFormat = vk::Format::eB8G8R8A8Unorm;
             } else {
                 // Always select the first available color format
                 // If you need a specific format (e.g. SRGB) you'd need to
@@ -103,8 +103,8 @@ namespace vkx {
         // Creates an os specific surface
         // Tries to find a graphics and a present queue
         void create(
-            vk::Extent2D& size
-        ) {
+            vk::Extent2D& size, bool vsync = false
+            ) {
             assert(surface);
             assert(queueNodeIndex != UINT32_MAX);
             vk::SwapchainKHR oldSwapchain = swapChain;
@@ -130,13 +130,16 @@ namespace vkx {
 
             // Prefer mailbox mode if present, it's the lowest latency non-tearing present  mode
             vk::PresentModeKHR swapchainPresentMode = vk::PresentModeKHR::eFifo;
-            for (size_t i = 0; i < presentModeCount; i++) {
-                if (presentModes[i] == vk::PresentModeKHR::eMailbox) {
-                    swapchainPresentMode = vk::PresentModeKHR::eMailbox;
-                    break;
-                }
-                if ((swapchainPresentMode != vk::PresentModeKHR::eMailbox) && (presentModes[i] == vk::PresentModeKHR::eImmediate)) {
-                    swapchainPresentMode = vk::PresentModeKHR::eImmediate;
+
+            if (!vsync) {
+                for (size_t i = 0; i < presentModeCount; i++) {
+                    if (presentModes[i] == vk::PresentModeKHR::eMailbox) {
+                        swapchainPresentMode = vk::PresentModeKHR::eMailbox;
+                        break;
+                    }
+                    if ((swapchainPresentMode != vk::PresentModeKHR::eMailbox) && (presentModes[i] == vk::PresentModeKHR::eImmediate)) {
+                        swapchainPresentMode = vk::PresentModeKHR::eImmediate;
+                    }
                 }
             }
 
@@ -160,7 +163,7 @@ namespace vkx {
             swapchainCI.imageFormat = colorFormat;
             swapchainCI.imageColorSpace = colorSpace;
             swapchainCI.imageExtent = vk::Extent2D{ swapchainExtent.width, swapchainExtent.height };
-            swapchainCI.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
+            swapchainCI.imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst;
             swapchainCI.preTransform = preTransform;
             swapchainCI.imageArrayLayers = 1;
             swapchainCI.imageSharingMode = vk::SharingMode::eExclusive;
@@ -238,16 +241,19 @@ namespace vkx {
             currentImage = resultValue.value;
             return currentImage;
         }
-        
+
         void clearSubmitFence(uint32_t index) {
             images[index].fence = vk::Fence();
         }
 
-        vk::Fence getSubmitFence() {
+        vk::Fence getSubmitFence(bool destroy = false) {
             auto& image = images[currentImage];
             while (image.fence) {
                 vk::Result fenceRes = context.device.waitForFences(image.fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
                 if (fenceRes == vk::Result::eSuccess) {
+                    if (destroy) {
+                        context.device.destroyFence(image.fence);
+                    }
                     image.fence = vk::Fence();
                 }
             }

@@ -14,8 +14,6 @@
 #define INSTANCE_COUNT (INSTANCES_PER_SHAPE * SHAPES_COUNT)
 using namespace vk;
 
-
-
 class VulkanExample : public vkx::ExampleBase {
 public:
     CreateBufferResult meshes;

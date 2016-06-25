@@ -290,31 +290,6 @@ void ExampleBase::prepare() {
         updateTextOverlay();
     }
 }
-
-vk::PipelineShaderStageCreateInfo ExampleBase::loadGlslShader(const std::string& fileName, vk::ShaderStageFlagBits stage) {
-    auto source = readTextFile(fileName.c_str());
-    vk::PipelineShaderStageCreateInfo shaderStage;
-    shaderStage.stage = stage;
-    shaderStage.module = shader::glslToShaderModule(device, stage, source);
-    shaderStage.pName = "main";
-    shaderModules.push_back(shaderStage.module);
-    return shaderStage;
-}
-
-vk::PipelineShaderStageCreateInfo ExampleBase::loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) {
-    vk::PipelineShaderStageCreateInfo shaderStage;
-    shaderStage.stage = stage;
-#if defined(__ANDROID__)
-    shaderStage.module = loadShader(androidApp->activity->assetManager, fileName.c_str(), device, stage);
-#else
-    shaderStage.module = vkx::loadShader(fileName.c_str(), device, stage);
-#endif
-    shaderStage.pName = "main"; // todo : make param
-    assert(shaderStage.module);
-    shaderModules.push_back(shaderStage.module);
-    return shaderStage;
-}
-
 MeshBuffer ExampleBase::loadMesh(const std::string& filename, const MeshLayout& vertexLayout, float scale) {
     MeshLoader loader;
 #if defined(__ANDROID__)

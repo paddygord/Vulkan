@@ -14,16 +14,6 @@ public:
     float fpsTimer{ 0 };
     float lastFPS{ 0 };
     uint32_t frameCounter{ 0 };
-    const float duration = 4.0f;
-    const float interval = 6.0f;
-    float zoom{ -1.0f };
-    float rotationSpeed{ 0.25 };
-    float zoomDelta{ 135 };
-    float zoomStart{ 0 };
-    float accumulator{ FLT_MAX };
-    float frameTimer{ 0 };
-    bool paused{ false };
-    glm::quat orientation;
 
     OpenGLInteropExample() : vulkanRenderer{ vulkanContext } {
         glfwInit();
@@ -57,6 +47,8 @@ public:
 
     void render() {
         glfwMakeContextCurrent(window);
+
+        // Tell the 
         gl::nv::vk::SignalSemaphore(vulkanRenderer.semaphores.renderStart);
         glFlush();
         vulkanRenderer.render();
@@ -72,40 +64,15 @@ public:
         vulkanRenderer.prepare();
     }
 
-    void update(float deltaTime) {
-        frameTimer = deltaTime;
-        accumulator += frameTimer;
-        if (accumulator < duration) {
-            zoom = easings::inOutQuint(accumulator, duration, zoomStart, zoomDelta);
-        } 
-
-        if (accumulator >= interval) {
-            accumulator = 0;
-            zoomStart = zoom;
-            if (zoom < -2) {
-                zoomDelta = 135;
-            } else {
-                zoomDelta = -135;
-            }
-        }
-    }
-
     void run() {
         prepare();
-        auto tStart = std::chrono::high_resolution_clock::now();
         while (!glfwWindowShouldClose(window)) {
-            auto tEnd = std::chrono::high_resolution_clock::now();
-            auto tDiff = std::chrono::duration<float, std::milli>(tEnd - tStart).count();
-            tStart = tEnd;
-
-            update(tDiff / 1000.0f);
-
-            auto projection = glm::perspective(glm::radians(60.0f), (float)size.x / (float)size.y, 0.001f, 256.0f);
-            auto view = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
-            vulkanRenderer.update((float)tDiff / 1000.0f, projection, view);
+            auto tStart = std::chrono::high_resolution_clock::now();
             glfwPollEvents();
             render();
             ++frameCounter;
+            auto tEnd = std::chrono::high_resolution_clock::now();
+            auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
             fpsTimer += (float)tDiff;
             if (fpsTimer > 1000.0f) {
                 std::string windowTitle = getWindowTitle();
@@ -114,6 +81,10 @@ public:
                 fpsTimer = 0.0f;
                 frameCounter = 0;
             }
+
+            glm::mat4 view = glm::translate(glm::mat4(), glm::vec3(0, 0, -2.5));
+            glm::mat4 projection = glm::perspective(glm::radians(60.0f), (float)size.x / (float)size.y, 0.001f, 256.0f);
+            vulkanRenderer.update((float)tDiff / 1000.0f, projection, view);
         }
     }
 

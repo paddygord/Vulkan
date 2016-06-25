@@ -131,9 +131,15 @@ subdirlist(SUBDIRS ${CMAKE_CURRENT_SOURCE_DIR}/examples)
 build_examples(${SUBDIRS})
 
 set(TARGET_NAME glinterop)
-add_dependency_external_projects(glew)
-target_include_directories(${TARGET_NAME} PUBLIC ${GLEW_INCLUDE_DIRS})
-target_compile_definitions(${TARGET_NAME} PUBLIC -DGLEW_STATIC)
-target_link_libraries(${TARGET_NAME} ${GLEW_LIBRARY})
-add_dependencies(${TARGET_NAME} glew) 
 target_opengl()
+target_glew()
+
+set(TARGET_NAME stereo)
+target_opengl()
+target_glew()
+
+set(TARGET_NAME vr)
+target_opengl()
+target_glew()
+target_oculus()
+
