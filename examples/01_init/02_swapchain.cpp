@@ -221,6 +221,16 @@ namespace vkx {
             return currentImage;
         }
         
+        // This function serves two purposes.  The first is to provide a fence associated with a given swap chain 
+        // image.  If this fence is submitted to a queue along with the command buffer(s) that write to that image
+        // then if that fence is signaled, you can rely on the fact that those command buffers 
+        // (and any other per-swapChain-image resoures) are no longer in use.
+        // 
+        // The second purpose is to actually perform a blocking wait on any previous fence that was associated with 
+        // that image before returning.  By doing so, it can ensure that we do not attempt to submit a command 
+        // buffer that may already be exeucting for a previous frame using this image.  
+        // 
+        // Note that the fence
         vk::Fence getSubmitFence() {
             auto& image = images[currentImage];
             while (image.fence) {
@@ -232,6 +242,13 @@ namespace vkx {
 
             image.fence = context.device.createFence(vk::FenceCreateFlags());
             return image.fence;
+        }
+
+        // If the application has examined the fence, determined it has been signalled, and destroyed it,
+        // it needs to call this function to ensure that we do not attempt to inspect or wait on a 
+        // destroyed fence
+        void clearSubmitFence(uint32_t index) {
+            images[index].fence = vk::Fence();
         }
 
         // Present the current image to the queue
@@ -345,6 +362,16 @@ public:
     }
 
     ~SwapchainExample() {
+        for (const auto& fence : submitFences) {
+            device.destroyFence(fence);
+        }
+        device.destroySemaphore(semaphores.acquireComplete);
+        device.destroySemaphore(semaphores.renderComplete);
+        for (const auto& framebuffer : framebuffers) {
+            device.destroyFramebuffer(framebuffer);
+        }
+        device.destroyRenderPass(renderPass);
+        swapChain.cleanup();
         glfwDestroyWindow(window);
         glfwTerminate();
         destroyContext();
@@ -366,12 +393,12 @@ public:
         glfwShowWindow(window);
     }
 
-    std::vector<vk::AttachmentDescription> attachments;
-    std::vector<vk::AttachmentReference> attachmentReferences;
-    std::vector<vk::SubpassDescription> subpasses;
-    std::vector<vk::SubpassDependency> subpassDependencies;
-
     void createRenderPass() {
+        std::vector<vk::AttachmentDescription> attachments;
+        std::vector<vk::AttachmentReference> attachmentReferences;
+        std::vector<vk::SubpassDescription> subpasses;
+        std::vector<vk::SubpassDependency> subpassDependencies;
+
         vk::AttachmentDescription colorAttachment;
         colorAttachment.format = swapChain.colorFormat;
         colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
@@ -506,6 +533,8 @@ public:
             submitFrame();
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
+        queue.waitIdle();
+        device.waitIdle();
     }
 
 };

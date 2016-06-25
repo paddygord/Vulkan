@@ -7,38 +7,19 @@
 */
 
 #include "common.hpp"
+#include "vulkanTools.h"
 
 namespace vkx {
-    // Version information for Vulkan is stored in a single 32 bit integer
-    // with individual bits representing the major, minor and patch versions.
-    // The maximum possible major and minor version is 512 (look out nVidia)
-    // while the maximum possible patch version is 2048
-    struct Version {
-        Version() : major(0), minor(0), patch(0) {}
-        Version(uint32_t version) : Version() { *this = version; }
-
-        Version& operator =(uint32_t version) {
-            memcpy(this, &version, sizeof(uint32_t));
-            return *this;
-        }
-
-        operator uint32_t() const {
-            uint32_t result;
-            memcpy(&result, this, sizeof(uint32_t));
-        }
-
-        std::string toString() const {
-            std::stringstream buffer;
-            buffer << major << "." << minor << "." << patch;
-            return buffer.str();
-        }
-
-        const uint32_t patch : 12;
-        const uint32_t minor : 10;
-        const uint32_t major : 10;
-
-    };
-
+    // A trimmed down version of our context class.
+    // The full version creates additional objects required for rendering:
+    //
+    //  vk::Device 
+    //  vk::Queue 
+    //  vk::PipelineCache 
+    //  vk::CommandPool
+    // 
+    // The full version also sets up validation layers for debugging if requested
+    // See vulkanContext.hpp
     class Context {
     public:
         // Vulkan instance, stores all per-application states
@@ -52,14 +33,7 @@ namespace vkx {
         vk::PhysicalDeviceFeatures deviceFeatures;
         // Stores all available memory (type) properties for the physical device
         vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
-        // Logical device, application's view of the physical device (GPU)
-        vk::Device device;
-        // vk::Pipeline cache object
-        vk::PipelineCache pipelineCache;
 
-        vk::Queue queue;
-        // Find a queue that supports graphics operations
-        uint32_t graphicsQueueIndex{ UINT32_MAX };
         Version version;
         Version driverVersion;
 
@@ -115,118 +89,12 @@ namespace vkx {
             deviceFeatures = physicalDevice.getFeatures();
             // Gather physical device memory properties
             deviceMemoryProperties = physicalDevice.getMemoryProperties();
-
-            // Vulkan device
-            {
-                // Find a queue that supports graphics operations
-                uint32_t graphicsQueueIndex = findQueue(vk::QueueFlagBits::eGraphics);
-                std::array<float, 1> queuePriorities = { 0.0f };
-                vk::DeviceQueueCreateInfo queueCreateInfo;
-                queueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
-                queueCreateInfo.queueCount = 1;
-                queueCreateInfo.pQueuePriorities = queuePriorities.data();
-                std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-                vk::DeviceCreateInfo deviceCreateInfo;
-                deviceCreateInfo.queueCreateInfoCount = 1;
-                deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-                deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
-                if (enabledExtensions.size() > 0) {
-                    deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-                    deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-                }
-                device = physicalDevice.createDevice(deviceCreateInfo);
-            }
-
-            pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
-            // Find a queue that supports graphics operations
-            graphicsQueueIndex = findQueue(vk::QueueFlagBits::eGraphics);
-            // Get the graphics queue
-            queue = device.getQueue(graphicsQueueIndex, 0);
         }
 
         void destroyContext() {
-            destroyCommandPool();
-            device.destroyPipelineCache(pipelineCache);
-            device.destroy();
             instance.destroy();
         }
-
-        uint32_t findQueue(const vk::QueueFlags& flags, const vk::SurfaceKHR& presentSurface = vk::SurfaceKHR()) {
-            std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();
-            size_t queueCount = queueProps.size();
-            for (uint32_t i = 0; i < queueCount; i++) {
-                if (queueProps[i].queueFlags & flags) {
-                    if (presentSurface && !physicalDevice.getSurfaceSupportKHR(i, presentSurface)) {
-                        continue;
-                    }
-                    return i;
-                }
-            }
-            throw std::runtime_error("No queue matches the flags " + vk::to_string(flags));
-        }
-
-#ifdef WIN32
-        static __declspec(thread) VkCommandPool s_cmdPool;
-#else
-        static thread_local vk::CommandPool s_cmdPool;
-#endif
-
-        const vk::CommandPool getCommandPool() const {
-            if (!s_cmdPool) {
-                vk::CommandPoolCreateInfo cmdPoolInfo;
-                cmdPoolInfo.queueFamilyIndex = graphicsQueueIndex;
-                cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-                s_cmdPool = device.createCommandPool(cmdPoolInfo);
-            }
-            return s_cmdPool;
-        }
-
-        void destroyCommandPool() {
-            if (s_cmdPool) {
-                device.destroyCommandPool(s_cmdPool);
-                s_cmdPool = vk::CommandPool();
-            }
-        }
-
-        vk::CommandBuffer createCommandBuffer(vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary, bool begin = false) const {
-            vk::CommandBuffer cmdBuffer;
-            vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
-            cmdBufAllocateInfo.commandPool = getCommandPool();
-            cmdBufAllocateInfo.level = level;
-            cmdBufAllocateInfo.commandBufferCount = 1;
-
-            cmdBuffer = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
-
-            // If requested, also start the new command buffer
-            if (begin) {
-                cmdBuffer.begin(vk::CommandBufferBeginInfo());
-            }
-
-            return cmdBuffer;
-        }
-
-        vk::Bool32 getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties, uint32_t * typeIndex) const {
-            for (uint32_t i = 0; i < 32; i++) {
-                if ((typeBits & 1) == 1) {
-                    if ((deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-                        *typeIndex = i;
-                        return true;
-                    }
-                }
-                typeBits >>= 1;
-            }
-            return false;
-        }
-
-        uint32_t getMemoryType(uint32_t typeBits, const vk::MemoryPropertyFlags& properties) const {
-            uint32_t result = 0;
-            if (!getMemoryType(typeBits, properties, &result)) {
-                // todo : throw error
-            }
-            return result;
-        }
     };
-
 }
 
 std::string toHumanSize(size_t size) {

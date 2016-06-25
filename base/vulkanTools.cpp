@@ -263,25 +263,6 @@ namespace vkx {
         return shaderModule;
     }
 
-    vk::ImageMemoryBarrier prePresentBarrier(vk::Image presentImage) {
-        vk::ImageMemoryBarrier imageMemoryBarrier;
-        imageMemoryBarrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-        imageMemoryBarrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
-        imageMemoryBarrier.newLayout = vk::ImageLayout::ePresentSrcKHR;
-        imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-        imageMemoryBarrier.image = presentImage;
-        return imageMemoryBarrier;
-    }
-
-    vk::ImageMemoryBarrier postPresentBarrier(vk::Image presentImage) {
-        vk::ImageMemoryBarrier imageMemoryBarrier;
-        imageMemoryBarrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-        imageMemoryBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
-        imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-        imageMemoryBarrier.image = presentImage;
-        return imageMemoryBarrier;
-    }
-
     vk::CommandBufferAllocateInfo commandBufferAllocateInfo(vk::CommandPool commandPool, vk::CommandBufferLevel level, uint32_t bufferCount) {
         vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
         commandBufferAllocateInfo.commandPool = commandPool;

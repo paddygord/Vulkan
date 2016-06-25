@@ -21,6 +21,37 @@
 
 namespace vkx {
 
+    // Version information for Vulkan is stored in a single 32 bit integer
+    // with individual bits representing the major, minor and patch versions.
+    // The maximum possible major and minor version is 512 (look out nVidia)
+    // while the maximum possible patch version is 2048
+    struct Version {
+        Version() : major(0), minor(0), patch(0) {}
+        Version(uint32_t version) : Version() { *this = version; }
+
+        Version& operator =(uint32_t version) {
+            memcpy(this, &version, sizeof(uint32_t));
+            return *this;
+        }
+
+        operator uint32_t() const {
+            uint32_t result;
+            memcpy(&result, this, sizeof(uint32_t));
+        }
+
+        std::string toString() const {
+            std::stringstream buffer;
+            buffer << major << "." << minor << "." << patch;
+            return buffer.str();
+        }
+
+        const uint32_t patch : 12;
+        const uint32_t minor : 10;
+        const uint32_t major : 10;
+
+    };
+
+
     // Check if extension is globally available
     vk::Bool32 checkGlobalExtensionPresent(const char* extensionName);
     // Check if extension is present on the given device
@@ -63,15 +94,10 @@ namespace vkx {
     // may be dropped at some point    
     vk::ShaderModule loadShaderGLSL(const std::string& filename, vk::Device device, vk::ShaderStageFlagBits stage);
 
-    // Returns a pre-present image memory barrier
-    // Transforms the image's layout from color attachment to present khr
-    vk::ImageMemoryBarrier prePresentBarrier(vk::Image presentImage);
-
-    // Returns a post-present image memory barrier
-    // Transforms the image's layout back from present khr to color attachment
-    vk::ImageMemoryBarrier postPresentBarrier(vk::Image presentImage);
-
-
+    // A wrapper class for an allocation, either an Image or Buffer.  Not intended to be used used directly
+    // but only as a base class providing common functionality for the classes below.
+    //
+    // Provides easy to use mechanisms for mapping, unmapping and copying host data to the device memory
     struct AllocatedResult {
         vk::Device device;
         vk::DeviceMemory memory;
@@ -116,11 +142,15 @@ namespace vkx {
         }
     };
 
+    // Encaspulates an image, the memory for that image, a view of the image,
+    // as well as a sampler and the image format.
+    //
+    // The sampler is not populated by the allocation code, but is provided
+    // for convenience and easy cleanup if it is populated.
     struct CreateImageResult : public AllocatedResult {
     private:
         using Parent = AllocatedResult;
     public:
-
         vk::Image image;
         vk::ImageView view;
         vk::Sampler sampler;
@@ -130,6 +160,10 @@ namespace vkx {
             Parent::destroy();
             if (mapped) {
                 unmap();
+            }
+            if (sampler) {
+                device.destroySampler(sampler);
+                sampler = vk::Sampler();
             }
             if (view) {
                 device.destroyImageView(view);
@@ -150,15 +184,6 @@ namespace vkx {
         vk::Buffer buffer;
         vk::DescriptorBufferInfo descriptor;
 
-        template<typename T>
-        inline void updateNext(const T& data) {
-            descriptor.offset += alignment;
-            descriptor.offset %= size;
-            std::cout << "Updating uniform data at offset " << std::hex << descriptor.offset << std::endl;
-
-            copy(data, descriptor.offset);
-        }
-
         void destroy() override {
             if (mapped) {
                 unmap();
@@ -174,6 +199,13 @@ namespace vkx {
     // Contains all vulkan objects
     // required for a uniform data object
     using UniformData = vkx::CreateBufferResult;
+
+    //////////////////////////////////////////////////////////////////////////////
+    //
+    // Helper functions to create commonly used types while taking 
+    // only a subset of the total possible number of structure members
+    // (leaving the remaining at reasonable defaults)
+    //
 
     // Contains often used vulkan object initializers
     // Save lot of VK_STRUCTURE_TYPE assignments

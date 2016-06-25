@@ -14,19 +14,46 @@
 #include "vulkanExampleBase.h"
 
 class VulkanExample : public vkx::ExampleBase {
+    // Moved to base class
+    /*
+    GLFWwindow* window{ nullptr };
+    float zoom{ -2.5f };
+    std::string title{ "Vulkan Example - Basic indexed triangle" };
+    vk::Extent2D size{ 1280, 720 };
+    vkx::SwapChain swapChain;
+    uint32_t currentBuffer;
+    vk::CommandPool cmdPool;
+    vk::DescriptorPool descriptorPool;
+    vk::RenderPass renderPass;
+    // List of shader modules created (stored for cleanup)
+    std::vector<vk::ShaderModule> shaderModules;
+    // List of available frame buffers (same as number of swap chain images)
+    std::vector<vk::Framebuffer> framebuffers;
+    std::vector<vk::CommandBuffer> cmdBuffers;
+    std::vector<vk::Fence> submitFences;
+    bool prepared{ false };
+    */
+
+    // Moved to base class
+    /*
+    void run()
+    void prepare() 
+    void setupRenderPass()
+    void setupFrameBuffer()
+    void prepareSemaphore()
+    */
+
 public:
-    struct {
-        CreateBufferResult buffer;
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
-
-    struct {
-        int count;
-        CreateBufferResult buffer;
-    } indices;
-
+    // CreateBufferResult is a standard helper structure to encapsulate a buffer, 
+    // the memory for that buffer, and a descriptor for the buffer (if necessary)
+    // We'll see more of what it does when we start using it
+    CreateBufferResult vertices;
+    CreateBufferResult indices;
+    uint32_t indexCount{ 0 };
+        
+    vk::PipelineVertexInputStateCreateInfo inputState;
+    std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
+    std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
     CreateBufferResult uniformDataVS;
 
     struct UboVS {
@@ -35,14 +62,7 @@ public:
         glm::mat4 viewMatrix;
     } uboVS;
 
-    struct {
-        char y;
-        char x;
-    } uboVS2;
-
-    struct {
-        vk::Pipeline solid;
-    } pipelines;
+    vk::Pipeline pipeline;
 
     vk::PipelineLayout pipelineLayout;
     vk::DescriptorSet descriptorSet;
@@ -53,41 +73,44 @@ public:
         size.height = 720;
         zoom = -2.5f;
         title = "Vulkan Example - Basic indexed triangle";
-        // Values not set here are initialized in the base class constructor
     }
 
     ~VulkanExample() {
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
-        device.destroyPipeline(pipelines.solid);
-
+        device.destroyPipeline(pipeline);
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
 
-        vertices.buffer.destroy();
-        indices.buffer.destroy();
+        vertices.destroy();
+        indices.destroy();
         uniformDataVS.destroy();
     }
 
-    // Build separate command buffers for every framebuffer image
-    // Unlike in OpenGL all rendering commands are recorded once
-    // into command buffers that are then resubmitted to the queue
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer.buffer, { 0 });
-        cmdBuffer.bindIndexBuffer(indices.buffer.buffer, 0, vk::IndexType::eUint32);
-        cmdBuffer.drawIndexed(indices.count, 1, 0, 0, 1);
+    void render() override {
+        if (!prepared)
+            return;
+        draw();
     }
 
-    // Base class does all this for us
-    // void draw()
+    void prepare() {
+        // Even though we moved some of the preparations to the base class, we still have more to do locally
+        // so we call be base class prepare method and then our preparation methods.  The base class sets up
+        // the swapchain, renderpass, framebuffers, command pool and debugging.  It also creates some 
+        // helper classes for loading textures and for rendering text overlays, but we will not use them yet
+        ExampleBase::prepare();
+        prepareVertices();
+        prepareUniformBuffers();
+        setupDescriptorSetLayout();
+        preparePipelines();
+        setupDescriptorPool();
+        setupDescriptorSet();
+        // Update the drawCmdBuffers with the required drawing commands
+        updateDrawCommandBuffers();
+        prepared = true;
+    }
 
-    // Setups vertex and index buffers for an indexed triangle,
-    // uploads them to the VRAM and sets binding points and attribute
-    // descriptions to match locations inside the shaders
+    // As before
     void prepareVertices() {
         struct Vertex {
             float pos[3];
@@ -100,64 +123,49 @@ public:
             { { -1.0f,  1.0f, 0.0f },{ 0.0f, 1.0f, 0.0f } },
             { { 0.0f, -1.0f, 0.0f },{ 0.0f, 0.0f, 1.0f } }
         };
-        vertices.buffer = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
+        vertices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
 
         // Setup indices
         std::vector<uint32_t> indexBuffer = { 0, 1, 2 };
-        indices.count = indexBuffer.size();
-        indices.buffer = stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
+        indexCount = (uint32_t)indexBuffer.size();
+        indices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
 
         // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
-        vertices.bindingDescriptions[0].stride = sizeof(Vertex);
-        vertices.bindingDescriptions[0].inputRate = vk::VertexInputRate::eVertex;
+        bindingDescriptions.resize(1);
+        bindingDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
+        bindingDescriptions[0].stride = sizeof(Vertex);
+        bindingDescriptions[0].inputRate = vk::VertexInputRate::eVertex;
 
         // Attribute descriptions
         // Describes memory layout and shader attribute locations
-        vertices.attributeDescriptions.resize(2);
+        attributeDescriptions.resize(2);
         // Location 0 : Position
-        vertices.attributeDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
-        vertices.attributeDescriptions[0].location = 0;
-        vertices.attributeDescriptions[0].format =  vk::Format::eR32G32B32Sfloat;
-        vertices.attributeDescriptions[0].offset = 0;
+        attributeDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format =  vk::Format::eR32G32B32Sfloat;
+        attributeDescriptions[0].offset = 0;
         // Location 1 : Color
-        vertices.attributeDescriptions[1].binding = VERTEX_BUFFER_BIND_ID;
-        vertices.attributeDescriptions[1].location = 1;
-        vertices.attributeDescriptions[1].format =  vk::Format::eR32G32B32Sfloat;
-        vertices.attributeDescriptions[1].offset = sizeof(float) * 3;
+        attributeDescriptions[1].binding = VERTEX_BUFFER_BIND_ID;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format =  vk::Format::eR32G32B32Sfloat;
+        attributeDescriptions[1].offset = sizeof(float) * 3;
 
         // Assign to vertex input state
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
+        inputState.vertexBindingDescriptionCount = bindingDescriptions.size();
+        inputState.pVertexBindingDescriptions = bindingDescriptions.data();
+        inputState.vertexAttributeDescriptionCount = attributeDescriptions.size();
+        inputState.pVertexAttributeDescriptions = attributeDescriptions.data();
     }
 
-    void setupDescriptorPool() {
-        // We need to tell the API the number of max. requested descriptors per type
-        vk::DescriptorPoolSize typeCounts[1];
-        // This example only uses one descriptor type (uniform buffer) and only
-        // requests one descriptor of this type
-        typeCounts[0].type = vk::DescriptorType::eUniformBuffer;
-        typeCounts[0].descriptorCount = 1;
-        // For additional types you need to add new entries in the type count list
-        // E.g. for two combined image samplers :
-        // typeCounts[1].type = vk::DescriptorType::eCombinedImageSampler;
-        // typeCounts[1].descriptorCount = 2;
-
-        // Create the global descriptor pool
-        // All descriptors used in this example are allocated from this pool
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo;
-        descriptorPoolInfo.poolSizeCount = 1;
-        descriptorPoolInfo.pPoolSizes = typeCounts;
-        // Set the max. number of sets that can be requested
-        // Requesting descriptors beyond maxSets will result in an error
-        descriptorPoolInfo.maxSets = 1;
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+    // As before
+    void prepareUniformBuffers() {
+        uboVS.projectionMatrix = getProjection();
+        uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
+        uboVS.modelMatrix = glm::mat4_cast(orientation);
+        uniformDataVS = createUniformBuffer(uboVS);
     }
 
+    // As before
     void setupDescriptorSetLayout() {
         // Setup layout of descriptors used in this example
         // Basically connects the different shader stages to descriptors
@@ -188,32 +196,7 @@ public:
         pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
     }
 
-    void setupDescriptorSet() {
-        // Allocate a new descriptor set from the global descriptor pool
-        vk::DescriptorSetAllocateInfo allocInfo;
-        allocInfo.descriptorPool = descriptorPool;
-        allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts = &descriptorSetLayout;
-
-        descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
-
-        // Update the descriptor set determining the shader binding points
-        // For every binding point used in a shader there needs to be one
-        // descriptor set matching that binding point
-
-        vk::WriteDescriptorSet writeDescriptorSet;
-
-        // Binding 0 : Uniform buffer
-        writeDescriptorSet.dstSet = descriptorSet;
-        writeDescriptorSet.descriptorCount = 1;
-        writeDescriptorSet.descriptorType = vk::DescriptorType::eUniformBuffer;
-        writeDescriptorSet.pBufferInfo = &uniformDataVS.descriptor;
-        // Binds this uniform buffer to binding point 0
-        writeDescriptorSet.dstBinding = 0;
-
-        device.updateDescriptorSets(writeDescriptorSet, nullptr);
-    }
-
+    // As before
     void preparePipelines() {
         // Create our rendering pipeline used in this example
         // Vulkan uses the concept of rendering pipelines to encapsulate
@@ -302,7 +285,7 @@ public:
         // Assign pipeline state create information
         pipelineCreateInfo.stageCount = shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
+        pipelineCreateInfo.pVertexInputState = &inputState;
         pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
         pipelineCreateInfo.pRasterizationState = &rasterizationState;
         pipelineCreateInfo.pColorBlendState = &colorBlendState;
@@ -313,46 +296,78 @@ public:
         pipelineCreateInfo.pDynamicState = &dynamicState;
 
         // Create rendering pipeline
-        pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipeline = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
-    void prepareUniformBuffers() {
-        uboVS.projectionMatrix = getProjection();
-        uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-        uboVS.modelMatrix = glm::mat4_cast(orientation);
-        uniformDataVS = createUniformBuffer(uboVS);
+    // As before
+    void setupDescriptorPool() {
+        // We need to tell the API the number of max. requested descriptors per type
+        vk::DescriptorPoolSize typeCounts[1];
+        // This example only uses one descriptor type (uniform buffer) and only
+        // requests one descriptor of this type
+        typeCounts[0].type = vk::DescriptorType::eUniformBuffer;
+        typeCounts[0].descriptorCount = 1;
+        // For additional types you need to add new entries in the type count list
+        // E.g. for two combined image samplers :
+        // typeCounts[1].type = vk::DescriptorType::eCombinedImageSampler;
+        // typeCounts[1].descriptorCount = 2;
+
+        // Create the global descriptor pool
+        // All descriptors used in this example are allocated from this pool
+        vk::DescriptorPoolCreateInfo descriptorPoolInfo;
+        descriptorPoolInfo.poolSizeCount = 1;
+        descriptorPoolInfo.pPoolSizes = typeCounts;
+        // Set the max. number of sets that can be requested
+        // Requesting descriptors beyond maxSets will result in an error
+        descriptorPoolInfo.maxSets = 1;
+        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
     }
 
-    void updateUniformBuffers() {
-        // Update matrices
-        uboVS.projectionMatrix = getProjection();
-        uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-        uboVS.modelMatrix = glm::mat4_cast(orientation);
-        pendingUpdates.push_back(UpdateOperation(uniformDataVS.buffer, uboVS));
+    // As before
+    void setupDescriptorSet() {
+        // Allocate a new descriptor set from the global descriptor pool
+        vk::DescriptorSetAllocateInfo allocInfo;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &descriptorSetLayout;
+
+        descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
+
+        // Update the descriptor set determining the shader binding points
+        // For every binding point used in a shader there needs to be one
+        // descriptor set matching that binding point
+
+        vk::WriteDescriptorSet writeDescriptorSet;
+
+        // Binding 0 : Uniform buffer
+        writeDescriptorSet.dstSet = descriptorSet;
+        writeDescriptorSet.descriptorCount = 1;
+        writeDescriptorSet.descriptorType = vk::DescriptorType::eUniformBuffer;
+        writeDescriptorSet.pBufferInfo = &uniformDataVS.descriptor;
+        // Binds this uniform buffer to binding point 0
+        writeDescriptorSet.dstBinding = 0;
+
+        device.updateDescriptorSets(writeDescriptorSet, nullptr);
     }
 
-    void prepare() {
-        ExampleBase::prepare();
-        prepareVertices();
-        prepareUniformBuffers();
-        setupDescriptorSetLayout();
-        preparePipelines();
-        setupDescriptorPool();
-        setupDescriptorSet();
-        updateDrawCommandBuffers();
-        prepared = true;
-    }
-
-    void render() override {
-        if (!prepared)
-            return;
-        draw();
-    }
-
-    void viewChanged() override {
-        // This function is called by the base example class 
-        // each time the view is changed by user input
-        updateUniformBuffers();
+    // In our previous example, we created a function buildDrawCommandBuffers that did two jobs.  First, it allocated a 
+    // command buffer for each swapChain image, and then it populated those command buffers with the commands required
+    // to render our triangle.
+    //
+    // The example base class works a little differently.  First, the act of allocating the command buffers is boilerplate
+    // so it's moved to base class.  Second, the common examples base class actually contains multiple sets of command 
+    // buffers.  The outermost are called the primaryCmdBuffers and are the ones we actually execute for each frame.  
+    //
+    // However, the primaryCmdBuffers do not contain drawing commands.  Instead, drawing commands are recorded into 
+    // secondary command puffers, while the primaryCmdBuffers just execute secondary command buffers.  
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, { 0 });
+        cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(indexCount, 1, 0, 0, 1);
     }
 };
 
