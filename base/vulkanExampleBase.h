@@ -57,7 +57,7 @@ namespace vkx {
     public:
         void run();
         // Called if the window is resized and some resources have to be recreatesd
-        void windowResize();
+        void windowResize(const glm::uvec2& newSize);
 
     private:
         // Set to true when example is created with enabled validation layers
@@ -68,9 +68,6 @@ namespace vkx {
         float fpsTimer = 0.0f;
         // Get window title with example name, device, et.
         std::string getWindowTitle();
-        // Destination dimensions for resizing the window
-        uint32_t destWidth;
-        uint32_t destHeight;
 
         // Command buffers used for rendering
         std::vector<vk::CommandBuffer> primaryCmdBuffers;
@@ -180,16 +177,6 @@ namespace vkx {
         // Returns the base asset path (for shaders, models, textures) depending on the os
         const std::string getAssetPath();
 
-        // A collection of items queued for destruction.  On the next queue submit, 
-        // they will be inserted into the recycler for eventual destruction once the 
-        // fence has cleared
-        using VoidLambda = std::function<void()>;
-        using VoidLambdaList = std::list<VoidLambda>;
-        using FencedLambda = std::pair<vk::Fence, VoidLambda>;
-        using FencedLambdaQueue = std::queue<FencedLambda>;
-
-        VoidLambdaList dumpster;
-        FencedLambdaQueue recycler;
     protected:
         // Command buffer pool
         vk::CommandPool cmdPool;
@@ -260,24 +247,47 @@ namespace vkx {
         virtual void draw() {
             // Get next image in the swap chain (back/front buffer)
             prepareFrame();
+            // Execute the compiled command buffer for the current swap chain image
             drawCurrentCommandBuffer();
             // Push the rendered frame to the surface
             submitFrame();
         }
 
         // Pure virtual render function (override in derived class)
-        virtual void render() = 0;
+        virtual void render() {
+            if (!prepared) {
+                return;
+            }
+            draw();
+        }
+
+        virtual void update(float deltaTime) {
+            frameTimer = deltaTime;
+            ++frameCounter;
+            // Convert to clamped timer value
+            if (!paused) {
+                timer += timerSpeed * frameTimer;
+                if (timer > 1.0) {
+                    timer -= 1.0f;
+                }
+            }
+            fpsTimer += (float)frameTimer;
+            if (fpsTimer > 1.0f) {
+                if (!enableTextOverlay) {
+                    std::string windowTitle = getWindowTitle();
+                    glfwSetWindowTitle(window, windowTitle.c_str());
+                }
+                lastFPS = frameCounter;
+                updateTextOverlay();
+                fpsTimer = 0.0f;
+                frameCounter = 0;
+            }
+        }
 
         // Called when view change occurs
         // Can be overriden in derived class to e.g. update uniform buffers 
         // Containing view dependant matrices
-        virtual void viewChanged();
-
-        // Called if a key is pressed
-        // Can be overriden in derived class to do custom key handling
-        virtual void keyPressed(uint32_t keyCode);
-
-        virtual void mouseMoved(double posx, double posy);
+        virtual void viewChanged() {}
 
         // Called when the window has been resized
         // Can be overriden in derived class to recreate or rebuild resources attached to the frame buffer / swapchain
@@ -293,42 +303,6 @@ namespace vkx {
         // Can be overriden in derived class to setup a custom render pass (e.g. for MSAA)
         virtual void setupRenderPass();
 
-        template<typename T>
-        void trash(T& value, std::function<void(const T& t)> destructor) {
-            T trashedValue;
-            std::swap(trashedValue, value);
-            dumpster.push_back([trashedValue, destructor] {
-                destructor(trashedValue);
-            });
-        }
-
-        template<typename T>
-        void trash(std::vector<T>& values, std::function<void(const std::vector<T>& t)> destructor) {
-            if (values.empty()) {
-                return;
-            }
-            std::vector<T> trashedValues;
-            trashedValues.swap(values);
-            dumpster.push_back([trashedValues, destructor] {
-                destructor(trashedValues);
-            });
-        }
-
-        void trashCommandBuffer(vk::CommandBuffer& cmdBuffer) {
-            std::function<void(const vk::CommandBuffer& t)> destructor =
-                [this](const vk::CommandBuffer& cmdBuffer) {
-                device.freeCommandBuffers(getCommandPool(), cmdBuffer);
-            };
-            trash(cmdBuffer, destructor);
-        }
-
-        void trashCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers) {
-            std::function<void(const std::vector<vk::CommandBuffer>& t)> destructor =
-                [this](const std::vector<vk::CommandBuffer>& cmdBuffers) {
-                device.freeCommandBuffers(getCommandPool(), cmdBuffers);
-            };
-            trash(cmdBuffers, destructor);
-        }
 
         void populateSubCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers, std::function<void(const vk::CommandBuffer& commandBuffer)> f) {
             if (cmdBuffers.empty()) {
@@ -366,27 +340,18 @@ namespace vkx {
             primaryCmdBuffersDirty = true;
         }
 
-
         // Pure virtual function to be overriden by the dervice class
         // Called in case of an event where e.g. the framebuffer has to be rebuild and thus
         // all command buffers that may reference this
         virtual void updateDrawCommandBuffer(const vk::CommandBuffer& drawCommand) = 0;
 
-        // Create swap chain images
-        void setupSwapChain() {
-            swapChain.create(size);
-        }
-
         void drawCurrentCommandBuffer(const vk::Semaphore& semaphore = vk::Semaphore()) {
             vk::Fence fence = swapChain.getSubmitFence();
             {
-                VoidLambdaList newDumpster;
-                newDumpster.swap(dumpster);
                 uint32_t fenceIndex = currentBuffer;
-                recycler.push(FencedLambda{ fence, [fence, newDumpster, fenceIndex, this] {
-                    for (const auto & f : newDumpster) { f(); }
+                dumpster.push_back([fenceIndex, this] {
                     swapChain.clearSubmitFence(fenceIndex);
-                } });
+                });
             }
 
             // Command buffer(s) to be sumitted to the queue
@@ -397,10 +362,12 @@ namespace vkx {
                 semaphores.transferComplete = vk::Semaphore();
                 waitSemaphores.push_back(transferComplete);
                 waitStages.push_back(vk::PipelineStageFlagBits::eTransfer);
-                recycler.push(FencedLambda{ fence, [transferComplete, this] {
+                dumpster.push_back([transferComplete, this] {
                     device.destroySemaphore(transferComplete);
-                } });
+                });
             }
+
+            emptyDumpster(fence);
 
             vk::Semaphore transferPending;
             std::vector<vk::Semaphore> signalSemaphores{ { semaphores.renderComplete } };
@@ -476,19 +443,6 @@ namespace vkx {
             }
         }
 
-        void recycle() {
-            while (!recycler.empty() && vk::Result::eSuccess == device.getFenceStatus(recycler.front().first)) {
-                vk::Fence fence = recycler.front().first;
-                VoidLambda lambda = recycler.front().second;
-                recycler.pop();
-
-                lambda();
-                if (recycler.empty() || fence != recycler.front().first) {
-                    device.destroyFence(fence);
-                }
-            }
-        }
-
         // Prepare commonly used Vulkan functions
         virtual void prepare();
 
@@ -532,14 +486,63 @@ namespace vkx {
             return glm::translate(glm::mat4(), glm::vec3(cameraPos.x, cameraPos.y, zoom)) * glm::mat4_cast(orientation);
         }
 
+#if defined(__ANDROID__)
+
+#else
+        // Called if a key is pressed
+        // Can be overriden in derived class to do custom key handling
+        virtual void keyPressed(uint32_t key) {
+            switch (key) {
+            case GLFW_KEY_P:
+                paused = !paused;
+                break;
+
+            case GLFW_KEY_F1:
+                if (enableTextOverlay) {
+                    textOverlay->visible = !textOverlay->visible;
+                    primaryCmdBuffersDirty = true;
+                }
+                break;
+
+            case GLFW_KEY_ESCAPE:
+                glfwSetWindowShouldClose(window, 1);
+                break;
+
+            default:
+                break;
+            }
+        }
+
+        // Keyboard movement handler
+        virtual void mouseMoved(const glm::vec2& newPos) {
+            glm::vec2 deltaPos = mousePos - newPos;
+            if (deltaPos.x == 0 && deltaPos.y == 0) {
+                return;
+            }
+            if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT)) {
+                zoom += (deltaPos.y) * .005f * zoomSpeed;
+                viewChanged();
+            }
+            if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)) {
+                glm::vec3 rotationAxis = glm::normalize(glm::vec3(deltaPos.y, -deltaPos.x, 0));
+                float length = glm::length(deltaPos) * 0.01f;
+                orientation = glm::angleAxis(length, rotationAxis) * orientation;
+                viewChanged();
+            }
+            if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE)) {
+                cameraPos -= glm::vec3(deltaPos, 0) * 0.01f;
+                viewChanged();
+            }
+            mousePos = newPos;
+        }
+
         static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);
         static void MouseHandler(GLFWwindow* window, int button, int action, int mods);
         static void MouseMoveHandler(GLFWwindow* window, double posx, double posy);
         static void MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset);
-        static void SizeHandler(GLFWwindow* window, int width, int height);
-        static void CloseHandler(GLFWwindow* window);
         static void FramebufferSizeHandler(GLFWwindow* window, int width, int height);
-        static void JoystickHandler(int, int);
+        static void CloseHandler(GLFWwindow* window);
+#endif
     };
 }
 

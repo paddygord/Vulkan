@@ -15,15 +15,21 @@
 
 
 class VulkanExample : public vkx::ExampleBase {
+    using Parent = vkx::ExampleBase;
 public:
+    // As before
     CreateBufferResult vertices;
     CreateBufferResult indices;
+    CreateBufferResult uniformDataVS;
     uint32_t indexCount{ 0 };
-        
+
+    vk::DescriptorSet descriptorSet;
+    vk::DescriptorSetLayout descriptorSetLayout;
+    vk::Pipeline pipeline;
+    vk::PipelineLayout pipelineLayout;
     vk::PipelineVertexInputStateCreateInfo inputState;
     std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
     std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    CreateBufferResult uniformDataVS;
 
     struct UboVS {
         glm::mat4 projectionMatrix;
@@ -31,34 +37,55 @@ public:
         glm::mat4 viewMatrix;
     } uboVS;
 
-    vk::Pipeline pipeline;
-
-    vk::PipelineLayout pipelineLayout;
-    vk::DescriptorSet descriptorSet;
-    vk::DescriptorSetLayout descriptorSetLayout;
-
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    // As before
+    VulkanExample() : Parent(ENABLE_VALIDATION) {
         size.width = 1280;
         size.height = 720;
         zoom = -2.5f;
         title = "Vulkan Example - Basic indexed triangle";
     }
 
+    // As before
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
-        // Note : Inherited destructor cleans up resources stored in base class
-        device.destroyPipeline(pipeline);
-        device.destroyPipelineLayout(pipelineLayout);
-        device.destroyDescriptorSetLayout(descriptorSetLayout);
-
         vertices.destroy();
         indices.destroy();
         uniformDataVS.destroy();
+
+        device.destroyPipeline(pipeline);
+        device.destroyPipelineLayout(pipelineLayout);
+        device.destroyDescriptorSetLayout(descriptorSetLayout);
     }
 
-    // Build separate command buffers for every framebuffer image
-    // Unlike in OpenGL all rendering commands are recorded once
-    // into command buffers that are then resubmitted to the queue
+    void update(float deltaTime) override {
+        Parent::update(deltaTime);
+        updateUniformBuffers();
+    }
+
+    void updateUniformBuffers() {
+        // Update matrices
+        uboVS.projectionMatrix = getProjection();
+        uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
+        orientation = orientation * glm::angleAxis(frameTimer * 1.0f, glm::vec3(0, 1, 0));
+        uboVS.modelMatrix = glm::mat4_cast(orientation);
+        pendingUpdates.push_back(UpdateOperation(uniformDataVS.buffer, uboVS));
+    }
+
+    ////////////////////////////////////////
+    //
+    // All as before
+    //
+    void prepare() {
+        ExampleBase::prepare();
+        prepareVertices();
+        prepareUniformBuffers();
+        setupDescriptorSetLayout();
+        preparePipelines();
+        setupDescriptorPool();
+        setupDescriptorSet();
+        updateDrawCommandBuffers();
+        prepared = true;
+    }
+
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
         cmdBuffer.setViewport(0, vkx::viewport(size));
         cmdBuffer.setScissor(0, vkx::rect2D(size));
@@ -69,12 +96,6 @@ public:
         cmdBuffer.drawIndexed(indexCount, 1, 0, 0, 1);
     }
 
-    // Base class does all this for us
-    // void draw()
-
-    // Setups vertex and index buffers for an indexed triangle,
-    // uploads them to the VRAM and sets binding points and attribute
-    // descriptions to match locations inside the shaders
     void prepareVertices() {
         struct Vertex {
             float pos[3];
@@ -106,12 +127,12 @@ public:
         // Location 0 : Position
         attributeDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
         attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format =  vk::Format::eR32G32B32Sfloat;
+        attributeDescriptions[0].format = vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[0].offset = 0;
         // Location 1 : Color
         attributeDescriptions[1].binding = VERTEX_BUFFER_BIND_ID;
         attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format =  vk::Format::eR32G32B32Sfloat;
+        attributeDescriptions[1].format = vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[1].offset = sizeof(float) * 3;
 
         // Assign to vertex input state
@@ -307,50 +328,6 @@ public:
         uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
         uboVS.modelMatrix = glm::mat4_cast(orientation);
         uniformDataVS = createUniformBuffer(uboVS);
-    }
-
-    void prepare() {
-        ExampleBase::prepare();
-        prepareVertices();
-        prepareUniformBuffers();
-        setupDescriptorSetLayout();
-        preparePipelines();
-        setupDescriptorPool();
-        setupDescriptorSet();
-        updateDrawCommandBuffers();
-        prepared = true;
-    }
-
-    // A default draw implementation
-    void draw() {
-        // Get next image in the swap chain (back/front buffer)
-        prepareFrame();
-        drawCurrentCommandBuffer();
-        // Push the rendered frame to the surface
-        submitFrame();
-    }
-
-
-    void render() override {
-        if (!prepared)
-            return;
-        draw();
-        updateUniformBuffers();
-    }
-
-    void updateUniformBuffers() {
-        // Update matrices
-        uboVS.projectionMatrix = getProjection();
-        uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-        orientation = orientation * glm::angleAxis(frameTimer * 1.0f, glm::vec3(0, 1, 0));
-        uboVS.modelMatrix = glm::mat4_cast(orientation);
-        pendingUpdates.push_back(UpdateOperation(uniformDataVS.buffer, uboVS));
-    }
-
-    void viewChanged() override {
-        // This function is called by the base example class 
-        // each time the view is changed by user input
-        updateUniformBuffers();
     }
 };
 

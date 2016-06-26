@@ -37,6 +37,7 @@ class VulkanExample : public vkx::ExampleBase {
     // Moved to base class
     /*
     void run()
+    void render()
     void prepare() 
     void setupRenderPass()
     void setupFrameBuffer()
@@ -44,53 +45,50 @@ class VulkanExample : public vkx::ExampleBase {
     */
 
 public:
-    // CreateBufferResult is a standard helper structure to encapsulate a buffer, 
+    // CreateBufferResult is a helper structure to encapsulate a buffer, 
     // the memory for that buffer, and a descriptor for the buffer (if necessary)
     // We'll see more of what it does when we start using it
+    //
+    // We need one for vertices, one for indices, and one for uniform data
     CreateBufferResult vertices;
     CreateBufferResult indices;
+    CreateBufferResult uniformDataVS;
     uint32_t indexCount{ 0 };
-        
+
+    // As before
+    vk::DescriptorSet descriptorSet;
+    vk::DescriptorSetLayout descriptorSetLayout;
+    vk::Pipeline pipeline;
+    vk::PipelineLayout pipelineLayout;
     vk::PipelineVertexInputStateCreateInfo inputState;
     std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
     std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    CreateBufferResult uniformDataVS;
 
+    // As before
     struct UboVS {
         glm::mat4 projectionMatrix;
         glm::mat4 modelMatrix;
         glm::mat4 viewMatrix;
     } uboVS;
 
-    vk::Pipeline pipeline;
-
-    vk::PipelineLayout pipelineLayout;
-    vk::DescriptorSet descriptorSet;
-    vk::DescriptorSetLayout descriptorSetLayout;
-
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         size.width = 1280;
         size.height = 720;
         zoom = -2.5f;
-        title = "Vulkan Example - Basic indexed triangle";
+        title = "Vulkan Example - triangle revisited";
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
-        // Note : Inherited destructor cleans up resources stored in base class
-        device.destroyPipeline(pipeline);
-        device.destroyPipelineLayout(pipelineLayout);
-        device.destroyDescriptorSetLayout(descriptorSetLayout);
-
+        // The helper class we use for encapsulating buffer has a destroy method
+        // that cleans up all the resources it owns.  
         vertices.destroy();
         indices.destroy();
         uniformDataVS.destroy();
-    }
 
-    void render() override {
-        if (!prepared)
-            return;
-        draw();
+        // As before
+        device.destroyPipeline(pipeline);
+        device.destroyPipelineLayout(pipelineLayout);
+        device.destroyDescriptorSetLayout(descriptorSetLayout);
     }
 
     void prepare() {
@@ -105,12 +103,48 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
+
         // Update the drawCmdBuffers with the required drawing commands
         updateDrawCommandBuffers();
         prepared = true;
     }
 
-    // As before
+    // In our previous example, we created a function buildDrawCommandBuffers that did two jobs.  First, it allocated a 
+    // command buffer for each swapChain image, and then it populated those command buffers with the commands required
+    // to render our triangle.
+    //
+    // The example base class works a little differently.  First, the act of allocating the command buffers is boilerplate
+    // so it's moved to base class.  Second, the common examples base class actually contains multiple sets of command 
+    // buffers.  The outermost are called the primaryCmdBuffers and are the ones we actually execute for each frame.  
+    //
+    // However, the primaryCmdBuffers do not contain drawing commands.  Instead, drawing commands are recorded into 
+    // secondary command puffers, while the primaryCmdBuffers just execute secondary command buffers.  
+    // 
+    // This updateDrawCommandBuffer method is intended to populate a commandBuffer with all the commands required for 
+    // rendering.  The parent class has already set up all the basic command begin and beginRenderPass calls, and 
+    // will also take care of the endRenderPass and end calls.  
+    // 
+    // All that's left for us to do is to bind pipelines, set drawing regions and draw geometry.
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
+        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, { 0 });
+        cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(indexCount, 1, 0, 0, 1);
+    }
+
+    // The prepareVertices method has changed from the previous implementation.  All of the logic that was done to
+    // populate the device local buffers has been moved into a helper function, "stageToDeviceBuffer"
+    //
+    // stageToDeviceBuffer takes care of all of the work of creating a temporary host visible buffer, copying the 
+    // data to it, creating the actual device local buffer, copying the contents from one buffer to another, 
+    // and destroying the temporary buffer.  
+    // 
+    // Additionally, the staging function is templated, so you don't need to pass it a void pointer and a size,
+    // but instead can pass it a std::vector containing an array of data, and it will automatically calculate 
+    // the required size.
     void prepareVertices() {
         struct Vertex {
             float pos[3];
@@ -130,34 +164,30 @@ public:
         indexCount = (uint32_t)indexBuffer.size();
         indices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
 
-        // Binding description
+        // As before
         bindingDescriptions.resize(1);
         bindingDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
         bindingDescriptions[0].stride = sizeof(Vertex);
         bindingDescriptions[0].inputRate = vk::VertexInputRate::eVertex;
-
-        // Attribute descriptions
-        // Describes memory layout and shader attribute locations
         attributeDescriptions.resize(2);
-        // Location 0 : Position
         attributeDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
         attributeDescriptions[0].location = 0;
         attributeDescriptions[0].format =  vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[0].offset = 0;
-        // Location 1 : Color
         attributeDescriptions[1].binding = VERTEX_BUFFER_BIND_ID;
         attributeDescriptions[1].location = 1;
         attributeDescriptions[1].format =  vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[1].offset = sizeof(float) * 3;
-
-        // Assign to vertex input state
         inputState.vertexBindingDescriptionCount = bindingDescriptions.size();
         inputState.pVertexBindingDescriptions = bindingDescriptions.data();
         inputState.vertexAttributeDescriptionCount = attributeDescriptions.size();
         inputState.pVertexAttributeDescriptions = attributeDescriptions.data();
     }
 
-    // As before
+    ////////////////////////////////////////
+    //
+    // All as before
+    //
     void prepareUniformBuffers() {
         uboVS.projectionMatrix = getProjection();
         uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
@@ -165,7 +195,6 @@ public:
         uniformDataVS = createUniformBuffer(uboVS);
     }
 
-    // As before
     void setupDescriptorSetLayout() {
         // Setup layout of descriptors used in this example
         // Basically connects the different shader stages to descriptors
@@ -196,7 +225,6 @@ public:
         pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
     }
 
-    // As before
     void preparePipelines() {
         // Create our rendering pipeline used in this example
         // Vulkan uses the concept of rendering pipelines to encapsulate
@@ -299,7 +327,6 @@ public:
         pipeline = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
-    // As before
     void setupDescriptorPool() {
         // We need to tell the API the number of max. requested descriptors per type
         vk::DescriptorPoolSize typeCounts[1];
@@ -323,7 +350,6 @@ public:
         descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
     }
 
-    // As before
     void setupDescriptorSet() {
         // Allocate a new descriptor set from the global descriptor pool
         vk::DescriptorSetAllocateInfo allocInfo;
@@ -348,26 +374,6 @@ public:
         writeDescriptorSet.dstBinding = 0;
 
         device.updateDescriptorSets(writeDescriptorSet, nullptr);
-    }
-
-    // In our previous example, we created a function buildDrawCommandBuffers that did two jobs.  First, it allocated a 
-    // command buffer for each swapChain image, and then it populated those command buffers with the commands required
-    // to render our triangle.
-    //
-    // The example base class works a little differently.  First, the act of allocating the command buffers is boilerplate
-    // so it's moved to base class.  Second, the common examples base class actually contains multiple sets of command 
-    // buffers.  The outermost are called the primaryCmdBuffers and are the ones we actually execute for each frame.  
-    //
-    // However, the primaryCmdBuffers do not contain drawing commands.  Instead, drawing commands are recorded into 
-    // secondary command puffers, while the primaryCmdBuffers just execute secondary command buffers.  
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, { 0 });
-        cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
-        cmdBuffer.drawIndexed(indexCount, 1, 0, 0, 1);
     }
 };
 

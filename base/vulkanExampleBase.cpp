@@ -133,8 +133,6 @@ void ExampleBase::initVulkan(bool enableValidation) {
 }
 
 void ExampleBase::renderLoop() {
-    destWidth = size.width;
-    destHeight = size.height;
 #if defined(__ANDROID__)
     while (1) {
         int ident;
@@ -210,32 +208,16 @@ void ExampleBase::renderLoop() {
         }
     }
 #else
+    auto tStart = std::chrono::high_resolution_clock::now();
     while (!glfwWindowShouldClose(window)) {
-        auto tStart = std::chrono::high_resolution_clock::now();
-        glfwPollEvents();
-        render();
-        frameCounter++;
         auto tEnd = std::chrono::high_resolution_clock::now();
-        auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-        frameTimer = (float)tDiff / 1000.0f;
-        // Convert to clamped timer value
-        if (!paused) {
-            timer += timerSpeed * frameTimer;
-            if (timer > 1.0) {
-                timer -= 1.0f;
-            }
-        }
-        fpsTimer += (float)tDiff;
-        if (fpsTimer > 1000.0f) {
-            std::string windowTitle = getWindowTitle();
-            if (!enableTextOverlay) {
-                glfwSetWindowTitle(window, windowTitle.c_str());
-            }
-            lastFPS = frameCounter;
-            updateTextOverlay();
-            fpsTimer = 0.0f;
-            frameCounter = 0;
-        }
+        auto tDiff = std::chrono::duration<float, std::milli>(tEnd - tStart).count();
+        auto tDiffSeconds = tDiff / 1000.0f;
+        tStart = tEnd;
+        glfwPollEvents();
+
+        render();
+        update(tDiffSeconds);
     }
 #endif
 }
@@ -264,7 +246,7 @@ void ExampleBase::prepare() {
     }
     cmdPool = getCommandPool();
 
-    setupSwapChain();
+    swapChain.create(size);
     withPrimaryCommandBuffer([&](vk::CommandBuffer setupCmdBuffer) {
         setupDepthStencil(setupCmdBuffer);
     });
@@ -442,52 +424,11 @@ void ExampleBase::handleAppCommand(android_app * app, int32_t cmd) {
 void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
     if (action == GLFW_PRESS) {
-        switch (key) {
-        case GLFW_KEY_P:
-            example->paused = !example->paused;
-            break;
-
-        case GLFW_KEY_F1:
-            if (example->enableTextOverlay) {
-                example->textOverlay->visible = !example->textOverlay->visible;
-                example->windowResize();
-            }
-            break;
-
-        case GLFW_KEY_ESCAPE:
-            glfwSetWindowShouldClose(window, 1);
-            break;
-
-        default:
-            break;
-        }
         example->keyPressed(key);
     }
 }
 
-void ExampleBase::mouseMoved(double posx, double posy) {
-    glm::vec2 newPos = glm::vec2((float)posx, (float)posy);
-    glm::vec2 deltaPos = mousePos - newPos;
-    if (deltaPos.x == 0 && deltaPos.y == 0) {
-        return;
-    }
-    if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT)) {
-        zoom += (mousePos.y - (float)posy) * .005f * zoomSpeed;
-        viewChanged();
-    }
-    if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)) {
-        glm::vec3 rotationAxis = glm::normalize(glm::vec3(deltaPos.y, -deltaPos.x, 0));
-        float length = glm::length(deltaPos) * 0.01f;
-        orientation = glm::angleAxis(length, rotationAxis) * orientation;
-        viewChanged();
-    }
-    if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE)) {
-        cameraPos.x -= (mousePos.x - (float)posx) * 0.01f;
-        cameraPos.y -= (mousePos.y - (float)posy) * 0.01f;
-        viewChanged();
-    }
-    mousePos = newPos;
-}
+
 
 void ExampleBase::MouseHandler(GLFWwindow* window, int button, int action, int mods) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
@@ -499,7 +440,7 @@ void ExampleBase::MouseHandler(GLFWwindow* window, int button, int action, int m
 
 void ExampleBase::MouseMoveHandler(GLFWwindow* window, double posx, double posy) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    example->mouseMoved(posx, posy);
+    example->mouseMoved(glm::vec2(posx, posy));
 }
 
 void ExampleBase::MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset) {
@@ -508,9 +449,6 @@ void ExampleBase::MouseScrollHandler(GLFWwindow* window, double xoffset, double 
     example->viewChanged();
 }
 
-void ExampleBase::SizeHandler(GLFWwindow* window, int width, int height) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-}
 
 void ExampleBase::CloseHandler(GLFWwindow* window) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
@@ -520,11 +458,7 @@ void ExampleBase::CloseHandler(GLFWwindow* window) {
 
 void ExampleBase::FramebufferSizeHandler(GLFWwindow* window, int width, int height) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    example->windowResize();
-}
-
-void ExampleBase::JoystickHandler(int, int) {
-
+    example->windowResize(glm::uvec2(width, height));
 }
 
 void ExampleBase::setupWindow() {
@@ -560,44 +494,16 @@ void ExampleBase::setupWindow() {
     glfwSetKeyCallback(window, KeyboardHandler);
     glfwSetMouseButtonCallback(window, MouseHandler);
     glfwSetCursorPosCallback(window, MouseMoveHandler);
-    glfwSetWindowSizeCallback(window, SizeHandler);
     glfwSetWindowCloseCallback(window, CloseHandler);
     glfwSetFramebufferSizeCallback(window, FramebufferSizeHandler);
     glfwSetScrollCallback(window, MouseScrollHandler);
-
-    std::string windowTitle = getWindowTitle();
-
     if (!window) {
         throw std::runtime_error("Could not create window");
     }
-
     swapChain.createSurface(window);
 }
 
 #endif
-
-#if 0
-int glfwJoystickPresent(int joy);
-const float* glfwGetJoystickAxes(int joy, int* count);
-const unsigned char* glfwGetJoystickButtons(int joy, int* count);
-
-void ExampleBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    switch (uMsg) {
-    case WM_KEYDOWN:
-        switch (wParam) {
-            break;
-        }
-    }
-}
-#endif
-
-void ExampleBase::viewChanged() {
-    // Can be overrdiden in derived class
-}
-
-void ExampleBase::keyPressed(uint32_t keyCode) {
-    // Can be overriden in derived class
-}
 
 void ExampleBase::setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer) {
     depthStencil.destroy();
@@ -712,7 +618,7 @@ void ExampleBase::setupRenderPass() {
     renderPass = device.createRenderPass(renderPassInfo);
 }
 
-void ExampleBase::windowResize() {
+void ExampleBase::windowResize(const glm::uvec2& newSize) {
     if (!prepared) {
         return;
     }
@@ -722,10 +628,11 @@ void ExampleBase::windowResize() {
     device.waitIdle();
 
     // Recreate swap chain
-    size.width = destWidth;
-    size.height = destHeight;
+    size.width = newSize.x;
+    size.height = newSize.y;
 
-    setupSwapChain();
+    swapChain.create(size);
+
     withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
         setupDepthStencil(setupCmdBuffer);
     });

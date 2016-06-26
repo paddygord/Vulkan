@@ -167,6 +167,18 @@ namespace vkx {
         // Find a queue that supports graphics operations
         uint32_t graphicsQueueIndex;
 
+        using VoidLambda = std::function<void()>;
+        using VoidLambdaList = std::list<VoidLambda>;
+        using FencedLambda = std::pair<vk::Fence, VoidLambda>;
+        using FencedLambdaQueue = std::queue<FencedLambda>;
+
+        // A collection of items queued for destruction.  Once a fence has been created
+        // for a queued submit, these items can be moved to the recycler for actual destruction
+        // by calling the rec
+        VoidLambdaList dumpster;
+
+
+        FencedLambdaQueue recycler;
 
 #ifdef WIN32
         static __declspec(thread) VkCommandPool s_cmdPool;
@@ -183,6 +195,66 @@ namespace vkx {
             }
             return s_cmdPool;
         }
+
+        template<typename T>
+        void trash(T& value, std::function<void(const T& t)> destructor) {
+            T trashedValue;
+            std::swap(trashedValue, value);
+            dumpster.push_back([trashedValue, destructor] {
+                destructor(trashedValue);
+            });
+        }
+
+        template<typename T>
+        void trash(std::vector<T>& values, std::function<void(const std::vector<T>& t)> destructor) {
+            if (values.empty()) {
+                return;
+            }
+            std::vector<T> trashedValues;
+            trashedValues.swap(values);
+            dumpster.push_back([trashedValues, destructor] {
+                destructor(trashedValues);
+            });
+        }
+
+        void trashCommandBuffer(vk::CommandBuffer& cmdBuffer) {
+            std::function<void(const vk::CommandBuffer& t)> destructor =
+                [this](const vk::CommandBuffer& cmdBuffer) {
+                device.freeCommandBuffers(getCommandPool(), cmdBuffer);
+            };
+            trash(cmdBuffer, destructor);
+        }
+
+        void trashCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers) {
+            std::function<void(const std::vector<vk::CommandBuffer>& t)> destructor =
+                [this](const std::vector<vk::CommandBuffer>& cmdBuffers) {
+                device.freeCommandBuffers(getCommandPool(), cmdBuffers);
+            };
+            trash(cmdBuffers, destructor);
+        }
+
+        void emptyDumpster(vk::Fence fence) {
+            VoidLambdaList newDumpster;
+            newDumpster.swap(dumpster);
+            recycler.push(FencedLambda{ fence, [fence, newDumpster, this] {
+                for (const auto & f : newDumpster) { f(); }
+            } });
+        }
+
+        void recycle() {
+            while (!recycler.empty() && vk::Result::eSuccess == device.getFenceStatus(recycler.front().first)) {
+                vk::Fence fence = recycler.front().first;
+                VoidLambda lambda = recycler.front().second;
+                recycler.pop();
+
+                lambda();
+
+                if (recycler.empty() || fence != recycler.front().first) {
+                    device.destroyFence(fence);
+                }
+            }
+        }
+
 
         void destroyCommandPool() {
             if (s_cmdPool) {
@@ -386,9 +458,9 @@ namespace vkx {
             uint32_t result = 0;
             if (!getMemoryType(typeBits, properties, &result)) {
                 // todo : throw error
-            }
-            return result;
         }
+            return result;
+    }
 
         // Load a SPIR-V shader
         inline vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) {
@@ -460,7 +532,7 @@ namespace vkx {
             }
             submit(commandBuffers, waitSemaphores, waitStages, signals, fence);
         }
-    };
+};
 
     // Template specialization for texture objects
     template <>
