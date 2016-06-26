@@ -83,8 +83,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
-        zoom = -12.0f;
-        orientation = glm::quat(glm::radians(glm::vec3({ -16.25f, -28.75f, 0.0f })));
+        camera.setZoom(-12.0f);
+        camera.setRotation({ -16.25f, -28.75f, 0.0f });
         timerSpeed *= 0.5f;
         enableTextOverlay = true;
         title = "Vulkan Example - Radial blur";
@@ -434,7 +434,7 @@ public:
         uboQuadVS.projection = getProjection();
 
         uboQuadVS.model = glm::mat4();
-        uboQuadVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
+        uboQuadVS.model = camera.matrices.view;
         uboQuadVS.model = glm::rotate(uboQuadVS.model, glm::radians(timer * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
         uniformData.vsQuad.copy(uboQuadVS);

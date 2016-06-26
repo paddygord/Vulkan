@@ -337,10 +337,10 @@ public:
     float runningTime = 0.0f;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -150.0f;
+        camera.setZoom(-150.0f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
-        orientation = glm::quat(glm::radians(glm::vec3({ -182.5f, -38.5f, 180.0f })));
+        camera.setRotation({ -182.5f, -38.5f, 180.0f });
         title = "Vulkan Example - Skeletal animation";
         cameraPos = { 0.0f, 0.0f, 12.0f };
     }

@@ -60,9 +60,9 @@ public:
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         size.width = 1280;
         size.height = 720;
-        zoom = -3.75f;
+        camera.setZoom(-3.75f);
         rotationSpeed = 0.5f;
-        orientation = glm::quat(glm::radians(glm::vec3(15.0f, 0.f, 0.0f)));
+        camera.setRotation(15.0f, 0.f, 0.0f);
         title = "Vulkan Demo Scene - � 2016 by Sascha Willems";
     }
 

@@ -77,8 +77,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -1.25f;
-        orientation = glm::quat(glm::radians(glm::vec3(40.0, -33.0, 0.0)));
+        camera.setZoom(-1.25f);
+        camera.setRotation(40.0, -33.0, 0.0);
         rotationSpeed = 0.25f;
         paused = true;
         title = "Vulkan Example - Parallax Mapping";
@@ -339,7 +339,7 @@ public:
     void updateUniformBuffers() {
         // Vertex shader
         ubos.vertexShader.projection = glm::perspective(glm::radians(45.0f), (float)(size.width* ((splitScreen) ? 0.5f : 1.0f)) / (float)size.height, 0.001f, 256.0f);
-        ubos.vertexShader.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
+        ubos.vertexShader.model = camera.matrices.view;
         ubos.vertexShader.normal = glm::inverseTranspose(ubos.vertexShader.model);
 
         if (!paused) {

@@ -64,7 +64,7 @@ public:
 
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -4.5f;
+        camera.setZoom(-4.5f);
         zoomSpeed = 2.5f;
         rotation = { -25.0f, 0.0f, 0.0f };
         title = "Vulkan Example - Text overlay";

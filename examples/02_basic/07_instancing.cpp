@@ -66,7 +66,7 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -12.0f;
+        camera.setZoom(-12.0f);
         rotationSpeed = 0.25f;
         title = "Vulkan Example - Instanced mesh rendering";
         srand(time(NULL));
@@ -319,7 +319,7 @@ public:
     void updateUniformBuffer(bool viewChanged) {
         if (viewChanged) {
             uboVS.projection = getProjection();
-            uboVS.view = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
+            uboVS.view = camera.matrices.view;
         }
 
         if (!paused) {

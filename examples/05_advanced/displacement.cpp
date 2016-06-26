@@ -64,8 +64,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -35;
-        orientation = glm::quat(glm::radians(glm::vec3(-35.0, 0.0, 0)));
+        camera.setZoom(-35);
+        camera.setRotation(-35.0, 0.0, 0);
         title = "Vulkan Example - Tessellation shader displacement mapping";
         // Support for tessellation shaders is optional, so check first
         if (!deviceFeatures.tessellationShader) {
@@ -350,7 +350,7 @@ public:
     void updateUniformBuffers() {
         // Tessellation eval
         uboTE.projection = glm::perspective(glm::radians(45.0f), (float)(size.width* ((splitScreen) ? 0.5f : 1.0f)) / (float)size.height, 0.1f, 256.0f);
-        uboTE.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
+        uboTE.model = camera.matrices.view;
         uniformDataTE.copy(uboTE);
 
         // Tessellation control

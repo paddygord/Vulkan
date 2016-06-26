@@ -65,7 +65,7 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : ExampleBase(ENABLE_VALIDATION) {
-        zoom = -1.0f;
+        camera.setZoom(-1.0f);
         rotationSpeed = 0.25f;
         title = "Vulkan Example - Instanced mesh rendering";
         srand(time(NULL));
@@ -332,7 +332,7 @@ public:
     void updateUniformBuffer(bool viewChanged) {
         if (viewChanged) {
             uboVS.projection = getProjection();
-            uboVS.view = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
+            uboVS.view = camera.matrices.view;
         }
 
         if (!paused) {
@@ -363,15 +363,13 @@ public:
     float zoomStart;
     float accumulator = FLT_MAX;
 
-    virtual void render() {
-        if (!prepared) {
-            return;
-        }
-        draw();
+    void update(float delta) override {
+        ExampleBase::update(delta);
         if (!paused) {
-            accumulator += frameTimer;
+            accumulator += delta;
             if (accumulator < duration) {
-                zoom = easings::inOutQuint(accumulator, duration, zoomStart, zoomDelta);
+                camera.position.z = easings::inOutQuint(accumulator, duration, zoomStart, zoomDelta);
+                camera.setTranslation(camera.position);
                 updateUniformBuffer(true);
             } else {
                 updateUniformBuffer(false);
@@ -379,15 +377,13 @@ public:
 
             if (accumulator >= interval) {
                 accumulator = 0;
-                zoomStart = zoom;
-                if (zoom < -2) {
+                zoomStart = camera.position.z;
+                if (camera.position.z < -2) {
                     zoomDelta = 135;
                 } else {
                     zoomDelta = -135;
                 }
             }
-
-
         }
     }
 

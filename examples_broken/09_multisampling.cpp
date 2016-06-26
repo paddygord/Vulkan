@@ -67,7 +67,7 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -7.5f;
+        camera.setZoom(-7.5f);
         zoomSpeed = 2.5f;
         orientation = glm::quat(glm::radians(glm::vec3{ 0.0f, -90.0f, 0.0f }));
         cameraPos = glm::vec3(2.5f, 2.5f, 0.0f);

@@ -62,11 +62,10 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -5.5f;
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
-        orientation = glm::quat(glm::radians(vec3{ -0.5f, -112.75f, 0.0f }));
-        cameraPos = { 0.1f, 1.1f, 0.0f };
+        camera.setRotation({ -0.5f, -112.75f, 0.0f });
+        camera.setTranslation({ 0.1f, 1.1f, -5.5f });
         title = "Vulkan Example - Mesh rendering";
     }
 
@@ -316,7 +315,7 @@ public:
 
     void updateUniformBuffers() {
         uboVS.projection = getProjection();
-        uboVS.model = getCamera();
+        uboVS.model = getView();
         uniformData.vsScene.copy(uboVS);
     }
 

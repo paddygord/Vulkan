@@ -105,7 +105,7 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
-        zoom = -20.0f;
+        camera.setZoom(-20.0f);
         orientation = glm::quat(glm::radians(glm::vec3({ -15.0f, -390.0f, 0.0f })));
         title = "Vulkan Example - Projected shadow mapping";
         timerSpeed *= 0.5f;
@@ -575,7 +575,7 @@ public:
         // 3D scene
         uboVSscene.projection = glm::perspective(glm::radians(45.0f), (float)size.width / (float)size.height, zNear, zFar);
 
-        uboVSscene.view = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
+        uboVSscene.view = camera.matrices.view;
         uboVSscene.model = glm::mat4();
         uboVSscene.lightPos = lightPos;
         // Render scene from light's point of view

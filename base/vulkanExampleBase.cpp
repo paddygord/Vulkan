@@ -243,9 +243,7 @@ void ExampleBase::prepare() {
     cmdPool = getCommandPool();
 
     swapChain.create(size);
-    withPrimaryCommandBuffer([&](vk::CommandBuffer setupCmdBuffer) {
-        setupDepthStencil(setupCmdBuffer);
-    });
+    setupDepthStencil();
     setupRenderPass();
     setupFrameBuffer();
 
@@ -441,8 +439,7 @@ void ExampleBase::MouseMoveHandler(GLFWwindow* window, double posx, double posy)
 
 void ExampleBase::MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    example->zoom += (float)yoffset * 0.1f * example->zoomSpeed;
-    example->viewChanged();
+    example->mouseScrolled(yoffset);
 }
 
 
@@ -477,13 +474,15 @@ void ExampleBase::setupWindow() {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto monitor = glfwGetPrimaryMonitor();
     auto mode = glfwGetVideoMode(monitor);
-    auto screenWidth = mode->width;
-    auto screenHeight = mode->height;
+    size.width = mode->width;
+    size.height = mode->height;
 
     if (fullscreen) {
-        window = glfwCreateWindow(screenWidth, screenHeight, "My Title", monitor, NULL);
+        window = glfwCreateWindow(size.width, size.height, "My Title", monitor, NULL);
     } else {
-        window = glfwCreateWindow(screenWidth / 2, screenHeight / 2, "Window Title", NULL, NULL);
+        size.width /= 2;
+        size.height /= 2;
+        window = glfwCreateWindow(size.width, size.height, "Window Title", NULL, NULL);
     }
 
     glfwSetWindowUserPointer(window, this);
@@ -497,36 +496,38 @@ void ExampleBase::setupWindow() {
         throw std::runtime_error("Could not create window");
     }
     swapChain.createSurface(window);
+    camera.setAspectRatio(size);
 }
 
 #endif
 
-void ExampleBase::setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer) {
+void ExampleBase::setupDepthStencil() {
     depthStencil.destroy();
 
+    vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
     vk::ImageCreateInfo image;
     image.imageType = vk::ImageType::e2D;
-    image.format = depthFormat;
     image.extent = vk::Extent3D{ size.width, size.height, 1 };
+    image.format = depthFormat;
     image.mipLevels = 1;
     image.arrayLayers = 1;
-    image.samples = vk::SampleCountFlagBits::e1;
-    image.tiling = vk::ImageTiling::eOptimal;
     image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferSrc;
-
     depthStencil = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-    setImageLayout(
-        setupCmdBuffer,
-        depthStencil.image,
-        vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
-        vk::ImageLayout::eUndefined,
-        vk::ImageLayout::eDepthStencilAttachmentOptimal);
+    withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
+        setImageLayout(
+            setupCmdBuffer,
+            depthStencil.image,
+            aspect,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eDepthStencilAttachmentOptimal);
+    });
+
 
     vk::ImageViewCreateInfo depthStencilView;
     depthStencilView.viewType = vk::ImageViewType::e2D;
     depthStencilView.format = depthFormat;
-    depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
+    depthStencilView.subresourceRange.aspectMask = aspect;
     depthStencilView.subresourceRange.levelCount = 1;
     depthStencilView.subresourceRange.layerCount = 1;
     depthStencilView.image = depthStencil.image;
@@ -557,9 +558,7 @@ void ExampleBase::setupRenderPass() {
     }
 
     std::vector<vk::AttachmentDescription> attachments;
-    std::vector<vk::AttachmentReference> attachmentReferences;
     attachments.resize(2);
-    attachmentReferences.resize(2);
 
     // Color attachment
     attachments[0].format = colorformat;
@@ -576,13 +575,17 @@ void ExampleBase::setupRenderPass() {
     attachments[1].finalLayout = vk::ImageLayout::eUndefined;
 
     // Only one depth attachment, so put it first in the references
-    vk::AttachmentReference& depthReference = attachmentReferences[0];
+    vk::AttachmentReference depthReference;
     depthReference.attachment = 1;
     depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
-    vk::AttachmentReference& colorReference = attachmentReferences[1];
-    colorReference.attachment = 0;
-    colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
+    std::vector<vk::AttachmentReference> colorAttachmentReferences;
+    {
+        vk::AttachmentReference colorReference;
+        colorReference.attachment = 0;
+        colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
+        colorAttachmentReferences.push_back(colorReference);
+    }
 
     std::vector<vk::SubpassDescription> subpasses;
     std::vector<vk::SubpassDependency> subpassDependencies;
@@ -598,9 +601,9 @@ void ExampleBase::setupRenderPass() {
 
         vk::SubpassDescription subpass;
         subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-        subpass.pDepthStencilAttachment = attachmentReferences.data();
-        subpass.colorAttachmentCount = attachmentReferences.size() - 1;
-        subpass.pColorAttachments = attachmentReferences.data() + 1;
+        subpass.pDepthStencilAttachment = &depthReference;
+        subpass.colorAttachmentCount = colorAttachmentReferences.size();
+        subpass.pColorAttachments = colorAttachmentReferences.data();
         subpasses.push_back(subpass);
     }
 
@@ -629,9 +632,7 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
 
     swapChain.create(size);
 
-    withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
-        setupDepthStencil(setupCmdBuffer);
-    });
+    setupDepthStencil();
 
     // Recreate the frame buffers
     for (uint32_t i = 0; i < framebuffers.size(); i++) {

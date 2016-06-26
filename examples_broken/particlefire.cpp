@@ -103,7 +103,7 @@ public:
     std::vector<Particle> particleBuffer;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -90.0f;
+        camera.setZoom(-90.0f);
         rotation = { -15.0f, 45.0f, 0.0f };
         title = "Vulkan Example - Particle system";
         zoomSpeed *= 1.5f;

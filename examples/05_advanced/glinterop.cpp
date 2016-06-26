@@ -100,7 +100,7 @@ public:
             update(tDiff / 1000.0f);
 
             auto projection = glm::perspective(glm::radians(60.0f), (float)size.x / (float)size.y, 0.001f, 256.0f);
-            auto view = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
+            auto view = camera.matrices.view;
             vulkanRenderer.update((float)tDiff / 1000.0f, projection, view);
             glfwPollEvents();
             render();

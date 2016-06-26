@@ -56,8 +56,8 @@ public:
     } pipelines;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -10.5f;
-        orientation = glm::quat(glm::radians(glm::vec3(-25.0f, 15.0f, 0.0f)));
+        camera.setZoom(-10.5f);
+        camera.setRotation(-25.0f, 15.0f, 0.0f);
         enableTextOverlay = true;
         title = "Vulkan Example - vk::Pipeline state objects";
     }

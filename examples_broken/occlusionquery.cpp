@@ -77,7 +77,7 @@ public:
         passedSamples[0] = passedSamples[1] = 1;
         width = 1280;
         height = 720;
-        zoom = -35.0f;
+        camera.setZoom(-35.0f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         rotation = { 0.0, -123.75, 0.0 };

@@ -74,7 +74,7 @@ public:
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         size.width = 1280;
         size.height = 720;
-        zoom = -2.5f;
+        camera.setZoom(-2.5f);
         title = "Vulkan Example - triangle revisited";
     }
 
@@ -190,8 +190,8 @@ public:
     //
     void prepareUniformBuffers() {
         uboVS.projectionMatrix = getProjection();
-        uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-        uboVS.modelMatrix = glm::mat4_cast(orientation);
+        uboVS.viewMatrix = glm::translate(glm::mat4(), camera.position);
+        uboVS.modelMatrix = glm::mat4_cast(camera.orientation);
         uniformDataVS = createUniformBuffer(uboVS);
     }
 

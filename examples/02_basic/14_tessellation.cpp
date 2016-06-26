@@ -64,9 +64,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -6.5f;
-        orientation = glm::quat(glm::radians(glm::vec3(-350.0f, 60.0f, 0.0f)));
-        cameraPos = glm::vec3(-3.0f, 2.3f, 0.0f);
+        camera.setRotation({ -350.0f, 60.0f, 0.0f });
+        camera.setTranslation({ -3.0f, 2.3f, -6.5f });
         title = "Vulkan Example - Tessellation shader (PN Triangles)";
         enableTextOverlay = true;
         // Support for tessellation shaders is optional, so check first
@@ -330,7 +329,7 @@ public:
     void updateUniformBuffers() {
         // Tessellation eval
         uboTE.projection = glm::perspective(glm::radians(45.0f), (float)(size.width* ((splitScreen) ? 0.5f : 1.0f)) / (float)size.height, 0.1f, 256.0f);
-        uboTE.model = getCamera();
+        uboTE.model = camera.matrices.view;
         uniformDataTE.copy(uboTE);
 
         // Tessellation control uniform block

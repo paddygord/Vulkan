@@ -89,7 +89,7 @@ public:
     
     VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
         
-        zoom = -8.0f;
+        camera.setZoom(-8.0f);
         size.width = 1024;
         size.height = 1024;
         title = "Vulkan Example - Deferred shading";
@@ -533,8 +533,8 @@ public:
     }
 
     void updateUniformBufferDeferredMatrices() {
-        uboOffscreenVS.projection = getProjection();
-        uboOffscreenVS.view = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
+        uboOffscreenVS.projection = camera.matrices.perspective;
+        uboOffscreenVS.view = camera.matrices.view;
         uboOffscreenVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.25f, 0.0f));
         uniformData.vsOffscreen.copy(uboOffscreenVS);
     }
@@ -573,7 +573,7 @@ public:
         uboFragmentLights.lights[4].quadraticFalloff = 0.6f;
 
         // Current view position
-        uboFragmentLights.viewPos = glm::vec4(0.0f, 0.0f, -zoom, 0.0f);
+        uboFragmentLights.viewPos = glm::vec4(0.0f, 0.0f, -camera.position.z, 0.0f);
 
         uniformData.fsLights.copy(uboFragmentLights);
     }

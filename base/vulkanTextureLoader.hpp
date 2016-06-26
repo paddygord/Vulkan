@@ -27,6 +27,7 @@ namespace vkx {
         vk::ImageLayout imageLayout{ vk::ImageLayout::eShaderReadOnlyOptimal };
         vk::ImageView view;
         vk::Extent3D extent{ 0, 0, 1 };
+        vk::DescriptorImageInfo descriptor;
 
         uint32_t mipLevels{ 1 };
         uint32_t layerCount{ 1 };
@@ -137,7 +138,7 @@ namespace vkx {
             imageCreateInfo.format = format;
             imageCreateInfo.extent = texture.extent;
             imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
-             imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
+            imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
 
             if (useStaging) {
                 // Create a host-visible staging buffer that contains the raw image data
@@ -290,6 +291,9 @@ namespace vkx {
                 view.image = texture.image;
                 texture.view = context.device.createImageView(view);
             }
+            texture.descriptor.imageLayout = texture.imageLayout;
+            texture.descriptor.imageView = texture.view;
+            texture.descriptor.sampler = texture.sampler;
             return texture;
         }
 
@@ -317,21 +321,10 @@ namespace vkx {
 #endif    
             Texture texture;
             assert(!texCube.empty());
-
             texture.extent.width = (uint32_t)texCube[0].dimensions().x;
             texture.extent.height = (uint32_t)texCube[0].dimensions().y;
-
-            auto staging = context.createBuffer(vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible, texCube.size(), texCube.data());
-
-
-            // Setup buffer copy regions for the cube faces
-            // As all faces of a cube map must have the same dimensions, we can do a single copy
-            vk::BufferImageCopy bufferCopyRegion;
-            bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-            bufferCopyRegion.imageSubresource.mipLevel = 0;
-            bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
-            bufferCopyRegion.imageSubresource.layerCount = 6;
-            bufferCopyRegion.imageExtent = texture.extent;
+            texture.mipLevels = texCube.levels();
+            texture.layerCount = 6;
 
             // Create optimal tiled target image
             vk::ImageCreateInfo imageCreateInfo;
@@ -349,57 +342,66 @@ namespace vkx {
             imageCreateInfo.arrayLayers = 6;
             // This flag is required for cube map images
             imageCreateInfo.flags = vk::ImageCreateFlagBits::eCubeCompatible;
-
             texture = context.createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-            vk::CommandBufferBeginInfo cmdBufInfo;
-            cmdBuffer.begin(cmdBufInfo);
+            auto staging = context.createBuffer(vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible, texCube.size(), texCube.data());
 
-            // vk::Image barrier for optimal image (target)
-            // Set initial layout for all array layers (faces) of the optimal (target) tiled texture
-            vk::ImageSubresourceRange subresourceRange;
-            subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-            subresourceRange.baseMipLevel = 0;
-            subresourceRange.levelCount = 1;
-            subresourceRange.layerCount = 6;
+            // Setup buffer copy regions for the cube faces
+            // As all faces of a cube map must have the same dimensions, we can do a single copy
+            vk::BufferImageCopy bufferCopyRegion;
+            bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+            bufferCopyRegion.imageSubresource.mipLevel = 0;
+            bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
+            bufferCopyRegion.imageSubresource.layerCount = 6;
+            bufferCopyRegion.imageExtent = texture.extent;
 
-            setImageLayout(
-                cmdBuffer,
-                texture.image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eTransferDstOptimal,
-                subresourceRange);
+            context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& cmdBuffer) {
+                // vk::Image barrier for optimal image (target)
+                // Set initial layout for all array layers (faces) of the optimal (target) tiled texture
+                vk::ImageSubresourceRange subresourceRange;
+                subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+                subresourceRange.baseMipLevel = 0;
+                subresourceRange.levelCount = texture.mipLevels;
+                subresourceRange.layerCount = 6;
+                setImageLayout(
+                    cmdBuffer,
+                    texture.image,
+                    vk::ImageAspectFlagBits::eColor,
+                    vk::ImageLayout::eUndefined,
+                    vk::ImageLayout::eTransferDstOptimal,
+                    subresourceRange);
+                // Setup buffer copy regions for each face including all of it's miplevels
+                std::vector<vk::BufferImageCopy> bufferCopyRegions;
+                {
+                    vk::BufferImageCopy bufferCopyRegion;
+                    bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+                    bufferCopyRegion.imageSubresource.layerCount = 1;
+                    bufferCopyRegion.imageExtent.depth = 1;
+                    for (uint32_t face = 0; face < 6; face++) {
+                        bufferCopyRegion.imageSubresource.baseArrayLayer = face;
+                        for (uint32_t level = 0; level < texture.mipLevels; ++level) {
+                            bufferCopyRegion.imageSubresource.mipLevel = level;
+                            bufferCopyRegion.imageExtent.width = texCube[face][level].dimensions().x;
+                            bufferCopyRegion.imageExtent.height = texCube[face][level].dimensions().y;
+                            bufferCopyRegions.push_back(bufferCopyRegion);
+                            // Increase offset into staging buffer for next level / face
+                            bufferCopyRegion.bufferOffset += texCube[face][level].size();
+                        }
+                    }
+                }
 
-            // Copy the cube map faces from the staging buffer to the optimal tiled image
-            cmdBuffer.copyBufferToImage(staging.buffer, texture.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegion);
-
-            // Change texture image layout to shader read after all faces have been copied
-            texture.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-            setImageLayout(
-                cmdBuffer,
-                texture.image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::eTransferDstOptimal,
-                texture.imageLayout,
-                subresourceRange);
-
-            cmdBuffer.end();
-
-            // Create a fence to make sure that the copies have finished before continuing
-            vk::Fence copyFence;
-            vk::FenceCreateInfo fenceCreateInfo;
-            copyFence = context.device.createFence(fenceCreateInfo);
-
-            vk::SubmitInfo submitInfo;
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &cmdBuffer;
-
-            context.queue.submit(submitInfo, copyFence);
-
-            context.device.waitForFences(copyFence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
-
-            context.device.destroyFence(copyFence);
+                // Copy the cube map faces from the staging buffer to the optimal tiled image
+                cmdBuffer.copyBufferToImage(staging.buffer, texture.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
+                // Change texture image layout to shader read after all faces have been copied
+                texture.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+                setImageLayout(
+                    cmdBuffer,
+                    texture.image,
+                    vk::ImageAspectFlagBits::eColor,
+                    vk::ImageLayout::eTransferDstOptimal,
+                    vk::ImageLayout::eShaderReadOnlyOptimal,
+                    subresourceRange);
+            });
 
             // Create sampler
             vk::SamplerCreateInfo sampler;
@@ -409,7 +411,8 @@ namespace vkx {
             sampler.addressModeU = vk::SamplerAddressMode::eClampToEdge;
             sampler.addressModeV = sampler.addressModeU;
             sampler.addressModeW = sampler.addressModeU;
-            sampler.maxAnisotropy = 8;
+            sampler.maxAnisotropy = 8.0f;
+            sampler.maxLod = texture.mipLevels;
             sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
             texture.sampler = context.device.createSampler(sampler);
 
@@ -514,7 +517,7 @@ namespace vkx {
             imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
             imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
             imageCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
-            imageCreateInfo.extent = texture.extent; 
+            imageCreateInfo.extent = texture.extent;
             imageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
             imageCreateInfo.arrayLayers = texture.layerCount;
 

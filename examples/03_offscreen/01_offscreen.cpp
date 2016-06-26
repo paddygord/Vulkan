@@ -71,8 +71,8 @@ public:
     glm::vec3 meshPos = glm::vec3(0.0f, -1.5f, 0.0f);
 
     VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
-        zoom = -6.5f;
-        orientation = glm::quat(glm::radians(glm::vec3({ -11.25f, 45.0f, 0.0f })));
+        camera.setZoom(-6.5f);
+        camera.setRotation({ -11.25f, 45.0f, 0.0f });
         timerSpeed *= 0.25f;
         title = "Vulkan Example - Offscreen rendering";
     }
@@ -394,17 +394,17 @@ public:
     void updateUniformBuffers() {
         // Mesh
         ubos.vsShared.projection = getProjection();
-        ubos.vsShared.model = glm::translate(glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation), meshPos);
+        ubos.vsShared.model = glm::translate(camera.matrices.view, meshPos);
         uniformData.vsShared.copy(ubos.vsShared);
 
         // Mirror
-        ubos.vsShared.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
+        ubos.vsShared.model = camera.matrices.view;
         uniformData.vsMirror.copy(ubos.vsShared);
     }
 
     void updateUniformBufferOffscreen() {
         ubos.vsShared.projection = getProjection();
-        ubos.vsShared.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * glm::mat4_cast(orientation);
+        ubos.vsShared.model = camera.matrices.view;
         ubos.vsShared.model = glm::scale(ubos.vsShared.model, glm::vec3(1.0f, -1.0f, 1.0f));
         ubos.vsShared.model = glm::translate(ubos.vsShared.model, meshPos);
         uniformData.vsOffScreen.copy(ubos.vsShared);

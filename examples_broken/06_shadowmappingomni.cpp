@@ -103,7 +103,7 @@ public:
     //vk::CommandBuffer offscreen.cmdBuffer;
 
     VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
-        zoom = -175.0f;
+        camera.setZoom(-175.0f);
         zoomSpeed = 10.0f;
         timerSpeed *= 0.25f;
         orientation = glm::quat(glm::radians(glm::vec3({ -20.5f, -673.0f, 0.0f })));

@@ -59,10 +59,10 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -0.9f;
+        camera.setZoom(-0.9f);
         rotationSpeed = 0.75f;
         zoomSpeed = 0.25f;
-        orientation = glm::quat(glm::radians(glm::vec3(-25.0f, 23.75f, 0.0f)));
+        camera.setRotation(-25.0f, 23.75f, 0.0f);
         enableTextOverlay = true;
         title = "Vulkan Example - Spherical Environment Mapping";
     }

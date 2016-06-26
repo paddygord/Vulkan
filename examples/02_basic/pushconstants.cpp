@@ -55,11 +55,11 @@ public:
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         size.width = 1280;
         size.height = 720;
-        zoom = -30.0;
+        camera.setZoom(-30.0);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         timerSpeed *= 0.5f;
-        orientation = glm::quat(glm::radians(glm::vec3({ -32.5, 45.0, 0.0 })));
+        camera.setRotation({ -32.5, 45.0, 0.0 });
         title = "Vulkan Example - Push constants";
 
         // todo : this crashes on certain Android devices, so commented out for now

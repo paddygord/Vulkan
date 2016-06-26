@@ -41,7 +41,7 @@ public:
     VulkanExample() : Parent(ENABLE_VALIDATION) {
         size.width = 1280;
         size.height = 720;
-        zoom = -2.5f;
+        camera.setZoom(-2.5f);
         title = "Vulkan Example - Basic indexed triangle";
     }
 
@@ -64,9 +64,9 @@ public:
     void updateUniformBuffers() {
         // Update matrices
         uboVS.projectionMatrix = getProjection();
-        uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-        orientation = orientation * glm::angleAxis(frameTimer * 1.0f, glm::vec3(0, 1, 0));
-        uboVS.modelMatrix = glm::mat4_cast(orientation);
+        uboVS.viewMatrix = glm::translate(glm::mat4(), camera.position);
+        camera.rotate(glm::angleAxis(frameTimer * 1.0f, glm::vec3(0, 1, 0)));
+        uboVS.modelMatrix = glm::mat4_cast(camera.orientation);
         pendingUpdates.push_back(UpdateOperation(uniformDataVS.buffer, uboVS));
     }
 
@@ -325,8 +325,8 @@ public:
 
     void prepareUniformBuffers() {
         uboVS.projectionMatrix = getProjection();
-        uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-        uboVS.modelMatrix = glm::mat4_cast(orientation);
+        uboVS.viewMatrix = glm::translate(glm::mat4(), camera.position);
+        uboVS.modelMatrix = glm::mat4_cast(camera.orientation);
         uniformDataVS = createUniformBuffer(uboVS);
     }
 };

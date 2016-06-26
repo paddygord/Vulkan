@@ -102,7 +102,7 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -1.5f;
+        camera.setZoom(-1.5f);
         rotation = { 0.0f, 0.0f, 0.0f };
         title = "Vulkan Example - Distance field fonts";
     }

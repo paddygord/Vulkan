@@ -292,7 +292,7 @@ namespace vkx {
             submitInfo.pCommandBuffers = &commandBuffer;
             queue.submit(submitInfo, vk::Fence());
             queue.waitIdle();
-
+            device.waitIdle();
             if (free) {
                 device.freeCommandBuffers(getCommandPool(), commandBuffer);
                 commandBuffer = vk::CommandBuffer();
@@ -321,23 +321,52 @@ namespace vkx {
             return result;
         }
 
-        CreateImageResult stageToDeviceImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data) const {
+        using MipData = ::std::pair<vk::Extent3D, vk::DeviceSize>;
+
+        CreateImageResult stageToDeviceImage(vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData = {}) const {
             CreateBufferResult staging = createBuffer(vk::BufferUsageFlagBits::eTransferSrc, size, data);
+            imageCreateInfo.usage = imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferDst;
             CreateImageResult result = createImage(imageCreateInfo, memoryPropertyFlags);
+
             withPrimaryCommandBuffer([&](const vk::CommandBuffer& copyCmd) {
+                vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, imageCreateInfo.mipLevels, 0, 1);
                 // Prepare for transfer
-                setImageLayout(copyCmd, result.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-                vk::BufferImageCopy bufferCopyRegion;
-                bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-                bufferCopyRegion.imageSubresource.mipLevel = 0;
-                bufferCopyRegion.imageSubresource.layerCount = 1;
-                bufferCopyRegion.imageExtent = imageCreateInfo.extent;
-                copyCmd.copyBufferToImage(staging.buffer, result.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegion);
+                setImageLayout(copyCmd, result.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
+
+                // Prepare for transfer
+                std::vector<vk::BufferImageCopy> bufferCopyRegions;
+                {
+                    vk::BufferImageCopy bufferCopyRegion;
+                    bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+                    bufferCopyRegion.imageSubresource.layerCount = 1;
+                    if (!mipData.empty()) {
+                        for (uint32_t i = 0; i < imageCreateInfo.mipLevels; i++) {
+                            bufferCopyRegion.imageSubresource.mipLevel = i;
+                            bufferCopyRegion.imageExtent = mipData[i].first;
+                            bufferCopyRegions.push_back(bufferCopyRegion);
+                            bufferCopyRegion.bufferOffset += mipData[i].second;
+                        }
+                    } else {
+                        bufferCopyRegion.imageExtent = imageCreateInfo.extent;
+                        bufferCopyRegions.push_back(bufferCopyRegion);
+                    }
+                }
+                copyCmd.copyBufferToImage(staging.buffer, result.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
                 // Prepare for shader read
-                setImageLayout(copyCmd, result.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+                setImageLayout(copyCmd, result.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, range);
             });
             staging.destroy();
             return result;
+        }
+
+        CreateImageResult stageToDeviceImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, const gli::texture2D& tex2D) const {
+            std::vector<MipData> mips;
+            for (size_t i = 0; i < imageCreateInfo.mipLevels; ++i) {
+                const auto& mip = tex2D[i];
+                const auto dims = mip.dimensions();
+                mips.push_back({ vk::Extent3D{ (uint32_t)dims.x, (uint32_t)dims.y, 1}, (uint32_t)mip.size() });
+            }
+            return stageToDeviceImage(imageCreateInfo, memoryPropertyFlags, (vk::DeviceSize)tex2D.size(), tex2D.data(), mips);
         }
 
         CreateBufferResult createBuffer(const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void * data = nullptr) const {
@@ -458,9 +487,9 @@ namespace vkx {
             uint32_t result = 0;
             if (!getMemoryType(typeBits, properties, &result)) {
                 // todo : throw error
-        }
+            }
             return result;
-    }
+        }
 
         // Load a SPIR-V shader
         inline vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) {
@@ -532,7 +561,7 @@ namespace vkx {
             }
             submit(commandBuffers, waitSemaphores, waitStages, signals, fence);
         }
-};
+    };
 
     // Template specialization for texture objects
     template <>

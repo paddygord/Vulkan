@@ -189,10 +189,10 @@ public:
     } demoTag;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -8.5f;
+        camera.setZoom(-8.5f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
-        orientation  = glm::quat(glm::radians(glm::vec3({ -4.35f, 16.25f, 0.0f })));
+        camera.setRotation({ -4.35f, 16.25f, 0.0f });
         cameraPos = { 0.1f, 1.1f, 0.0f };
         enableTextOverlay = true;
         title = "Vulkan Example - VK_EXT_debug_marker";

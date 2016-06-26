@@ -103,7 +103,7 @@ public:
     vkx::Frustum frustum;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -32.5f;
+        camera.setZoom(-32.5f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         rotation = { 0.0f, 37.5f, 0.0f };

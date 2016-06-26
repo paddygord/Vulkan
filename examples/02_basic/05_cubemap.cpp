@@ -58,9 +58,9 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -4.0f;
+        camera.setZoom(-4.0f);
+        camera.setRotation({ -2.25f, -35.0f, 0.0f });
         rotationSpeed = 0.25f;
-        //rotation = { -2.25f, -35.0f, 0.0f };
         title = "Vulkan Example - Cube map";
     }
 
@@ -293,14 +293,14 @@ public:
 
     void updateUniformBuffers() {
         // Common projection
-        uboVS.projection = glm::perspective(glm::radians(60.0f), (float)size.width / (float)size.height, 0.001f, 256.0f);
+        uboVS.projection = camera.matrices.perspective;
 
         // Skysphere, rotation only
-        uboVS.model = glm::mat4_cast(orientation);
+        uboVS.model = glm::mat4_cast(camera.orientation);
         uniformData.skyboxVS.copy(uboVS);
 
         // 3D object, translation combined with the rotation
-        uboVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom)) * uboVS.model;
+        uboVS.model = glm::translate(glm::mat4(), camera.position) * glm::mat4_cast(camera.orientation);
         uniformData.objectVS.copy(uboVS);
     }
 

@@ -55,8 +55,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -8.0f;
-        orientation = glm::quat(glm::radians(glm::vec3(0.0f, -25.0f, 0.0f)));
+        camera.setZoom(-8.0f);
+        camera.setRotation(0.0f, -25.0f, 0.0f);
         title = "Vulkan Example - Geometry shader";
     }
 

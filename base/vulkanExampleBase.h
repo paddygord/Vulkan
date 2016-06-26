@@ -10,6 +10,7 @@
 
 #include "common.hpp"
 
+#include "camera.hpp"
 #include "vulkanTools.h"
 #include "vulkanDebug.h"
 #include "vulkanShaders.h"
@@ -102,7 +103,7 @@ namespace vkx {
 
             vk::CommandBufferBeginInfo cmdBufInfo;
             vk::ClearValue clearValues[2];
-            clearValues[0].color = defaultClearColor;
+            clearValues[0].color = vkx::clearColor({ 1, 0, 0, 1 });
             clearValues[1].depthStencil = { 1.0f, 0 };
 
             vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -186,8 +187,6 @@ namespace vkx {
 
         VK_CLEAR_COLOR_TYPE defaultClearColor = clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
 
-        float zoom = 0;
-
         // Defines a frame rate independent timer value clamped from -1.0...1.0
         // For use in animations, rotations, etc.
         float timer = 0.0f;
@@ -204,8 +203,7 @@ namespace vkx {
         // Use to adjust mouse zoom speed
         float zoomSpeed = 1.0f;
 
-        glm::quat orientation;
-        glm::vec3 cameraPos = glm::vec3();
+        Camera camera;
         glm::vec2 mousePos;
 
         std::string title = "Vulkan Example";
@@ -294,7 +292,7 @@ namespace vkx {
         virtual void windowResized();
 
         // Setup default depth and stencil views
-        void setupDepthStencil(const vk::CommandBuffer& setupCmdBuffer);
+        void setupDepthStencil();
         // Create framebuffers for all requested swap chain images
         // Can be overriden in derived class to setup a custom framebuffer (e.g. for MSAA)
         virtual void setupFrameBuffer();
@@ -478,12 +476,12 @@ namespace vkx {
         // - 
         void submitFrame();
 
-        virtual glm::mat4 getProjection() {
-            return glm::perspective(glm::radians(60.0f), (float)size.width / (float)size.height, 0.001f, 256.0f);
+        virtual const glm::mat4& getProjection() const {
+            return camera.matrices.perspective;
         }
 
-        virtual glm::mat4 getCamera() {
-            return glm::translate(glm::mat4(), glm::vec3(cameraPos.x, cameraPos.y, zoom)) * glm::mat4_cast(orientation);
+        virtual const glm::mat4& getView() const {
+            return camera.matrices.view;
         }
 
 #if defined(__ANDROID__)
@@ -520,20 +518,23 @@ namespace vkx {
                 return;
             }
             if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT)) {
-                zoom += (deltaPos.y) * .005f * zoomSpeed;
+                camera.dolly((deltaPos.y) * .005f * zoomSpeed);
                 viewChanged();
             }
             if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)) {
-                glm::vec3 rotationAxis = glm::normalize(glm::vec3(deltaPos.y, -deltaPos.x, 0));
-                float length = glm::length(deltaPos) * 0.01f;
-                orientation = glm::angleAxis(length, rotationAxis) * orientation;
+                camera.rotate(deltaPos);
                 viewChanged();
             }
             if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE)) {
-                cameraPos -= glm::vec3(deltaPos, 0) * 0.01f;
+                camera.translate(deltaPos * -0.01f);
                 viewChanged();
             }
             mousePos = newPos;
+        }
+
+        void mouseScrolled(float delta) {
+            camera.dolly((float)delta * 0.1f * zoomSpeed);
+            viewChanged();
         }
 
         static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);

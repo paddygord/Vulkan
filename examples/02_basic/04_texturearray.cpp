@@ -62,9 +62,9 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        zoom = -15.0f;
+        camera.setZoom(-15.0f);
         rotationSpeed = 0.25f;
-        orientation = glm::quat(glm::radians(glm::vec3({ -15.0f, 35.0f, 0.0f })));
+        camera.setRotation({ -15.0f, 35.0f, 0.0f });
         title = "Vulkan Example - Texture arrays";
         srand(time(NULL));
     }
@@ -265,27 +265,20 @@ public:
     }
 
     void prepareUniformBuffers() {
-        uint32_t uboSize = sizeof(uboVS.matrices) + (textureArray.layerCount * sizeof(UboInstanceData));
-
         // Vertex shader uniform buffer block
         uniformData.vertexShader = createUniformBuffer(uboVS);
-        uniformData.vertexShader.map();
 
         // Array indices and model matrices are fixed
         float offset = -1.5f;
-        uint32_t index = 0;
         float center = (textureArray.layerCount*offset) / 2;
         for (uint32_t i = 0; i < textureArray.layerCount; i++) {
             // Instance model matrix
-            uboVS.instance[i].model = glm::translate(glm::mat4(), glm::vec3(0.0f, i * offset - center, 0.0f));
-            uboVS.instance[i].model = glm::rotate(uboVS.instance[i].model, glm::radians(60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            uboVS.instance[i].model = glm::translate(glm::mat4(), glm::vec3(0.0f, i * offset - center, 0.0f)) * 
+                glm::mat4_cast(glm::angleAxis(glm::radians(60.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
             // Instance texture array index
             uboVS.instance[i].arrayIndex.x = i;
         }
-
         // Update instanced part of the uniform buffer
-        uint32_t dataOffset = sizeof(uboVS.matrices);
-        uint32_t dataSize = textureArray.layerCount * sizeof(UboInstanceData);
         uniformData.vertexShader.copy(uboVS);
         updateUniformBufferMatrices();
     }
@@ -293,9 +286,9 @@ public:
     void updateUniformBufferMatrices() {
         // Only updates the uniform buffer block part containing the global matrices
         // Projection
-        uboVS.matrices.projection = getProjection();
+        uboVS.matrices.projection = camera.matrices.perspective;
         // View
-        uboVS.matrices.view = glm::translate(glm::mat4(), glm::vec3(0.0f, -1.0f, zoom)) * glm::mat4_cast(orientation);
+        uboVS.matrices.view = camera.matrices.view;
 
         // Only update the matrices part of the uniform buffer
         uniformData.vertexShader.copy(uboVS.matrices);
