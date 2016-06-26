@@ -252,14 +252,11 @@ public:
         glBindTexture(GL_TEXTURE_2D, 0);
 
         // Set up the framebuffer object
-        glGenFramebuffers(1, &_fbo);
-        glGenRenderbuffers(1, &_depthBuffer);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _fbo);
-        glBindRenderbuffer(GL_RENDERBUFFER, _depthBuffer);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, _renderTargetSize.x, _renderTargetSize.y);
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
-        glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _depthBuffer);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+        glCreateFramebuffers(1, &_fbo);
+        glCreateRenderbuffers(1, &_depthBuffer);
+        glNamedRenderbufferStorage(_depthBuffer, GL_DEPTH_COMPONENT16, _renderTargetSize.x, _renderTargetSize.y);
+        glNamedFramebufferRenderbuffer(_fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _depthBuffer);
 
         ovrMirrorTextureDesc mirrorDesc;
         memset(&mirrorDesc, 0, sizeof(mirrorDesc));
@@ -269,7 +266,7 @@ public:
         if (!OVR_SUCCESS(ovr_CreateMirrorTextureGL(_session, &mirrorDesc, &_mirrorTexture))) {
             throw std::runtime_error("Could not create mirror texture");
         }
-        glGenFramebuffers(1, &_mirrorFbo);
+        glCreateFramebuffers(1, &_mirrorFbo);
     }
 
     ~OpenGLInteropExample() {
@@ -279,49 +276,27 @@ public:
         glfwTerminate();
     }
 
-    void render(float delta) {
-        auto eyePoses = getEyePoses(frameCounter);
-        auto views = std::array<glm::mat4, 2>{ glm::inverse(ovr::toGlm(eyePoses[0])), glm::inverse(ovr::toGlm(eyePoses[1])) };
-        vulkanRenderer.update(delta / 1000.0f, _eyeProjections, views);
-
+    void render() {
         glfwMakeContextCurrent(window);
-
         // Tell the 
-        //gl::nv::vk::SignalSemaphore(vulkanRenderer.semaphores.renderStart);
-        //glFlush();
-        //vulkanRenderer.render();
-        //glClearColor(0, 0.5f, 0.8f, 1.0f);
-        //glClear(GL_COLOR_BUFFER_BIT);
-        //gl::nv::vk::WaitSemaphore(vulkanRenderer.semaphores.renderComplete);
-        //gl::nv::vk::DrawVkImage(vulkanRenderer.framebuffer.colors[0].image, 0, vec2(0), vec2(1280, 720));
-        //glfwSwapBuffers(window);
+        gl::nv::vk::SignalSemaphore(vulkanRenderer.semaphores.renderStart);
+        glFlush();
 
+        vulkanRenderer.render();
+
+        gl::nv::vk::WaitSemaphore(vulkanRenderer.semaphores.renderComplete);
 
         GLuint curTexId = getTexture();
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _fbo);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, curTexId, 0);
         glClearColor(0, 0.5f, 0.8f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        ovr::for_each_eye([&](ovrEyeType eye) {
-            const auto& vp = _sceneLayer.Viewport[eye];
-            glViewport(vp.Pos.x, vp.Pos.y, vp.Size.w, vp.Size.h);
-            _sceneLayer.RenderPose[eye] = eyePoses[eye];
-            //renderScene(_eyeProjections[eye], ovr::toGlm(eyePoses[eye]));
-        });
-        // Tell the 
-        gl::nv::vk::SignalSemaphore(vulkanRenderer.semaphores.renderStart);
-        glFlush();
-        vulkanRenderer.render();
-        glClearColor(0, 0.5f, 0.8f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        gl::nv::vk::WaitSemaphore(vulkanRenderer.semaphores.renderComplete);
         gl::nv::vk::DrawVkImage(vulkanRenderer.framebuffer.colors[0].image, 0, vec2(0), _renderTargetSize, 0, glm::vec2(0), glm::vec2(1));
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
         ovr_CommitTextureSwapChain(_session, _eyeTexture);
         ovrLayerHeader* headerList = &_sceneLayer.Header;
         ovr_SubmitFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1);
-
         GLuint mirrorTextureId;
         ovr_GetMirrorTextureBufferGL(_session, _mirrorTexture, &mirrorTextureId);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, _mirrorFbo);
@@ -335,7 +310,16 @@ public:
         vulkanRenderer.framebuffer.size = _renderTargetSize;
         vulkanRenderer.prepare();
     }
-
+    void update(float delta) {
+        auto eyePoses = getEyePoses(frameCounter);
+        auto views = std::array<glm::mat4, 2>{ glm::inverse(ovr::toGlm(eyePoses[0])), glm::inverse(ovr::toGlm(eyePoses[1])) };
+        vulkanRenderer.update(delta, _eyeProjections, views);
+        ovr::for_each_eye([&](ovrEyeType eye) {
+            const auto& vp = _sceneLayer.Viewport[eye];
+            _sceneLayer.RenderPose[eye] = eyePoses[eye];
+            //renderScene(_eyeProjections[eye], ovr::toGlm(eyePoses[eye]));
+        });
+    }
     void run() {
         prepare();
         auto tStart = std::chrono::high_resolution_clock::now();
@@ -343,7 +327,8 @@ public:
             auto tEnd = std::chrono::high_resolution_clock::now();
             auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
             glfwPollEvents();
-            render((float)tDiff);
+            update((float)tDiff / 1000.0f);
+            render();
             ++frameCounter;
             fpsTimer += (float)tDiff;
             if (fpsTimer > 1000.0f) {
