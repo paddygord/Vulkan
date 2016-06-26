@@ -361,4 +361,6 @@ namespace vkx {
         vk::ShaderStageFlags stageFlags,
         uint32_t size,
         uint32_t offset);
+
+    const std::string& getAssetPath();
 }

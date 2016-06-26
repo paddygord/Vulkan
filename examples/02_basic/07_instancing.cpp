@@ -313,7 +313,6 @@ public:
 
     void prepareUniformBuffers() {
         uniformData.vsScene = createUniformBuffer(uboVS);
-        uniformData.vsScene.map();
         updateUniformBuffer(true);
     }
 

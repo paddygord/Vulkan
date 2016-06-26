@@ -212,5 +212,4 @@ void VulkanGear::setupDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLa
 void VulkanGear::prepareUniformBuffer() {
     // Vertex shader uniform buffer block
     uniformData = context.createUniformBuffer(ubo);
-    uniformData.map();
 }

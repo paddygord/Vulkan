@@ -53,13 +53,13 @@ public:
     std::array<glm::vec4, 6> pushConstants;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        width = 1280;
-        height = 720;
+        size.width = 1280;
+        size.height = 720;
         zoom = -30.0;
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         timerSpeed *= 0.5f;
-        rotation = { -32.5, 45.0, 0.0 };
+        orientation = glm::quat(glm::radians(glm::vec3({ -32.5, 45.0, 0.0 })));
         title = "Vulkan Example - Push constants";
 
         // todo : this crashes on certain Android devices, so commented out for now
@@ -87,11 +87,8 @@ public:
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
 
-        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-        cmdBuffer.setViewport(0, viewport);
-
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        cmdBuffer.setScissor(0, scissor);
+        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
 
         // Update light positions
         // w component = light radius scale
@@ -277,22 +274,13 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformData.vertexShader = createUniformBuffer(uboVS);
-        uniformData.vertexShader.map();
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
         // Vertex shader
-        glm::mat4 viewMatrix = glm::mat4();
-        uboVS.projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.001f, 256.0f);
-        viewMatrix = glm::translate(viewMatrix, glm::vec3(0.0f, 2.0f, zoom));
-
-        float offset = 0.5f;
-        int uboIndex = 1;
-        uboVS.model = viewMatrix * glm::translate(glm::mat4(), glm::vec3(0, 0, 0));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+        uboVS.projection = getProjection();
+        uboVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 2.0f, zoom)) * glm::mat4_cast(orientation);
         uniformData.vertexShader.copy(uboVS);
     }
 

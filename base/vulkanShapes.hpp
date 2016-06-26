@@ -252,10 +252,6 @@ namespace vkx {
             context.device.updateDescriptorSets(writeDescriptorSet, nullptr);
         }
 
-        const std::string getAssetPath() {
-            return "./../data/";
-        }
-
         void preparePipelines() {
             vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
                 vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList);

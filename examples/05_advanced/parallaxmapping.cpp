@@ -330,10 +330,8 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader ubo
         uniformData.vertexShader = createUniformBuffer(ubos.vertexShader);
-        uniformData.vertexShader.map();
         // Fragment shader ubo
         uniformData.fragmentShader = createUniformBuffer(ubos.fragmentShader);
-        uniformData.fragmentShader.map();
 
         updateUniformBuffers();
     }

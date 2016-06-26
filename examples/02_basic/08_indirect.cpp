@@ -325,8 +325,7 @@ public:
     }
 
     void prepareUniformBuffers() {
-        uniformData.vsScene = Context::createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible, sizeof(uboVS));
-        uniformData.vsScene.map();
+        uniformData.vsScene = createUniformBuffer(uboVS);
         updateUniformBuffer(true);
     }
 

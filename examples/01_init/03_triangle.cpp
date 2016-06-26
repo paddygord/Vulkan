@@ -376,9 +376,9 @@ public:
         attributeDescriptions[1].offset = sizeof(float) * 3;
 
         // Assign to vertex input state
-        inputState.vertexBindingDescriptionCount = bindingDescriptions.size();
+        inputState.vertexBindingDescriptionCount = (uint32_t)bindingDescriptions.size();
         inputState.pVertexBindingDescriptions = bindingDescriptions.data();
-        inputState.vertexAttributeDescriptionCount = attributeDescriptions.size();
+        inputState.vertexAttributeDescriptionCount = (uint32_t)attributeDescriptions.size();
         inputState.pVertexAttributeDescriptions = attributeDescriptions.data();
     }
 
@@ -603,8 +603,8 @@ public:
         // Load shaders
         // Shaders are loaded from the SPIR-V format, which can be generated from glsl
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/triangle/triangle.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/triangle/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = loadShader(vkx::getAssetPath() + "shaders/triangle/triangle.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = loadShader(vkx::getAssetPath() + "shaders/triangle/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         // Assign states
         // Assign pipeline state create information
@@ -624,13 +624,6 @@ public:
         pipeline = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
-    const std::string getAssetPath() {
-#if defined(__ANDROID__)
-        return "";
-#else
-        return "./../data/";
-#endif
-    }
 
     vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) {
         vk::PipelineShaderStageCreateInfo shaderStage;

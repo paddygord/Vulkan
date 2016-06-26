@@ -511,15 +511,10 @@ public:
     void prepareUniformBuffers() {
         // Fullscreen vertex shader
         uniformData.vsFullScreen = createUniformBuffer(uboVS);
-        uniformData.vsFullScreen.map();
-
         // Deferred vertex shader
         uniformData.vsOffscreen = createUniformBuffer(uboOffscreenVS);
-        uniformData.vsOffscreen.map();
-
         // Deferred fragment shader
         uniformData.fsLights = createUniformBuffer(uboFragmentLights);
-        uniformData.fsLights.map();
 
         // Update
         updateUniformBuffersScreen();

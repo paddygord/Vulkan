@@ -418,15 +418,12 @@ public:
     void prepareUniformBuffers() {
         // Phong and color pass vertex shader uniform buffer
         uniformData.vsScene = createUniformBuffer(uboVS);
-        uniformData.vsScene.map();
 
         // Fullscreen quad vertex shader uniform buffer
         uniformData.vsQuad = createUniformBuffer(uboVS);
-        uniformData.vsQuad.map();
 
         // Fullscreen quad fragment shader uniform buffer
         uniformData.fsQuad = createUniformBuffer(uboVS);
-        uniformData.fsQuad.map();
 
         updateUniformBuffersScene();
         updateUniformBuffersScreen();

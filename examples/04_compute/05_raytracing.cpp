@@ -429,7 +429,6 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformDataCompute = createUniformBuffer(uboCompute);
-        uniformDataCompute.map();
         updateUniformBuffers();
     }
 

@@ -192,7 +192,7 @@ public:
         zoom = -8.5f;
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
-        rotation = { -4.35f, 16.25f, 0.0f };
+        orientation  = glm::quat(glm::radians(glm::vec3({ -4.35f, 16.25f, 0.0f })));
         cameraPos = { 0.1f, 1.1f, 0.0f };
         enableTextOverlay = true;
         title = "Vulkan Example - VK_EXT_debug_marker";
@@ -391,6 +391,7 @@ public:
     // Command buffer for rendering color only scene for glow
     void buildOffscreenCommandBuffer() {
         vk::CommandBufferBeginInfo cmdBufInfo;
+        cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
 
         vk::ClearValue clearValues[2];
         clearValues[0].color = vkx::clearColor(glm::vec4(0));
@@ -574,10 +575,9 @@ public:
         // Start a new debug marker region
         DebugMarker::beginRegion(cmdBuffer, "Render scene", glm::vec4(0.5f, 0.76f, 0.34f, 1.0f));
 
-        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-        cmdBuffer.setViewport(0, viewport);
+        cmdBuffer.setViewport(0, vkx::viewport(size));
 
-        vk::Rect2D scissor = vkx::rect2D(wireframe ? width / 2 : width, height, 0, 0);
+        vk::Rect2D scissor = vkx::rect2D(wireframe ? size.width / 2 : size.width, size.height, 0, 0);
         cmdBuffer.setScissor(0, scissor);
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.scene, nullptr);
@@ -597,7 +597,7 @@ public:
             // Insert debug marker
             DebugMarker::beginRegion(cmdBuffer, "Wireframe draw", glm::vec4(0.53f, 0.78f, 0.91f, 1.0f));
 
-            scissor.offset.x = width / 2;
+            scissor.offset.x = size.width / 2;
             cmdBuffer.setScissor(0, scissor);
 
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.wireframe);
@@ -606,7 +606,7 @@ public:
             DebugMarker::endRegion(cmdBuffer);
 
             scissor.offset.x = 0;
-            scissor.extent.width = width;
+            scissor.extent.width = size.width;
             cmdBuffer.setScissor(0, scissor);
         }
 
@@ -833,7 +833,6 @@ public:
         // Vertex shader uniform buffer block
 
         uniformData.vsScene = createUniformBuffer(uboVS);
-        uniformData.vsScene.map();
 
         // Name uniform buffer for debugging
         DebugMarker::setObjectName(device, (uint64_t)(VkBuffer)uniformData.vsScene.buffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, "Scene uniform buffer block");
@@ -844,12 +843,8 @@ public:
     }
 
     void updateUniformBuffers() {
-        uboVS.projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.1f, 256.0f);
-        glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-        uboVS.model = viewMatrix * glm::translate(glm::mat4(), cameraPos);
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+        uboVS.projection = getProjection();
+        uboVS.model = glm::translate(glm::mat4(), glm::vec3(cameraPos.x, cameraPos.y, zoom)) * glm::mat4_cast(orientation);
         uniformData.vsScene.copy(uboVS);
     }
 
@@ -864,7 +859,7 @@ public:
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &offscreenCmdBuffer;
             submitInfo.waitSemaphoreCount = 1;
-            submitInfo.pWaitSemaphores = &semaphores.presentComplete;
+            submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
             submitInfo.signalSemaphoreCount = 1;
             submitInfo.pSignalSemaphores = &offscreenSemaphore;
             queue.submit(submitInfo, VK_NULL_HANDLE);

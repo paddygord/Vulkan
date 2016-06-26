@@ -322,11 +322,8 @@ public:
     void prepareUniformBuffers() {
         // Tessellation evaluation shader uniform buffer
         uniformDataTE = createUniformBuffer(uboTE);
-        uniformDataTE.map();
-
         // Tessellation control shader uniform buffer
         uniformDataTC = createUniformBuffer(uboTC);
-        uniformDataTC.map();
         updateUniformBuffers();
     }
 

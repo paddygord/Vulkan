@@ -28,7 +28,6 @@ public:
         if (!window) {
             throw std::runtime_error("Unable to create rendering window");
         }
-        glfwSetWindowPos(window, 100, -1080 + 100);
         swapChain.createSurface(window);
         swapChain.create(vk::Extent2D{ size.x, size.y });
     }

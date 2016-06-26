@@ -641,11 +641,9 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformData.vsScene = createUniformBuffer(uboVS);
-        uniformData.vsScene.map();
 
         // Floor
         uniformData.floor = createUniformBuffer(uboFloor);
-        uniformData.floor.map();
 
         updateUniformBuffers(true);
     }

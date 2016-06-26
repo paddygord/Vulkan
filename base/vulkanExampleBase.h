@@ -175,7 +175,7 @@ namespace vkx {
         TextureLoader *textureLoader{ nullptr };
 
         // Returns the base asset path (for shaders, models, textures) depending on the os
-        const std::string getAssetPath();
+        const std::string& getAssetPath();
 
     protected:
         // Command buffer pool

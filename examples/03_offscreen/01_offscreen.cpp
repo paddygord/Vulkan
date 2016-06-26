@@ -382,15 +382,10 @@ public:
     void prepareUniformBuffers() {
         // Mesh vertex shader uniform buffer block
         uniformData.vsShared = createUniformBuffer(ubos.vsShared);
-        uniformData.vsShared.map();
-
         // Mirror plane vertex shader uniform buffer block
         uniformData.vsMirror = createUniformBuffer(ubos.vsShared);
-        uniformData.vsMirror.map();
-
         // Offscreen vertex shader uniform buffer block
         uniformData.vsOffScreen = createUniformBuffer(ubos.vsShared);
-        uniformData.vsOffScreen.map();
 
         updateUniformBuffers();
         updateUniformBufferOffscreen();

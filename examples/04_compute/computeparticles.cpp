@@ -373,10 +373,7 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Compute shader uniform buffer block
-        uniformData.computeShader.ubo = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, computeUbo);
-        // Map for host access
-        uniformData.computeShader.ubo.map();
-
+        uniformData.computeShader.ubo = createUniformBuffer(computeUbo);
         updateUniformBuffers();
     }
 

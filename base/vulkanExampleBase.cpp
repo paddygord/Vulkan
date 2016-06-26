@@ -229,12 +229,8 @@ std::string ExampleBase::getWindowTitle() {
     return windowTitle;
 }
 
-const std::string ExampleBase::getAssetPath() {
-#if defined(__ANDROID__)
-    return "";
-#else
-    return "./../data/";
-#endif
+const std::string& ExampleBase::getAssetPath() {
+    return vkx::getAssetPath();
 }
 
 void ExampleBase::prepare() {

@@ -28,8 +28,6 @@ public:
         if (!window) {
             throw std::runtime_error("Unable to create rendering window");
         }
-
-        glfwSetWindowPos(window, 100, -1080 + 100);
         glfwMakeContextCurrent(window);
         glfwSwapInterval(0);
         glewExperimental = true;

@@ -265,10 +265,8 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformData.VS = createUniformBuffer(uboVS);
-        uniformData.VS.map();
         // Geometry shader uniform buffer block
         uniformData.GS = createUniformBuffer(uboGS);
-        uniformData.GS.map();
         updateUniformBuffers();
     }
 

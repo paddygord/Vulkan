@@ -311,7 +311,6 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformData.vsScene = createUniformBuffer(uboVS);
-        uniformData.vsScene.map();
         updateUniformBuffers();
     }
 

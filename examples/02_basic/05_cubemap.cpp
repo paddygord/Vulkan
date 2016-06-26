@@ -287,11 +287,8 @@ public:
     void prepareUniformBuffers() {
         // 3D objact
         uniformData.objectVS = createUniformBuffer(uboVS);
-        uniformData.objectVS.map();
-
         // Skybox
         uniformData.skyboxVS = createUniformBuffer(uboVS);
-        uniformData.skyboxVS.map();
     }
 
     void updateUniformBuffers() {
