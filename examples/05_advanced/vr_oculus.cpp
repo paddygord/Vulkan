@@ -1,8 +1,6 @@
-#include "common.hpp"
+#include "vr_common.hpp"
 #include <OVR_CAPI.h>
 #include <OVR_CAPI_GL.h>
-#include "vulkanShapes.hpp"
-#include "vulkanGL.hpp"
 
 namespace ovr {
     using TextureSwapChainDesc = ovrTextureSwapChainDesc;
@@ -105,158 +103,79 @@ namespace ovr {
         result.w = q.w;
         return result;
     }
+    
+}
 
-    class App {
-    protected:
-        Session _session{};
-        HmdDesc _hmdDesc{};
-        GraphicsLuid _luid{};
-        std::array<glm::mat4, 2> _eyeProjections;
-        std::array<EyeRenderDesc, 2> _eyeRenderDescs;
-        TextureSwapChain _eyeTexture;
-        MirrorTexture _mirrorTexture;
-        LayerEyeFov _sceneLayer;
-        ViewScaleDesc _viewScaleDesc;
-        uvec2 _renderTargetSize;
+class OpenGLInteropExample : public VrExampleBase {
+    using Parent = VrExampleBase;
+public:
+    GLuint _mirrorFbo{ 0 };
+    ovr::Session _session{};
+    ovr::HmdDesc _hmdDesc{};
+    ovr::GraphicsLuid _luid{};
+    ovr::TextureSwapChain _eyeTexture;
+    ovr::MirrorTexture _mirrorTexture;
+    ovr::LayerEyeFov _sceneLayer;
+    ovr::ViewScaleDesc _viewScaleDesc;
 
-    public:
-        App() {
-            ovr_Initialize(nullptr);
-            if (!OVR_SUCCESS(ovr_Create(&_session, &_luid))) {
-                throw std::runtime_error("Unable to create HMD session");
-            }
+    OpenGLInteropExample() {
+        ovr_Initialize(nullptr);
+    }
 
-            _hmdDesc = ovr_GetHmdDesc(_session);
-            _viewScaleDesc.HmdSpaceToWorldScaleInMeters = 1.0f;
-            memset(&_sceneLayer, 0, sizeof(ovrLayerEyeFov));
-            _sceneLayer.Header.Type = ovrLayerType_EyeFov;
-            _sceneLayer.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
+    ~OpenGLInteropExample() {
+        ovr_Destroy(_session);
+        _session = nullptr;
+        ovr_Shutdown();
+    }
 
-            ovr::for_each_eye([&](ovrEyeType eye) {
-                ovrEyeRenderDesc& erd = _eyeRenderDescs[eye] = ovr_GetRenderDesc(_session, eye, _hmdDesc.DefaultEyeFov[eye]);
-                ovrMatrix4f ovrPerspectiveProjection =
-                    ovrMatrix4f_Projection(erd.Fov, 0.01f, 1000.0f, ovrProjection_ClipRangeOpenGL);
-                _eyeProjections[eye] = ovr::toGlm(ovrPerspectiveProjection);
-                _viewScaleDesc.HmdToEyeOffset[eye] = erd.HmdToEyeOffset;
+    void submitVrFrame() override {
+        ovrLayerHeader* headerList = &_sceneLayer.Header;
+        ovr_SubmitFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1);
+    }
 
-                ovrFovPort & fov = _sceneLayer.Fov[eye] = _eyeRenderDescs[eye].Fov;
-                auto eyeSize = ovr_GetFovTextureSize(_session, eye, fov, 1.0f);
-                _sceneLayer.Viewport[eye].Size = eyeSize;
-                _sceneLayer.Viewport[eye].Pos = { (int)_renderTargetSize.x, 0 };
 
-                _renderTargetSize.y = std::max(_renderTargetSize.y, (uint32_t)eyeSize.h);
-                _renderTargetSize.x += eyeSize.w;
-            });
-        }
+    void renderMirror() override {
+        GLuint mirrorTextureId;
+        ovr_GetMirrorTextureBufferGL(_session, _mirrorTexture, &mirrorTextureId);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, _mirrorFbo);
+        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mirrorTextureId, 0);
+        glBlitFramebuffer(0, 0, size.x, size.y, 0, size.y, size.x, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    }
 
-        ~App() {
-            ovr_Destroy(_session);
-            _session = nullptr;
-        }
-
-        void createTextureSwapChainGL() {
+    void setupVrFramebuffer() override {
+        {
             ovrTextureSwapChainDesc desc = {};
             desc.Type = ovrTexture_2D;
             desc.ArraySize = 1;
-            desc.Width = _renderTargetSize.x;
-            desc.Height = _renderTargetSize.y;
+            desc.Width = renderTargetSize.x;
+            desc.Height = renderTargetSize.y;
             desc.MipLevels = 1;
             desc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
             desc.SampleCount = 1;
             desc.StaticImage = ovrFalse;
-            ovrResult result = ovr_CreateTextureSwapChainGL(_session, &desc, &_eyeTexture);
-            if (!OVR_SUCCESS(result)) {
+            if (!OVR_SUCCESS(ovr_CreateTextureSwapChainGL(_session, &desc, &_eyeTexture))) {
                 throw std::runtime_error("Unable to create swap chain");
             }
-        }
-
-        EyePoses getEyePoses(uint64_t frame) {
-            EyePoses result;
-            ovr_GetEyePoses(_session, frame, true, _viewScaleDesc.HmdToEyeOffset, result.data(), &_sceneLayer.SensorSampleTime);
-            return result;
-        }
-
-        GLuint getTexture() {
-            int curIndex;
-            if (!OVR_SUCCESS(ovr_GetTextureSwapChainCurrentIndex(_session, _eyeTexture, &curIndex))) {
-                throw std::runtime_error("Unable to acquire next texture index");
+            int length = 0;
+            if (!OVR_SUCCESS(ovr_GetTextureSwapChainLength(_session, _eyeTexture, &length)) || !length) {
+                throw std::runtime_error("Unable to count swap chain textures");
             }
-            GLuint curTexId;
-            if (!OVR_SUCCESS(ovr_GetTextureSwapChainBufferGL(_session, _eyeTexture, curIndex, &curTexId))) {
-                throw std::runtime_error("Unable to acquire GL texture for index " + std::to_string(curIndex));
+            for (int i = 0; i < length; ++i) {
+                GLuint chainTexId;
+                ovr_GetTextureSwapChainBufferGL(_session, _eyeTexture, i, &chainTexId);
+                glBindTexture(GL_TEXTURE_2D, chainTexId);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             }
-            return curTexId;
+            glBindTexture(GL_TEXTURE_2D, 0);
         }
-
-    };
-
-}
-
-class OpenGLInteropExample : public ovr::App {
-public:
-    vkx::Context vulkanContext;
-    vkx::ShapesRenderer vulkanRenderer;
-    GLFWwindow* window{ nullptr };
-    glm::uvec2 size{ 1280, 720 };
-    float fpsTimer{ 0 };
-    float lastFPS{ 0 };
-    uint32_t frameCounter{ 0 };
-
-
-    GLuint _fbo{ 0 };
-    GLuint _depthBuffer{ 0 };
-    GLuint _mirrorFbo{ 0 };
-
-    OpenGLInteropExample() : vulkanRenderer{ vulkanContext, true } {
-        glfwInit();
-
-        // Make the on screen window 1/4 the resolution of the render target
-        size = _renderTargetSize;
-        size /= 4;
-        vulkanContext.createContext(false);
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-        glfwWindowHint(GLFW_DEPTH_BITS, 16);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
-        window = glfwCreateWindow(size.x, size.y, "glfw", nullptr, nullptr);
-        if (!window) {
-            throw std::runtime_error("Unable to create rendering window");
-        }
-        glfwSetWindowPos(window, 100, -1080 + 100);
-        glfwMakeContextCurrent(window);
-        glfwSwapInterval(0);
-        glewExperimental = true;
-        glewInit();
-        glGetError();
-        gl::nv::vk::init();
-
-        createTextureSwapChainGL();
 
         _sceneLayer.ColorTexture[0] = _eyeTexture;
-        int length = 0;
-        ovrResult result = ovr_GetTextureSwapChainLength(_session, _eyeTexture, &length);
-        if (!OVR_SUCCESS(result) || !length) {
-            throw std::runtime_error("Unable to count swap chain textures");
-        }
-        for (int i = 0; i < length; ++i) {
-            GLuint chainTexId;
-            ovr_GetTextureSwapChainBufferGL(_session, _eyeTexture, i, &chainTexId);
-            glBindTexture(GL_TEXTURE_2D, chainTexId);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        }
-        glBindTexture(GL_TEXTURE_2D, 0);
-
         // Set up the framebuffer object
-
         glCreateFramebuffers(1, &_fbo);
-        glCreateRenderbuffers(1, &_depthBuffer);
-        glNamedRenderbufferStorage(_depthBuffer, GL_DEPTH_COMPONENT16, _renderTargetSize.x, _renderTargetSize.y);
-        glNamedFramebufferRenderbuffer(_fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _depthBuffer);
 
         ovrMirrorTextureDesc mirrorDesc;
         memset(&mirrorDesc, 0, sizeof(mirrorDesc));
@@ -269,77 +188,63 @@ public:
         glCreateFramebuffers(1, &_mirrorFbo);
     }
 
-    ~OpenGLInteropExample() {
-        if (nullptr != window) {
-            glfwDestroyWindow(window);
+    virtual void bindVrFramebuffer() {
+        int curIndex;
+        if (!OVR_SUCCESS(ovr_GetTextureSwapChainCurrentIndex(_session, _eyeTexture, &curIndex))) {
+            throw std::runtime_error("Unable to acquire next texture index");
         }
-        glfwTerminate();
-    }
-
-    void render() {
-        glfwMakeContextCurrent(window);
-        // Tell the 
-        gl::nv::vk::SignalSemaphore(vulkanRenderer.semaphores.renderStart);
-        glFlush();
-
-        vulkanRenderer.render();
-
-        gl::nv::vk::WaitSemaphore(vulkanRenderer.semaphores.renderComplete);
-
-        GLuint curTexId = getTexture();
+        GLuint curTexId;
+        if (!OVR_SUCCESS(ovr_GetTextureSwapChainBufferGL(_session, _eyeTexture, curIndex, &curTexId))) {
+            throw std::runtime_error("Unable to acquire GL texture for index " + std::to_string(curIndex));
+        }
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _fbo);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, curTexId, 0);
-        glClearColor(0, 0.5f, 0.8f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        gl::nv::vk::DrawVkImage(vulkanRenderer.framebuffer.colors[0].image, 0, vec2(0), _renderTargetSize, 0, glm::vec2(0), glm::vec2(1));
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+    }
+
+    virtual void unbindVrFramebuffer() {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
         ovr_CommitTextureSwapChain(_session, _eyeTexture);
-        ovrLayerHeader* headerList = &_sceneLayer.Header;
-        ovr_SubmitFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1);
-        GLuint mirrorTextureId;
-        ovr_GetMirrorTextureBufferGL(_session, _mirrorTexture, &mirrorTextureId);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, _mirrorFbo);
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mirrorTextureId, 0);
-        glBlitFramebuffer(0, 0, size.x, size.y, 0, size.y, size.x, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-        glfwSwapBuffers(window);
     }
 
     void prepare() {
-        vulkanRenderer.framebuffer.size = _renderTargetSize;
-        vulkanRenderer.prepare();
+        if (!OVR_SUCCESS(ovr_Create(&_session, &_luid))) {
+            throw std::runtime_error("Unable to create HMD session");
+        }
+        _hmdDesc = ovr_GetHmdDesc(_session);
+        _viewScaleDesc.HmdSpaceToWorldScaleInMeters = 1.0f;
+        memset(&_sceneLayer, 0, sizeof(ovrLayerEyeFov));
+        _sceneLayer.Header.Type = ovrLayerType_EyeFov;
+        _sceneLayer.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
+
+        ovr::for_each_eye([&](ovrEyeType eye) {
+            ovrEyeRenderDesc erd = ovr_GetRenderDesc(_session, eye, _hmdDesc.DefaultEyeFov[eye]);
+            ovrMatrix4f ovrPerspectiveProjection =
+                ovrMatrix4f_Projection(erd.Fov, 0.01f, 1000.0f, ovrProjection_ClipRangeOpenGL);
+            eyeProjections[eye] = ovr::toGlm(ovrPerspectiveProjection);
+            _viewScaleDesc.HmdToEyeOffset[eye] = erd.HmdToEyeOffset;
+
+            ovrFovPort & fov = _sceneLayer.Fov[eye] = erd.Fov;
+            auto eyeSize = ovr_GetFovTextureSize(_session, eye, fov, 1.0f);
+            _sceneLayer.Viewport[eye].Size = eyeSize;
+            _sceneLayer.Viewport[eye].Pos = { (int)renderTargetSize.x, 0 };
+            renderTargetSize.y = std::max(renderTargetSize.y, (uint32_t)eyeSize.h);
+            renderTargetSize.x += eyeSize.w;
+        });
+
+        Parent::prepare();
     }
+
     void update(float delta) {
-        auto eyePoses = getEyePoses(frameCounter);
-        auto views = std::array<glm::mat4, 2>{ glm::inverse(ovr::toGlm(eyePoses[0])), glm::inverse(ovr::toGlm(eyePoses[1])) };
-        vulkanRenderer.update(delta, _eyeProjections, views);
+        ovr::EyePoses eyePoses;
+        ovr_GetEyePoses(_session, frameCounter, true, _viewScaleDesc.HmdToEyeOffset, eyePoses.data(), &_sceneLayer.SensorSampleTime);
+        eyeViews = std::array<glm::mat4, 2>{ glm::inverse(ovr::toGlm(eyePoses[0])), glm::inverse(ovr::toGlm(eyePoses[1])) };
         ovr::for_each_eye([&](ovrEyeType eye) {
             const auto& vp = _sceneLayer.Viewport[eye];
             _sceneLayer.RenderPose[eye] = eyePoses[eye];
             //renderScene(_eyeProjections[eye], ovr::toGlm(eyePoses[eye]));
         });
-    }
-    void run() {
-        prepare();
-        auto tStart = std::chrono::high_resolution_clock::now();
-        while (!glfwWindowShouldClose(window)) {
-            auto tEnd = std::chrono::high_resolution_clock::now();
-            auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-            glfwPollEvents();
-            update((float)tDiff / 1000.0f);
-            render();
-            ++frameCounter;
-            fpsTimer += (float)tDiff;
-            if (fpsTimer > 1000.0f) {
-                std::string windowTitle = getWindowTitle();
-                glfwSetWindowTitle(window, windowTitle.c_str());
-                lastFPS = frameCounter;
-                fpsTimer = 0.0f;
-                frameCounter = 0;
-            }
-            tStart = tEnd;
-        }
+        Parent::update(delta);
     }
 
     std::string getWindowTitle() {
