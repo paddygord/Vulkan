@@ -75,12 +75,11 @@ public:
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         passedSamples[0] = passedSamples[1] = 1;
-        width = 1280;
-        height = 720;
+        size = { 1280, 720 };
         camera.setZoom(-35.0f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
-        rotation = { 0.0, -123.75, 0.0 };
+        camera.setRotation({ 0.0, -123.75, 0.0 });
         enableTextOverlay = true;
         title = "Vulkan Example - Occlusion queries";
     }
@@ -138,6 +137,8 @@ public:
 
     // Retrieves the results of the occlusion queries submitted to the command buffer
     void getQueryResults() {
+        queue.waitIdle();
+        device.waitIdle();
         // We use vkGetQueryResults to copy the results into a host visible buffer
         // you can use vk::QueryResultFlagBits::eWithAvailability
             // which also returns the state of the result (ready) in the result
@@ -161,22 +162,15 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-        cmdBuffer.setViewport(0, viewport);
-
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        cmdBuffer.setScissor(0, scissor);
-
-        vk::DeviceSize offsets = 0;
-
-        glm::mat4 modelMatrix = glm::mat4();
+        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
 
         // Occlusion pass
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.simple);
 
         // Occluder first
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.plane.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.plane.indexCount, 1, 0, 0, 0);
 
@@ -184,7 +178,7 @@ public:
         cmdBuffer.beginQuery(queryPool, 0, vk::QueryControlFlags());
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.teapot, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.teapot.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.teapot.indexCount, 1, 0, 0, 0);
 
@@ -194,7 +188,7 @@ public:
         cmdBuffer.beginQuery(queryPool, 1, vk::QueryControlFlags());
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sphere, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.sphere.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.sphere.indexCount, 1, 0, 0, 0);
 
@@ -212,7 +206,7 @@ public:
 
         vk::ClearRect clearRect;
         clearRect.layerCount = 1;
-        clearRect.rect.extent = vk::Extent2D{ width, height };
+        clearRect.rect.extent = size;
 
         cmdBuffer.clearAttachments(clearAttachments, clearRect);
 
@@ -220,20 +214,20 @@ public:
 
         // Teapot
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.teapot, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.teapot.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.teapot.indexCount, 1, 0, 0, 0);
 
         // Sphere
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sphere, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.sphere.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.sphere.indexCount, 1, 0, 0, 0);
 
         // Occluder
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.occluder);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.plane.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.plane.indexCount, 1, 0, 0, 0);
     }
@@ -423,29 +417,17 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformData.vsScene = createUniformBuffer(uboVS);
-        uniformData.vsScene.map();
-
         // Teapot
         uniformData.teapot = createUniformBuffer(uboVS);
-        uniformData.teapot.map();
-
         // Sphere
         uniformData.sphere = createUniformBuffer(uboVS);
-        uniformData.sphere.map();
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
         // Vertex shader
-        uboVS.projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.1f, 256.0f);
-        glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-
-        glm::mat4 rotMatrix = glm::mat4();
-        rotMatrix = glm::rotate(rotMatrix, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        rotMatrix = glm::rotate(rotMatrix, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        rotMatrix = glm::rotate(rotMatrix, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
-        uboVS.model = viewMatrix * rotMatrix;
+        uboVS.projection = camera.matrices.perspective;
+        uboVS.model = camera.matrices.view;
 
         // Occluder
         uboVS.visible = 1.0f;
@@ -454,13 +436,13 @@ public:
         // Teapot
         // Toggle color depending on visibility
         uboVS.visible = (passedSamples[0] > 0) ? 1.0f : 0.0f;
-        uboVS.model = viewMatrix * rotMatrix * glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -10.0f));
+        uboVS.model = camera.matrices.view * glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -10.0f));
         uniformData.teapot.copy(uboVS);
 
         // Sphere
         // Toggle color depending on visibility
         uboVS.visible = (passedSamples[1] > 0) ? 1.0f : 0.0f;
-        uboVS.model = viewMatrix * rotMatrix * glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 10.0f));
+        uboVS.model = camera.matrices.view * glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 10.0f));
         uniformData.sphere.copy(uboVS);
     }
 

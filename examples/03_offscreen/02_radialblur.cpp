@@ -94,9 +94,6 @@ public:
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
 
-        // Frame buffer
-        destroyOffscreen();
-
         device.destroyPipeline(pipelines.radialBlur);
         device.destroyPipeline(pipelines.phongPass);
         device.destroyPipeline(pipelines.colorPass);
@@ -131,15 +128,15 @@ public:
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.framebuffer = offscreen.framebuffer.framebuffer;
-        renderPassBeginInfo.renderArea.extent.width = offscreen.framebuffer.size.x;
-        renderPassBeginInfo.renderArea.extent.height = offscreen.framebuffer.size.y;
+        renderPassBeginInfo.framebuffer = offscreen.framebuffers[0].framebuffer;
+        renderPassBeginInfo.renderArea.extent.width = offscreen.size.x;
+        renderPassBeginInfo.renderArea.extent.height = offscreen.size.y;
         renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
 
         offscreen.cmdBuffer.begin(cmdBufInfo);
-        offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.framebuffer.size));
-        offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.framebuffer.size));
+        offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.size));
+        offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.size));
         offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
         offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
         offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.colorPass);
@@ -290,7 +287,7 @@ public:
 
         // vk::Image descriptor for the color map texture
         vk::DescriptorImageInfo texDescriptor =
-            vkx::descriptorImageInfo(offscreen.framebuffer.colors[0].sampler, offscreen.framebuffer.colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal);
+            vkx::descriptorImageInfo(offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal);
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
         {
@@ -452,7 +449,7 @@ public:
     }
 
     void prepare() {
-        offscreen.framebuffer.size = glm::uvec2(TEX_DIM);
+        offscreen.size = glm::uvec2(TEX_DIM);
         OffscreenExampleBase::prepare();
         generateQuad();
         loadMeshes();

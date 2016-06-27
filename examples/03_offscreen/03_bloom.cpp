@@ -25,6 +25,7 @@ vkx::MeshLayout vertexLayout =
 };
 
 class VulkanExample : public vkx::OffscreenExampleBase {
+    using Parent = OffscreenExampleBase;
 public:
     bool bloom = true;
 
@@ -94,14 +95,9 @@ public:
     // all descriptor sets
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    // Framebuffers for offscreen rendering
-    vkx::Framebuffer offscreenFrameBufA, offscreenFrameBufB;
-    vk::Semaphore offscreenSemaphore;
-    vk::CommandBuffer offscreenCmdBuffer;
-
     VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-10.25f);
-        orientation = glm::quat(glm::radians(glm::vec3({ 7.5f, -343.0f, 0.0f })));
+        camera.setRotation({ 7.5f, -343.0f, 0.0f });
         timerSpeed *= 0.5f;
         enableTextOverlay = true;
         title = "Vulkan Example - Bloom";
@@ -110,9 +106,6 @@ public:
     ~VulkanExample() {
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
-
-        offscreenFrameBufA.destroy();
-        offscreenFrameBufB.destroy();
 
         device.destroyPipeline(pipelines.blur);
         device.destroyPipeline(pipelines.phongPass);
@@ -136,91 +129,14 @@ public:
         uniformData.vsSkyBox.destroy();
         uniformData.fsVertBlur.destroy();
         uniformData.fsHorzBlur.destroy();
-
-        device.freeCommandBuffers(getCommandPool(), offscreenCmdBuffer);
-
         textures.cubemap.destroy();
     }
 
-    // Prepare the offscreen framebuffers used for the vertical- and horizontal blur 
-    void prepareOffscreenFramebuffers() {
-
-        std::array<vk::AttachmentDescription, 2> attachments;
-        // Color attachment
-        attachments[0].format = colorformat;
-        attachments[0].loadOp = vk::AttachmentLoadOp::eClear;
-        attachments[0].storeOp = vk::AttachmentStoreOp::eStore;
-        attachments[0].initialLayout = vk::ImageLayout::eUndefined;
-        attachments[0].finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-
-        // Depth attachment
-        attachments[1].format = depthFormat;
-        attachments[1].loadOp = vk::AttachmentLoadOp::eClear;
-        attachments[1].storeOp = vk::AttachmentStoreOp::eDontCare;
-        attachments[1].initialLayout = vk::ImageLayout::eUndefined;
-        attachments[1].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-
-        std::array<vk::AttachmentReference, 2> attachmentReferences;
-        vk::AttachmentReference& depthReference = attachmentReferences[0];
-        depthReference.attachment = 1;
-        depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-
-        vk::AttachmentReference& colorReference = attachmentReferences[1];
-        colorReference.attachment = 0;
-        colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
-
-        std::vector<vk::SubpassDescription> subpasses;
-        std::vector<vk::SubpassDependency> subpassDependencies;
-
-        vk::SubpassDependency dependency;
-        dependency.srcSubpass = 0;
-        dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-        dependency.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-        dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-        dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
-        subpassDependencies.push_back(dependency);
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcAccessMask = vk::AccessFlagBits::eShaderRead;
-        dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-        dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
-        dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-        subpassDependencies.push_back(dependency);
-
-        vk::SubpassDescription subpass;
-        subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-        subpass.pDepthStencilAttachment = attachmentReferences.data();
-        subpass.colorAttachmentCount = attachmentReferences.size() - 1;
-        subpass.pColorAttachments = attachmentReferences.data() + 1;
-        subpasses.push_back(subpass);
-
-        if (offscreenRenderPass) {
-            device.destroyRenderPass(offscreenRenderPass);
-        }
-
-        vk::RenderPassCreateInfo renderPassInfo;
-        renderPassInfo.attachmentCount = attachments.size();
-        renderPassInfo.pAttachments = attachments.data();
-        renderPassInfo.subpassCount = subpasses.size();
-        renderPassInfo.pSubpasses = subpasses.data();
-        renderPassInfo.dependencyCount = subpassDependencies.size();
-        renderPassInfo.pDependencies = subpassDependencies.data();
-        offscreenRenderPass = device.createRenderPass(renderPassInfo);
-
-        prepareOffscreenFramebuffer(offscreenFrameBufA);
-        prepareOffscreenFramebuffer(offscreenFrameBufB);
-    }
-
-    void createOffscreenCommandBuffer() {
-        offscreenCmdBuffer = createCommandBuffer();
-    }
 
     // Render the 3D scene into a texture target
-    void buildOffscreenCommandBuffer() {
-
-        vk::Viewport viewport = vkx::viewport(offscreenFrameBufA.size);
-        vk::Rect2D scissor = vkx::rect2D(offscreenFrameBufA.size);
+    void buildOffscreenCommandBuffer() override {
+        vk::Viewport viewport = vkx::viewport(offscreen.size);
+        vk::Rect2D scissor = vkx::rect2D(offscreen.size);
         vk::DeviceSize offset = 0;
 
         // Horizontal blur
@@ -229,51 +145,51 @@ public:
         clearValues[1].depthStencil = { 1.0f, 0 };
 
 
+        offscreen.cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
         vk::CommandBufferBeginInfo cmdBufInfo;
-        offscreenCmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-        offscreenCmdBuffer.begin(cmdBufInfo);
+        cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
+        offscreen.cmdBuffer.begin(cmdBufInfo);
 
         // Draw the unblurred geometry to framebuffer 1
-        offscreenCmdBuffer.setViewport(0, viewport);
-        offscreenCmdBuffer.setScissor(0, scissor);
+        offscreen.cmdBuffer.setViewport(0, viewport);
+        offscreen.cmdBuffer.setScissor(0, scissor);
 
         // Draw the bloom geometry.
         {
             vk::RenderPassBeginInfo renderPassBeginInfo;
             renderPassBeginInfo.renderPass = offscreen.renderPass;
-            renderPassBeginInfo.framebuffer = offscreenFrameBufA.framebuffer;
-            renderPassBeginInfo.renderArea.extent.width = offscreenFrameBufA.size.x;
-            renderPassBeginInfo.renderArea.extent.height = offscreenFrameBufA.size.y;
+            renderPassBeginInfo.framebuffer = offscreen.framebuffers[0].framebuffer;
+            renderPassBeginInfo.renderArea.extent.width = offscreen.size.x;
+            renderPassBeginInfo.renderArea.extent.height = offscreen.size.y;
             renderPassBeginInfo.clearValueCount = 2;
             renderPassBeginInfo.pClearValues = clearValues;
-            offscreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            offscreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
-            offscreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phongPass);
-            offscreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.ufoGlow.vertices.buffer, offset);
-            offscreenCmdBuffer.bindIndexBuffer(meshes.ufoGlow.indices.buffer, 0, vk::IndexType::eUint32);
-            offscreenCmdBuffer.drawIndexed(meshes.ufoGlow.indexCount, 1, 0, 0, 0);
-            offscreenCmdBuffer.endRenderPass();
+            offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+            offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
+            offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phongPass);
+            offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.ufoGlow.vertices.buffer, offset);
+            offscreen.cmdBuffer.bindIndexBuffer(meshes.ufoGlow.indices.buffer, 0, vk::IndexType::eUint32);
+            offscreen.cmdBuffer.drawIndexed(meshes.ufoGlow.indexCount, 1, 0, 0, 0);
+            offscreen.cmdBuffer.endRenderPass();
         }
 
         {
             vk::RenderPassBeginInfo renderPassBeginInfo;
             renderPassBeginInfo.renderPass = offscreen.renderPass;
-            renderPassBeginInfo.framebuffer = offscreenFrameBufB.framebuffer;
-            renderPassBeginInfo.renderArea.extent.width = offscreenFrameBufB.size.x;
-            renderPassBeginInfo.renderArea.extent.height = offscreenFrameBufB.size.y;
+            renderPassBeginInfo.framebuffer = offscreen.framebuffers[1].framebuffer;
+            renderPassBeginInfo.renderArea.extent.width = offscreen.size.x;
+            renderPassBeginInfo.renderArea.extent.height = offscreen.size.y;
             renderPassBeginInfo.clearValueCount = 2;
             renderPassBeginInfo.pClearValues = clearValues;
             // Draw a vertical blur pass from framebuffer 1's texture into framebuffer 2
-            offscreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            offscreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.radialBlur, 0, descriptorSets.verticalBlur, nullptr);
-            offscreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blur);
-            offscreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offset);
-            offscreenCmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-            offscreenCmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
-            offscreenCmdBuffer.endRenderPass();
+            offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+            offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.radialBlur, 0, descriptorSets.verticalBlur, nullptr);
+            offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blur);
+            offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offset);
+            offscreen.cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
+            offscreen.cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
+            offscreen.cmdBuffer.endRenderPass();
         }
-
-        offscreenCmdBuffer.end();
+        offscreen.cmdBuffer.end();
     }
 
     void loadTextures() {
@@ -305,7 +221,7 @@ public:
         if (bloom) {
             vkx::setImageLayout(
                 cmdBuffer,
-                offscreenFrameBufB.color.image,
+                offscreen.framebuffers[1].colors[0].image,
                 vk::ImageAspectFlagBits::eColor,
                 vk::ImageLayout::eColorAttachmentOptimal,
                 vk::ImageLayout::eShaderReadOnlyOptimal);
@@ -437,7 +353,7 @@ public:
         descriptorSets.verticalBlur = device.allocateDescriptorSets(allocInfo)[0];
 
         vk::DescriptorImageInfo texDescriptorVert =
-            vkx::descriptorImageInfo(offscreenFrameBufA.color.sampler, offscreenFrameBufA.color.view, vk::ImageLayout::eShaderReadOnlyOptimal);
+            vkx::descriptorImageInfo(offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal);
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
         {
@@ -467,7 +383,7 @@ public:
         descriptorSets.horizontalBlur = device.allocateDescriptorSets(allocInfo)[0];
 
         vk::DescriptorImageInfo texDescriptorHorz =
-            vkx::descriptorImageInfo(offscreenFrameBufB.color.sampler, offscreenFrameBufB.color.view, vk::ImageLayout::eGeneral);
+            vkx::descriptorImageInfo(offscreen.framebuffers[1].colors[0].sampler, offscreen.framebuffers[1].colors[0].view, vk::ImageLayout::eGeneral);
 
         writeDescriptorSets =
         {
@@ -622,24 +538,15 @@ public:
     void prepareUniformBuffers() {
         // Phong and color pass vertex shader uniform buffer
         uniformData.vsScene = createUniformBuffer(ubos.scene);
-        uniformData.vsScene.map();
-
         // Fullscreen quad display vertex shader uniform buffer
         uniformData.vsFullScreen = createUniformBuffer(ubos.fullscreen);
-        uniformData.vsFullScreen.map();
-
         // Fullscreen quad fragment shader uniform buffers
         // Vertical blur
         uniformData.fsVertBlur = createUniformBuffer(ubos.vertBlur);
-        uniformData.fsVertBlur.map();
-
         // Horizontal blur
         uniformData.fsHorzBlur = createUniformBuffer(ubos.horzBlur);
-        uniformData.fsHorzBlur.map();
-
         // Skybox
         uniformData.vsSkyBox = createUniformBuffer(ubos.skyBox);
-        uniformData.vsSkyBox.map();
 
         // Intialize uniform buffers
         updateUniformBuffersScene();
@@ -649,24 +556,17 @@ public:
     // Update uniform buffers for rendering the 3D scene
     void updateUniformBuffersScene() {
         // UFO
-        ubos.fullscreen.projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 256.0f);
-        glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, -1.0f, zoom));
-        ubos.fullscreen.model = viewMatrix *
-            glm::translate(glm::mat4(), glm::vec3(sin(glm::radians(timer * 360.0f)) * 0.25f, 0.0f, cos(glm::radians(timer * 360.0f)) * 0.25f) + cameraPos);
-
-        ubos.fullscreen.model = glm::rotate(ubos.fullscreen.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        ubos.fullscreen.model = glm::rotate(ubos.fullscreen.model, -sinf(glm::radians(timer * 360.0f)) * 0.15f, glm::vec3(1.0f, 0.0f, 0.0f));
-        ubos.fullscreen.model = glm::rotate(ubos.fullscreen.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubos.fullscreen.model = glm::rotate(ubos.fullscreen.model, glm::radians(timer * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubos.fullscreen.model = glm::rotate(ubos.fullscreen.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+        camera.setFieldOfView(45);
+        ubos.fullscreen.projection = camera.matrices.perspective;
+        ubos.fullscreen.model = camera.matrices.view * glm::translate(glm::mat4(), glm::vec3(sin(glm::radians(timer * 360.0f)) * 0.25f, 0.0f, cos(glm::radians(timer * 360.0f)) * 0.25f));
+        auto rotation = glm::angleAxis(-sinf(glm::radians(timer * 360.0f)) * 0.15f, glm::vec3(1.0f, 0.0f, 0.0f)) *
+            glm::angleAxis(glm::radians(timer * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        ubos.fullscreen.model = ubos.fullscreen.model * glm::mat4_cast(rotation);
         uniformData.vsFullScreen.copy(ubos.fullscreen);
 
         // Skybox
-        ubos.skyBox.projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 256.0f);
-        ubos.skyBox.model = glm::mat4();
-        ubos.skyBox.model = glm::rotate(ubos.skyBox.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        ubos.skyBox.model = glm::rotate(ubos.skyBox.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubos.skyBox.model = glm::rotate(ubos.skyBox.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubos.skyBox.projection = camera.matrices.perspective;
+        ubos.skyBox.model = glm::mat4_cast(camera.orientation);
         uniformData.vsSkyBox.copy(ubos.skyBox);
     }
 
@@ -693,46 +593,34 @@ public:
 
         // Offscreen rendering
         if (bloom) {
-            vk::SubmitInfo submitInfo;
-            submitInfo.pWaitDstStageMask = this->submitInfo.pWaitDstStageMask;
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &offscreenCmdBuffer;
-            submitInfo.waitSemaphoreCount = 1;
-            submitInfo.pWaitSemaphores = &semaphores.presentComplete;
-            submitInfo.signalSemaphoreCount = 1;
-            submitInfo.pSignalSemaphores = &offscreenSemaphore;
-            queue.submit(submitInfo, VK_NULL_HANDLE);
+            submit(offscreen.cmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
         } 
 
         // Scene rendering
-        drawCurrentCommandBuffer(bloom ? offscreenSemaphore : semaphores.presentComplete);
+        drawCurrentCommandBuffer(bloom ? offscreen.renderComplete : semaphores.acquireComplete);
         submitFrame();
     }
 
     void prepare() {
-        ExampleBase::prepare();
-        offscreenSemaphore = device.createSemaphore(vk::SemaphoreCreateInfo());
-
+        offscreen.framebuffers.resize(2);
+        offscreen.size = glm::uvec2(TEX_DIM);
+        Parent::prepare();
         loadTextures();
         generateQuad();
         loadMeshes();
         setupVertexDescriptions();
         prepareUniformBuffers();
-        prepareOffscreenFramebuffers();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        createOffscreenCommandBuffer();
         updateDrawCommandBuffers();
         buildOffscreenCommandBuffer();
         prepared = true;
     }
 
-    virtual void render() {
-        if (!prepared)
-            return;
-        draw();
+    void update(float deltaTime) {
+        Parent::update(deltaTime);
         if (!paused) {
             updateUniformBuffersScene();
         }

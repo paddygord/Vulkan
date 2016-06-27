@@ -100,13 +100,13 @@ public:
     float objectSphereDim;
 
     // View frustum for culling invisible objects
-    vkx::Frustum frustum;
+    vkTools::Frustum frustum;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-32.5f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
-        rotation = { 0.0f, 37.5f, 0.0f };
+        camera.setRotation({ 0.0f, 37.5f, 0.0f });
         enableTextOverlay = true;
         title = "Vulkan Example - Multi threaded rendering";
         // Get number of max. concurrrent threads
@@ -237,11 +237,8 @@ public:
         vk::CommandBuffer cmdBuffer = thread->commandBuffer[cmdBufferIndex];
         cmdBuffer.begin(commandBufferBeginInfo);
 
-        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-        cmdBuffer.setViewport(0, viewport);
-
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        cmdBuffer.setScissor(0, scissor);
+        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
 
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phong);
 
@@ -280,24 +277,12 @@ public:
         vk::CommandBufferBeginInfo commandBufferBeginInfo;
         commandBufferBeginInfo.flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue;
         commandBufferBeginInfo.pInheritanceInfo = &inheritanceInfo;
-
         secondaryCommandBuffer.begin(commandBufferBeginInfo);
-
-        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-        secondaryCommandBuffer.setViewport(0, viewport);
-
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        secondaryCommandBuffer.setScissor(0, scissor);
-
+        secondaryCommandBuffer.setViewport(0, vkx::viewport(size));
+        secondaryCommandBuffer.setScissor(0, vkx::rect2D(size));
         secondaryCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.starsphere);
 
-
-        glm::mat4 view = glm::mat4();
-        view = glm::rotate(view, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        view = glm::rotate(view, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        view = glm::rotate(view, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
-        glm::mat4 mvp = matrices.projection * view;
+        glm::mat4 mvp = matrices.projection * glm::mat4_cast(camera.orientation);
 
         secondaryCommandBuffer.pushConstants(pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(mvp), &mvp);
 
@@ -321,8 +306,7 @@ public:
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.extent.width = width;
-        renderPassBeginInfo.renderArea.extent.height = height;
+        renderPassBeginInfo.renderArea.extent = size;
         renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
         renderPassBeginInfo.framebuffer = framebuffer;
@@ -366,10 +350,8 @@ public:
         }
 
         // Execute render commands from the secondary command buffer
-        primaryCommandBuffer.executeCommands(commandBuffers.size(), commandBuffers.data());
-
+        primaryCommandBuffer.executeCommands(commandBuffers);
         primaryCommandBuffer.endRenderPass();
-
         primaryCommandBuffer.end();
     }
 
@@ -498,12 +480,8 @@ public:
     }
 
     void updateMatrices() {
-        matrices.projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.1f, 256.0f);
-        matrices.view = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-        matrices.view = glm::rotate(matrices.view, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        matrices.view = glm::rotate(matrices.view, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        matrices.view = glm::rotate(matrices.view, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
+        matrices.projection = camera.matrices.perspective;
+        matrices.view = camera.matrices.view;
         frustum.update(matrices.projection * matrices.view);
     }
 

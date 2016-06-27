@@ -122,9 +122,9 @@ public:
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = offscreen.renderPass;
-        renderPassBeginInfo.framebuffer = offscreen.framebuffer.framebuffer;
-        renderPassBeginInfo.renderArea.extent.width = offscreen.framebuffer.size.x;
-        renderPassBeginInfo.renderArea.extent.height = offscreen.framebuffer.size.y;
+        renderPassBeginInfo.framebuffer = offscreen.framebuffers[0].framebuffer;
+        renderPassBeginInfo.renderArea.extent.width = offscreen.size.x;
+        renderPassBeginInfo.renderArea.extent.height = offscreen.size.y;
         renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
 
@@ -132,8 +132,8 @@ public:
         cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
         offscreen.cmdBuffer.begin(cmdBufInfo);
         offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-        offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.framebuffer.size));
-        offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.framebuffer.size));
+        offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.size));
+        offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.size));
         offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
         offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.shaded);
         offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, { 0 });
@@ -260,7 +260,7 @@ public:
         
         // vk::Image descriptor for the offscreen mirror texture
         vk::DescriptorImageInfo texDescriptorMirror =
-            vkx::descriptorImageInfo(offscreen.framebuffer.colors[0].sampler, offscreen.framebuffer.colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal);
+            vkx::descriptorImageInfo(offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal);
         // vk::Image descriptor for the color map
         vk::DescriptorImageInfo texDescriptorColorMap =
             vkx::descriptorImageInfo(textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral);
@@ -411,7 +411,7 @@ public:
     }
 
     void prepare() {
-        offscreen.framebuffer.size = glm::uvec2(512);
+        offscreen.size = glm::uvec2(512);
         OffscreenExampleBase::prepare();
         loadTextures();
         loadMeshes();

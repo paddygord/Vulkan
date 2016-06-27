@@ -104,7 +104,7 @@ public:
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-90.0f);
-        rotation = { -15.0f, 45.0f, 0.0f };
+        camera.setRotation({ -15.0f, 45.0f, 0.0f });
         title = "Vulkan Example - Particle system";
         zoomSpeed *= 1.5f;
         timerSpeed *= 8.0f;
@@ -135,20 +135,14 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-        vk::Viewport viewport = vkx::viewport((float)width, (float)height, 0.0f, 1.0f);
-        cmdBuffer.setViewport(0, viewport);
-
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        cmdBuffer.setScissor(0, scissor);
-
+        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
         // Environment
         meshes.environment.drawIndexed(cmdBuffer);
-
         // Particle system
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.particles);
-        vk::DeviceSize offsets = 0;
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, particles.buffer.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, particles.buffer.buffer, { 0 });
         cmdBuffer.draw(PARTICLE_COUNT, 1, 0, 0);
     }
 
@@ -529,10 +523,8 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformData.fire = createUniformBuffer(uboVS);
-        uniformData.fire.map();
         // Vertex shader uniform buffer block
         uniformData.environment = createUniformBuffer(uboEnv);
-        uniformData.environment.map();
 
         updateUniformBuffers();
     }
@@ -548,22 +540,16 @@ public:
     void updateUniformBuffers() {
         // Vertex shader
         glm::mat4 viewMatrix = glm::mat4();
-        uboVS.projection = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.001f, 256.0f);
-        viewMatrix = glm::translate(viewMatrix, glm::vec3(0.0f, 0.0f, zoom));
-
-        uboVS.model = glm::mat4();
-        uboVS.model = viewMatrix * glm::translate(uboVS.model, glm::vec3(0.0f, 15.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-        uboVS.viewportDim = glm::vec2((float)width, (float)height);
+        uboVS.projection = camera.matrices.perspective;
+        uboVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 15.0f, 0.0f) + camera.position) * glm::mat4_cast(camera.orientation);
+        uboVS.viewportDim = glm::vec2(size.width, size.height);
         uniformData.fire.copy(uboVS);
 
         // Environment
         uboEnv.projection = uboVS.projection;
         uboEnv.model = uboVS.model;
         uboEnv.normal = glm::inverseTranspose(uboEnv.model);
-        uboEnv.cameraPos = glm::vec4(0.0, 0.0, zoom, 0.0);
+        uboEnv.cameraPos = glm::vec4(0.0, 0.0, camera.position.z, 0.0);
         uniformData.environment.copy(uboEnv);
     }
 

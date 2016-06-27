@@ -17,11 +17,7 @@
 namespace vkx {
     struct Framebuffer {
         using Attachment = CreateImageResult;
-
-        std::vector<vk::Format> colorFormats{ { vk::Format::eR8G8B8A8Unorm } };
-        vk::Format depthFormat = vk::Format::eUndefined;
         vk::Device device;
-        glm::uvec2 size{ 100, 100 };
         vk::Framebuffer framebuffer;
         Attachment depth;
         std::vector<Attachment> colors;
@@ -40,7 +36,7 @@ namespace vkx {
         // Prepare a new framebuffer for offscreen rendering
         // The contents of this framebuffer are then
         // blitted to our render target
-        void create(const vkx::Context& context, const vk::RenderPass& renderPass, vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eSampled) {
+        void create(const vkx::Context& context, const glm::uvec2& size, const std::vector<vk::Format>& colorFormats, vk::Format depthFormat, const vk::RenderPass& renderPass, vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eSampled) {
             device = context.device;
             destroy();
 

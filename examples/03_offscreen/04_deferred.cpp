@@ -24,6 +24,7 @@ std::vector<vkx::VertexLayout> vertexLayout =
 };
 
 class VulkanExample : public vkx::OffscreenExampleBase {
+    using Parent = OffscreenExampleBase;
 public:
     bool debugDisplay = true;
 
@@ -99,8 +100,6 @@ public:
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
 
-        destroyOffscreen();
-
         device.destroyPipeline(pipelines.deferred);
         device.destroyPipeline(pipelines.offscreen);
         device.destroyPipeline(pipelines.debug);
@@ -145,19 +144,19 @@ public:
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = offscreen.renderPass;
-        renderPassBeginInfo.framebuffer = offscreen.framebuffer.framebuffer;
-        renderPassBeginInfo.renderArea.extent.width = offscreen.framebuffer.size.x;
-        renderPassBeginInfo.renderArea.extent.height = offscreen.framebuffer.size.y;
+        renderPassBeginInfo.framebuffer = offscreen.framebuffers[0].framebuffer;
+        renderPassBeginInfo.renderArea.extent.width = offscreen.size.x;
+        renderPassBeginInfo.renderArea.extent.height = offscreen.size.y;
         renderPassBeginInfo.clearValueCount = clearValues.size();
         renderPassBeginInfo.pClearValues = clearValues.data();
 
         offscreenCmdBuffer.begin(cmdBufInfo);
         offscreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
-        vk::Viewport viewport = vkx::viewport(offscreen.framebuffer.size, 0.0f, 1.0f);
+        vk::Viewport viewport = vkx::viewport(offscreen.size);
         offscreenCmdBuffer.setViewport(0, viewport);
 
-        vk::Rect2D scissor = vkx::rect2D(offscreen.framebuffer.size);
+        vk::Rect2D scissor = vkx::rect2D(offscreen.size);
         offscreenCmdBuffer.setScissor(0, scissor);
 
         offscreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
@@ -359,13 +358,13 @@ public:
 
         // vk::Image descriptor for the offscreen texture targets
         vk::DescriptorImageInfo texDescriptorPosition =
-            vkx::descriptorImageInfo(offscreen.framebuffer.colors[0].sampler, offscreen.framebuffer.colors[0].view, vk::ImageLayout::eGeneral);
+            vkx::descriptorImageInfo(offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view, vk::ImageLayout::eGeneral);
 
         vk::DescriptorImageInfo texDescriptorNormal =
-            vkx::descriptorImageInfo(offscreen.framebuffer.colors[1].sampler, offscreen.framebuffer.colors[1].view, vk::ImageLayout::eGeneral);
+            vkx::descriptorImageInfo(offscreen.framebuffers[0].colors[1].sampler, offscreen.framebuffers[0].colors[1].view, vk::ImageLayout::eGeneral);
 
         vk::DescriptorImageInfo texDescriptorAlbedo =
-            vkx::descriptorImageInfo(offscreen.framebuffer.colors[2].sampler, offscreen.framebuffer.colors[2].view, vk::ImageLayout::eGeneral);
+            vkx::descriptorImageInfo(offscreen.framebuffers[0].colors[2].sampler, offscreen.framebuffers[0].colors[2].view, vk::ImageLayout::eGeneral);
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
         {
@@ -581,13 +580,13 @@ public:
 
 
     void prepare() override {
-        offscreen.framebuffer.size = glm::uvec2(TEX_DIM);
-        offscreen.framebuffer.colorFormats = std::vector<vk::Format>{ {
+        offscreen.size = glm::uvec2(TEX_DIM);
+        offscreen.colorFormats = std::vector<vk::Format>{ {
             vk::Format::eR16G16B16A16Sfloat,
             vk::Format::eR16G16B16A16Sfloat,
             vk::Format::eR8G8B8A8Unorm
         } };
-        OffscreenExampleBase::prepare();
+        Parent::prepare();
         loadTextures();
         generateQuads();
         loadMeshes();
@@ -602,13 +601,7 @@ public:
         prepared = true;
     }
 
-    void render() override {
-        if (!prepared)
-            return;
-        draw();
-    }
-
-    virtual void viewChanged() {
+    void viewChanged() override {
         updateUniformBufferDeferredMatrices();
     }
 
@@ -619,8 +612,8 @@ public:
         updateUniformBuffersScreen();
     }
 
-
     void keyPressed(uint32_t key) override {
+        Parent::keyPressed(key);
         switch (key) {
         case GLFW_KEY_D:
             toggleDebugDisplay();
