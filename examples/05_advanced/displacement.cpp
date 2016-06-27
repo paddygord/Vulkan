@@ -65,7 +65,7 @@ public:
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-35);
-        camera.setRotation(-35.0, 0.0, 0);
+        camera.setRotation({ -35.0, 0.0, 0 });
         title = "Vulkan Example - Tessellation shader displacement mapping";
         // Support for tessellation shaders is optional, so check first
         if (!deviceFeatures.tessellationShader) {

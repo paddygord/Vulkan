@@ -17,6 +17,7 @@ struct Vertex {
 };
 
 class TextureExample : public vkx::ExampleBase {
+    using Parent = ExampleBase;
 public:
     // Contains all Vulkan objects that are required to store and use a texture
     // Note that this repository contains a texture loader (TextureLoader.h)
@@ -455,6 +456,7 @@ public:
         pipelineCreateInfo.stageCount = shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
 
+        trashPipeline(pipelines.solid);
         pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
@@ -476,7 +478,7 @@ public:
     }
 
     void prepare() {
-        ExampleBase::prepare();
+        Parent::prepare();
         generateQuad();
         setupVertexDescriptions();
         prepareUniformBuffers();
@@ -492,13 +494,7 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
-        if (!prepared)
-            return;
-        draw();
-    }
-
-    virtual void viewChanged() {
+    void viewChanged() override {
         updateUniformBuffers();
     }
 

@@ -72,6 +72,7 @@ public:
     ~VulkanExample() {
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
+        device.destroyPipeline(pipelines.wireframe);
         device.destroyPipeline(pipelines.solid);
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);

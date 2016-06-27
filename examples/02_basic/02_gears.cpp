@@ -13,6 +13,7 @@
 
 
 class VulkanExample : public vkx::ExampleBase {
+    using Parent = vkx::ExampleBase;
 public:
     struct {
         vk::PipelineVertexInputStateCreateInfo inputState;
@@ -209,6 +210,7 @@ public:
         pipelineCreateInfo.pDynamicState = &dynamicState;
         pipelineCreateInfo.stageCount = shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
+        trashPipeline(pipelines.solid);
         pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
@@ -220,7 +222,7 @@ public:
     }
 
     void prepare() {
-        ExampleBase::prepare();
+        Parent::prepare();
         prepareVertices();
         setupDescriptorSetLayout();
         preparePipelines();
@@ -231,18 +233,17 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
-        if (!prepared)
-            return;
-        draw();
+    void update(float delta) override {
+        Parent::update(delta);
         if (!paused) {
             updateUniformBuffers();
         }
     }
 
-    virtual void viewChanged() {
+    void viewChanged() override {
         updateUniformBuffers();
     }
+
 };
 
 RUN_EXAMPLE(VulkanExample)

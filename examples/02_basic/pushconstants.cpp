@@ -19,6 +19,7 @@ std::vector<vkx::VertexLayout> vertexLayout =
 };
 
 class VulkanExample : public vkx::ExampleBase {
+    using Parent = vkx::ExampleBase;
 public:
     struct {
         vk::PipelineVertexInputStateCreateInfo inputState;
@@ -86,7 +87,6 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-
         cmdBuffer.setViewport(0, vkx::viewport(size));
         cmdBuffer.setScissor(0, vkx::rect2D(size));
 
@@ -267,6 +267,9 @@ public:
         pipelineCreateInfo.stageCount = shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
 
+        if (pipelines.solid) {
+            trashPipeline(pipelines.solid);
+        }
         pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
 
     }
@@ -280,12 +283,12 @@ public:
     void updateUniformBuffers() {
         // Vertex shader
         uboVS.projection = getProjection();
-        uboVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 2.0f, zoom)) * glm::mat4_cast(orientation);
+        uboVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 2.0f, camera.position.z)) * glm::mat4_cast(camera.orientation);
         uniformData.vertexShader.copy(uboVS);
     }
 
     void prepare() {
-        ExampleBase::prepare();
+        Parent::prepare();
         loadMeshes();
         setupVertexDescriptions();
         prepareUniformBuffers();
@@ -297,17 +300,20 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
-        if (!prepared)
-            return;
-        draw();
+    void update(float delta) override {
+        Parent::update(delta);
         if (!paused) {
             updateDrawCommandBuffers();
         }
     }
 
-    virtual void viewChanged() {
+    void viewChanged() override {
         updateUniformBuffers();
+    }
+
+    void windowResized() override {
+        Parent::windowResized();
+        preparePipelines();
     }
 };
 

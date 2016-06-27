@@ -1,12 +1,14 @@
 #include "common.hpp"
 #include "vulkanShapes.hpp"
 #include "vulkanGL.hpp"
+#include "camera.hpp"
 
 #define VERTEX_BUFFER_BIND_ID 0
 #define INSTANCE_BUFFER_BIND_ID 1
 
 class OpenGLInteropExample {
 public:
+    Camera camera;
     vkx::Context vulkanContext;
     vkx::ShapesRenderer vulkanRenderer;
     GLFWwindow* window{ nullptr };
@@ -45,6 +47,7 @@ public:
         glewInit();
         glGetError();
         gl::nv::vk::init();
+        camera.setPerspective(60, (float)size.x / (float)size.y);
     }
 
     ~OpenGLInteropExample() {
@@ -99,7 +102,7 @@ public:
 
             update(tDiff / 1000.0f);
 
-            auto projection = glm::perspective(glm::radians(60.0f), (float)size.x / (float)size.y, 0.001f, 256.0f);
+            auto projection = camera.matrices.perspective;
             auto view = camera.matrices.view;
             vulkanRenderer.update((float)tDiff / 1000.0f, projection, view);
             glfwPollEvents();
@@ -109,7 +112,7 @@ public:
             if (fpsTimer > 1000.0f) {
                 std::string windowTitle = getWindowTitle();
                 glfwSetWindowTitle(window, windowTitle.c_str());
-                lastFPS = frameCounter;
+                lastFPS = (float)frameCounter;
                 fpsTimer = 0.0f;
                 frameCounter = 0;
             }

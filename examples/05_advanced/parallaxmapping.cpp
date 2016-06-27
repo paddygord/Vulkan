@@ -78,7 +78,7 @@ public:
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-1.25f);
-        camera.setRotation(40.0, -33.0, 0.0);
+        camera.setRotation({ 40.0, -33.0, 0.0 });
         rotationSpeed = 0.25f;
         paused = true;
         title = "Vulkan Example - Parallax Mapping";
@@ -347,7 +347,7 @@ public:
             ubos.vertexShader.lightPos.y = cos(glm::radians(timer * 360.0f)) * 0.5;
         }
 
-        ubos.vertexShader.cameraPos = glm::vec4(0.0, 0.0, zoom, 0.0);
+        ubos.vertexShader.cameraPos = glm::vec4(0.0, 0.0, camera.position.z, 0.0);
         uniformData.vertexShader.copy(ubos.vertexShader);
 
         // Fragment shader

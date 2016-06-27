@@ -75,7 +75,10 @@ public:
         device.destroyPipeline(pipelines.solid);
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
+        instanceBuffer.destroy();
+        indirectBuffer.destroy();
         uniformData.vsScene.destroy();
+        meshes.destroy();
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {

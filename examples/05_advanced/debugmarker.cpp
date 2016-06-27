@@ -189,11 +189,10 @@ public:
     } demoTag;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
-        camera.setZoom(-8.5f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ -4.35f, 16.25f, 0.0f });
-        cameraPos = { 0.1f, 1.1f, 0.0f };
+        camera.setTranslation({ 0.1f, 1.1f, -8.5f });
         enableTextOverlay = true;
         title = "Vulkan Example - VK_EXT_debug_marker";
     }
@@ -843,8 +842,8 @@ public:
     }
 
     void updateUniformBuffers() {
-        uboVS.projection = getProjection();
-        uboVS.model = glm::translate(glm::mat4(), glm::vec3(cameraPos.x, cameraPos.y, zoom)) * glm::mat4_cast(orientation);
+        uboVS.projection = camera.matrices.perspective;
+        uboVS.model = camera.matrices.view;
         uniformData.vsScene.copy(uboVS);
     }
 

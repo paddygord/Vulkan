@@ -62,7 +62,7 @@ public:
         camera.setZoom(-0.9f);
         rotationSpeed = 0.75f;
         zoomSpeed = 0.25f;
-        camera.setRotation(-25.0f, 23.75f, 0.0f);
+        camera.setRotation({ -25.0f, 23.75f, 0.0f });
         enableTextOverlay = true;
         title = "Vulkan Example - Spherical Environment Mapping";
     }
@@ -260,9 +260,9 @@ public:
     }
 
     void updateUniformBuffers() {
-        uboVS.projection = getProjection();
-        uboVS.view = glm::lookAt(glm::vec3(0, 0, -zoom),glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-        uboVS.model = glm::mat4_cast(orientation);
+        uboVS.projection = camera.matrices.perspective;
+        uboVS.view = glm::lookAt(-camera.position, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+        uboVS.model = glm::mat4_cast(camera.orientation);
         uboVS.normal = glm::inverseTranspose(uboVS.view * uboVS.model);
         uniformData.vertexShader.copy(uboVS);
     }

@@ -330,7 +330,7 @@ namespace vkx {
             vk::ImageCreateInfo imageCreateInfo;
             imageCreateInfo.imageType = vk::ImageType::e2D;
             imageCreateInfo.format = format;
-            imageCreateInfo.mipLevels = 1;
+            imageCreateInfo.mipLevels = texture.mipLevels;
             imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
             imageCreateInfo.tiling = vk::ImageTiling::eOptimal;
             imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;

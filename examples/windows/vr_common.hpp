@@ -114,7 +114,7 @@ public:
             if (fpsTimer > 1000.0f) {
                 std::string windowTitle = getWindowTitle();
                 glfwSetWindowTitle(window, windowTitle.c_str());
-                lastFPS = frameCounter;
+                lastFPS = (float)frameCounter;
                 fpsTimer = 0.0f;
                 frameCounter = 0;
             }

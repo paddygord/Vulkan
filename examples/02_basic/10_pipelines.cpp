@@ -57,7 +57,7 @@ public:
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-10.5f);
-        camera.setRotation(-25.0f, 15.0f, 0.0f);
+        camera.setRotation({ -25.0f, 15.0f, 0.0f });
         enableTextOverlay = true;
         title = "Vulkan Example - vk::Pipeline state objects";
     }
@@ -290,7 +290,7 @@ public:
 
     void updateUniformBuffers() {
         uboVS.projection = glm::perspective(glm::radians(60.0f), (float)(size.width / 3.0f) / (float)size.height, 0.001f, 256.0f);
-        uboVS.modelView = getCamera();
+        uboVS.modelView = camera.matrices.view;
         uniformDataVS.copy(uboVS);
     }
 

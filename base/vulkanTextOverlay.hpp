@@ -62,6 +62,7 @@ namespace vkx {
     public:
 
         enum TextAlign { alignLeft, alignCenter, alignRight };
+        std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
 
         bool visible = true;
         bool invalidated = false;
@@ -70,18 +71,21 @@ namespace vkx {
             Context context,
             uint32_t& framebufferwidth,
             uint32_t& framebufferheight,
-            vk::PipelineCache pipelineCache,
-            std::vector<vk::PipelineShaderStageCreateInfo> shaderstages,
             vk::RenderPass renderPass) 
             : framebufferHeight(framebufferheight), framebufferWidth(framebufferwidth)
         {
             this->context = context;
             prepareResources();
-            preparePipeline(pipelineCache, shaderstages, renderPass);
+            shaderStages.push_back(context.loadShader(getAssetPath() + "shaders/base/textoverlay.vert.spv", vk::ShaderStageFlagBits::eVertex));
+            shaderStages.push_back(context.loadShader(getAssetPath() + "shaders/base/textoverlay.frag.spv", vk::ShaderStageFlagBits::eFragment));
+            preparePipeline(renderPass);
         }
 
         ~TextOverlay() {
             // Free up all Vulkan resources requested by the text overlay
+            for (const auto& shader : shaderStages) {
+                context.device.destroyShaderModule(shader.module);
+            }
             texture.destroy();
             vertexBuffer.destroy();
             context.device.destroyDescriptorSetLayout(descriptorSetLayout);
@@ -195,9 +199,8 @@ namespace vkx {
         }
 
         // Prepare a separate pipeline for the font rendering decoupled from the main application
-        void preparePipeline(vk::PipelineCache pipelineCache,
-            std::vector<vk::PipelineShaderStageCreateInfo> shaderStages,
-            vk::RenderPass renderPass) {
+        void preparePipeline(vk::RenderPass renderPass) {
+
             vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
                 pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleStrip);
 
@@ -276,7 +279,8 @@ namespace vkx {
             pipelineCreateInfo.stageCount = shaderStages.size();
             pipelineCreateInfo.pStages = shaderStages.data();
 
-            pipeline = context.device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+            context.trashPipeline(pipeline);
+            pipeline = context.device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
         }
 
         // Map buffer 

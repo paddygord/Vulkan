@@ -501,7 +501,7 @@ public:
     void updateUniformBuffers() {
         // Vertex shader uniform buffer block
         uboVS.projection = glm::perspective(glm::radians(60.0f), (float)(size.width/ 2) / size.height, 0.1f, 256.0f);
-        uboVS.model = getCamera();
+        uboVS.model = camera.matrices.view;
         uniformDataVS.copy(uboVS);
     }
 

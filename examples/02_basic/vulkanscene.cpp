@@ -62,7 +62,7 @@ public:
         size.height = 720;
         camera.setZoom(-3.75f);
         rotationSpeed = 0.5f;
-        camera.setRotation(15.0f, 0.f, 0.0f);
+        camera.setRotation({ 15.0f, 0.f, 0.0f });
         title = "Vulkan Demo Scene - � 2016 by Sascha Willems";
     }
 
@@ -367,20 +367,14 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformData.meshVS = createUniformBuffer(uboVS);
-        uniformData.meshVS.map();
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
         uboVS.projection = getProjection();
 
-        uboVS.view = glm::lookAt(
-            glm::vec3(0, 0, -zoom),
-            glm::vec3(0, 0, 0),
-            glm::vec3(0, 1, 0)
-            );
-
-        uboVS.model = glm::mat4_cast(orientation);
+        uboVS.view = glm::translate(glm::mat4(), glm::vec3(0, 0, camera.position.z));
+        uboVS.model = glm::mat4_cast(camera.orientation);
         uboVS.normal = glm::inverseTranspose(uboVS.view * uboVS.model);
         uboVS.lightPos = lightPos;
         uniformData.meshVS.copy(uboVS);

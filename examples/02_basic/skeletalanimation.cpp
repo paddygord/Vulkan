@@ -337,12 +337,12 @@ public:
     float runningTime = 0.0f;
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+        camera.type = camera.lookat;
         camera.setZoom(-150.0f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ -182.5f, -38.5f, 180.0f });
         title = "Vulkan Example - Skeletal animation";
-        cameraPos = { 0.0f, 0.0f, 12.0f };
     }
 
     ~VulkanExample() {
@@ -651,19 +651,14 @@ public:
     void updateUniformBuffers(bool viewChanged) {
         if (viewChanged) {
             uboVS.projection = getProjection();
-
-            glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, zoom));
-            viewMatrix = glm::rotate(viewMatrix, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-            viewMatrix = glm::scale(viewMatrix, glm::vec3(0.025f));
-            uboVS.model = viewMatrix * glm::translate(glm::mat4(), glm::vec3(cameraPos.x, -cameraPos.z, cameraPos.y) * 100.0f);
-            uboVS.model = uboVS.model * glm::mat4_cast(orientation);
-            uboVS.viewPos = glm::vec4(0.0f, 0.0f, -zoom, 0.0f);
+            uboVS.model = glm::scale(glm::rotate(camera.matrices.view, glm::radians(90.0f), glm::vec3(1, 0, 0)), glm::vec3(0.025f));
+            uboVS.viewPos = glm::vec4(0.0f, 0.0f, -camera.position.z, 0.0f);
 
             uboFloor.projection = uboVS.projection;
-            uboFloor.model = viewMatrix * glm::translate(glm::mat4(), glm::vec3(cameraPos.x, -cameraPos.z, cameraPos.y) * 100.0f);
-            uboFloor.model = uboFloor.model * glm::mat4_cast(orientation);
-            uboFloor.model = glm::translate(uboFloor.model, glm::vec3(0.0f, 0.0f, -1800.0f));
-            uboFloor.viewPos = glm::vec4(0.0f, 0.0f, -zoom, 0.0f);
+            //uboFloor.model = viewMatrix * glm::mat4_cast(camera.orientation);
+            uboFloor.model = glm::translate(glm::mat4(), glm::vec3(camera.position.x, -camera.position.z, camera.position.y));
+            //uboFloor.model = glm::translate(uboFloor.model, glm::vec3(0.0f, 0.0f, -1800.0f));
+            uboFloor.viewPos = glm::vec4(0.0f, 0.0f, -camera.position.z, 0.0f);
         }
 
         // Update bones

@@ -32,10 +32,6 @@ ExampleBase::ExampleBase(bool enableValidation) : swapChain(*this) {
 }
 
 ExampleBase::~ExampleBase() {
-    while (!recycler.empty()) {
-        recycle();
-    }
-
     // Clean up Vulkan resources
     swapChain.cleanup();
     if (descriptorPool) {
@@ -254,14 +250,9 @@ void ExampleBase::prepare() {
 #endif
     if (enableTextOverlay) {
         // Load the text rendering shaders
-        std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
-        shaderStages.push_back(loadShader(getAssetPath() + "shaders/base/textoverlay.vert.spv", vk::ShaderStageFlagBits::eVertex));
-        shaderStages.push_back(loadShader(getAssetPath() + "shaders/base/textoverlay.frag.spv", vk::ShaderStageFlagBits::eFragment));
         textOverlay = new TextOverlay(*this,
             size.width,
             size.height,
-            pipelineCache,
-            shaderStages,
             renderPass);
         updateTextOverlay();
     }
@@ -535,6 +526,14 @@ void ExampleBase::setupDepthStencil() {
 }
 
 void ExampleBase::setupFrameBuffer() {
+    // Recreate the frame buffers
+    if (!framebuffers.empty()) {
+        for (uint32_t i = 0; i < framebuffers.size(); i++) {
+            device.destroyFramebuffer(framebuffers[i]);
+        }
+        framebuffers.clear();
+    }
+
     vk::ImageView attachments[2];
 
     // Depth/Stencil attachment is the same for all frame buffers
@@ -629,37 +628,30 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
     // Recreate swap chain
     size.width = newSize.x;
     size.height = newSize.y;
-
+    camera.setAspectRatio(size);
     swapChain.create(size);
 
     setupDepthStencil();
-
-    // Recreate the frame buffers
-    for (uint32_t i = 0; i < framebuffers.size(); i++) {
-        device.destroyFramebuffer(framebuffers[i]);
-    }
-    setupRenderPass();
     setupFrameBuffer();
-    updateDrawCommandBuffers();
     if (enableTextOverlay && textOverlay->visible) {
         updateTextOverlay();
     }
+
+    // Notify derived class
+    windowResized();
+
+    // Can be overriden in derived class
+    updateDrawCommandBuffers();
 
     // Command buffers need to be recreated as they may store
     // references to the recreated frame buffer
     buildCommandBuffers();
 
-
-
-    // Notify derived class
-    windowResized();
     viewChanged();
 
     prepared = true;
 }
 
-void ExampleBase::windowResized() {
-    // Can be overriden in derived class
-}
+void ExampleBase::windowResized() {}
 
 

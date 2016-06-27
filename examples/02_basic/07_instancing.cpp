@@ -76,6 +76,7 @@ public:
         device.destroyPipeline(pipelines.solid);
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
+        instanceBuffer.destroy();
         meshes.example.destroy();
         uniformData.vsScene.destroy();
         textures.colorMap.destroy();

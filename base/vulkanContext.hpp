@@ -122,6 +122,16 @@ namespace vkx {
         }
 
         void destroyContext() {
+            queue.waitIdle();
+            device.waitIdle();
+            for (const auto& trash : dumpster) {
+                trash();
+            }
+
+            while (!recycler.empty()) {
+                recycle();
+            }
+
             destroyCommandPool();
             device.destroyPipelineCache(pipelineCache);
             device.destroy();
@@ -167,6 +177,22 @@ namespace vkx {
         // Find a queue that supports graphics operations
         uint32_t graphicsQueueIndex;
 
+        ///////////////////////////////////////////////////////////////////////
+        //
+        // Object destruction support
+        //
+        // It's often critical to avoid destroying an object that may be in use by the GPU.  In order to service this need
+        // the context class contains structures for objects that are pending deletion.  
+        // 
+        // The first container is the dumpster, and it just contains a set of lambda objects that when executed, destroy 
+        // resources (presumably... in theory the lambda can do anything you want, but the purpose is to contain GPU object 
+        // destruction calls).
+        //
+        // When the application makes use of a function that uses a fence, it can provide that fence to the context as a marker 
+        // for destroying all the pending objects.  Anything in the dumpster is migrated to the recycler.
+        // 
+        // Finally, an application can call the recycle function at regular intervals (perhaps once per frame, perhaps less often)
+        // in order to check the fences and execute the associated destructors for any that are signalled.
         using VoidLambda = std::function<void()>;
         using VoidLambdaList = std::list<VoidLambda>;
         using FencedLambda = std::pair<vk::Fence, VoidLambda>;
@@ -176,33 +202,30 @@ namespace vkx {
         // for a queued submit, these items can be moved to the recycler for actual destruction
         // by calling the rec
         VoidLambdaList dumpster;
-
-
         FencedLambdaQueue recycler;
 
-#ifdef WIN32
-        static __declspec(thread) VkCommandPool s_cmdPool;
-#else
-        static thread_local vk::CommandPool s_cmdPool;
-#endif
-
-        const vk::CommandPool getCommandPool() const {
-            if (!s_cmdPool) {
-                vk::CommandPoolCreateInfo cmdPoolInfo;
-                cmdPoolInfo.queueFamilyIndex = graphicsQueueIndex;
-                cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-                s_cmdPool = device.createCommandPool(cmdPoolInfo);
-            }
-            return s_cmdPool;
-        }
-
         template<typename T>
-        void trash(T& value, std::function<void(const T& t)> destructor) {
+        void trash(T value, std::function<void(const T& t)> destructor) {
+            if (!value) {
+                return;
+            }
             T trashedValue;
             std::swap(trashedValue, value);
             dumpster.push_back([trashedValue, destructor] {
                 destructor(trashedValue);
             });
+        }
+
+        template<typename T>
+        void trash(std::vector<T>& values, std::function<void(const T& t)> destructor) {
+            if (values.empty()) {
+                return;
+            }
+            std::vector<T> trashedValues;
+            trashedValues.swap(values);
+            for (const T& value : trashedValues) {
+                trash(value, destructor);
+            }
         }
 
         template<typename T>
@@ -215,6 +238,17 @@ namespace vkx {
             dumpster.push_back([trashedValues, destructor] {
                 destructor(trashedValues);
             });
+        }
+
+        //
+        // Convenience functions for trashing specific types.  These functions know what kind of function 
+        // call to make for destroying a given Vulkan object.
+        //
+
+        void trashPipeline(vk::Pipeline& pipeline) {
+            std::function<void(const vk::Pipeline& t)> destructor =
+                [this](const vk::Pipeline& pipeline) { device.destroyPipeline(pipeline); };
+            trash(pipeline, destructor);
         }
 
         void trashCommandBuffer(vk::CommandBuffer& cmdBuffer) {
@@ -233,6 +267,9 @@ namespace vkx {
             trash(cmdBuffers, destructor);
         }
 
+        // Should be called from time to time by the application to migrate zombie resources
+        // to the recycler along with a fence that will be signalled when the objects are 
+        // safe to delete.
         void emptyDumpster(vk::Fence fence) {
             VoidLambdaList newDumpster;
             newDumpster.swap(dumpster);
@@ -241,6 +278,8 @@ namespace vkx {
             } });
         }
 
+        // Check the recycler fences for signalled status.  Any that are signalled will have their corresponding
+        // lambdas executed, freeing up the associated resources
         void recycle() {
             while (!recycler.empty() && vk::Result::eSuccess == device.getFenceStatus(recycler.front().first)) {
                 vk::Fence fence = recycler.front().first;
@@ -255,6 +294,21 @@ namespace vkx {
             }
         }
 
+#ifdef WIN32
+        static __declspec(thread) VkCommandPool s_cmdPool;
+#else
+        static thread_local vk::CommandPool s_cmdPool;
+#endif
+
+        const vk::CommandPool getCommandPool() const {
+            if (!s_cmdPool) {
+                vk::CommandPoolCreateInfo cmdPoolInfo;
+                cmdPoolInfo.queueFamilyIndex = graphicsQueueIndex;
+                cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+                s_cmdPool = device.createCommandPool(cmdPoolInfo);
+            }
+            return s_cmdPool;
+        }
 
         void destroyCommandPool() {
             if (s_cmdPool) {

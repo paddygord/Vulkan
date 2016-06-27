@@ -103,7 +103,7 @@ namespace vkx {
 
             vk::CommandBufferBeginInfo cmdBufInfo;
             vk::ClearValue clearValues[2];
-            clearValues[0].color = vkx::clearColor({ 1, 0, 0, 1 });
+            clearValues[0].color = vkx::clearColor(glm::vec4(0.1, 0.1, 0.1, 1.0));
             clearValues[1].depthStencil = { 1.0f, 0 };
 
             vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -303,13 +303,15 @@ namespace vkx {
 
 
         void populateSubCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers, std::function<void(const vk::CommandBuffer& commandBuffer)> f) {
-            if (cmdBuffers.empty()) {
-                vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
-                cmdBufAllocateInfo.commandPool = getCommandPool();
-                cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
-                cmdBufAllocateInfo.level = vk::CommandBufferLevel::eSecondary;
-                cmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
+            if (!cmdBuffers.empty()) {
+                trashCommandBuffers(cmdBuffers);
             }
+
+            vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+            cmdBufAllocateInfo.commandPool = getCommandPool();
+            cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
+            cmdBufAllocateInfo.level = vk::CommandBufferLevel::eSecondary;
+            cmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
 
             vk::CommandBufferInheritanceInfo inheritance;
             inheritance.renderPass = renderPass;

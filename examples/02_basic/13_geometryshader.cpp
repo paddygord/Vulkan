@@ -56,7 +56,7 @@ public:
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-8.0f);
-        camera.setRotation(0.0f, -25.0f, 0.0f);
+        camera.setRotation({ 0.0f, -25.0f, 0.0f });
         title = "Vulkan Example - Geometry shader";
     }
 
@@ -273,7 +273,7 @@ public:
     void updateUniformBuffers() {
         // Vertex shader
         uboVS.projection = getProjection();
-        uboVS.model = glm::translate(glm::mat4(), glm::vec3(0, 0, zoom)) * glm::mat4_cast(orientation);
+        uboVS.model = camera.matrices.view;
         uniformData.VS.copy(uboVS);
 
         // Geometry shader
