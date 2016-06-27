@@ -38,16 +38,15 @@ if (WIN32)
     include_directories(${ASSIMP_INCLUDE_DIRS})
     link_libraries(${ASSIMP_LIBRARIES})
 else()
-
     pkg_check_modules(GLFW3 REQUIRED glfw3>=3.2)
     link_libraries(${GLFW3_LIBRARIES})
     include_directories(${GLFW3_INCLUDEDIR})
-
+    link_directories(${GLFW3_LIBRARY_DIRS})
+    
     find_package(assimp)
     link_libraries(${ASSIMP_LIBRARIES})
     include_directories(${ASSIMP_INCLUDEDIR})
-    get_cmake_property(VARNAMES VARIABLES)
-
+    link_directories(${ASSIMP_LIBRARY_DIRS})
 endif()
 
 add_dependency_external_projects(glm)
