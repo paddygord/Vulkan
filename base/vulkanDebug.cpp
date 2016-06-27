@@ -47,6 +47,8 @@ namespace vkx {
                     buf << "ERROR: ";
                 } else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) {
                     buf << "WARNING: ";
+                } else if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT) {
+                    buf << "PERF: ";
                 } else {
                     return false;
                 }
