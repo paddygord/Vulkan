@@ -8,31 +8,53 @@
 
 #pragma once
 
-#ifdef _WIN32
-#pragma comment(linker, "/subsystem:windows")
-#include <windows.h>
-#include <fcntl.h>
-#include <io.h>
-#elif defined(__ANDROID__)
+#if defined(_WIN32)
+#include <Windows.h>
+#endif
+
+#if defined(__ANDROID__)
 #include <android/native_activity.h>
 #include <android/asset_manager.h>
 #include <android_native_app_glue.h>
 #include "vulkanandroid.h"
-#elif defined(__linux__)
-#include <xcb/xcb.h>
+#else 
+
+#ifdef _WIN32
+#pragma comment(linker, "/subsystem:windows")
+#endif
+
 #endif
 
 #include <iostream>
 #include <chrono>
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <string>
 #include <array>
 
-#include "vulkan/vulkan.h"
+#include <vulkan/vulkan.h>
 
+#if defined(__ANDROID__)
+#define GLFW_KEY_SPACE 0x20
+#define GLFW_KEY_A 0x41
+#define GLFW_KEY_B 0x42
+#define GLFW_KEY_D 0x44
+#define GLFW_KEY_F 0x46
+#define GLFW_KEY_G 0x47
+#define GLFW_KEY_L 0x4C
+#define GLFW_KEY_N 0x4E
+#define GLFW_KEY_O 0x4F
+#define GLFW_KEY_P 0x50
+#define GLFW_KEY_S 0x53
+#define GLFW_KEY_T 0x54
+#define GLFW_KEY_W 0x57
+#define GLFW_KEY_KP_ADD 0x6B
+#define GLFW_KEY_KP_SUBTRACT 0x6D
+#else
+// Cross platform window creation.  Must come after the Vulkan header
+#include <GLFW/glfw3.h>
+#endif
 #include "vulkantools.h"
 #include "vulkandebug.h"
 
@@ -67,11 +89,12 @@ private:
 	VkResult createDevice(VkDeviceQueueCreateInfo requestedQueues, bool enableValidation);
 	// Get window title with example name, device, et.
 	std::string getWindowTitle();
-	// Destination dimensions for resizing the window
-	uint32_t destWidth;
-	uint32_t destHeight;
 	// Called if the window is resized and some resources have to be recreatesd
-	void windowResize();
+	void windowResize(const glm::uvec2& newSize);
+    void keyPressBase(uint32_t key);
+    void keyReleaseBase(uint32_t key);
+    void mouseMoved(const glm::vec2& mousePos);
+    void mouseScrolled(float delta);
 protected:
 	// Last frame time, measured using a high performance timer (if available)
 	float frameTimer = 1.0f;
@@ -187,24 +210,12 @@ public:
 	} gamePadState;
 
 	// OS specific 
-#if defined(_WIN32)
-	HWND window;
-	HINSTANCE windowInstance;
-#elif defined(__ANDROID__)
+#if defined(__ANDROID__)
 	android_app* androidApp;
 	// true if application has focused, false if moved to background
 	bool focused = false;
-#elif defined(__linux__)
-	struct {
-		bool left = false;
-		bool right = false;
-		bool middle = false;
-	} mouseButtons;
-	bool quit;
-	xcb_connection_t *connection;
-	xcb_screen_t *screen;
-	xcb_window_t window;
-	xcb_intern_atom_reply_t *atom_wm_delete_window;
+#else 
+    GLFWwindow* window{ nullptr };
 #endif
 
 	// Default ctor
@@ -216,21 +227,27 @@ public:
 	// Setup the vulkan instance, enable required extensions and connect to the physical device (GPU)
 	void initVulkan(bool enableValidation);
 
-#if defined(_WIN32)
-	void setupConsole(std::string title);
-	HWND setupWindow(HINSTANCE hinstance, WNDPROC wndproc);
-	void handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-#elif defined(__ANDROID__)
+#if defined(__ANDROID__)
 	static int32_t handleAppInput(struct android_app* app, AInputEvent* event);
 	static void handleAppCommand(android_app* app, int32_t cmd);
-#elif defined(__linux__)
-	xcb_window_t setupWindow();
-	void initxcbConnection();
-	void handleEvent(const xcb_generic_event_t *event);
+#else
+	void setupConsole(std::string title);
+	void setupWindow();
+
+    // GLFW callbacks
+    static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void MouseHandler(GLFWwindow* window, int button, int action, int mods);
+    static void MouseMoveHandler(GLFWwindow* window, double posx, double posy);
+    static void MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset);
+    static void FramebufferSizeHandler(GLFWwindow* window, int width, int height);
+    static void CloseHandler(GLFWwindow* window);
 #endif
 
 	// Pure virtual render function (override in derived class)
 	virtual void render() = 0;
+
+    virtual void update(float deltaTime);
+
 	// Called when view change occurs
 	// Can be overriden in derived class to e.g. update uniform buffers 
 	// Containing view dependant matrices
@@ -364,4 +381,44 @@ public:
 	void submitFrame();
 
 };
+
+#if defined(__ANDROID__)
+
+// Android entry point
+#define RUN_EXAMPLE(ExampleType) \
+void android_main(android_app* state) { \
+    app_dummy(); \
+	state->userData = vulkanExample; \
+	state->onAppCmd = VulkanExample::handleAppCommand; \
+	state->onInputEvent = VulkanExample::handleAppInput; \
+	vulkanExample->androidApp = state; \
+    vulkanExample->prepare(); \
+    vulkanExample->prepare(); \
+    vulkanExample->renderLoop(); \
+    delete(vulkanExample); \
+	return 0; \
+} \
+
+#else
+
+#if defined(_WIN32)
+// Windows entry point
+#define BEGIN_MAIN int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow) {
+#else
+// Linux entry point
+#define BEGIN_MAIN int main(const int argc, const char *argv[]) {
+#endif
+
+#define RUN_EXAMPLE(ExampleType) \
+BEGIN_MAIN \
+    ExampleType *vulkanExample = new ExampleType(); \
+    vulkanExample->setupWindow(); \
+    vulkanExample->initSwapchain(); \
+    vulkanExample->prepare(); \
+    vulkanExample->renderLoop(); \
+    delete(vulkanExample); \
+	return 0; \
+} \
+
+#endif
 

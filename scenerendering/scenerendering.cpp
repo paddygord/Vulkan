@@ -872,27 +872,27 @@ public:
 	{
 		switch (keyCode)
 		{
-		case 0x20:
+		case GLFW_KEY_SPACE:
 		case GAMEPAD_BUTTON_A:
 			wireframe = !wireframe;
 			reBuildCommandBuffers();
 			break;
-		case 0x50:
+		case GLFW_KEY_P:
 			scene->renderSingleScenePart = !scene->renderSingleScenePart;
 			reBuildCommandBuffers();
 			updateTextOverlay();
 			break;
-		case 0x6B:
+		case GLFW_KEY_KP_ADD:
 			scene->scenePartIndex = (scene->scenePartIndex < static_cast<uint32_t>(scene->meshes.size())) ? scene->scenePartIndex + 1 : 0;
 			reBuildCommandBuffers();
 			updateTextOverlay();
 			break;
-		case 0x6D:
+		case GLFW_KEY_KP_SUBTRACT:
 			scene->scenePartIndex = (scene->scenePartIndex > 0) ? scene->scenePartIndex - 1 : static_cast<uint32_t>(scene->meshes.size()) - 1;
 			updateTextOverlay();
 			reBuildCommandBuffers();
 			break;
-		case 0x4C:
+		case GLFW_KEY_L:
 			attachLight = !attachLight;
 			updateUniformBuffers();
 			break;
@@ -917,63 +917,4 @@ public:
 	}
 };
 
-VulkanExample *vulkanExample;
-
-#if defined(_WIN32)
-LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-	if (vulkanExample != NULL)
-	{
-		vulkanExample->handleMessages(hWnd, uMsg, wParam, lParam);
-	}
-	return (DefWindowProc(hWnd, uMsg, wParam, lParam));
-}
-#elif defined(__linux__) && !defined(__ANDROID__)
-static void handleEvent(const xcb_generic_event_t *event)
-{
-	if (vulkanExample != NULL)
-	{
-		vulkanExample->handleEvent(event);
-}
-		}
-#endif
-
-// Main entry point
-#if defined(_WIN32)
-// Windows entry point
-int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
-#elif defined(__ANDROID__)
-// Android entry point
-void android_main(android_app* state)
-#elif defined(__linux__)
-// Linux entry point
-int main(const int argc, const char *argv[])
-#endif
-{
-#if defined(__ANDROID__)
-	// Removing this may cause the compiler to omit the main entry point 
-	// which would make the application crash at start
-	app_dummy();
-#endif
-	vulkanExample = new VulkanExample();
-#if defined(_WIN32)
-	vulkanExample->setupWindow(hInstance, WndProc);
-#elif defined(__ANDROID__)
-	// Attach vulkan example to global android application state
-	state->userData = vulkanExample;
-	state->onAppCmd = VulkanExample::handleAppCommand;
-	state->onInputEvent = VulkanExample::handleAppInput;
-	vulkanExample->androidApp = state;
-#elif defined(__linux__)
-	vulkanExample->setupWindow();
-#endif
-#if !defined(__ANDROID__)
-	vulkanExample->initSwapchain();
-	vulkanExample->prepare();
-#endif
-	vulkanExample->renderLoop();
-	delete(vulkanExample);
-#if !defined(__ANDROID__)
-	return 0;
-#endif
-}
+RUN_EXAMPLE(VulkanExample)

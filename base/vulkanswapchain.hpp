@@ -29,6 +29,8 @@
 
 #ifdef __ANDROID__
 #include "vulkanandroid.h"
+#else
+#include <GLFW/glfw3.h>
 #endif
 
 // Macro to get a procedure address based on a vulkan instance
@@ -89,39 +91,24 @@ public:
 	// Creates an os specific surface
 	// Tries to find a graphics and a present queue
 	void initSurface(
-#ifdef _WIN32
-		void* platformHandle, void* platformWindow
-#else
 #ifdef __ANDROID__
 		ANativeWindow* window
 #else
-		xcb_connection_t* connection, xcb_window_t window
-#endif
+        VkInstance instance,
+		GLFWwindow* window
 #endif
 	)
 	{
 		VkResult err;
 
 		// Create surface depending on OS
-#ifdef _WIN32
-		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		surfaceCreateInfo.hinstance = (HINSTANCE)platformHandle;
-		surfaceCreateInfo.hwnd = (HWND)platformWindow;
-		err = vkCreateWin32SurfaceKHR(instance, &surfaceCreateInfo, nullptr, &surface);
-#else
 #ifdef __ANDROID__
 		VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.window = window;
 		err = vkCreateAndroidSurfaceKHR(instance, &surfaceCreateInfo, NULL, &surface);
 #else
-		VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-		surfaceCreateInfo.connection = connection;
-		surfaceCreateInfo.window = window;
-		err = vkCreateXcbSurfaceKHR(instance, &surfaceCreateInfo, nullptr, &surface);
-#endif
+        err = static_cast<VkResult>(glfwCreateWindowSurface(instance, window, nullptr, &surface));
 #endif
 
 		// Get available queue family properties
