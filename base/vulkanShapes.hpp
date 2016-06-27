@@ -94,6 +94,8 @@ namespace vkx {
         }
 
         ~ShapesRenderer() {
+            queue.waitIdle();
+            device.waitIdle();
             context.device.freeCommandBuffers(cmdPool, cmdBuffer);
             context.device.destroyPipeline(pipelines.solid);
             context.device.destroyPipelineLayout(pipelineLayout);

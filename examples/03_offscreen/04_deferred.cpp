@@ -99,6 +99,8 @@ public:
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
 
+        destroyOffscreen();
+
         device.destroyPipeline(pipelines.deferred);
         device.destroyPipeline(pipelines.offscreen);
         device.destroyPipeline(pipelines.debug);
@@ -198,7 +200,6 @@ public:
         cmdBuffer.drawIndexed(6, 1, 0, 0, 1);
     }
 
-    vk::Semaphore offscreenSemaphore;
     void draw() override {
         prepareFrame();
         {
@@ -209,10 +210,10 @@ public:
             submitInfo.waitSemaphoreCount = 1;
             submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
             submitInfo.signalSemaphoreCount = 1;
-            submitInfo.pSignalSemaphores = &offscreenSemaphore;
+            submitInfo.pSignalSemaphores = &offscreen.renderComplete;
             queue.submit(submitInfo, VK_NULL_HANDLE);
         } 
-        drawCurrentCommandBuffer(offscreenSemaphore);
+        drawCurrentCommandBuffer(offscreen.renderComplete);
         submitFrame();
     }
 
@@ -587,7 +588,6 @@ public:
             vk::Format::eR8G8B8A8Unorm
         } };
         OffscreenExampleBase::prepare();
-        offscreenSemaphore = device.createSemaphore(vk::SemaphoreCreateInfo());
         loadTextures();
         generateQuads();
         loadMeshes();

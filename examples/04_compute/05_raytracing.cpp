@@ -57,8 +57,7 @@ public:
     vk::PipelineLayout computePipelineLayout;
     vk::DescriptorSet computeDescriptorSet;
     vk::DescriptorSetLayout computeDescriptorSetLayout;
-    vk::DescriptorPool computeDescriptorPool;
-
+    
     vk::PipelineLayout pipelineLayout;
     vk::DescriptorSet descriptorSetPostCompute;
     vk::DescriptorSetLayout descriptorSetLayout;
@@ -77,9 +76,11 @@ public:
 
         device.destroyPipeline(pipelines.display);
         device.destroyPipeline(pipelines.compute);
-
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
+
+        device.destroyPipelineLayout(computePipelineLayout);
+        device.destroyDescriptorSetLayout(computeDescriptorSetLayout);
 
         meshes.quad.destroy();
         uniformDataCompute.destroy();
