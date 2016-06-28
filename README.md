@@ -2,14 +2,16 @@
 
 <img src="./documentation/images/vulkanlogoscene.png" alt="Vulkan demo scene" height="256px">
 
-This is a fork of [Sascha Willems](https://github.com/SaschaWillems) excellent Vulkan examples page with some modifications.  
+This is a fork of [Sascha Willems](https://github.com/SaschaWillems) excellent [Vulkan examples](https://github.com/SaschaWillems/Vulkan) with some modifications.  
 
 * All of the code except for the VulkanDebug stuff has been ported to use the [nVidia VKCPP wrapper](https://github.com/nvpro-pipeline/vkcpp)
 * All platform specific code for Windows and Linux has been consolidated to use [GLFW 3.2](http://www.glfw.org/)
-* Project files for Visual Studio have been removed in favor of a pure CMake based system
+* Project files for Visual Studio have been removed in favor of a pure [CMake](https://cmake.org/) based system
 * Binary files have been removed in favor of CMake external projects
-* A number of fixes to bugs that prevent the original examples from running on Visual Studio 2012 have been fixed
 * Enable validation layers by default when building in debug mode
+* Avoid excessive use of vkDeviceWaitIdle and vkQueueWaitIdle
+* Avoid excessive use of explicit image layout transitions, instead using implicit transitions via the RenderPass and Subpass definitions
+* A number of fixes to bugs that prevent the original examples from running on Visual Studio 2012 have been fixed (not necessarily all though)
 
 ## Known issues
 
@@ -265,16 +267,21 @@ Interaction with OpenGL and OpenGL-reliant systems such as the Oculus or OpenVR 
 
 Demonstrates using an offscreen Vulkan renderer to create images which are then 
 blitted to an OpenGL framebuffer for on-screen display
+<br><br>
 
 ### [Oculus SDK Usage](examples/windows/vr_oculus.cpp)
+<img src="./documentation/screenshots/vr.png" height="96px" align="right">
 
 Demonstrates using the Oculus SDK with an offscreen Vulkan renderer to create images 
 which are then passed to an the SDK for display on an HMD
+<br><br>
 
 ### [OpenVR SDK Usage](examples/windows/vr_openvr.cpp)
+<img src="./documentation/screenshots/vr.png" height="96px" align="right">
 
 Demonstrates using the OpenVR SDK with an offscreen Vulkan renderer to create images 
 which are then passed to an the SDK for display on an HMD
+<br><br>
 
 ## Broken Examples 
 

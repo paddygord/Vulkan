@@ -70,7 +70,7 @@ public:
     }
 
     void prepare() {
-        vulkanRenderer.framebuffer.size = size;
+        vulkanRenderer.framebufferSize = size;
         vulkanRenderer.prepare();
     }
 

@@ -74,7 +74,7 @@ public:
         size = renderTargetSize;
         size /= 4;
         vulkanContext.createContext(false);
-        vulkanRenderer.framebuffer.size = renderTargetSize;
+        vulkanRenderer.framebufferSize = renderTargetSize;
         vulkanRenderer.prepare();
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);

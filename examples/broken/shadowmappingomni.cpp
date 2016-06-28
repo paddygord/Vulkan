@@ -106,7 +106,7 @@ public:
         camera.setZoom(-175.0f);
         zoomSpeed = 10.0f;
         timerSpeed *= 0.25f;
-        orientation = glm::quat(glm::radians(glm::vec3({ -20.5f, -673.0f, 0.0f })));
+        camera.setRotation({ -20.5f, -673.0f, 0.0f });
         title = "Vulkan Example - Point light shadows";
     }
 
@@ -139,7 +139,7 @@ public:
     void prepareOffscreenRenderPass() override {
         std::vector<vk::AttachmentDescription> attachments;
         std::vector<vk::AttachmentReference> colorAttachmentReferences;
-        attachments.resize(offscreen.framebuffer.colorFormats.size());
+        attachments.resize(offscreen.colorFormats.size());
         colorAttachmentReferences.resize(attachments.size());
         // Color attachment
         for (size_t i = 0; i < attachments.size(); ++i) {
@@ -253,9 +253,9 @@ public:
         vk::RenderPassBeginInfo renderPassBeginInfo;
         // Reuse render pass from example pass
         renderPassBeginInfo.renderPass = offscreen.renderPass;
-        renderPassBeginInfo.framebuffer = offscreen.framebuffer.framebuffer;
-        renderPassBeginInfo.renderArea.extent.width = offscreen.framebuffer.size.x;
-        renderPassBeginInfo.renderArea.extent.height = offscreen.framebuffer.size.y;
+        renderPassBeginInfo.framebuffer = offscreen.framebuffers[0].framebuffer;
+        renderPassBeginInfo.renderArea.extent.width = offscreen.size.x;
+        renderPassBeginInfo.renderArea.extent.height = offscreen.size.y;
         renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
 
@@ -288,7 +288,7 @@ public:
         // Change image layout for all cubemap faces to transfer destination
         vkx::setImageLayout(
             offscreen.cmdBuffer,
-            offscreen.framebuffer.colors[0].image,
+            offscreen.framebuffers[0].colors[0].image,
             vk::ImageAspectFlagBits::eColor,
             vk::ImageLayout::eUndefined,
             vk::ImageLayout::eColorAttachmentOptimal,
@@ -319,7 +319,7 @@ public:
         copyRegion.extent = shadowCubeMap.extent;
 
         // Put image copy into command buffer
-        offscreen.cmdBuffer.copyImage(offscreen.framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, shadowCubeMap.image, vk::ImageLayout::eTransferDstOptimal, copyRegion);
+        offscreen.cmdBuffer.copyImage(offscreen.framebuffers[0].colors[0].image, vk::ImageLayout::eTransferSrcOptimal, shadowCubeMap.image, vk::ImageLayout::eTransferDstOptimal, copyRegion);
     }
 
     // Command buffer for rendering and copying all cube map faces
@@ -334,8 +334,8 @@ public:
         vk::CommandBufferBeginInfo cmdBufInfo;
         cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
         offscreen.cmdBuffer.begin(cmdBufInfo);
-        offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.framebuffer.size));
-        offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.framebuffer.size));
+        offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.size));
+        offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.size));
 
         vk::ImageSubresourceRange subresourceRange;
         subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
@@ -622,8 +622,8 @@ public:
     void updateUniformBuffers() {
         // 3D scene
         uboVSscene.projection = glm::perspective(glm::radians(45.0f), (float)size.width / (float)size.height, zNear, zFar);
-        uboVSscene.view = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, displayCubeMap ? 0.0f : zoom));
-        uboVSscene.model = glm::mat4_cast(orientation);
+        uboVSscene.view = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, displayCubeMap ? 0.0f : camera.position.z));
+        uboVSscene.model = glm::mat4_cast(camera.orientation);
         uboVSscene.lightPos = lightPos;
         uniformData.scene.copy(uboVSscene);
     }
@@ -639,8 +639,9 @@ public:
     }
 
     void prepare() {
-        offscreen.framebuffer.size = glm::uvec2(TEX_DIM);
-        offscreen.framebuffer.colorFormats = { { vk::Format::eR32Sfloat } };
+        offscreen.size = glm::uvec2(TEX_DIM);
+        offscreen.colorFormats = { { vk::Format::eR32Sfloat } };
+        offscreen.depthFormat = vk::Format::eUndefined;
         offscreen.attachmentUsage = vk::ImageUsageFlagBits::eTransferSrc;
         offscreen.colorFinalLayout = vk::ImageLayout::eTransferSrcOptimal;
         OffscreenExampleBase::prepare();

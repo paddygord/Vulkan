@@ -106,7 +106,7 @@ public:
 
     VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-20.0f);
-        orientation = glm::quat(glm::radians(glm::vec3({ -15.0f, -390.0f, 0.0f })));
+        camera.setRotation({ -15.0f, -390.0f, 0.0f });
         title = "Vulkan Example - Projected shadow mapping";
         timerSpeed *= 0.5f;
     }
@@ -136,7 +136,7 @@ public:
         virtual void prepareOffscreenRenderPass() {
             std::vector<vk::AttachmentDescription> attachments;
             std::vector<vk::AttachmentReference> colorAttachmentReferences;
-            attachments.resize(offscreen.framebuffer.colorFormats.size());
+            attachments.resize(offscreen.colorFormats.size());
             colorAttachmentReferences.resize(attachments.size());
             // Color attachment
             for (size_t i = 0; i < attachments.size(); ++i) {
@@ -242,19 +242,17 @@ public:
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = offscreen.renderPass;
-        renderPassBeginInfo.framebuffer = offscreen.framebuffer.framebuffer;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = offscreen.framebuffer.size.x;
-        renderPassBeginInfo.renderArea.extent.height = offscreen.framebuffer.size.y;
+        renderPassBeginInfo.framebuffer = offscreen.framebuffers[0].framebuffer;
+        renderPassBeginInfo.renderArea.extent.width = offscreen.size.x;
+        renderPassBeginInfo.renderArea.extent.height = offscreen.size.y;
         renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
 
         vk::CommandBufferBeginInfo cmdBufInfo;
         cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
         offscreen.cmdBuffer.begin(cmdBufInfo);
-        offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.framebuffer.size));
-        offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.framebuffer.size));
+        offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.size));
+        offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.size));
 
         // Set depth bias (aka "Polygon offset")
         offscreen.cmdBuffer.setDepthBias(depthBiasConstant, 0.0f, depthBiasSlope);
@@ -401,7 +399,7 @@ public:
 
         // vk::Image descriptor for the shadow map texture
         vk::DescriptorImageInfo texDescriptor =
-            vkx::descriptorImageInfo(offscreen.framebuffer.colors[0].sampler, offscreen.framebuffer.colors[0].view, vk::ImageLayout::eGeneral);
+            vkx::descriptorImageInfo(offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view, vk::ImageLayout::eGeneral);
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
         {
@@ -439,8 +437,8 @@ public:
         descriptorSets.scene = device.allocateDescriptorSets(allocInfo)[0];
 
         // vk::Image descriptor for the shadow map texture
-        texDescriptor.sampler = offscreen.framebuffer.colors[0].sampler;
-        texDescriptor.imageView = offscreen.framebuffer.colors[0].view;
+        texDescriptor.sampler = offscreen.framebuffers[0].colors[0].sampler;
+        texDescriptor.imageView = offscreen.framebuffers[0].colors[0].view;
 
         std::vector<vk::WriteDescriptorSet> sceneDescriptorSets =
         {
@@ -599,7 +597,7 @@ public:
 
 
     void prepare() {
-        offscreen.framebuffer.size = glm::uvec2(TEX_DIM);
+        offscreen.size = glm::uvec2(TEX_DIM);
         OffscreenExampleBase::prepare();
         generateQuad();
         loadMeshes();
