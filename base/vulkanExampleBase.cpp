@@ -177,30 +177,6 @@ void ExampleBase::renderLoop() {
                 fpsTimer = 0.0f;
                 frameCounter = 0;
             }
-            // Check gamepad state
-            const float deadZone = 0.0015f;
-            // todo : check if gamepad is present
-            // todo : time based and relative axis positions
-            bool updateView = false;
-            // Rotate
-            if (std::abs(gamePadState.axes.x) > deadZone) {
-                rotation.y += gamePadState.axes.x * 0.5f * rotationSpeed;
-                updateView = true;
-            }
-            if (std::abs(gamePadState.axes.y) > deadZone) {
-                rotation.x -= gamePadState.axes.y * 0.5f * rotationSpeed;
-                updateView = true;
-            }
-            // Zoom
-            if (std::abs(gamePadState.axes.rz) > deadZone) {
-                zoom -= gamePadState.axes.rz * 0.01f * zoomSpeed;
-                updateView = true;
-            }
-            if (updateView) {
-                viewChanged();
-            }
-
-
         }
     }
 #else
@@ -212,8 +188,60 @@ void ExampleBase::renderLoop() {
         tStart = tEnd;
         glfwPollEvents();
 
+        if (glfwJoystickPresent(0)) {
+            // FIXME implement joystick handling
+            int axisCount{ 0 };
+            const float* axes = glfwGetJoystickAxes(0, &axisCount);
+            if (axisCount >= 2) {
+                gamePadState.axes.x = axes[0] * 0.01f;
+                gamePadState.axes.y = axes[1] * -0.01f;
+            }
+            if (axisCount >= 4) {
+            }
+            if (axisCount >= 6) {
+                float lt = (axes[4] + 1.0f) / 2.0f;
+                float rt = (axes[5] + 1.0f) / 2.0f;
+                gamePadState.axes.rz = (rt - lt);
+            }
+            uint32_t newButtons{ 0 };
+            static uint32_t oldButtons{ 0 };
+            {
+                int buttonCount{ 0 };
+                const uint8_t* buttons = glfwGetJoystickButtons(0, &buttonCount);
+                for (uint8_t i = 0; i < buttonCount && i < 64; ++i) {
+                    if (buttons[i]) {
+                        newButtons |= (1 << i);
+                    }
+                }
+            }
+            auto changedButtons = newButtons & ~oldButtons;
+            if (changedButtons & 0x01) {
+                keyPressed(GAMEPAD_BUTTON_A);
+            }
+            if (changedButtons & 0x02) {
+                keyPressed(GAMEPAD_BUTTON_B);
+            }
+            if (changedButtons & 0x04) {
+                keyPressed(GAMEPAD_BUTTON_X);
+            }
+            if (changedButtons & 0x08) {
+                keyPressed(GAMEPAD_BUTTON_Y);
+            }
+            if (changedButtons & 0x10) {
+                keyPressed(GAMEPAD_BUTTON_L1);
+            }
+            if (changedButtons & 0x20) {
+                keyPressed(GAMEPAD_BUTTON_R1);
+            }
+            oldButtons = newButtons;
+        } else {
+            memset(&gamePadState.axes, 0, sizeof(gamePadState.axes));
+        }
+
+
         render();
         update(tDiffSeconds);
+
     }
 #endif
 }

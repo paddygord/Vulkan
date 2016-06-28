@@ -105,6 +105,11 @@ public:
         rotate(glm::quat(glm::radians(delta)));
     }
 
+    void preRotate(const glm::quat& q) {
+        orientation = q * orientation;
+        updateViewMatrix();
+    }
+
     void rotate(const glm::quat& q) {
         orientation *= q;
         updateViewMatrix();

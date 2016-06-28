@@ -280,6 +280,30 @@ namespace vkx {
                 fpsTimer = 0.0f;
                 frameCounter = 0;
             }
+
+            // Check gamepad state
+            const float deadZone = 0.0015f;
+            // todo : check if gamepad is present
+            // todo : time based and relative axis positions
+            bool updateView = false;
+            // Rotate
+            if (std::abs(gamePadState.axes.x) > deadZone) {
+                camera.preRotate(glm::angleAxis(gamePadState.axes.x * 0.5f * rotationSpeed, glm::vec3(0, 1, 0)));
+                updateView = true;
+            }
+            if (std::abs(gamePadState.axes.y) > deadZone) {
+                camera.preRotate(glm::angleAxis(gamePadState.axes.y * 0.5f * rotationSpeed, glm::vec3(1, 0, 0)));
+                updateView = true;
+            }
+            // Zoom
+            if (std::abs(gamePadState.axes.rz) > deadZone) {
+                camera.dolly(gamePadState.axes.rz * 0.01f * zoomSpeed);
+                updateView = true;
+            }
+            if (updateView) {
+                viewChanged();
+            }
+
         }
 
         // Called when view change occurs
