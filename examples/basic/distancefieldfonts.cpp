@@ -103,7 +103,6 @@ public:
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-1.5f);
-        rotation = { 0.0f, 0.0f, 0.0f };
         title = "Vulkan Example - Distance field fonts";
     }
 
@@ -197,28 +196,24 @@ public:
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
 
-        vk::Viewport viewport = vkx::viewport((float)width, (splitScreen) ? (float)height / 2.0f : (float)height, 0.0f, 1.0f);
+        vk::Viewport viewport = vkx::viewport((float)size.width, (splitScreen) ? (float)size.height / 2.0f : (float)size.height, 0.0f, 1.0f);
         cmdBuffer.setViewport(0, viewport);
-
-        vk::Rect2D scissor = vkx::rect2D(width, height, 0, 0);
-        cmdBuffer.setScissor(0, scissor);
-
-        vk::DeviceSize offsets = 0;
+        cmdBuffer.setScissor(0, vkx::rect2D(size));
 
         // Signed distance field font
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sdf, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.sdf);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(indices.count, 1, 0, 0, 0);
 
         // Linear filtered bitmap font
         if (splitScreen) {
-            viewport.y = (float)height / 2.0f;
+            viewport.y += viewport.height;
             cmdBuffer.setViewport(0, viewport);
             cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.bitmap, nullptr);
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.bitmap);
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
+            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, { 0 });
             cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(indices.count, 1, 0, 0, 0);
         }
@@ -278,7 +273,7 @@ public:
             v.pos[0] -= posx / 2.0f;
             v.pos[1] -= 0.5f;
         }
-        vertices = createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertices);
+        vertices = createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
         indices = createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
     }
 
@@ -493,26 +488,14 @@ public:
 
     void updateUniformBuffers() {
         // Vertex shader
-        glm::mat4 viewMatrix = glm::mat4();
-        uboVS.projection = glm::perspective(glm::radians(splitScreen ? 45.0f : 45.0f), (float)width / (float)(height * ((splitScreen) ? 0.5f : 1.0f)), 0.001f, 256.0f);
-        viewMatrix = glm::translate(viewMatrix, glm::vec3(0.0f, 0.0f, splitScreen ? zoom : zoom - 2.0f));
-
-        uboVS.model = glm::mat4();
-        uboVS.model = viewMatrix * glm::translate(uboVS.model, glm::vec3(0, 0, 0));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-
-        void *pData = device.mapMemory(uniformData.vs.memory, 0, sizeof(uboVS), vk::MemoryMapFlags());
-        memcpy(pData, &uboVS, sizeof(uboVS));
-        device.unmapMemory(uniformData.vs.memory);
+        uboVS.projection = glm::perspective(glm::radians(splitScreen ? 45.0f : 45.0f), (float)size.width / (float)(size.height * ((splitScreen) ? 0.5f : 1.0f)), 0.001f, 256.0f);
+        uboVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, splitScreen ? camera.position.z : camera.position.z - 2.0f)) * glm::mat4_cast(camera.orientation);
+        uniformData.vs.copy(uboVS);
     }
 
     void updateFontSettings() {
         // Fragment shader
-        void *pData = device.mapMemory(uniformData.fs.memory, 0, sizeof(uboFS), vk::MemoryMapFlags());
-        memcpy(pData, &uboFS, sizeof(uboFS));
-        device.unmapMemory(uniformData.fs.memory);
+        uniformData.fs.copy(uboFS);
     }
 
     void prepare() {
