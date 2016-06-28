@@ -269,6 +269,7 @@ void ExampleBase::prepare() {
     swapChain.create(size);
     setupDepthStencil();
     setupRenderPass();
+    setupRenderPassBeginInfo();
     setupFrameBuffer();
 
     // Create a simple texture loader class
@@ -664,6 +665,7 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
     if (enableTextOverlay && textOverlay->visible) {
         updateTextOverlay();
     }
+    setupRenderPassBeginInfo();
 
     // Notify derived class
     windowResized();

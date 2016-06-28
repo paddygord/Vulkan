@@ -11,6 +11,11 @@ namespace vkx {
         const vk::Queue& queue;
         vk::CommandPool cmdPool;
         vk::RenderPass renderPass;
+        glm::uvec2 framebufferSize;
+        std::vector<vk::Format> colorFormats{ { vk::Format::eB8G8R8A8Unorm } };
+        // This value is chosen as an invalid default that signals that the code should pick a specific depth buffer
+        // Alternative, you can set this to undefined to explicitly declare you want no depth buffer.
+        vk::Format depthFormat = vk::Format::eR8Uscaled;
         struct {
             vk::Semaphore renderStart;
             vk::Semaphore renderComplete;
@@ -45,10 +50,14 @@ namespace vkx {
         }
 
         void prepareFramebuffer() {
-            assert(!framebuffer.colorFormats.empty());
-            assert(framebuffer.size != glm::uvec2());
-            framebuffer.depthFormat = vkx::getSupportedDepthFormat(context.physicalDevice);
-            framebuffer.create(context, renderPass, attachmentUsage);
+            assert(framebufferSize != glm::uvec2());
+            depthFormat = vkx::getSupportedDepthFormat(context.physicalDevice);
+            framebuffer.create(context, 
+                framebufferSize, 
+                colorFormats, 
+                depthFormat, 
+                renderPass, 
+                attachmentUsage);
         }
 
         void prepareSampler() {
@@ -74,11 +83,11 @@ namespace vkx {
         void prepareRenderPass() {
             std::vector<vk::AttachmentDescription> attachments;
             std::vector<vk::AttachmentReference> colorAttachmentReferences;
-            attachments.resize(framebuffer.colorFormats.size());
+            attachments.resize(colorFormats.size());
             colorAttachmentReferences.resize(attachments.size());
             // Color attachment
             for (size_t i = 0; i < attachments.size(); ++i) {
-                attachments[i].format = framebuffer.colorFormats[i];
+                attachments[i].format = colorFormats[i];
                 attachments[i].loadOp = vk::AttachmentLoadOp::eClear;
                 attachments[i].storeOp = vk::AttachmentStoreOp::eStore;
                 attachments[i].initialLayout = vk::ImageLayout::eColorAttachmentOptimal;
@@ -92,7 +101,7 @@ namespace vkx {
             vk::AttachmentReference depthAttachmentReference;
             {
                 vk::AttachmentDescription depthAttachment;
-                depthAttachment.format = framebuffer.depthFormat;
+                depthAttachment.format = depthFormat;
                 depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
                 depthAttachment.storeOp = vk::AttachmentStoreOp::eDontCare;
                 depthAttachment.initialLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;

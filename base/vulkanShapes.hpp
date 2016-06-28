@@ -127,15 +127,15 @@ namespace vkx {
 
             vk::RenderPassBeginInfo renderPassBeginInfo;
             renderPassBeginInfo.renderPass = renderPass;
-            renderPassBeginInfo.renderArea.extent.width = framebuffer.size.x;
-            renderPassBeginInfo.renderArea.extent.height = framebuffer.size.y;
+            renderPassBeginInfo.renderArea.extent.width = framebufferSize.x;
+            renderPassBeginInfo.renderArea.extent.height = framebufferSize.y;
             renderPassBeginInfo.clearValueCount = 2;
             renderPassBeginInfo.pClearValues = clearValues;
             renderPassBeginInfo.framebuffer = framebuffer.framebuffer;
             cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            cmdBuffer.setScissor(0, vkx::rect2D(framebuffer.size));
+            cmdBuffer.setScissor(0, vkx::rect2D(framebufferSize));
             if (stereo) {
-                auto viewport = vkx::viewport(framebuffer.size);
+                auto viewport = vkx::viewport(framebufferSize);
                 viewport.width /= 2.0f;
                 cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
                 // Binding point 0 : Mesh vertex buffer
@@ -149,7 +149,7 @@ namespace vkx {
                     viewport.x += viewport.width;
                 }
             } else {
-                cmdBuffer.setViewport(0, vkx::viewport(framebuffer.size));
+                cmdBuffer.setViewport(0, vkx::viewport(framebufferSize));
                 cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
                 cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
                 // Binding point 0 : Mesh vertex buffer
@@ -394,7 +394,7 @@ namespace vkx {
         }
 
         void prepare() {
-            framebuffer.depthFormat = vkx::getSupportedDepthFormat(context.physicalDevice);
+            depthFormat = vkx::getSupportedDepthFormat(context.physicalDevice);
             OffscreenRenderer::prepare();
             loadShapes();
             prepareInstanceData();

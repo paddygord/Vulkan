@@ -70,11 +70,26 @@ namespace vkx {
         // Get window title with example name, device, et.
         std::string getWindowTitle();
 
+    protected:
         // Command buffers used for rendering
         std::vector<vk::CommandBuffer> primaryCmdBuffers;
         std::vector<vk::CommandBuffer> textCmdBuffers;
         std::vector<vk::CommandBuffer> drawCmdBuffers;
         bool primaryCmdBuffersDirty{ true };
+        std::vector<vk::ClearValue> clearValues;
+        vk::RenderPassBeginInfo renderPassBeginInfo;
+
+        virtual void setupRenderPassBeginInfo() {
+            clearValues.clear();
+            clearValues.push_back(vkx::clearColor(glm::vec4(0.1, 0.1, 0.1, 1.0)));
+            clearValues.push_back(vk::ClearDepthStencilValue{ 1.0f, 0 });
+
+            renderPassBeginInfo = vk::RenderPassBeginInfo();
+            renderPassBeginInfo.renderPass = renderPass;
+            renderPassBeginInfo.renderArea.extent = size;
+            renderPassBeginInfo.clearValueCount = clearValues.size();
+            renderPassBeginInfo.pClearValues = clearValues.data();
+        }
 
         virtual void buildCommandBuffers() final {
             if (drawCmdBuffers.empty()) {
@@ -100,17 +115,7 @@ namespace vkx {
                 primaryCmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
             }
 
-
             vk::CommandBufferBeginInfo cmdBufInfo;
-            vk::ClearValue clearValues[2];
-            clearValues[0].color = vkx::clearColor(glm::vec4(0.1, 0.1, 0.1, 1.0));
-            clearValues[1].depthStencil = { 1.0f, 0 };
-
-            vk::RenderPassBeginInfo renderPassBeginInfo;
-            renderPassBeginInfo.renderPass = renderPass;
-            renderPassBeginInfo.renderArea.extent = size;
-            renderPassBeginInfo.clearValueCount = 2;
-            renderPassBeginInfo.pClearValues = clearValues;
             for (size_t i = 0; i < swapChain.imageCount; ++i) {
                 const auto& cmdBuffer = primaryCmdBuffers[i];
                 cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);

@@ -11,16 +11,8 @@
 #define SAMPLE_COUNT vk::SampleCountFlagBits::e4
 
 struct {
-    struct {
-        vk::Image image;
-        vk::ImageView view;
-        vk::DeviceMemory memory;
-    } color;
-    struct {
-        vk::Image image;
-        vk::ImageView view;
-        vk::DeviceMemory memory;
-    } depth;
+    vkx::CreateImageResult color;
+    vkx::CreateImageResult depth;
 } multisampleTarget;
 
 // Vertex layout for this example
@@ -69,8 +61,8 @@ public:
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-7.5f);
         zoomSpeed = 2.5f;
-        orientation = glm::quat(glm::radians(glm::vec3{ 0.0f, -90.0f, 0.0f }));
-        cameraPos = glm::vec3(2.5f, 2.5f, 0.0f);
+        //camera.setRotation({ 0.0f, -90.0f, 0.0f });
+        //camera.setTranslation({ 2.5f, 2.5f, -7.5 });
         title = "Vulkan Example - Multisampling";
     }
 
@@ -121,22 +113,15 @@ public:
         // vk::Image will only be used as a transient target
         info.usage = vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment;
         info.initialLayout = vk::ImageLayout::eUndefined;
+        multisampleTarget.color = createImage(info, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-        multisampleTarget.color.image = device.createImage(info);
-
-        vk::MemoryRequirements memReqs;
-        memReqs = device.getImageMemoryRequirements(multisampleTarget.color.image);
-        vk::MemoryAllocateInfo memAlloc;
-        memAlloc.allocationSize = memReqs.size;
-        // We prefer a lazily allocated memory type
-        // This means that the memory get allocated when the implementation sees fit, e.g. when first using the images
-        vk::Bool32 lazyMemType = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eLazilyAllocated, &memAlloc.memoryTypeIndex);
-        if (!lazyMemType) {
-            // If this is not available, fall back to device local memory
-            getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal, &memAlloc.memoryTypeIndex);
-        }
-        multisampleTarget.color.memory = device.allocateMemory(memAlloc);
-        device.bindImageMemory(multisampleTarget.color.image, multisampleTarget.color.memory, 0);
+        //// We prefer a lazily allocated memory type
+        //// This means that the memory get allocated when the implementation sees fit, e.g. when first using the images
+        //vk::Bool32 lazyMemType = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eLazilyAllocated, &memAlloc.memoryTypeIndex);
+        //if (!lazyMemType) {
+        //    // If this is not available, fall back to device local memory
+        //    getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal, &memAlloc.memoryTypeIndex);
+        //}
 
         // Create image view for the MSAA target
         vk::ImageViewCreateInfo viewInfo;
@@ -167,19 +152,7 @@ public:
         // vk::Image will only be used as a transient target
         info.usage = vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eDepthStencilAttachment;
         info.initialLayout = vk::ImageLayout::eUndefined;
-
-        multisampleTarget.depth.image = device.createImage(info);
-
-        memReqs = device.getImageMemoryRequirements(multisampleTarget.depth.image);
-        memAlloc;
-        memAlloc.allocationSize = memReqs.size;
-        lazyMemType = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eLazilyAllocated, &memAlloc.memoryTypeIndex);
-        if (!lazyMemType) {
-            getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal, &memAlloc.memoryTypeIndex);
-        }
-
-        multisampleTarget.depth.memory = device.allocateMemory(memAlloc);
-        device.bindImageMemory(multisampleTarget.depth.image, multisampleTarget.depth.memory, 0);
+        multisampleTarget.depth = createImage(info, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
         // Create image view for the MSAA target
         viewInfo.image = multisampleTarget.depth.image;
@@ -190,6 +163,27 @@ public:
         viewInfo.subresourceRange.layerCount = 1;
 
         multisampleTarget.depth.view = device.createImageView(viewInfo);
+
+        // Initial image layout transitions
+        // We need to transform the MSAA target layouts before using them
+        withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
+            // Tansform MSAA color target
+            vkx::setImageLayout(
+                setupCmdBuffer,
+                multisampleTarget.color.image,
+                vk::ImageAspectFlagBits::eColor,
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eColorAttachmentOptimal);
+
+            // Tansform MSAA depth target
+            vkx::setImageLayout(
+                setupCmdBuffer,
+                multisampleTarget.depth.image,
+                vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eDepthStencilAttachmentOptimal);
+        });
+
     }
 
     // Setup a render pass for using a multi sampled attachment 
@@ -219,8 +213,8 @@ public:
         attachments[1].storeOp = vk::AttachmentStoreOp::eStore;
         attachments[1].stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
         attachments[1].stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-        attachments[1].initialLayout = vk::ImageLayout::eColorAttachmentOptimal;
-        attachments[1].finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
+        attachments[1].initialLayout = vk::ImageLayout::eUndefined;
+        attachments[1].finalLayout = vk::ImageLayout::ePresentSrcKHR;
 
         // Multisampled depth attachment we render to
         attachments[2].format = depthFormat;
@@ -265,9 +259,25 @@ public:
         subpass.pResolveAttachments = resolveReferences.data();
         subpass.pDepthStencilAttachment = &depthReference;
 
+
+        std::vector<vk::SubpassDependency> dependencies;
+        {
+            vk::SubpassDependency dependency;
+            dependency.srcSubpass = 0;
+            dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+            dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+
+            dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+            dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead;
+            dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+            dependencies.push_back(dependency);
+        }
+
         vk::RenderPassCreateInfo renderPassInfo;
         renderPassInfo.attachmentCount = attachments.size();
         renderPassInfo.pAttachments = attachments.data();
+        renderPassInfo.dependencyCount = dependencies.size();
+        renderPassInfo.pDependencies = dependencies.data();
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
 
@@ -300,33 +310,12 @@ public:
         // Create frame buffers for every swap chain image
         framebuffers.resize(swapChain.imageCount);
         for (uint32_t i = 0; i < framebuffers.size(); i++) {
-            attachments[1] = swapChain.buffers[i].view;
+            attachments[1] = swapChain.images[i].view;
             framebuffers[i] = device.createFramebuffer(framebufferCreateInfo);
         }
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-
-        //// Initial image layout transitions
-        //// We need to transform the MSAA target layouts before using them
-        //withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
-        //    // Tansform MSAA color target
-        //    vkx::setImageLayout(
-        //        setupCmdBuffer,
-        //        multisampleTarget.color.image,
-        //        vk::ImageAspectFlagBits::eColor,
-        //        vk::ImageLayout::eUndefined,
-        //        vk::ImageLayout::eColorAttachmentOptimal);
-
-        //    // Tansform MSAA depth target
-        //    vkx::setImageLayout(
-        //        setupCmdBuffer,
-        //        multisampleTarget.depth.image,
-        //        vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
-        //        vk::ImageLayout::eUndefined,
-        //        vk::ImageLayout::eDepthStencilAttachmentOptimal);
-        //});
-
         //vk::CommandBufferBeginInfo cmdBufInfo;
 
         //vk::ClearValue clearValues[3];
@@ -346,10 +335,23 @@ public:
         cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
     }
 
+    virtual void setupRenderPassBeginInfo() {
+        clearValues.clear();
+        clearValues.push_back(vkx::clearColor(glm::vec4(1)));
+        clearValues.push_back(vkx::clearColor(glm::vec4(1)));
+        clearValues.push_back(vk::ClearDepthStencilValue{ 1.0f, 0 });
+
+        renderPassBeginInfo = vk::RenderPassBeginInfo();
+        renderPassBeginInfo.renderPass = renderPass;
+        renderPassBeginInfo.renderArea.extent = size;
+        renderPassBeginInfo.clearValueCount = clearValues.size();
+        renderPassBeginInfo.pClearValues = clearValues.data();
+    }
+
     void loadTextures() {
         textures.colorMap = textureLoader->loadTexture(
             getAssetPath() + "models/voyager/voyager.ktx",
-             vk::Format::eBc3UnormBlock);
+            vk::Format::eBc3UnormBlock);
     }
 
     void loadMeshes() {
@@ -366,16 +368,16 @@ public:
         vertices.attributeDescriptions.resize(4);
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0,  vk::Format::eR32G32B32Sfloat, 0);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
         // Location 1 : Normal
         vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
         // Location 2 : Texture coordinates
         vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2,  vk::Format::eR32G32Sfloat, sizeof(float) * 6);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
         // Location 3 : Color
         vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
+            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
 
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -509,14 +511,13 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformData.vsScene = createUniformBuffer(uboVS);
-        uniformData.vsScene.map();
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
         // Vertex shader
-        uboVS.projection = getProjection();
-        uboVS.model = getCamera();
+        uboVS.projection = camera.matrices.perspective;
+        uboVS.model = camera.matrices.view;
         uniformData.vsScene.copy(uboVS);
     }
 

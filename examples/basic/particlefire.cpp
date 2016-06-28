@@ -203,7 +203,7 @@ public:
             particle.alpha = 1.0f - (abs(particle.pos.y) / (FLAME_RADIUS * 2.0f));
         }
 
-        particles.buffer = createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, particleBuffer.data());
+        particles.buffer = createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, particleBuffer);
         particles.buffer.map();
     }
 
