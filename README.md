@@ -28,15 +28,15 @@ This information comes from the [original repository readme](https://github.com/
 
 ## Beginner Examples
 
-### [Context](examples/01_init/01_context/)
+### [Context](examples/01_init/01_context.cpp)
 
 Basic example of creating a Vulkan instance, physical device, queue, command pool, etc.  However, it does not create a rendering window and produces no graphical output, instead printing out some basic information of about the current device.
 
-### [Swap Chain](examples/01_init/02_swapchain/)
+### [Swap Chain](examples/01_init/02_swapchain.cpp)
 
 Create a window and a Vulkan swap chain connected to it.  Uses an empty command buffer to clear the frame with a different color for each swap chain image.  This is the most basic possible application that colors any pixels on a surface.
 
-### [Triangle](examples/01_init/03_triangle/)
+### [Triangle](examples/01_init/03_triangle.cpp)
 <img src="./documentation/screenshots/basic_triangle.png" height="96px" align="right">
 
 Most basic example that renders geometry. Renders a colored triangle using an indexed vertex buffer. Vertex and index data are uploaded to device local memory using so-called "staging buffers". Uses a single pipeline with basic shaders loaded from SPIR-V and and single uniform block for passing matrices that is updated on changing the view.
@@ -44,45 +44,45 @@ Most basic example that renders geometry. Renders a colored triangle using an in
 This example is far more explicit than the other examples and is meant to be a starting point for learning Vulkan from the ground up. Much of the code is boilerplate that you'd usually encapsulate in helper functions and classes (which is what the other examples do).
 <br><br>
 
-### [Triangle Revisited](examples/01_init/04_triangleRevisted/)
+### [Triangle Revisited](examples/01_init/04_triangleRevisted.cpp)
 
 A repeat of the triangle example, except this time using the base class that will be used for all future examples.  Much of the boilerplate from the previous example has been moved into the base class or helper functions.  
 
 This is the first example that allows you to resize the window, demonstrating the ability to create the swap chain and any objects which depend on the swap chain.
 
-### [Triangle Animated](examples/01_init/05_triangleAnimated/)
+### [Triangle Animated](examples/01_init/05_triangleAnimated.cpp)
 
 Another repeat of the triangle example, this time showing a mechanism by which we can make modifications each frame to a uniform buffer containing the projection and view matrices.  
 
 ## Intermediate Examples
 
-### [Gears](examples/02_basic/02_gears/)
+### [Gears](examples/02_basic/02_gears.cpp)
 <img src="./documentation/screenshots/basic_gears.png" height="96px" align="right">
 
 Vulkan interpretation of glxgears. Procedurally generates separate meshes for each gear, with every mesh having it's own uniform buffer object for animation. Also demonstrates how to use different descriptor sets.
 <br><br>
 
-### [Texture mapping](examples/02_basic/03_texture/)
+### [Texture mapping](examples/02_basic/03_texture.cpp)
 <img src="./documentation/screenshots/basic_texture.png" height="96px" align="right">
 
 Loads a single texture and displays it on a simple quad. Shows how to upload a texture including mip maps to the gpu in an optimal (tiling) format. Also demonstrates how to display the texture using a combined image sampler with anisotropic filtering enabled.
 <br><br>
 
-### [Cubemaps](examples/02_basic/05_cubemap/)
+### [Cubemaps](examples/02_basic/05_cubemap.cpp)
 <img src="./documentation/screenshots/texture_cubemap.png" height="96px" align="right">
 
 Building on the basic texture loading example a cubemap is loaded into host visible memory and then transformed into an optimal format for the GPU.
 The demo uses two different pipelines (and shader sets) to display the cubemap as a skybox (background) and as a source for reflections.
 <br><br>
 
-### [Texture array](examples/02_basic/04_texturearray/)
+### [Texture array](examples/02_basic/04_texturearray.cpp)
 <img src="./documentation/screenshots/texture_array.png" height="96px" align="right">
 
 Texture arrays allow storing of multiple images in different layers without any interpolation between the layers.
 This example demonstrates the use of a 2D texture array with instanced rendering. Each instance samples from a different layer of the texture array.
 <br><br>
 
-### [Pipelines](examples/02_basic/10_pipelines/)
+### [Pipelines](examples/02_basic/10_pipelines.cpp)
 <img src="./documentation/screenshots/basic_pipelines.png" height="96px" align="right">
 
 [Pipeline state objects](https://www.khronos.org/registry/vulkan/specs/1.0/xhtml/vkspec.html#pipelines) replace the biggest part of the dynamic state machine from OpenGL, baking state information for culling, blending, rasterization, etc. and shaders into a fixed stat that can be optimized much easier by the implementation.
@@ -90,42 +90,42 @@ This example demonstrates the use of a 2D texture array with instanced rendering
 This example uses three different PSOs for rendering the same scene with different visuals and shaders and also demonstrates the use [pipeline derivatives](https://www.khronos.org/registry/vulkan/specs/1.0/xhtml/vkspec.html#pipelines-pipeline-derivatives).
 <br><br>
 
-### [Mesh loading and rendering](examples/02_basic/06_pipelines/)
+### [Mesh loading and rendering](examples/02_basic/06_pipelines.cpp)
 <img src="./documentation/screenshots/basic_mesh.png" height="96px" align="right">
 
 Uses [assimp](https://github.com/assimp/assimp) to load a mesh from a common 3D format including a color map. The mesh data is then converted to a fixed vertex layout matching the shader vertex attribute bindings.
 <br><br>
 
-## [Mesh instancing](examples/02_basic/07_instancing/)
+## [Mesh instancing](examples/02_basic/07_instancing.cpp)
 <img src="./documentation/screenshots/instancing.jpg" height="96px" align="right">
 
 Shows the use of instancing for rendering many copies of the same mesh using different attributes and textures. A secondary vertex buffer containing instanced data, stored in device local memory, is used to pass instance data to the shader via vertex attributes with a per-instance step rate. The instance data also contains a texture layer index for having different textures for the instanced meshes.
 <br><br>
 
-## [Indirect rendering](examples/02_basic/08_indirect/)
+## [Indirect rendering](examples/02_basic/08_indirect.cpp)
 
 Shows the use of a shared vertex buffer containing multiple shapes to rendering numerous instances of each shape with only one draw call.
 <br><br>
 
-### [Push constants](examples/02_basic/pushconstants/)
+### [Push constants](examples/02_basic/pushconstants.cpp)
 <img src="./documentation/screenshots/push_constants.png" height="96px" align="right">
 
 Demonstrates the use of push constants for updating small blocks of shader data with high speed (and without having to use a uniform buffer). Displays several light sources with position updates through a push constant block in a separate command buffer.
 <br><br>
 
-### [Skeletal animation](examples/02_basic/skeletalanimation/)
+### [Skeletal animation](examples/02_basic/skeletalanimation.cpp)
 <img src="./documentation/screenshots/mesh_skeletalanimation.png" height="96px" align="right">
 
 Based on the mesh loading example, this example loads and displays a rigged COLLADA model including animations. Bone weights are extracted for each vertex and are passed to the vertex shader together with the final bone transformation matrices for vertex position calculations.
 <br><br>
 
-### [(Tessellation shader) PN-Triangles](examples/02_basic/14_tessellation/)
+### [(Tessellation shader) PN-Triangles](examples/02_basic/14_tessellation.cpp)
 <img src="./documentation/screenshots/tess_pntriangles.jpg" height="96px" align="right">
 
 Generating curved PN-Triangles on the GPU using tessellation shaders to add details to low-polygon meshes, based on [this paper](http://alex.vlachos.com/graphics/CurvedPNTriangles.pdf), with shaders from [this tutorial](http://onrendering.blogspot.de/2011/12/tessellation-on-gpu-curved-pn-triangles.html).
 <br><br>
 
-### [Spherical environment mapping](examples/02_basic/11_sphericalenvmapping/)
+### [Spherical environment mapping](examples/02_basic/11_sphericalenvmapping.cpp)
 <img src="./documentation/screenshots/spherical_env_mapping.png" height="96px" align="right">
 
 Uses a (spherical) material capture texture containing environment lighting and reflection information to fake complex lighting. The example also uses a texture array to store (and select) several material caps that can be toggled at runtime.
@@ -133,14 +133,14 @@ Uses a (spherical) material capture texture containing environment lighting and 
  The technique is based on [this article](https://github.com/spite/spherical-environment-mapping).
 <br><br>
 
-### [(Geometry shader) Normal debugging](examples/02_basic/13_geometryshader/)
+### [(Geometry shader) Normal debugging](examples/02_basic/13_geometryshader.cpp)
 <img src="./documentation/screenshots/geom_normals.png" height="96px" align="right">
 
 Renders the vertex normals of a complex mesh with the use of a geometry shader. The mesh is rendered solid first and the a geometry shader that generates lines from the face normals is used in the second pass.
 <br><br>
 
 
-### [Vulkan demo scene](examples/02_basic/vulkanscene/)
+### [Vulkan demo scene](examples/02_basic/vulkanscene.cpp)
 <img src="./documentation/screenshots/vulkan_scene.png" height="96px" align="right">
 
 More of a playground than an actual example. Renders multiple meshes with different shaders (and pipelines) including a background.
@@ -150,25 +150,25 @@ More of a playground than an actual example. Renders multiple meshes with differ
 
 Demonstrate the use of offsreen framebuffer for rendering effects
 
-### [Offscreen rendering](examples/03_offscreen/01_offscreen)
+### [Offscreen rendering](examples/03_offscreen/01_offscreen.cpp)
 <img src="./documentation/screenshots/basic_offscreen.png" height="96px" align="right">
 
 Uses a separate framebuffer (that is not part of the swap chain) and a texture target for offscreen rendering. The texture is then used as a mirror.
 <br><br>
 
-### [Radial blur](examples/03_offscreen/02_radialblur/)
+### [Radial blur](examples/03_offscreen/02_radialblur.cpp)
 <img src="./documentation/screenshots/radial_blur.png" height="96px" align="right">
 
 Demonstrates basic usage of fullscreen shader effects. The scene is rendered offscreen first, gets blitted to a texture target and for the final draw this texture is blended on top of the 3D scene with a radial blur shader applied.
 <br><br>
 
-### [Bloom](examples/03_offscreen/03_bloom/)
+### [Bloom](examples/03_offscreen/03_bloom.cpp)
 <img src="./documentation/screenshots/bloom.png" height="96px" align="right">
 
 Implements a bloom effect to simulate glowing parts of a 3D mesh. A two pass gaussian blur (horizontal and then vertical) is used to generate a blurred low res version of the scene only containing the glowing parts of the 3D mesh. This then gets blended onto the scene to add the blur effect.
 <br><br>
 
-### [Deferred shading](examples/03_offscreen/04_deferred/)
+### [Deferred shading](examples/03_offscreen/04_deferred.cpp)
 <img src="./documentation/screenshots/deferred_shading.png" height="96px" align="right">
 
 Demonstrates the use of multiple render targets to fill a G-Buffer for deferred shading.
@@ -180,19 +180,19 @@ Deferred shading collects all values (color, normal, position) into different re
 
 Demonstrate the use of compute shaders to achieve effects
 
-### [(Compute shader) Particle system](examples/04_compute/computeparticles/)
+### [(Compute shader) Particle system](examples/04_compute/computeparticles.cpp)
 <img src="./documentation/screenshots/compute_particles.jpg" height="96px" align="right">
 
 Attraction based particle system. A shader storage buffer is used to store particle on which the compute shader does some physics calculations. The buffer is then used by the graphics pipeline for rendering with a gradient texture for. Demonstrates the use of memory barriers for synchronizing vertex buffer access between a compute and graphics pipeline
 <br><br>
 
-### [(Compute shader) Ray tracing](examples/04_compute/05_raytracing/)
+### [(Compute shader) Ray tracing](examples/04_compute/05_raytracing.cpp)
 <img src="./documentation/screenshots/compute_raytracing.png" height="96px" align="right">
 
 Implements a simple ray tracer using a compute shader. No primitives are rendered by the traditional pipeline except for a fullscreen quad that displays the ray traced results of the scene rendered by the compute shaders. Also implements shadows and basic reflections.
 <br><br>
 
-### [(Compute shader) Image processing](examples/04_compute/computeshader/)
+### [(Compute shader) Image processing](examples/04_compute/computeshader.cpp)
 <img src="./documentation/screenshots/compute_imageprocessing.jpg" height="96px" align="right">
 
 Demonstrates the use of a separate compute queue (and command buffer) to apply different convolution kernels on an input image in realtime.
@@ -200,19 +200,19 @@ Demonstrates the use of a separate compute queue (and command buffer) to apply d
 
 ## Advanced Examples
 
-### [(Tessellation shader) Displacement mapping](examples/05_advanced/displacement/)
+### [(Tessellation shader) Displacement mapping](examples/05_advanced/displacement.cpp)
 <img src="./documentation/screenshots/tess_displacement.jpg" height="96px" align="right">
 
 Uses tessellation shaders to generate additional details and displace geometry based on a displacement map (heightmap).
 <br><br>
 
-### [Parallax mapping](examples/05_advanced/parallaxmapping/)
+### [Parallax mapping](examples/05_advanced/parallaxmapping.cpp)
 <img src="./documentation/screenshots/parallax_mapping.jpg" height="96px" align="right">
 
 Like normal mapping, parallax mapping simulates geometry on a flat surface. In addition to normal mapping a heightmap is used to offset texture coordinates depending on the viewing angle giving the illusion of added depth.
 <br><br>
 
-### [(Extension) VK_EXT_debug_marker](debugmarker/)
+### [(Extension) VK_EXT_debug_marker](debugmarker.cpp)
 <img src="./documentation/screenshots/ext_debugmarker.jpg" width="170px" align="right">
 
 Example application to be used along with [this tutorial](http://www.saschawillems.de/?page_id=2017) for demonstrating the use of the new VK_EXT_debug_marker extension. Introduced with Vulkan 1.0.12, it adds functionality to set debug markers, regions and name objects for advanced debugging in an offline graphics debugger like [RenderDoc](http://www.renderdoc.org).
@@ -223,7 +223,7 @@ Example application to be used along with [this tutorial](http://www.saschawille
 
 These examples are not functioning as intended yet.
 
-### [Occlusion queries](examples/05_advanced/occlusionquery/)
+### [Occlusion queries](occlusionquery.cpp)
 <img src="./documentation/screenshots/occlusion_queries.png" height="96px" align="right">
 
 Shows how to use occlusion queries to determine object visibility depending on the number of passed samples for a given object. Does an occlusion pass first, drawing all objects (and the occluder) with basic shaders, then reads the query results to conditionally color the objects during the final pass depending on their visibility.
