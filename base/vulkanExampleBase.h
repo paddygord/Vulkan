@@ -62,15 +62,16 @@ namespace vkx {
 
     private:
         // Set to true when example is created with enabled validation layers
-        bool enableValidation = false;
+        bool enableValidation{ false };
         // Set to true when the debug marker extension is detected
-        bool enableDebugMarkers = false;
+        bool enableDebugMarkers{ false };
         // fps timer (one second interval)
         float fpsTimer = 0.0f;
         // Get window title with example name, device, et.
         std::string getWindowTitle();
 
     protected:
+        bool enableVsync{ false };
         // Command buffers used for rendering
         std::vector<vk::CommandBuffer> primaryCmdBuffers;
         std::vector<vk::CommandBuffer> textCmdBuffers;

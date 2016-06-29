@@ -93,16 +93,19 @@ public:
         matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
     };
 
-    void setRotation(const glm::vec3& rotation) {
-        orientation = glm::quat(glm::radians(rotation));
+    void setRotation(const glm::quat& q) {
+        orientation = q;
         updateViewMatrix();
+    }
+
+    void setRotation(const glm::vec3& rotation) {
+        setRotation(glm::quat(glm::radians(rotation)));
     };
 
     void rotate(const glm::vec2& delta) {
         glm::vec3 rotationAxis = glm::normalize(glm::vec3(delta.y, -delta.x, 0));
         float length = glm::length(delta) * 0.01f;
-        orientation = glm::angleAxis(length, rotationAxis) * orientation;
-        updateViewMatrix();
+        setRotation(glm::angleAxis(length, rotationAxis) * orientation);
     }
 
     void rotate(const glm::vec3& delta) {

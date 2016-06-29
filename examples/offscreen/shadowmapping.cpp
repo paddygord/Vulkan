@@ -13,16 +13,7 @@
 #include "vulkanOffscreenExampleBase.hpp"
 
 
-// 16 bits of depth is enough for such a small scene
-#define DEPTH_FORMAT  vk::Format::eD16Unorm
-
 // Texture properties
-#define TEX_DIM 2048
-#define TEX_FILTER vk::Filter::eLinear
-
-// Offscreen frame buffer properties
-#define FB_DIM TEX_DIM
-#define FB_COLOR_FORMAT  vk::Format::eR8G8B8A8Unorm
 
 // Vertex layout for this example
 std::vector<vkx::VertexLayout> vertexLayout =
@@ -106,8 +97,12 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
-        camera.setZoom(-20.0f);
-        camera.setRotation({ -15.0f, -390.0f, 0.0f });
+        enableVsync = true;
+		enableTextOverlay = true;
+        camera.type = Camera::lookat;
+        camera.setZoom(-10.0f);
+        camera.setRotation(glm::quat(-0.240986764f, 0.0903019980f, -0.950695813f, 0.173048794f));
+        //camera.orientation = glm::quat(vec3(0, 0, -1), vec3(0.2f, 0.5f, -1.0f));
         title = "Vulkan Example - Projected shadow mapping";
         timerSpeed *= 0.5f;
     }
@@ -147,22 +142,6 @@ public:
         cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
         offscreen.cmdBuffer.begin(cmdBufInfo);
 
-        // Make sure color writes to the framebuffer are finished before using it as transfer source
-        //vkx::setImageLayout(
-        //    offscreen.cmdBuffer,
-        //    offscreen.framebuffers[0].depth.image,
-        //    vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
-        //    vk::ImageLayout::eUndefined,
-        //    vk::ImageLayout::eDepthStencilAttachmentOptimal);
-
-        //// Transform framebuffer color attachment back 
-        //vkx::setImageLayout(
-        //    offscreen.cmdBuffer,
-        //    offscreen.framebuffers[0].depth.image,
-        //    vk::ImageAspectFlagBits::eDepth,
-        //    vk::ImageLayout::eTransferSrcOptimal,
-        //    vk::ImageLayout::eDepthStencilAttachmentOptimal);
-
         vk::ClearValue clearValues[2];
         clearValues[0].color = vkx::clearColor({ 0.0f, 0.0f, 0.0f, 1.0f });
         clearValues[1].depthStencil = { 1.0f, 0 };
@@ -177,24 +156,15 @@ public:
 
         offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.size));
         offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.size));
-
         // Set depth bias (aka "Polygon offset")
         offscreen.cmdBuffer.setDepthBias(depthBiasConstant, 0.0f, depthBiasSlope);
         offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
         offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
         offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
         offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, { 0 });
         offscreen.cmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
         offscreen.cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
         offscreen.cmdBuffer.endRenderPass();
-        //// Make sure color writes to the framebuffer are finished before using it as transfer source
-        //vkx::setImageLayout(
-        //    offscreen.cmdBuffer,
-        //    offscreen.framebuffers[0].depth.image,
-        //    vk::ImageAspectFlagBits::eDepth,
-        //    vk::ImageLayout::eDepthStencilAttachmentOptimal,
-        //    vk::ImageLayout::eShaderReadOnlyOptimal);
         offscreen.cmdBuffer.end();
     }
 
@@ -454,6 +424,7 @@ public:
         shaderStages[0] = loadShader(getAssetPath() + "shaders/shadowmapping/offscreen.vert.spv", vk::ShaderStageFlagBits::eVertex);
         shaderStages[1] = loadShader(getAssetPath() + "shaders/shadowmapping/offscreen.frag.spv", vk::ShaderStageFlagBits::eFragment);
         pipelineCreateInfo.layout = pipelineLayouts.offscreen;
+        pipelineCreateInfo.renderPass = offscreen.renderPass;
         // Cull front faces
         depthStencilState.depthCompareOp = vk::CompareOp::eLessOrEqual;
         // Enable depth bias
@@ -491,7 +462,7 @@ public:
         // Shadow map debug quad
         float AR = (float)size.height / (float)size.width;
 
-        uboVSquad.projection = glm::ortho(0.0f, 2.5f / AR, 0.0f, 2.5f, -1.0f, 1.0f);
+        uboVSquad.projection = glm::ortho(2.5f / AR, 0.0f, 0.0f, 2.5f, -1.0f, 1.0f);
         uboVSquad.model = glm::mat4();
 
         uniformDataVS.copy(uboVSquad);
@@ -521,9 +492,11 @@ public:
         uniformDataOffscreenVS.copy(uboOffscreenVS);
     }
 
+#define TEX_FILTER vk::Filter::eLinear
 
     void prepare() {
-        offscreen.size = glm::uvec2(TEX_DIM);
+        offscreen.size = glm::uvec2(2048);
+        offscreen.depthFormat = vk::Format::eD16Unorm;
         offscreen.depthFinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
         offscreen.colorFinalLayout = vk::ImageLayout::eColorAttachmentOptimal;
         offscreen.attachmentUsage = vk::ImageUsageFlags();
@@ -543,8 +516,6 @@ public:
     }
 
     void update(float deltaTime) override {
-        queue.waitIdle();
-        device.waitIdle();
         Parent::update(deltaTime);
         if (!paused) {
             updateLight();
@@ -578,6 +549,19 @@ public:
             break;
         }
     }
+
+    
+	void getOverlayText(TextOverlay *textOverlay) override 
+	{
+#if defined(__ANDROID__)
+		textOverlay->addText("Press \"Button A\" to toggle shadow map", 5.0f, 85.0f, TextOverlay::alignLeft);
+		textOverlay->addText("Press \"Button X\" to toggle light's pov", 5.0f, 100.0f, TextOverlay::alignLeft);
+#else
+		textOverlay->addText("Press \"s\" to toggle shadow map", 5.0f, 85.0f, TextOverlay::alignLeft);
+		textOverlay->addText("Press \"l\" to toggle light's pov", 5.0f, 100.0f, TextOverlay::alignLeft);
+#endif
+	}
+
 };
 
 RUN_EXAMPLE(VulkanExample)

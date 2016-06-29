@@ -266,7 +266,7 @@ void ExampleBase::prepare() {
     }
     cmdPool = getCommandPool();
 
-    swapChain.create(size);
+    swapChain.create(size, enableVsync);
     setupDepthStencil();
     setupRenderPass();
     setupRenderPassBeginInfo();
@@ -658,7 +658,7 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
     size.width = newSize.x;
     size.height = newSize.y;
     camera.setAspectRatio(size);
-    swapChain.create(size);
+    swapChain.create(size, enableVsync);
 
     setupDepthStencil();
     setupFrameBuffer();

@@ -8,7 +8,7 @@
 
 
 
-#include "vulkanOffscreenExampleBase.hpp"
+#include "../offscreen/vulkanOffscreenExampleBase.hpp"
 
 
 // Texture properties
@@ -134,55 +134,6 @@ public:
         // Uniform buffers
         uniformData.offscreen.destroy();
         uniformData.scene.destroy();
-    }
-
-    void prepareOffscreenRenderPass() override {
-        std::vector<vk::AttachmentDescription> attachments;
-        std::vector<vk::AttachmentReference> colorAttachmentReferences;
-        attachments.resize(offscreen.colorFormats.size());
-        colorAttachmentReferences.resize(attachments.size());
-        // Color attachment
-        for (size_t i = 0; i < attachments.size(); ++i) {
-            attachments[i].format = colorformat;
-            attachments[i].loadOp = vk::AttachmentLoadOp::eClear;
-            attachments[i].storeOp = vk::AttachmentStoreOp::eStore;
-            attachments[i].initialLayout = vk::ImageLayout::eColorAttachmentOptimal;
-            attachments[i].finalLayout = offscreen.colorFinalLayout;
-            vk::AttachmentReference& attachmentReference = colorAttachmentReferences[i];
-            attachmentReference.attachment = i;
-            attachmentReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
-        }
-
-        // Depth attachment
-        vk::AttachmentReference depthAttachmentReference;
-        {
-            vk::AttachmentDescription depthAttachment;
-            depthAttachment.format = depthFormat;
-            depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
-            depthAttachment.storeOp = vk::AttachmentStoreOp::eDontCare;
-            depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
-            depthAttachment.finalLayout = offscreen.depthFinalLayout;
-            attachments.push_back(depthAttachment);
-            depthAttachmentReference.attachment = attachments.size() - 1;
-            depthAttachmentReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-        }
-
-        std::vector<vk::SubpassDescription> subpasses;
-        {
-            vk::SubpassDescription subpass;
-            subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-            subpass.pDepthStencilAttachment = &depthAttachmentReference;
-            subpass.colorAttachmentCount = colorAttachmentReferences.size();
-            subpass.pColorAttachments = colorAttachmentReferences.data();
-            subpasses.push_back(subpass);
-        }
-
-        vk::RenderPassCreateInfo renderPassInfo;
-        renderPassInfo.attachmentCount = attachments.size();
-        renderPassInfo.pAttachments = attachments.data();
-        renderPassInfo.subpassCount = subpasses.size();
-        renderPassInfo.pSubpasses = subpasses.data();
-        offscreen.renderPass = device.createRenderPass(renderPassInfo);
     }
 
     void prepareCubeMap() {
