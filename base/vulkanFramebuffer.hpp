@@ -36,7 +36,7 @@ namespace vkx {
         // Prepare a new framebuffer for offscreen rendering
         // The contents of this framebuffer are then
         // blitted to our render target
-        void create(const vkx::Context& context, const glm::uvec2& size, const std::vector<vk::Format>& colorFormats, vk::Format depthFormat, const vk::RenderPass& renderPass, vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eSampled) {
+        void create(const vkx::Context& context, const glm::uvec2& size, const std::vector<vk::Format>& colorFormats, vk::Format depthFormat, const vk::RenderPass& renderPass, vk::ImageUsageFlags colorUsage = vk::ImageUsageFlagBits::eSampled, vk::ImageUsageFlags depthUsage = vk::ImageUsageFlags()) {
             device = context.device;
             destroy();
 
@@ -53,7 +53,7 @@ namespace vkx {
             image.samples = vk::SampleCountFlagBits::e1;
             image.tiling = vk::ImageTiling::eOptimal;
             // vk::Image of the framebuffer is blit source
-            image.usage = vk::ImageUsageFlagBits::eColorAttachment | usage;
+            image.usage = vk::ImageUsageFlagBits::eColorAttachment | colorUsage;
 
             vk::ImageViewCreateInfo colorImageView;
             colorImageView.viewType = vk::ImageViewType::e2D;
@@ -74,13 +74,13 @@ namespace vkx {
             // Depth stencil attachment
             if (useDepth) {
                 image.format = depthFormat;
-                image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+                image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | depthUsage;
                 depth = context.createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
                 vk::ImageViewCreateInfo depthStencilView;
                 depthStencilView.viewType = vk::ImageViewType::e2D;
                 depthStencilView.format = depthFormat;
-                depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
+                depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
                 depthStencilView.subresourceRange.levelCount = 1;
                 depthStencilView.subresourceRange.layerCount = 1;
                 depthStencilView.image = depth.image;

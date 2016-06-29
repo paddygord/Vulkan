@@ -59,6 +59,7 @@ namespace vkx {
     // Selected a suitable supported depth format starting with 32 bit down to 16 bit
     // Returns false if none of the depth formats in the list is supported by the device
     vk::Format getSupportedDepthFormat(vk::PhysicalDevice physicalDevice);
+    vk::AccessFlags accessFlagsForLayout(vk::ImageLayout layout);
 
     // Put an image memory barrier for setting an image layout on the sub resource into the given command buffer
     void setImageLayout(

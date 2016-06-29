@@ -7,7 +7,7 @@ namespace vkx {
     class OffscreenExampleBase : public vkx::ExampleBase {
     protected:
         OffscreenExampleBase(bool enableValidation) : vkx::ExampleBase(enableValidation), offscreen(*this) {}
-        ~OffscreenExampleBase()  {
+        ~OffscreenExampleBase() {
             offscreen.destroy();
         }
 
@@ -17,6 +17,7 @@ namespace vkx {
             vk::RenderPass renderPass;
             vk::CommandBuffer cmdBuffer;
             vk::Semaphore renderComplete;
+
             glm::uvec2 size;
             std::vector<vk::Format> colorFormats{ { vk::Format::eB8G8R8A8Unorm } };
             // This value is chosen as an invalid default that signals that the code should pick a specific depth buffer
@@ -24,6 +25,7 @@ namespace vkx {
             vk::Format depthFormat = vk::Format::eR8Uscaled;
             std::vector<vkx::Framebuffer> framebuffers{ 1 };
             vk::ImageUsageFlags attachmentUsage{ vk::ImageUsageFlagBits::eSampled };
+            vk::ImageUsageFlags depthAttachmentUsage;
             vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eShaderReadOnlyOptimal };
             vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eUndefined };
 
@@ -39,10 +41,12 @@ namespace vkx {
 
                 cmdBuffer = context.device.allocateCommandBuffers(vkx::commandBufferAllocateInfo(context.getCommandPool(), vk::CommandBufferLevel::ePrimary, 1))[0];
                 renderComplete = context.device.createSemaphore(vk::SemaphoreCreateInfo());
-                prepareRenderPass();
+                if (!renderPass) {
+                    prepareRenderPass();
+                }
 
                 for (auto& framebuffer : framebuffers) {
-                    framebuffer.create(context, size, colorFormats, depthFormat, renderPass, attachmentUsage);
+                    framebuffer.create(context, size, colorFormats, depthFormat, renderPass, attachmentUsage, depthAttachmentUsage);
                 }
                 prepareSampler();
             }
@@ -74,12 +78,21 @@ namespace vkx {
                 sampler.maxLod = 0.0f;
                 sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
                 for (auto& framebuffer : framebuffers) {
-                    for (auto& color : framebuffer.colors) {
-                        color.sampler = context.device.createSampler(sampler);
+                    if (attachmentUsage | vk::ImageUsageFlagBits::eSampled) {
+                        for (auto& color : framebuffer.colors) {
+                            color.sampler = context.device.createSampler(sampler);
+                        }
+                    }
+                    if (depthAttachmentUsage | vk::ImageUsageFlagBits::eSampled) {
+                        framebuffer.depth.sampler = context.device.createSampler(sampler);
                     }
                 }
             }
+
             virtual void prepareRenderPass() {
+                vk::SubpassDescription subpass;
+                subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+
                 std::vector<vk::AttachmentDescription> attachments;
                 std::vector<vk::AttachmentReference> colorAttachmentReferences;
                 attachments.resize(colorFormats.size());
@@ -88,59 +101,61 @@ namespace vkx {
                 for (size_t i = 0; i < attachments.size(); ++i) {
                     attachments[i].format = colorFormats[i];
                     attachments[i].loadOp = vk::AttachmentLoadOp::eClear;
-                    attachments[i].storeOp = vk::AttachmentStoreOp::eStore;
+                    attachments[i].storeOp = colorFinalLayout == vk::ImageLayout::eUndefined ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
                     attachments[i].initialLayout = vk::ImageLayout::eUndefined;
                     attachments[i].finalLayout = colorFinalLayout;
+
                     vk::AttachmentReference& attachmentReference = colorAttachmentReferences[i];
                     attachmentReference.attachment = i;
                     attachmentReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
+
+                    subpass.colorAttachmentCount = colorAttachmentReferences.size();
+                    subpass.pColorAttachments = colorAttachmentReferences.data();
                 }
 
-                // Depth attachment
+                // Do we have a depth format?
                 vk::AttachmentReference depthAttachmentReference;
-                {
+                if (depthFormat != vk::Format::eUndefined) {
                     vk::AttachmentDescription depthAttachment;
                     depthAttachment.format = depthFormat;
                     depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
-                    depthAttachment.storeOp = vk::AttachmentStoreOp::eDontCare;
+                    // We might be using the depth attacment for something, so preserve it if it's final layout is not undefined
+                    depthAttachment.storeOp = depthFinalLayout == vk::ImageLayout::eUndefined ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
                     depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
                     depthAttachment.finalLayout = depthFinalLayout;
                     attachments.push_back(depthAttachment);
                     depthAttachmentReference.attachment = attachments.size() - 1;
                     depthAttachmentReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-                }
-
-                std::vector<vk::SubpassDescription> subpasses;
-                {
-                    vk::SubpassDescription subpass;
-                    subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
                     subpass.pDepthStencilAttachment = &depthAttachmentReference;
-                    subpass.colorAttachmentCount = colorAttachmentReferences.size();
-                    subpass.pColorAttachments = colorAttachmentReferences.data();
-                    subpasses.push_back(subpass);
                 }
-
 
                 std::vector<vk::SubpassDependency> subpassDependencies;
                 {
-                    vk::SubpassDependency dependency;
-                    dependency.srcSubpass = 0;
-                    dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-                    dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+                    if ((colorFinalLayout != vk::ImageLayout::eColorAttachmentOptimal) && (colorFinalLayout != vk::ImageLayout::eUndefined)) {
+                        // Implicit transition 
+                        vk::SubpassDependency dependency;
+                        dependency.srcSubpass = 0;
+                        dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+                        dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 
-                    dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-                    switch (colorFinalLayout) {
-                    case vk::ImageLayout::eShaderReadOnlyOptimal:
-                        dependency.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-                        break;
-                    case vk::ImageLayout::eTransferSrcOptimal:
-                        dependency.dstAccessMask = vk::AccessFlagBits::eTransferRead;
-                        break;
-                    default:
-                        throw std::runtime_error("Unhandled color final layout");
+                        dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+                        dependency.dstAccessMask = vkx::accessFlagsForLayout(colorFinalLayout);
+                        dependency.dstStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+                        subpassDependencies.push_back(dependency);
                     }
-                    dependency.dstStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
-                    subpassDependencies.push_back(dependency);
+
+                    if ((depthFinalLayout != vk::ImageLayout::eColorAttachmentOptimal) && (depthFinalLayout != vk::ImageLayout::eUndefined)) {
+                        // Implicit transition 
+                        vk::SubpassDependency dependency;
+                        dependency.srcSubpass = 0;
+                        dependency.srcAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+                        dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+
+                        dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+                        dependency.dstAccessMask = vkx::accessFlagsForLayout(depthFinalLayout);
+                        dependency.dstStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+                        subpassDependencies.push_back(dependency);
+                    }
                 }
 
                 if (renderPass) {
@@ -150,8 +165,8 @@ namespace vkx {
                 vk::RenderPassCreateInfo renderPassInfo;
                 renderPassInfo.attachmentCount = attachments.size();
                 renderPassInfo.pAttachments = attachments.data();
-                renderPassInfo.subpassCount = subpasses.size();
-                renderPassInfo.pSubpasses = subpasses.data();
+                renderPassInfo.subpassCount = 1;
+                renderPassInfo.pSubpasses = &subpass;
                 renderPassInfo.dependencyCount = subpassDependencies.size();
                 renderPassInfo.pDependencies = subpassDependencies.data();
                 renderPass = context.device.createRenderPass(renderPassInfo);

@@ -566,7 +566,7 @@ public:
 
         // Skybox
         ubos.skyBox.projection = camera.matrices.perspective;
-        ubos.skyBox.model = glm::mat4_cast(camera.orientation);
+        ubos.skyBox.model = camera.matrices.skyboxView;
         uniformData.vsSkyBox.copy(ubos.skyBox);
     }
 

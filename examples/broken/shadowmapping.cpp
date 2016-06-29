@@ -34,6 +34,7 @@ std::vector<vkx::VertexLayout> vertexLayout =
 };
 
 class VulkanExample : public vkx::OffscreenExampleBase {
+    using Parent = OffscreenExampleBase;
 public:
     bool displayShadowMap = false;
     bool lightPOV = false;
@@ -133,105 +134,31 @@ public:
         uniformDataOffscreenVS.destroy();
     }
 
-        virtual void prepareOffscreenRenderPass() {
-            std::vector<vk::AttachmentDescription> attachments;
-            std::vector<vk::AttachmentReference> colorAttachmentReferences;
-            attachments.resize(offscreen.colorFormats.size());
-            colorAttachmentReferences.resize(attachments.size());
-            // Color attachment
-            for (size_t i = 0; i < attachments.size(); ++i) {
-                attachments[i].format = colorformat;
-                attachments[i].loadOp = vk::AttachmentLoadOp::eClear;
-                attachments[i].storeOp = vk::AttachmentStoreOp::eStore;
-                attachments[i].initialLayout = vk::ImageLayout::eUndefined;
-                attachments[i].finalLayout = offscreen.colorFinalLayout;
-                vk::AttachmentReference& attachmentReference = colorAttachmentReferences[i];
-                attachmentReference.attachment = i;
-                attachmentReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
-            }
-
-            // Depth attachment
-            vk::AttachmentReference depthAttachmentReference;
-            {
-                vk::AttachmentDescription depthAttachment;
-                depthAttachment.format = depthFormat;
-                depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
-                depthAttachment.storeOp = vk::AttachmentStoreOp::eDontCare;
-                depthAttachment.initialLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-                depthAttachment.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-                attachments.push_back(depthAttachment);
-                depthAttachmentReference.attachment = attachments.size() - 1;
-                depthAttachmentReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-            }
-
-            std::vector<vk::SubpassDescription> subpasses;
-            {
-                vk::SubpassDescription subpass;
-                subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-                subpass.pDepthStencilAttachment = &depthAttachmentReference;
-                subpass.colorAttachmentCount = colorAttachmentReferences.size();
-                subpass.pColorAttachments = colorAttachmentReferences.data();
-                subpasses.push_back(subpass);
-            }
-
-
-            std::vector<vk::SubpassDependency> subpassDependencies;
-            {
-                vk::SubpassDependency dependency;
-                dependency.srcSubpass = 0;
-                dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-                dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-
-                dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-                switch (offscreen.colorFinalLayout) {
-                case vk::ImageLayout::eShaderReadOnlyOptimal:
-                    dependency.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-                    break;
-                case vk::ImageLayout::eTransferSrcOptimal:
-                    dependency.dstAccessMask = vk::AccessFlagBits::eTransferRead;
-                    break;
-                default:
-                    throw std::runtime_error("Unhandled color final layout");
-                }
-                dependency.dstStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
-                subpassDependencies.push_back(dependency);
-            }
-
-            if (offscreen.renderPass) {
-                device.destroyRenderPass(offscreen.renderPass);
-            }
-
-            vk::RenderPassCreateInfo renderPassInfo;
-            renderPassInfo.attachmentCount = attachments.size();
-            renderPassInfo.pAttachments = attachments.data();
-            renderPassInfo.subpassCount = subpasses.size();
-            renderPassInfo.pSubpasses = subpasses.data();
-            renderPassInfo.dependencyCount = subpassDependencies.size();
-            renderPassInfo.pDependencies = subpassDependencies.data();
-            offscreen.renderPass = device.createRenderPass(renderPassInfo);
-        }
-
-
     void buildOffscreenCommandBuffer() {
         // Create separate command buffer for offscreen 
         // rendering
-        if (!offscreen.cmdBuffer) {
-            vk::CommandBufferAllocateInfo cmd = vkx::commandBufferAllocateInfo(cmdPool, vk::CommandBufferLevel::ePrimary, 1);
-            offscreen.cmdBuffer = device.allocateCommandBuffers(cmd)[0];
+        if (offscreen.cmdBuffer) {
+            trashCommandBuffer(offscreen.cmdBuffer);
         }
+        vk::CommandBufferAllocateInfo cmd = vkx::commandBufferAllocateInfo(cmdPool, vk::CommandBufferLevel::ePrimary, 1);
+        offscreen.cmdBuffer = device.allocateCommandBuffers(cmd)[0];
 
-        //// Make sure color writes to the framebuffer are finished before using it as transfer source
+        vk::CommandBufferBeginInfo cmdBufInfo;
+        cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
+        offscreen.cmdBuffer.begin(cmdBufInfo);
+
+        // Make sure color writes to the framebuffer are finished before using it as transfer source
         //vkx::setImageLayout(
         //    offscreen.cmdBuffer,
-        //    offscreen.framebuffer.depth.image,
-        //    vk::ImageAspectFlagBits::eDepth,
-        //    vk::ImageLayout::eDepthStencilAttachmentOptimal,
-        //    vk::ImageLayout::eShaderReadOnlyOptimal);
+        //    offscreen.framebuffers[0].depth.image,
+        //    vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
+        //    vk::ImageLayout::eUndefined,
+        //    vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
         //// Transform framebuffer color attachment back 
         //vkx::setImageLayout(
         //    offscreen.cmdBuffer,
-        //    offscreen.framebuffer.depth.image,
+        //    offscreen.framebuffers[0].depth.image,
         //    vk::ImageAspectFlagBits::eDepth,
         //    vk::ImageLayout::eTransferSrcOptimal,
         //    vk::ImageLayout::eDepthStencilAttachmentOptimal);
@@ -248,9 +175,6 @@ public:
         renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
 
-        vk::CommandBufferBeginInfo cmdBufInfo;
-        cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
-        offscreen.cmdBuffer.begin(cmdBufInfo);
         offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.size));
         offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.size));
 
@@ -264,6 +188,13 @@ public:
         offscreen.cmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
         offscreen.cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
         offscreen.cmdBuffer.endRenderPass();
+        //// Make sure color writes to the framebuffer are finished before using it as transfer source
+        //vkx::setImageLayout(
+        //    offscreen.cmdBuffer,
+        //    offscreen.framebuffers[0].depth.image,
+        //    vk::ImageAspectFlagBits::eDepth,
+        //    vk::ImageLayout::eDepthStencilAttachmentOptimal,
+        //    vk::ImageLayout::eShaderReadOnlyOptimal);
         offscreen.cmdBuffer.end();
     }
 
@@ -399,7 +330,7 @@ public:
 
         // vk::Image descriptor for the shadow map texture
         vk::DescriptorImageInfo texDescriptor =
-            vkx::descriptorImageInfo(offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view, vk::ImageLayout::eGeneral);
+            vkx::descriptorImageInfo(offscreen.framebuffers[0].depth.sampler, offscreen.framebuffers[0].depth.view, vk::ImageLayout::eGeneral);
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
         {
@@ -437,8 +368,8 @@ public:
         descriptorSets.scene = device.allocateDescriptorSets(allocInfo)[0];
 
         // vk::Image descriptor for the shadow map texture
-        texDescriptor.sampler = offscreen.framebuffers[0].colors[0].sampler;
-        texDescriptor.imageView = offscreen.framebuffers[0].colors[0].view;
+        texDescriptor.sampler = offscreen.framebuffers[0].depth.sampler;
+        texDescriptor.imageView = offscreen.framebuffers[0].depth.view;
 
         std::vector<vk::WriteDescriptorSet> sceneDescriptorSets =
         {
@@ -539,15 +470,10 @@ public:
     void prepareUniformBuffers() {
         // Debug quad vertex shader uniform buffer block
         uniformDataVS = createUniformBuffer(uboVSscene);
-        uniformDataVS.map();
-
         // Offsvreen vertex shader uniform buffer block
         uniformDataOffscreenVS = createUniformBuffer(uboOffscreenVS);
-        uniformDataOffscreenVS.map();
-
         // Scene vertex shader uniform buffer block
         uniformData.scene = createUniformBuffer(uboVSscene);
-        uniformData.scene.map();
 
         updateLight();
         updateUniformBufferOffscreen();
@@ -598,6 +524,10 @@ public:
 
     void prepare() {
         offscreen.size = glm::uvec2(TEX_DIM);
+        offscreen.depthFinalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        offscreen.colorFinalLayout = vk::ImageLayout::eColorAttachmentOptimal;
+        offscreen.attachmentUsage = vk::ImageUsageFlags();
+        offscreen.depthAttachmentUsage = vk::ImageUsageFlagBits::eSampled;
         OffscreenExampleBase::prepare();
         generateQuad();
         loadMeshes();
@@ -612,10 +542,10 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
-        if (!prepared)
-            return;
-        draw();
+    void update(float deltaTime) override {
+        queue.waitIdle();
+        device.waitIdle();
+        Parent::update(deltaTime);
         if (!paused) {
             updateLight();
             updateUniformBufferOffscreen();

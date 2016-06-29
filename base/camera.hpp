@@ -15,14 +15,17 @@ private:
     float aspect{ 1.0f };
 
     void updateViewMatrix() {
-        glm::mat4 rotM = glm::mat4_cast(orientation);
-        glm::mat4 transM = glm::translate(glm::mat4(), position);
 
         if (type == CameraType::firstperson) {
+            glm::mat4 rotM = glm::mat4_cast(orientation);
+            glm::mat4 transM = glm::translate(glm::mat4(), position);
             matrices.view = rotM * transM;
         } else {
-            matrices.view = transM * rotM;
+            glm::vec3 cameraPosition = orientation * glm::vec3(position.z);
+            matrices.view = glm::lookAt(cameraPosition, glm::vec3(0), glm::vec3(0, 1, 0));
         }
+        matrices.skyboxView = matrices.view;
+        matrices.skyboxView[3] = glm::vec4(0, 0, 0, 1);
     }
 
 public:
@@ -38,6 +41,7 @@ public:
     struct Matrices {
         glm::mat4 perspective;
         glm::mat4 view;
+        glm::mat4 skyboxView;
     } matrices;
 
     struct Keys {
@@ -137,6 +141,14 @@ public:
     void translate(const glm::vec3& delta) {
         position += delta;
         updateViewMatrix();
+    }
+
+    void keyPressed(uint32_t key, uint32_t mods) {
+
+    }
+
+    void keyReleased(uint32_t key, uint32_t mods) {
+
     }
 
     void update(float deltaTime) {
