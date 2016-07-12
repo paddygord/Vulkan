@@ -9,8 +9,7 @@
 namespace vkx {
     namespace debug {
         // Default validation layers
-        extern int validationLayerCount;
-        extern const char *validationLayerNames[];
+        extern std::vector<const char*> validationLayerNames;
 
         // Default debug callback
         VkBool32 messageCallback(

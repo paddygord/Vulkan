@@ -40,7 +40,7 @@ public:
     }
 
     void prepare() {
-        vulkanRenderer.framebuffer.size = size;
+        vulkanRenderer.framebufferSize = size;
         vulkanRenderer.prepare();
 
         semaphores.renderComplete = device.createSemaphore(vk::SemaphoreCreateInfo());

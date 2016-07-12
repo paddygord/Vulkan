@@ -6,6 +6,7 @@
 #define VERTEX_BUFFER_BIND_ID 0
 #define INSTANCE_BUFFER_BIND_ID 1
 
+
 class OpenGLInteropExample {
 public:
     Camera camera;
@@ -29,7 +30,29 @@ public:
 
     OpenGLInteropExample() : vulkanRenderer{ vulkanContext } {
         glfwInit();
-        vulkanContext.createContext(false);
+
+        auto availableLayers = vkx::Context::getAvailableLayers();
+        std::list<std::string> desiredLayers{ {
+            "LAYER_GOOGLE_threading",
+            "VK_LAYER_LUNARG_parameter_validation",
+            "VK_LAYER_LUNARG_device_limits",
+            "VK_LAYER_LUNARG_object_tracker",
+            "VK_LAYER_LUNARG_image",
+            "VK_LAYER_LUNARG_core_validation",
+            "VK_LAYER_LUNARG_swapchain",
+//            "VK_LAYER_GOOGLE_unique_objects"
+        } };
+
+        vkx::debug::validationLayerNames.clear();
+        for (const auto& layer : desiredLayers) {
+            if (!availableLayers.count(layer)) {
+                std::cout << "Missing layer " << layer;
+            } else {
+                vkx::debug::validationLayerNames.push_back(layer.c_str());
+            }
+        }
+
+        vulkanContext.createContext(true);
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         glfwWindowHint(GLFW_DEPTH_BITS, 16);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -79,7 +102,7 @@ public:
         accumulator += frameTimer;
         if (accumulator < duration) {
             zoom = easings::inOutQuint(accumulator, duration, zoomStart, zoomDelta);
-        } 
+        }
 
         if (accumulator >= interval) {
             accumulator = 0;

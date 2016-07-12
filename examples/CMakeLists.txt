@@ -8,6 +8,7 @@ macro(BUILD_EXAMPLES)
         message("Folder ${_FOLDER_NAME}")
         file(GLOB EXAMPLES ${_FOLDER_NAME}/*.cpp)
         foreach(EXAMPLE ${EXAMPLES})
+            set(COMPILED_SHADERS "")
             get_filename_component(EXAMPLE_NAME ${EXAMPLE} NAME_WE)
             set(TARGET ${EXAMPLE_NAME}) 
             # Find any shaders
@@ -21,12 +22,16 @@ macro(BUILD_EXAMPLES)
                 ${SHADER_DIR}/*.tese
                 ${SHADER_DIR}/*.geom
             )
+
             source_group("Shaders" FILES ${SHADERS})
-            add_executable(${EXAMPLE_NAME} ${EXAMPLE} ${SHADERS})
-            set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "examples/${_FOLDER_NAME}")
             foreach(SHADER ${SHADERS})
                 compile_spirv_shader(${SHADER})
+                list(APPEND COMPILED_SHADERS ${COMPILE_SPIRV_SHADER_RETURN})
             endforeach()
+            source_group("Shaders\\Compiled" FILES ${COMPILED_SHADERS})
+            add_executable(${EXAMPLE_NAME} ${EXAMPLE} ${SHADERS} ${COMPILED_SHADERS})
+            set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "examples/${_FOLDER_NAME}")
+            
             add_dependencies(${EXAMPLE_NAME} base)
             target_link_libraries(${EXAMPLE_NAME} ${EXAMPLE_LIBS})
             if (NOT WIN32)

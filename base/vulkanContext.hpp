@@ -8,6 +8,7 @@
 namespace vkx {
     class Context {
     public:
+        static std::list<std::string> requestedLayers;
         // Set to true when example is created with enabled validation layers
         bool enableValidation = false;
         // Set to true when the debug marker extension is detected
@@ -15,6 +16,15 @@ namespace vkx {
         // fps timer (one second interval)
         float fpsTimer = 0.0f;
         // Create application wide Vulkan instance
+
+        static std::set<std::string> getAvailableLayers() {
+            std::set<std::string> result;
+            auto layers = vk::enumerateInstanceLayerProperties();
+            for (auto layer : layers) {
+                result.insert(layer.layerName);
+            }
+            return result;
+        }
 
         void createContext(bool enableValidation = false) {
 
@@ -35,7 +45,6 @@ namespace vkx {
 #elif defined(__linux__)
                 enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
 #endif
-
                 vk::InstanceCreateInfo instanceCreateInfo;
                 instanceCreateInfo.pApplicationInfo = &appInfo;
                 if (enabledExtensions.size() > 0) {
@@ -46,8 +55,8 @@ namespace vkx {
                     instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
                 }
                 if (enableValidation) {
-                    instanceCreateInfo.enabledLayerCount = debug::validationLayerCount;
-                    instanceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames;
+                    instanceCreateInfo.enabledLayerCount = (uint32_t)debug::validationLayerNames.size();
+                    instanceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames.data();
                 }
                 instance = vk::createInstance(instanceCreateInfo);
             }
@@ -100,8 +109,8 @@ namespace vkx {
                     deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
                 }
                 if (enableValidation) {
-                    deviceCreateInfo.enabledLayerCount = debug::validationLayerCount;
-                    deviceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames;
+                    deviceCreateInfo.enabledLayerCount = (uint32_t)debug::validationLayerNames.size();
+                    deviceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames.data();
                 }
                 device = physicalDevice.createDevice(deviceCreateInfo);
             }

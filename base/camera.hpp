@@ -21,7 +21,7 @@ private:
             glm::mat4 transM = glm::translate(glm::mat4(), position);
             matrices.view = rotM * transM;
         } else {
-            glm::vec3 cameraPosition = orientation * glm::vec3(position.z);
+            glm::vec3 cameraPosition = orientation * glm::vec3(0, 0, position.z);
             matrices.view = glm::lookAt(cameraPosition, glm::vec3(0), glm::vec3(0, 1, 0));
         }
         matrices.skyboxView = matrices.view;
