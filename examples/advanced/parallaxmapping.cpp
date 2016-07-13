@@ -300,8 +300,8 @@ public:
         // Parallax mapping pipeline
         // Load shaders
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/parallax/parallax.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/parallax/parallax.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = loadShader(getAssetPath() + "shaders/parallaxmapping/parallax.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = loadShader(getAssetPath() + "shaders/parallaxmapping/parallax.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayout, renderPass);
@@ -321,8 +321,8 @@ public:
 
 
         // Normal mapping (no parallax effect)
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/parallax/normalmap.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/parallax/normalmap.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = loadShader(getAssetPath() + "shaders/parallaxmapping/normalmap.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = loadShader(getAssetPath() + "shaders/parallaxmapping/normalmap.frag.spv", vk::ShaderStageFlagBits::eFragment);
         pipelines.normalMapping = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
 
     }

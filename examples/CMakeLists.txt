@@ -21,6 +21,8 @@ macro(BUILD_EXAMPLES)
                 ${SHADER_DIR}/*.tesc 
                 ${SHADER_DIR}/*.tese
                 ${SHADER_DIR}/*.geom
+                ${CMAKE_CURRENT_SOURCE_DIR}/../data/shaders/base/*.vert
+                ${CMAKE_CURRENT_SOURCE_DIR}/../data/shaders/base/*.frag
             )
 
             source_group("Shaders" FILES ${SHADERS})
