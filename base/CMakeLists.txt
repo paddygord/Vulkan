@@ -1,3 +1,3 @@
-file(GLOB COMMON_SOURCE *.cpp *.h *.hpp)
+file(GLOB COMMON_SOURCE *.cpp *.h *.hpp gltf/*.hpp)
 add_library(base ${COMMON_SOURCE})
 set_target_properties(base PROPERTIES FOLDER "common")

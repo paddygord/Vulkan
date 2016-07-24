@@ -440,6 +440,9 @@ public:
     }
 
     void copyComputeResults() {
+        // FIXME I should be using a signal semaphore here to ensure that the rendering commands 
+        // block until the transfer is complete... unless the pipeline barriers are sufficient for 
+        // that
         vk::SubmitInfo submitInfo;
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &transferCmdBuffer;
