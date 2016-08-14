@@ -215,9 +215,8 @@ public:
     }
 
     void updateUniformBuffers() {
-        glm::mat4 perspective = glm::perspective(glm::radians(60.0f), (float)size.width / (float)size.height, 0.001f, 256.0f);
         for (auto& gear : gears) {
-            gear->updateUniformBuffer(perspective, camera.orientation, camera.position.z, timer * 360.0f);
+            gear->updateUniformBuffer(camera.matrices.perspective, camera.matrices.view, timer * 360.0f);
         }
     }
 

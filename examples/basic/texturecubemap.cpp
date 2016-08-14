@@ -296,11 +296,11 @@ public:
         uboVS.projection = camera.matrices.perspective;
 
         // Skysphere, rotation only
-        uboVS.model = glm::mat4_cast(camera.orientation);
+        uboVS.model = camera.matrices.skyboxView;
         uniformData.skyboxVS.copy(uboVS);
 
         // 3D object, translation combined with the rotation
-        uboVS.model = glm::translate(glm::mat4(), camera.position) * glm::mat4_cast(camera.orientation);
+        uboVS.model = camera.matrices.view;
         uniformData.objectVS.copy(uboVS);
     }
 

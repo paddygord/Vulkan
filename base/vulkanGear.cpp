@@ -182,9 +182,9 @@ void VulkanGear::draw(vk::CommandBuffer cmdbuffer, vk::PipelineLayout pipelineLa
     cmdbuffer.drawIndexed(meshInfo.indexCount, 1, 0, 0, 1);
 }
 
-void VulkanGear::updateUniformBuffer(const glm::mat4& perspective, const glm::quat& orientation, float zoom, float timer) {
+void VulkanGear::updateUniformBuffer(const glm::mat4& perspective, const glm::mat4& view, float timer) {
     ubo.projection = perspective;
-    ubo.view = glm::lookAt(glm::vec3(0, 0, -zoom), glm::vec3(-1.0, -1.5, 0), glm::vec3(0, 1, 0)) * glm::mat4_cast(orientation);
+    ubo.view = view;  // glm::lookAt(glm::vec3(0, 0, -zoom), glm::vec3(-1.0, -1.5, 0), glm::vec3(0, 1, 0)) * glm::mat4_cast(orientation);
     ubo.model = glm::translate(glm::mat4(), pos) * glm::mat4_cast(glm::angleAxis(glm::radians((rotSpeed * timer) + rotOffset), glm::vec3(0, 0, 1)));
     ubo.normal = glm::inverseTranspose(ubo.view * ubo.model);
 

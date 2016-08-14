@@ -294,11 +294,11 @@ namespace vkx {
             bool updateView = false;
             // Rotate
             if (std::abs(gamePadState.axes.x) > deadZone) {
-                camera.preRotate(glm::angleAxis(gamePadState.axes.x * 0.5f * rotationSpeed, glm::vec3(0, 1, 0)));
+                camera.yawPitch.x += gamePadState.axes.x * 0.5f * rotationSpeed;
                 updateView = true;
             }
             if (std::abs(gamePadState.axes.y) > deadZone) {
-                camera.preRotate(glm::angleAxis(gamePadState.axes.y * 0.5f * rotationSpeed, glm::vec3(1, 0, 0)));
+                camera.yawPitch.x += gamePadState.axes.y * 0.5f * rotationSpeed;
                 updateView = true;
             }
             // Zoom
@@ -554,7 +554,7 @@ namespace vkx {
                 viewChanged();
             }
             if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)) {
-                camera.rotate(deltaPos);
+                camera.rotate(vec2(deltaPos.x, -deltaPos.y) * 0.02f * rotationSpeed);
                 viewChanged();
             }
             if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE)) {

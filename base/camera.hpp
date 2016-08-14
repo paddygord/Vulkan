@@ -10,19 +10,31 @@
 
 class Camera {
 private:
+    const float MAX_PITCH{ (float)M_PI_2 * 0.95f };
     float fov{ 60.0f };
     float znear{ 0.11f }, zfar{ 512.0f };
     float aspect{ 1.0f };
 
     void updateViewMatrix() {
+        // Constrain pitch to ~-PI/2 to ~PI/2
+        if (abs(yawPitch.y) > MAX_PITCH) {
+            yawPitch.y = std::max(std::min(yawPitch.y, MAX_PITCH), -MAX_PITCH);
+        }
+        while (abs(yawPitch.x) > M_PI) {
+            yawPitch.x += 2.0f * (float)((yawPitch.x > 0) ? -M_PI : M_PI);
+        }
 
         if (type == CameraType::firstperson) {
+            const_cast<glm::quat&>(orientation) = glm::angleAxis(yawPitch.y, Vectors::RIGHT) * glm::angleAxis(yawPitch.x, Vectors::UP);
             glm::mat4 rotM = glm::mat4_cast(orientation);
             glm::mat4 transM = glm::translate(glm::mat4(), position);
             matrices.view = rotM * transM;
         } else {
-            glm::vec3 cameraPosition = orientation * glm::vec3(0, 0, position.z);
-            matrices.view = glm::lookAt(cameraPosition, glm::vec3(0), glm::vec3(0, 1, 0));
+            const_cast<glm::quat&>(orientation) = glm::angleAxis(yawPitch.x, Vectors::UP) * glm::angleAxis(yawPitch.y, Vectors::RIGHT);
+            // rotate into the camera xy plane
+            glm::vec3 origin = orientation * glm::vec3(position.x, position.y, 0.0f);
+            glm::vec3 cameraPosition = orientation * glm::vec3(0, 0, -position.z);
+            matrices.view = glm::lookAt(cameraPosition + origin, origin, glm::vec3(0, 1, 0));
         }
         matrices.skyboxView = matrices.view;
         matrices.skyboxView[3] = glm::vec4(0, 0, 0, 1);
@@ -32,7 +44,8 @@ public:
     enum CameraType { lookat, firstperson };
     CameraType type{ CameraType::lookat };
 
-    glm::quat orientation;
+    const glm::quat orientation;
+    glm::vec2 yawPitch;
     glm::vec3 position;
 
     float rotationSpeed{ 1.0f };
@@ -93,32 +106,13 @@ public:
         matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
     };
 
-    void setRotation(const glm::quat& q) {
-        orientation = q;
-        updateViewMatrix();
-    }
-
     void setRotation(const glm::vec3& rotation) {
-        setRotation(glm::quat(glm::radians(rotation)));
+        yawPitch = glm::radians(glm::vec2(-rotation.y, -rotation.x));
+        updateViewMatrix();
     };
 
-    void rotate(const glm::vec2& delta) {
-        glm::vec3 rotationAxis = glm::normalize(glm::vec3(delta.y, -delta.x, 0));
-        float length = glm::length(delta) * 0.01f;
-        setRotation(glm::angleAxis(length, rotationAxis) * orientation);
-    }
-
-    void rotate(const glm::vec3& delta) {
-        rotate(glm::quat(glm::radians(delta)));
-    }
-
-    void preRotate(const glm::quat& q) {
-        orientation = q * orientation;
-        updateViewMatrix();
-    }
-
-    void rotate(const glm::quat& q) {
-        orientation *= q;
+    void setTranslation(const glm::vec3& translation) {
+        position = vec3(-translation.x, - translation.y, translation.z);
         updateViewMatrix();
     }
 
@@ -126,9 +120,13 @@ public:
         setTranslation({ 0, 0, f });
     }
 
-    void setTranslation(const glm::vec3& translation) {
-        position = translation;
+    void rotate(const glm::vec2& delta) {
+        yawPitch += delta;
         updateViewMatrix();
+    }
+
+    void rotate(const glm::vec3& delta) {
+        yawPitch += glm::radians(glm::vec2(delta));
     }
 
     // Translate in the Z axis of the camera
@@ -142,16 +140,18 @@ public:
     }
 
     void translate(const glm::vec3& delta) {
-        position += delta;
+        if (type == CameraType::firstperson) {
+            position += glm::inverse(orientation) * delta;
+        } else {
+            position += delta;
+        }
         updateViewMatrix();
     }
 
     void keyPressed(uint32_t key, uint32_t mods) {
-
     }
 
     void keyReleased(uint32_t key, uint32_t mods) {
-
     }
 
     void update(float deltaTime) {
@@ -205,13 +205,13 @@ public:
             // Rotate
             if (fabsf(axisRight.x) > deadZone) {
                 float pos = (fabsf(axisRight.x) - deadZone) / range;
-                orientation *= glm::angleAxis(glm::radians(pos * ((axisRight.x < 0.0f) ? -1.0f : 1.0f) * rotSpeed), glm::vec3(0, 1, 0));
+                yawPitch.x += glm::radians(pos * ((axisRight.x < 0.0f) ? -1.0f : 1.0f) * rotSpeed);
                 retVal = true;
             }
 
             if (fabsf(axisRight.y) > deadZone) {
                 float pos = (fabsf(axisRight.y) - deadZone) / range;
-                orientation *= glm::angleAxis(glm::radians(pos * ((axisRight.x < 0.0f) ? -1.0f : 1.0f) * rotSpeed), glm::vec3(1, 0, 0));
+                yawPitch.y *= glm::radians(pos * ((axisRight.x < 0.0f) ? -1.0f : 1.0f) * rotSpeed);
                 retVal = true;
             }
         } else {

@@ -420,7 +420,7 @@ public:
         enableTextOverlay = true;
         camera.type = Camera::CameraType::firstperson;
         camera.movementSpeed = 7.5f;
-        camera.position = { 15.0f, -13.5f, 0.0f };
+        camera.setTranslation({ -15.0f, 13.5f, 0.0f });
         camera.setRotation(glm::vec3(5.0f, 90.0f, 0.0f));
         camera.setPerspective(60.0f, size, 0.1f, 256.0f);
         title = "Vulkan Example - Scene rendering";

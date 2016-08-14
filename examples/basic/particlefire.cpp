@@ -541,7 +541,7 @@ public:
         // Vertex shader
         glm::mat4 viewMatrix = glm::mat4();
         uboVS.projection = camera.matrices.perspective;
-        uboVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 15.0f, 0.0f) + camera.position) * glm::mat4_cast(camera.orientation);
+        uboVS.model = camera.matrices.view;
         uboVS.viewportDim = glm::vec2(size.width, size.height);
         uniformData.fire.copy(uboVS);
 

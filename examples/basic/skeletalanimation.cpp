@@ -341,7 +341,7 @@ public:
         camera.setZoom(-150.0f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
-        camera.setRotation({ -182.5f, -38.5f, 180.0f });
+        camera.setRotation({ -25.5f, 128.5f, 180.0f });
         title = "Vulkan Example - Skeletal animation";
     }
 
@@ -650,15 +650,10 @@ public:
 
     void updateUniformBuffers(bool viewChanged) {
         if (viewChanged) {
-            uboVS.projection = getProjection();
-            uboVS.model = glm::scale(glm::rotate(camera.matrices.view, glm::radians(90.0f), glm::vec3(1, 0, 0)), glm::vec3(0.025f));
-            uboVS.viewPos = glm::vec4(0.0f, 0.0f, -camera.position.z, 0.0f);
-
-            uboFloor.projection = uboVS.projection;
-            //uboFloor.model = viewMatrix * glm::mat4_cast(camera.orientation);
-            uboFloor.model = glm::translate(glm::mat4(), glm::vec3(camera.position.x, -camera.position.z, camera.position.y));
-            //uboFloor.model = glm::translate(uboFloor.model, glm::vec3(0.0f, 0.0f, -1800.0f));
-            uboFloor.viewPos = glm::vec4(0.0f, 0.0f, -camera.position.z, 0.0f);
+            uboFloor.projection = uboVS.projection = getProjection();
+            uboFloor.model = uboVS.model = glm::scale(glm::rotate(camera.matrices.view, glm::radians(90.0f), glm::vec3(1, 0, 0)), glm::vec3(0.025f));
+            uboFloor.viewPos = uboVS.viewPos = glm::vec4(0.0f, 0.0f, -camera.position.z, 0.0f);
+            uboFloor.model = glm::translate(uboFloor.model, glm::vec3(0.0f, 0.0f, -1800.0f));
         }
 
         // Update bones

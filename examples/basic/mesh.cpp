@@ -65,7 +65,7 @@ public:
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ -0.5f, -112.75f, 0.0f });
-        camera.setTranslation({ 0.1f, 1.1f, -5.5f });
+        camera.setTranslation({ -0.1f, 1.1f, -5.5f });
         title = "Vulkan Example - Mesh rendering";
     }
 

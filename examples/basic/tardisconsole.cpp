@@ -48,14 +48,13 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    glm::vec4 lightPos = glm::vec4(1.0f, 2.0f, 0.0f, 0.0f);
+    glm::vec4 lightPos = glm::vec4(0.0f, -3.5f, 0.0f, 0.0f);
 
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         size.width = 1280;
         size.height = 720;
-        camera.type = Camera::lookat;
-        //camera.matrices.view = glm::inverse(glm::lookAt(glm::vec3(0, -3, 0), glm::vec3(0), glm::vec3(0, 0, 1)));
-        camera.setZoom(-3.75f);
+        camera.setTranslation({ 0.0, -0.5f, -2.75f });
+        camera.setRotation({ 0.0f, 30.0f, 0.0f });
         rotationSpeed = 0.5f;
         title = "Tardis Console - by Bradley Austin Davis";
     }
@@ -92,7 +91,7 @@ public:
         if (!loader.load(assetPath)) {
             throw std::runtime_error("Failed to load model");
         }
-        mesh = loader.createBuffers(*this, vertexLayout, 0.001f);
+        mesh = loader.createBuffers(*this, vertexLayout, 0.01f);
 
         // Binding description
         bindingDescriptions.resize(1);
@@ -238,8 +237,8 @@ public:
     void updateUniformBuffers() {
         uboVS.projection = getProjection();
 
-        uboVS.view = glm::translate(glm::mat4(), glm::vec3(0, 0, camera.position.z));
-        uboVS.model = glm::mat4_cast(camera.orientation);
+        uboVS.view = camera.matrices.view;
+        //uboVS.model = glm::scale(glm::mat4(), vec3(10.0));
         uboVS.normal = glm::inverseTranspose(uboVS.view * uboVS.model);
         uboVS.lightPos = lightPos;
         uniformData.meshVS.copy(uboVS);

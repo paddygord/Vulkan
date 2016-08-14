@@ -261,8 +261,7 @@ public:
 
     void updateUniformBuffers() {
         uboVS.projection = camera.matrices.perspective;
-        uboVS.view = glm::lookAt(-camera.position, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-        uboVS.model = glm::mat4_cast(camera.orientation);
+        uboVS.view = camera.matrices.view; 
         uboVS.normal = glm::inverseTranspose(uboVS.view * uboVS.model);
         uniformData.vertexShader.copy(uboVS);
     }

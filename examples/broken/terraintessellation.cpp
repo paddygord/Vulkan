@@ -96,8 +96,8 @@ public:
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         enableTextOverlay = true;
         title = "Vulkan Example - Dynamic terrain tessellation";
-        camera.type = Camera::CameraType::firstperson;
-        camera.setRotation({ -6.0f, -56.0f, 0.0f });
+        //camera.type = Camera::CameraType::firstperson;
+        camera.setRotation({ 240.0f, 6.0f, 0.0f });
         camera.setTranslation({ -45.0f, 14.0f, -28.5f });
         camera.movementSpeed = 7.5f;
         timerSpeed *= 15.0f;
@@ -262,6 +262,7 @@ public:
 
         meshes.object.vertices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertices);
         meshes.object.indices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indices);
+        meshes.object.indexCount = indices.size();
     }
 
     void setupVertexDescriptions() {

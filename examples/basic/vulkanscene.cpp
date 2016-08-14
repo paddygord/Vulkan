@@ -372,9 +372,8 @@ public:
 
     void updateUniformBuffers() {
         uboVS.projection = getProjection();
-
         uboVS.view = glm::translate(glm::mat4(), glm::vec3(0, 0, camera.position.z));
-        uboVS.model = glm::mat4_cast(camera.orientation);
+        uboVS.model = camera.matrices.skyboxView;
         uboVS.normal = glm::inverseTranspose(uboVS.view * uboVS.model);
         uboVS.lightPos = lightPos;
         uniformData.meshVS.copy(uboVS);

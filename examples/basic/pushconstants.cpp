@@ -283,7 +283,7 @@ public:
     void updateUniformBuffers() {
         // Vertex shader
         uboVS.projection = getProjection();
-        uboVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 2.0f, camera.position.z)) * glm::mat4_cast(camera.orientation);
+        uboVS.model = camera.matrices.view;
         uniformData.vertexShader.copy(uboVS);
     }
 

@@ -101,8 +101,7 @@ public:
 		enableTextOverlay = true;
         camera.type = Camera::lookat;
         camera.setZoom(-10.0f);
-        camera.setRotation(glm::quat(-0.240986764f, 0.0903019980f, -0.950695813f, 0.173048794f));
-        //camera.orientation = glm::quat(vec3(0, 0, -1), vec3(0.2f, 0.5f, -1.0f));
+        camera.setRotation({ -15.0f, -390.0f, 0.0f });
         title = "Vulkan Example - Projected shadow mapping";
         timerSpeed *= 0.5f;
     }

@@ -61,8 +61,8 @@ public:
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         camera.setZoom(-7.5f);
         zoomSpeed = 2.5f;
-        //camera.setRotation({ 0.0f, -90.0f, 0.0f });
-        //camera.setTranslation({ 2.5f, 2.5f, -7.5 });
+        camera.setRotation({ 0.0f, -90.0f, 0.0f });
+        camera.setTranslation({ 2.5f, 2.5f, -7.5 });
         title = "Vulkan Example - Multisampling";
     }
 
