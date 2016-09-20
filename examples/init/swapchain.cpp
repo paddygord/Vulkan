@@ -463,7 +463,7 @@ public:
             commandBuffers = device.allocateCommandBuffers(commandBufferAllocateInfo);
         }
 
-        static const std::vector<VK_CLEAR_COLOR_TYPE> CLEAR_COLORS{
+        static const std::vector<vk::ClearColorValue> CLEAR_COLORS{
             vkx::clearColor({ 1, 0, 0, 0 }),
             vkx::clearColor({ 0, 1, 0, 0 }),
             vkx::clearColor({ 0, 0, 1, 0 }),

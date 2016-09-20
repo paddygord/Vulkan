@@ -191,7 +191,7 @@ namespace vkx {
         bool prepared = false;
         vk::Extent2D size{ 1280, 720 };
 
-        VK_CLEAR_COLOR_TYPE defaultClearColor = clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
+        vk::ClearColorValue defaultClearColor = clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
 
         // Defines a frame rate independent timer value clamped from -1.0...1.0
         // For use in animations, rotations, etc.

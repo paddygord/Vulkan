@@ -29,12 +29,13 @@ if (UNIX)
   set(LIB_PREFIX "lib")
   set(LIB_EXT "a")
 elseif (WIN32)
-  set(BASE_NAME "${BASE_NAME}-vc130-mt")
+  # FIXME, account for different versions of Visual Studio
+  set(BASE_NAME "${BASE_NAME}-vc140-mt")
   set(LIB_EXT "lib")
 endif ()
 
 set(BASE_NAME_RELEASE "${BASE_NAME}")
-set(BASE_NAME_DEBUG "${BASE_NAME}d")
+set(BASE_NAME_DEBUG "${BASE_NAME}")
 
 set(${EXTERNAL_NAME_UPPER}_INCLUDE_DIRS ${INSTALL_DIR}/include CACHE PATH "List of assimp include directories")
 set(${EXTERNAL_NAME_UPPER}_LIBRARY_DEBUG ${INSTALL_DIR}/lib/${LIB_PREFIX}${BASE_NAME_DEBUG}.${LIB_EXT} CACHE FILEPATH "Path to assimp debug library")

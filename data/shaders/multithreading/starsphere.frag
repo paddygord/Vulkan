@@ -18,7 +18,7 @@ float hash33(vec3 p3)
     return fract(vec3((p3.x + p3.y)*p3.z + (p3.x+p3.z)*p3.y + (p3.y+p3.z)*p3.x));
 }
 
-float starField(vec3 pos)
+vec3 starField(vec3 pos)
 {
 	vec3 color = vec3(0.0);
     float threshhold = (1.0 - STARFREQUENCY);

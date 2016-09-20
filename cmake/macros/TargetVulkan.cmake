@@ -6,17 +6,9 @@
 # 
 macro(TARGET_VULKAN)
     find_package(vulkan)
-
     if (VULKAN_FOUND)
         add_definitions(-DHAVE_VULKAN) 
         target_include_directories(${TARGET_NAME} PRIVATE ${VULKAN_INCLUDE_DIR})
         target_link_libraries(${TARGET_NAME} ${VULKAN_LIBRARY})
-
-        add_dependency_external_projects(glslang)
-        target_include_directories(${TARGET_NAME} PRIVATE ${GLSLANG_INCLUDE_DIRS})
-        target_link_libraries(${TARGET_NAME} ${GLSLANG_LIBRARIES})
-
-        add_dependency_external_projects(vkcpp)
-        target_include_directories(${TARGET_NAME} PRIVATE ${VKCPP_INCLUDE_DIRS})
     endif()
 endmacro()

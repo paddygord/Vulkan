@@ -13,12 +13,6 @@
 // Default fence timeout in nanoseconds
 #define DEFAULT_FENCE_TIMEOUT 100000000000
 
-#ifdef VK_CPP_HAS_UNRESTRICTED_UNIONS
-#define VK_CLEAR_COLOR_TYPE vk::ClearColorValue
-#else 
-#define VK_CLEAR_COLOR_TYPE VkClearColorValue
-#endif
-
 namespace vkx {
 
     // Version information for Vulkan is stored in a single 32 bit integer
@@ -211,7 +205,7 @@ namespace vkx {
     // Contains often used vulkan object initializers
     // Save lot of VK_STRUCTURE_TYPE assignments
     // Some initializers are parameterized for convenience
-    VK_CLEAR_COLOR_TYPE clearColor(const glm::vec4& v);
+    vk::ClearColorValue clearColor(const glm::vec4& v);
 
     vk::CommandBufferAllocateInfo commandBufferAllocateInfo(vk::CommandPool commandPool, vk::CommandBufferLevel level, uint32_t bufferCount);
 

@@ -54,10 +54,6 @@ namespace vkx {
                     instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
                     instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
                 }
-                if (enableValidation) {
-                    instanceCreateInfo.enabledLayerCount = (uint32_t)debug::validationLayerNames.size();
-                    instanceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames.data();
-                }
                 instance = vk::createInstance(instanceCreateInfo);
             }
 

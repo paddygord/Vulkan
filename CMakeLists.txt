@@ -54,10 +54,6 @@ add_dependency_external_projects(glm)
 list(APPEND EXTERNALS glm)
 include_directories(${GLM_INCLUDE_DIRS})
 
-add_dependency_external_projects(vkcpp)
-list(APPEND EXTERNALS vkcpp)
-include_directories(${VKCPP_INCLUDE_DIRS})
-
 add_dependency_external_projects(gli)
 list(APPEND EXTERNALS gli)
 include_directories(${GLI_INCLUDE_DIRS})

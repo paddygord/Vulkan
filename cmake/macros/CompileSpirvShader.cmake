@@ -9,7 +9,8 @@
 
 function(COMPILE_SPIRV_SHADER SHADER_FILE)
     # Define the final name of the generated shader file
-    find_program(GLSLANG_EXECUTABLE glslangValidator)
+    find_program(GLSLANG_EXECUTABLE glslangValidator
+        HINTS "$ENV{VULKAN_SDK}/bin")
     get_filename_component(SHADER_TARGET ${SHADER_FILE} NAME_WE)
     get_filename_component(SHADER_EXT ${SHADER_FILE} EXT)
     set(COMPILE_OUTPUT "${SHADER_FILE}.spv")

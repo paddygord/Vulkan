@@ -111,7 +111,7 @@ public:
 #include <gli/gli.hpp>
 
 // Vulkan!
-#include <vulkan/vk_cpp.hpp>
+#include <vulkan/vulkan.hpp>
 
 // Boilerplate for running an example
 #if defined(__ANDROID__)
