@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
-cmake_policy(VERSION 2.8)
+cmake_minimum_required(VERSION 3.7 FATAL_ERROR)
+cmake_policy(VERSION 3.7)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 include("cmake/defaults.cmake")
 set(NAME vulkanExamples)
@@ -12,8 +12,8 @@ add_custom_target(SetupDebug ALL ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOUR
 set_target_properties(SetupDebug PROPERTIES FOLDER "CMakeTargets")
 
 find_package(Vulkan REQUIRED)
-link_libraries(${VULKAN_LIBRARY})
-include_directories(${VULKAN_INCLUDE_DIR})
+include_directories(${Vulkan_INCLUDE_DIR})
+link_libraries(${Vulkan_LIBRARY})
 
 if(WIN32)
     add_definitions(-DVK_USE_PLATFORM_WIN32_KHR)

@@ -13,22 +13,25 @@ using namespace vkx;
 
 ExampleBase::ExampleBase(bool enableValidation) : swapChain(*this) {
     // Check for validation command line flag
-#if defined(_WIN32)
+#if defined(__ANDROID__)
+    // Vulkan library is loaded dynamically on Android
+    bool libLoaded = loadVulkanLibrary();
+    assert(libLoaded);
+#else
+
+#ifdef WIN32
     for (int32_t i = 0; i < __argc; i++) {
         if (__argv[i] == std::string("-validation")) {
             enableValidation = true;
         }
     }
-#elif defined(__ANDROID__)
-    // Vulkan library is loaded dynamically on Android
-    bool libLoaded = loadVulkanLibrary();
-    assert(libLoaded);
 #endif
 
-#if !defined(__ANDROID__)
+    glfwInit();
     // Android Vulkan initialization is handled in APP_CMD_INIT_WINDOW event
     initVulkan(enableValidation);
 #endif
+
 }
 
 ExampleBase::~ExampleBase() {
@@ -82,20 +85,17 @@ ExampleBase::~ExampleBase() {
 
 
 void ExampleBase::run() {
-#if defined(_WIN32)
-    setupWindow();
-#elif defined(__ANDROID__)
+#if defined(__ANDROID__)
     // Attach vulkan example to global android application state
     state->userData = vulkanExample;
     state->onAppCmd = VulkanExample::handleAppCommand;
     state->onInputEvent = VulkanExample::handleAppInput;
     androidApp = state;
-#elif defined(__linux__)
+#else
     setupWindow();
-#endif
-#if !defined(__ANDROID__)
     prepare();
 #endif
+
     renderLoop();
 
     // Once we exit the render loop, wait for everything to become idle before proceeding to the descructor.
@@ -442,8 +442,6 @@ void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int
     }
 }
 
-
-
 void ExampleBase::MouseHandler(GLFWwindow* window, int button, int action, int mods) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
     if (action == GLFW_PRESS) {
@@ -461,7 +459,6 @@ void ExampleBase::MouseScrollHandler(GLFWwindow* window, double xoffset, double 
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->mouseScrolled(yoffset);
 }
-
 
 void ExampleBase::CloseHandler(GLFWwindow* window) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
@@ -486,11 +483,6 @@ void ExampleBase::setupWindow() {
     }
 #endif
 
-    if (fullscreen) {
-        // TODO 
-    }
-
-    glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto monitor = glfwGetPrimaryMonitor();
     auto mode = glfwGetVideoMode(monitor);

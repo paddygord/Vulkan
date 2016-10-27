@@ -38,16 +38,6 @@
 #include <android/asset_manager.h>
 #include <android_native_app_glue.h>
 #include "vulkanandroid.h"
-#else
-#ifdef _WIN32
-#define GLFW_EXPOSE_NATIVE_WIN32 1
-#else
-#define GLFW_EXPOSE_NATIVE_X11 1
-#define GLFW_EXPOSE_NATIVE_GLX 1
-#endif
-// Cross platform window creation
-#include <GLFW/glfw3.h>
-#include <GLFW/glfw3native.h>
 #endif
 
 #include <glm/glm.hpp>
@@ -113,6 +103,11 @@ public:
 // Vulkan!
 #include <vulkan/vulkan.hpp>
 
+// Cross platform window management
+#if !defined(__ANDROID__)
+#include "glfw.hpp"
+#endif
+
 // Boilerplate for running an example
 #if defined(__ANDROID__)
 #define ENTRY_POINT_START \
@@ -120,13 +115,13 @@ public:
             app_dummy();
 
 #define ENTRY_POINT_END \
-            return 0; \
         }
 #else
 #define ENTRY_POINT_START \
         int main(const int argc, const char *argv[]) {
 
 #define ENTRY_POINT_END \
+            return 0; \
         }
 #endif
 

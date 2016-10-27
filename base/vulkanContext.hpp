@@ -36,14 +36,12 @@ namespace vkx {
                 appInfo.pEngineName = "VulkanExamples";
                 appInfo.apiVersion = VK_API_VERSION_1_0;
 
-                std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
+                std::vector<const char*> enabledExtensions;
                 // Enable surface extensions depending on os
-#if defined(_WIN32)
-                enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#elif defined(__ANDROID__)
+#if defined(__ANDROID__)
                 enabledExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-#elif defined(__linux__)
-                enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+#else
+                enabledExtensions = glfw::getRequiredInstanceExtensions();
 #endif
                 vk::InstanceCreateInfo instanceCreateInfo;
                 instanceCreateInfo.pApplicationInfo = &appInfo;
