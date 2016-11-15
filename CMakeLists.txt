@@ -6,6 +6,17 @@ set(NAME vulkanExamples)
 
 project(${NAME})
 
+if (WIN32)
+  if (MSVC)
+    if (NOT MSVC14)
+      message(FATAL_ERROR "Visual Studio 2015 is required for Windows builds")
+    endif()
+    if(NOT ("${CMAKE_SIZEOF_VOID_P}" EQUAL "8"))
+      message(FATAL_ERROR "You must build for the Win64 architecture")
+    endif()
+  endif()    
+endif()
+
 add_custom_target(SetupRelease ALL ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin)
 set_target_properties(SetupRelease PROPERTIES FOLDER "CMakeTargets")
 add_custom_target(SetupDebug ALL ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin_debug)
@@ -22,6 +33,8 @@ else()
     find_package(XCB REQUIRED)
     link_libraries(${XCB_LIBRARIES})
 endif()
+
+
 
 if (WIN32)
     add_dependency_external_projects(glfw3)
