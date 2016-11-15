@@ -29,8 +29,11 @@ if (UNIX)
   set(LIB_PREFIX "lib")
   set(LIB_EXT "a")
 elseif (WIN32)
-  # FIXME, account for different versions of Visual Studio
-  set(BASE_NAME "${BASE_NAME}-vc140-mt")
+  if (${CMAKE_VS_PLATFORM_TOOLSET} STREQUAL "v120")
+    set(BASE_NAME "${BASE_NAME}-vc120-mt")
+  else()
+    set(BASE_NAME "${BASE_NAME}-vc140-mt")
+  endif()
   set(LIB_EXT "lib")
 endif ()
 
