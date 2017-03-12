@@ -104,7 +104,7 @@ void ExampleBase::run() {
 }
 
 void ExampleBase::initVulkan(bool enableValidation) {
-    createContext(enableValidation);
+    createContext({}, enableValidation);
     // Find a suitable depth format
     depthFormat = getSupportedDepthFormat(physicalDevice);
 

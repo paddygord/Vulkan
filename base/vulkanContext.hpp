@@ -26,8 +26,24 @@ namespace vkx {
             return result;
         }
 
-        void createContext(bool enableValidation = false) {
-
+        void createContext(const std::vector<const char*>& requiredExtensions, bool enableValidation = false) {
+            auto extensions = vk::enumerateInstanceExtensionProperties();
+            for (auto extension : extensions) {
+                OutputDebugString(extension.extensionName);
+                OutputDebugString("\n");
+            }
+            auto layers = getAvailableLayers();
+            for (const auto & layer : layers) {
+                OutputDebugString("\n");
+                OutputDebugString(layer.c_str());
+                OutputDebugString("\n");
+                auto layerExtensions = vk::enumerateInstanceExtensionProperties(layer);
+                for (auto extension : layerExtensions) {
+                    OutputDebugString(extension.extensionName);
+                    OutputDebugString("\n");
+                }
+            }
+            
             this->enableValidation = enableValidation;
             {
                 // Vulkan instance

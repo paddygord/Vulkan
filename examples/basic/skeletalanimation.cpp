@@ -82,7 +82,8 @@ public:
     // Per-vertex bone info
     std::vector<VertexBoneData> bones;
     // Bone transformations
-    std::vector<aiMatrix4x4> boneTransforms;
+    std::vector<std::vector<aiMatrix4x4>> boneTransforms;
+    //std::vector<aiMatrix4x4> boneTransforms;
 
     // Modifier for the animation 
     float animationSpeed = 0.75f;
@@ -94,11 +95,38 @@ public:
     // Reference to assimp mesh
     // Required for animation
     vkx::MeshLoader* meshLoader;
+    size_t animationFrames { 0 };
+    size_t currentAnimationFrame;
+
+
+    float findAnimationEndTime(const aiNode* pNode) {
+        std::string NodeName(pNode->mName.data);
+        float result = 0.0f;
+        const aiNodeAnim* pNodeAnim = findNodeAnim(pAnimation, NodeName);
+        if (pNodeAnim) {
+            if (pNodeAnim->mNumPositionKeys) {
+                result = std::max<float>((float)pNodeAnim->mPositionKeys[pNodeAnim->mNumPositionKeys - 1].mTime, result);
+            }
+            if (pNodeAnim->mNumRotationKeys) {
+                result = std::max<float>((float)pNodeAnim->mRotationKeys[pNodeAnim->mNumRotationKeys - 1].mTime, result);
+            }
+            if (pNodeAnim->mNumScalingKeys) {
+                result = std::max<float>((float)pNodeAnim->mScalingKeys[pNodeAnim->mNumScalingKeys - 1].mTime, result);
+            }
+        }
+        for (uint32_t i = 0; i < pNode->mNumChildren; i++) {
+            result = std::max(findAnimationEndTime(pNode->mChildren[i]), result);
+        }
+        return result;
+    }
 
     // Set active animation by index
     void setAnimation(uint32_t animationIndex) {
         assert(animationIndex < meshLoader->pScene->mNumAnimations);
         pAnimation = meshLoader->pScene->mAnimations[animationIndex];
+
+        float animationDuration = findAnimationEndTime(meshLoader->pScene->mRootNode);
+        animationFrames = animationDuration * 90.0f;
     }
 
     // Load bone information from ASSIMP mesh
@@ -127,26 +155,31 @@ public:
                 Bones[vertexID].add(index, pMesh->mBones[i]->mWeights[j].mWeight);
             }
         }
-        boneTransforms.resize(numBones);
+
+        boneTransforms.resize(animationFrames);
+
+        static const float frameInterval = 1.0f / 90.0f;
+        for (size_t i = 0; i < animationFrames; ++i) {
+            boneTransforms[i].resize(numBones);
+            float frameTime = frameInterval * i;
+            readNodeHierarchy(frameTime, meshLoader->pScene->mRootNode);
+            for (uint32_t j = 0; j < numBones; j++) {
+                boneTransforms[i][j] = boneInfo[j].finalTransformation;
+            }
+        }
     }
 
     // Recursive bone transformation for given animation time
     void update(float time) {
         float TicksPerSecond = (float)(meshLoader->pScene->mAnimations[0]->mTicksPerSecond != 0 ? meshLoader->pScene->mAnimations[0]->mTicksPerSecond : 25.0f);
         float TimeInTicks = time * TicksPerSecond;
-        float AnimationTime = fmod(TimeInTicks, (float)meshLoader->pScene->mAnimations[0]->mDuration);
-
-        aiMatrix4x4 identity = aiMatrix4x4();
-        readNodeHierarchy(AnimationTime, meshLoader->pScene->mRootNode, identity);
-
-        for (uint32_t i = 0; i < boneTransforms.size(); i++) {
-            boneTransforms[i] = boneInfo[i].finalTransformation;
-        }
+        float AnimationTime = fmod(TimeInTicks, (float)pAnimation->mDuration);
+        currentAnimationFrame = static_cast<size_t>(AnimationTime * 90.0f) % animationFrames;
     }
 
 private:
     // Find animation for a given node
-    const aiNodeAnim* findNodeAnim(const aiAnimation* animation, const std::string nodeName) {
+    const aiNodeAnim* findNodeAnim(const aiAnimation* animation, const std::string& nodeName) {
         for (uint32_t i = 0; i < animation->mNumChannels; i++) {
             const aiNodeAnim* nodeAnim = animation->mChannels[i];
             if (std::string(nodeAnim->mNodeName.data) == nodeName) {
@@ -251,7 +284,7 @@ private:
     }
 
     // Get node hierarchy for current animation time
-    void readNodeHierarchy(float AnimationTime, const aiNode* pNode, const aiMatrix4x4& ParentTransform) {
+    void readNodeHierarchy(float AnimationTime, const aiNode* pNode, const aiMatrix4x4& ParentTransform = aiMatrix4x4()) {
         std::string NodeName(pNode->mName.data);
 
         aiMatrix4x4 NodeTransformation(pNode->mTransformation);
@@ -658,8 +691,11 @@ public:
 
         // Update bones
         skinnedMesh->update(runningTime);
-        for (uint32_t i = 0; i < skinnedMesh->boneTransforms.size(); i++) {
-            uboVS.bones[i] = glm::transpose(glm::make_mat4(&skinnedMesh->boneTransforms[i].a1));
+        for (uint32_t i = 0; i < skinnedMesh->numBones; i++) {
+            const auto& boneTransforms = skinnedMesh->boneTransforms[skinnedMesh->currentAnimationFrame];
+            const auto& boneTransform = boneTransforms[i];
+            glm::mat4 transform = glm::transpose(glm::make_mat4(&boneTransform.a1));
+            uboVS.bones[i] = transform;
         }
 
         uniformData.vsScene.copy(uboVS);
