@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.7 FATAL_ERROR)
-cmake_policy(VERSION 3.7)
+cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+cmake_policy(VERSION 3.8)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 include("cmake/defaults.cmake")
 set(NAME vulkanExamples)

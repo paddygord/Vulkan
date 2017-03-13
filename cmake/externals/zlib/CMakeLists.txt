@@ -5,7 +5,8 @@ include(ExternalProject)
 
 ExternalProject_Add(
   ${EXTERNAL_NAME}
-  URL http://zlib.net/zlib128.zip
+  URL http://zlib.net/zlib1211.zip
+  URL_MD5 16b41357b2cd81bca5e1947238e64465
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   BINARY_DIR ${EXTERNAL_PROJECT_PREFIX}/build
   LOG_DOWNLOAD 1
