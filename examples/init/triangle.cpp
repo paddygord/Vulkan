@@ -13,6 +13,7 @@
 
 #include "vulkanContext.hpp"
 #include "vulkanSwapChain.hpp"
+#include <vulkan/vulkan.hpp>
 
 #define VERTEX_BUFFER_BIND_ID 0
 
@@ -344,7 +345,8 @@ public:
         copySubmitInfo.commandBufferCount = 1;
         copySubmitInfo.pCommandBuffers = &copyCommandBuffer;
 
-        queue.submit(copySubmitInfo, VK_NULL_HANDLE);
+		vk::Fence nullFence;
+        queue.submit(copySubmitInfo, nullFence);
         queue.waitIdle();
 
         device.freeCommandBuffers(cmdPool, copyCommandBuffer);
@@ -470,7 +472,7 @@ public:
         descriptorLayout.bindingCount = 1;
         descriptorLayout.pBindings = &layoutBinding;
 
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, NULL);
+        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout, nullptr);
 
         // Create the pipeline layout that is used to generate the rendering pipelines that
         // are based on this descriptor set layout

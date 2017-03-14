@@ -189,7 +189,7 @@ public:
         vk::SubmitInfo computeSubmitInfo;
         computeSubmitInfo.commandBufferCount = 1;
         computeSubmitInfo.pCommandBuffers = &computeCmdBuffer;
-        computeQueue.submit(computeSubmitInfo, VK_NULL_HANDLE);
+        computeQueue.submit(computeSubmitInfo, nullptr);
         computeQueue.waitIdle();
     }
 
@@ -394,7 +394,7 @@ public:
         std::vector<vk::DescriptorImageInfo> computeTexDescriptors =
         {
             vkx::descriptorImageInfo(
-                VK_NULL_HANDLE,
+                nullptr,
                 textureComputeTarget.view,
                 vk::ImageLayout::eGeneral)
         };

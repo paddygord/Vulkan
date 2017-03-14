@@ -461,7 +461,7 @@ namespace vkx {
             submitInfo.pSignalSemaphores = signalSemaphores.data();
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &cmdBuffer;
-            context.queue.submit(submitInfo, VK_NULL_HANDLE);
+            context.queue.submit(submitInfo, nullptr);
         }
     };
 

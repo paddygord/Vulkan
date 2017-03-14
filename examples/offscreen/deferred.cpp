@@ -210,7 +210,7 @@ public:
             submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
             submitInfo.signalSemaphoreCount = 1;
             submitInfo.pSignalSemaphores = &offscreen.renderComplete;
-            queue.submit(submitInfo, VK_NULL_HANDLE);
+            queue.submit(submitInfo, nullptr);
         } 
         drawCurrentCommandBuffer(offscreen.renderComplete);
         submitFrame();
