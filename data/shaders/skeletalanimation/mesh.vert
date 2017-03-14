@@ -9,6 +9,7 @@ layout (location = 2) in vec2 inUV;
 layout (location = 3) in vec3 inColor;
 layout (location = 4) in vec4 inBoneWeights;
 layout (location = 5) in ivec4 inBoneIDs;
+layout (location = 6) in vec4 inInstanceTranslation;
 
 #define MAX_BONES 64
 
@@ -43,7 +44,9 @@ void main()
 	outColor = inColor;
 	outUV = inUV;
 
-	gl_Position = ubo.projection * ubo.model * boneTransform * vec4(inPos.xyz, 1.0);
+	mat4 instanceTransform = mat4(1.0);
+	instanceTransform[3].xyz = inInstanceTranslation.xyz;
+	gl_Position = ubo.projection * ubo.model * instanceTransform * boneTransform * vec4(inPos.xyz, 1.0);
 
     vec4 pos = ubo.model * vec4(inPos, 1.0);
 	outNormal = mat3(inverse(transpose(ubo.model))) * inNormal;

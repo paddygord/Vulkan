@@ -98,35 +98,11 @@ public:
     size_t animationFrames { 0 };
     size_t currentAnimationFrame;
 
-
-    float findAnimationEndTime(const aiNode* pNode) {
-        std::string NodeName(pNode->mName.data);
-        float result = 0.0f;
-        const aiNodeAnim* pNodeAnim = findNodeAnim(pAnimation, NodeName);
-        if (pNodeAnim) {
-            if (pNodeAnim->mNumPositionKeys) {
-                result = std::max<float>((float)pNodeAnim->mPositionKeys[pNodeAnim->mNumPositionKeys - 1].mTime, result);
-            }
-            if (pNodeAnim->mNumRotationKeys) {
-                result = std::max<float>((float)pNodeAnim->mRotationKeys[pNodeAnim->mNumRotationKeys - 1].mTime, result);
-            }
-            if (pNodeAnim->mNumScalingKeys) {
-                result = std::max<float>((float)pNodeAnim->mScalingKeys[pNodeAnim->mNumScalingKeys - 1].mTime, result);
-            }
-        }
-        for (uint32_t i = 0; i < pNode->mNumChildren; i++) {
-            result = std::max(findAnimationEndTime(pNode->mChildren[i]), result);
-        }
-        return result;
-    }
-
     // Set active animation by index
     void setAnimation(uint32_t animationIndex) {
         assert(animationIndex < meshLoader->pScene->mNumAnimations);
         pAnimation = meshLoader->pScene->mAnimations[animationIndex];
-
-        float animationDuration = findAnimationEndTime(meshLoader->pScene->mRootNode);
-        animationFrames = animationDuration * 90.0f;
+        animationFrames = pAnimation->mDuration * 90.0f;
     }
 
     // Load bone information from ASSIMP mesh
@@ -369,12 +345,24 @@ public:
 
     float runningTime = 0.0f;
 
+    // Per-instance data block
+    struct InstanceData {
+        glm::vec4 transform;
+    };
+
+    #define INSTANCE_COUNT 1024
+    // Contains the instanced data
+    using InstanceBuffer = CreateBufferResult;
+    InstanceBuffer instanceBuffer;
+
+
     VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
         camera.type = camera.lookat;
         camera.setZoom(-150.0f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ -25.5f, 128.5f, 180.0f });
+        camera.setPerspective(60.0f, 1.0f, 0.5f, 9999.0f);
         title = "Vulkan Example - Skeletal animation";
     }
 
@@ -405,15 +393,16 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skinning);
         cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, skinnedMesh->meshBuffer.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(INSTANCE_BUFFER_BIND_ID, instanceBuffer.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(skinnedMesh->meshBuffer.indices.buffer, 0, vk::IndexType::eUint32);
-        cmdBuffer.drawIndexed(skinnedMesh->meshBuffer.indexCount, 1, 0, 0, 0);
+        cmdBuffer.drawIndexed(skinnedMesh->meshBuffer.indexCount, INSTANCE_COUNT, 0, 0, 0);
 
-        // Floor
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.floor, nullptr);
-        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.texture);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.floor.vertices.buffer, { 0 });
-        cmdBuffer.bindIndexBuffer(meshes.floor.indices.buffer, 0, vk::IndexType::eUint32);
-        cmdBuffer.drawIndexed(meshes.floor.indexCount, 1, 0, 0, 0);
+        //// Floor
+        //cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.floor, nullptr);
+        //cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.texture);
+        //cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.floor.vertices.buffer, { 0 });
+        //cmdBuffer.bindIndexBuffer(meshes.floor.indices.buffer, 0, vk::IndexType::eUint32);
+        //cmdBuffer.drawIndexed(meshes.floor.indexCount, 1, 0, 0, 0);
     }
 
     // Load a mesh based on data read via assimp 
@@ -496,13 +485,16 @@ public:
 
     void setupVertexDescriptions() {
         // Binding description
-        vertices.bindingDescriptions.resize(1);
+        vertices.bindingDescriptions.resize(2);
         vertices.bindingDescriptions[0] =
             vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex);
 
+        vertices.bindingDescriptions[1] =
+            vkx::vertexInputBindingDescription(INSTANCE_BUFFER_BIND_ID, sizeof(InstanceData), vk::VertexInputRate::eInstance);
+
         // Attribute descriptions
         // Describes memory layout and shader positions
-        vertices.attributeDescriptions.resize(6);
+        vertices.attributeDescriptions.resize(7);
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
             vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
@@ -521,6 +513,10 @@ public:
         // Location 5 : Bone IDs
         vertices.attributeDescriptions[5] =
             vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 5, vk::Format::eR32G32B32A32Sint, sizeof(float) * 15);
+
+        // Location 6 : Instance translation
+        vertices.attributeDescriptions[6] =
+            vkx::vertexInputAttributeDescription(INSTANCE_BUFFER_BIND_ID, 6, vk::Format::eR32G32B32A32Sfloat, 0);
 
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -612,6 +608,23 @@ public:
             vkx::writeDescriptorSet(descriptorSets.floor, vk::DescriptorType::eCombinedImageSampler, 1, &texDescriptor));
 
         device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+    }
+
+
+    void prepareInstanceData() {
+        std::vector<InstanceData> instanceData;
+        instanceData.resize(INSTANCE_COUNT);
+
+        std::mt19937 rndGenerator(time(NULL));
+        std::uniform_real_distribution<double> uniformDist(0.0, 1.0);
+        for (uint32_t x = 0; x < 32; ++x) {
+            for (uint32_t y = 0; y < 32; ++y) {
+                auto index = y * 32 + x;
+                instanceData[index].transform = glm::vec4{ x, y, 0, 0 } * 1000.0f;
+            }
+        }
+
+        instanceBuffer = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, instanceData);
     }
 
     void preparePipelines() {
@@ -712,6 +725,7 @@ public:
         loadMeshes();
         setupVertexDescriptions();
         prepareUniformBuffers();
+        prepareInstanceData();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
