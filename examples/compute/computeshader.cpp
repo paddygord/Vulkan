@@ -445,12 +445,12 @@ public:
         std::vector<vk::DescriptorImageInfo> computeTexDescriptors =
         {
             vkx::descriptorImageInfo(
-                VK_NULL_HANDLE,
+                vk::Sampler(),
                 textureColorMap.view,
                 vk::ImageLayout::eGeneral),
 
             vkx::descriptorImageInfo(
-                VK_NULL_HANDLE,
+                vk::Sampler(),
                 textureComputeTarget.view,
                 vk::ImageLayout::eGeneral)
         };
@@ -529,7 +529,7 @@ public:
         computeSubmitInfo.commandBufferCount = 1;
         computeSubmitInfo.pCommandBuffers = &computeCmdBuffer;
 
-        computeQueue.submit(computeSubmitInfo, VK_NULL_HANDLE);
+        computeQueue.submit(computeSubmitInfo, nullptr);
     }
 
     void prepare() {
