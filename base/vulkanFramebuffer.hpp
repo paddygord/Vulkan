@@ -26,7 +26,9 @@ namespace vkx {
             for (auto& color : colors) {
                 color.destroy();
             }
-            depth.destroy();
+            if (depth.format != vk::Format::eUndefined) {
+                depth.destroy();
+            }
             if (framebuffer) {
                 device.destroyFramebuffer(framebuffer);
                 framebuffer = vk::Framebuffer();
@@ -85,7 +87,6 @@ namespace vkx {
                 depthStencilView.subresourceRange.layerCount = 1;
                 depthStencilView.image = depth.image;
                 depth.view = device.createImageView(depthStencilView);
-
             }
 
             std::vector<vk::ImageView> attachments;
