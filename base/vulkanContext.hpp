@@ -549,7 +549,7 @@ namespace vkx {
         }
 
         // Load a SPIR-V shader
-        inline vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) {
+        inline vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) const {
             vk::PipelineShaderStageCreateInfo shaderStage;
             shaderStage.stage = stage;
 #if defined(__ANDROID__)
