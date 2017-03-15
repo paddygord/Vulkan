@@ -272,6 +272,8 @@ public:
         cmdBuffer.end();
     }
 
+	void updateDrawCommandBuffer(const vk::CommandBuffer &) override {}
+
     void updateSecondaryCommandBuffer(vk::CommandBufferInheritanceInfo inheritanceInfo) {
         // Secondary command buffer for the sky sphere
         vk::CommandBufferBeginInfo commandBufferBeginInfo;

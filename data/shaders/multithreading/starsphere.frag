@@ -15,7 +15,7 @@ float hash33(vec3 p3)
 {
 	p3 = fract(p3 * HASHSCALE3);
     p3 += dot(p3, p3.yxz+19.19);
-    return fract(vec3((p3.x + p3.y)*p3.z + (p3.x+p3.z)*p3.y + (p3.y+p3.z)*p3.x));
+    return fract((p3.x + p3.y)*p3.z + (p3.x+p3.z)*p3.y + (p3.y+p3.z)*p3.x);
 }
 
 vec3 starField(vec3 pos)
