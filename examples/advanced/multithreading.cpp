@@ -107,7 +107,7 @@ public:
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ 0.0f, 37.5f, 0.0f });
-        enableTextOverlay = true;
+        // enableTextOverlay = true;
         title = "Vulkan Example - Multi threaded rendering";
         // Get number of max. concurrrent threads
         numThreads = std::thread::hardware_concurrency();
@@ -152,6 +152,7 @@ public:
 
     // Create all threads and initialize shader push constants
     void prepareMultiThreadedRenderer() {
+        primaryCmdBuffersDirty = false;
         // Since this demo updates the command buffers on each frame
         // we don't use the per-framebuffer command buffers from the
         // base class, and create a single primary command buffer instead
@@ -164,9 +165,6 @@ public:
         secondaryCommandBuffer = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
 
         threadData.resize(numThreads);
-
-        withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
-        });
 
         float maxX = std::floor(std::sqrt(numThreads * numObjectsPerThread));
         uint32_t posX = 0;
