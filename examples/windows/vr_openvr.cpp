@@ -47,7 +47,7 @@ public:
         // Flip y-axis since GL UV coords are backwards.
         static vr::VRTextureBounds_t leftBounds{ 0, 0, 0.5f, 1 };
         static vr::VRTextureBounds_t rightBounds{ 0.5f, 0, 1, 1 };
-        vr::Texture_t texture{ (void*)_colorBuffer, vr::API_OpenGL, vr::ColorSpace_Auto };
+        vr::Texture_t texture{ (void*)_colorBuffer, vr::TextureType_OpenGL, vr::ColorSpace_Auto };
         vrCompositor->Submit(vr::Eye_Left, &texture, &leftBounds);
         vrCompositor->Submit(vr::Eye_Right, &texture, &rightBounds);
     }
@@ -81,7 +81,7 @@ public:
 
         openvr::for_each_eye([&](vr::Hmd_Eye eye) {
             eyeOffsets[eye] = openvr::toGlm(vrSystem->GetEyeToHeadTransform(eye));
-            eyeProjections[eye] = openvr::toGlm(vrSystem->GetProjectionMatrix(eye, 0.1f, 256.0f, vr::API_OpenGL));
+            eyeProjections[eye] = openvr::toGlm(vrSystem->GetProjectionMatrix(eye, 0.1f, 256.0f));
         });
         Parent::prepare();
     }
