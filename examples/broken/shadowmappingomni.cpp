@@ -520,8 +520,8 @@ public:
         // Load shaders
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/shadowmapomni/scene.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/shadowmapomni/scene.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = loadShader(getAssetPath() + "shaders/shadowmappingomni/scene.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = loadShader(getAssetPath() + "shaders/shadowmappingomni/scene.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayouts.scene, renderPass);
@@ -541,15 +541,15 @@ public:
 
 
         // Cube map display pipeline
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/shadowmapomni/cubemapdisplay.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/shadowmapomni/cubemapdisplay.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = loadShader(getAssetPath() + "shaders/shadowmappingomni/cubemapdisplay.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = loadShader(getAssetPath() + "shaders/shadowmappingomni/cubemapdisplay.frag.spv", vk::ShaderStageFlagBits::eFragment);
         rasterizationState.cullMode = vk::CullModeFlagBits::eFront;
         pipelines.cubeMap = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
 
 
         // Offscreen pipeline
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/shadowmapomni/offscreen.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/shadowmapomni/offscreen.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = loadShader(getAssetPath() + "shaders/shadowmappingomni/offscreen.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = loadShader(getAssetPath() + "shaders/shadowmappingomni/offscreen.frag.spv", vk::ShaderStageFlagBits::eFragment);
         rasterizationState.cullMode = vk::CullModeFlagBits::eBack;
         pipelineCreateInfo.layout = pipelineLayouts.offscreen;
         pipelines.offscreen = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
