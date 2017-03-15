@@ -55,6 +55,9 @@ public:
         size.height = 720;
         camera.setTranslation({ 0.0, -0.5f, -2.75f });
         camera.setRotation({ 0.0f, 30.0f, 0.0f });
+        camera.setNear(0.1f);
+        camera.setFar(1000.0f);
+        
         rotationSpeed = 0.5f;
         title = "Tardis Console - by Bradley Austin Davis";
     }

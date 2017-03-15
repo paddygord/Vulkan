@@ -90,6 +90,14 @@ public:
         matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
     }
 
+    void setNear(float newZnear) {
+        setPerspective(fov, aspect, newZnear, zfar);
+    }
+
+    void setFar(float newZfar) {
+        setPerspective(fov, aspect, znear, newZfar);
+    }
+
     void setPerspective(float fov, const glm::vec2& size, float znear = 0.1f, float zfar = 512.0f) {
         setPerspective(fov, size.x / size.y, znear, zfar);
     }
