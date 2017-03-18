@@ -18,6 +18,7 @@ std::vector<vkx::VertexLayout> vertexLayout =
 };
 
 class VulkanExample : public vkx::ExampleBase {
+    using Parent = vkx::ExampleBase;
 private:
     struct {
         vkx::Texture colorMap;
@@ -67,6 +68,10 @@ public:
         camera.setZoom(-35);
         camera.setRotation({ -35.0, 0.0, 0 });
         title = "Vulkan Example - Tessellation shader displacement mapping";
+    }
+
+    void initVulkan() override {
+        Parent::initVulkan();
         // Support for tessellation shaders is optional, so check first
         if (!deviceFeatures.tessellationShader) {
             throw std::runtime_error("Selected GPU does not support tessellation shaders!");
