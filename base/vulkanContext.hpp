@@ -26,9 +26,28 @@ namespace vkx {
             return result;
         }
 
-        void createContext(bool enableValidation = false) {
+        std::set<std::string> requiredExtensions;
+        
+        template<typename Container> 
+        void requireExtensions(const Container& requestedExtensions) {
+            requiredExtensions.insert(requestedExtensions.begin(), requestedExtensions.end());
+        }
 
+        void requireExtension(const std::string& requestedExtension) {
+            requiredExtensions.insert(requestedExtension);
+        }
+
+        void createContext(bool enableValidation = false) {
+#if defined(__ANDROID__)
+            requireExtension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+#else
+            requireExtensions(glfw::getRequiredInstanceExtensions());
+#endif
             this->enableValidation = enableValidation;
+            if (enableValidation) {
+                requireExtension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+            }
+
             {
                 // Vulkan instance
                 vk::ApplicationInfo appInfo;
@@ -37,20 +56,17 @@ namespace vkx {
                 appInfo.apiVersion = VK_API_VERSION_1_0;
 
                 std::vector<const char*> enabledExtensions;
+                for (const auto& extension : requiredExtensions) {
+                    enabledExtensions.push_back(extension.c_str());
+                }
                 // Enable surface extensions depending on os
-#if defined(__ANDROID__)
-                enabledExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-#else
-                enabledExtensions = glfw::getRequiredInstanceExtensions();
-#endif
                 vk::InstanceCreateInfo instanceCreateInfo;
                 instanceCreateInfo.pApplicationInfo = &appInfo;
                 if (enabledExtensions.size() > 0) {
-                    if (enableValidation) {
-                        enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-                    }
                     instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
                     instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+                    instanceCreateInfo.enabledLayerCount = (uint32_t)debug::validationLayerNames.size();
+                    instanceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames.data();
                 }
                 instance = vk::createInstance(instanceCreateInfo);
             }
@@ -369,6 +385,7 @@ namespace vkx {
             result.device = device;
             result.image = device.createImage(imageCreateInfo);
             result.format = imageCreateInfo.format;
+            result.extent = imageCreateInfo.extent;
             vk::MemoryRequirements memReqs = device.getImageMemoryRequirements(result.image);
             vk::MemoryAllocateInfo memAllocInfo;
             memAllocInfo.allocationSize = result.allocSize = memReqs.size;

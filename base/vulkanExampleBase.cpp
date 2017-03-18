@@ -11,28 +11,11 @@
 
 using namespace vkx;
 
-ExampleBase::ExampleBase(bool enableValidation) : swapChain(*this) {
-    // Check for validation command line flag
-#if defined(__ANDROID__)
-    // Vulkan library is loaded dynamically on Android
-    bool libLoaded = loadVulkanLibrary();
-    assert(libLoaded);
-#else
+// Avoid doing work in the ctor as it can't make use of overridden virtual functions
+// Instead, use the `run` method
+ExampleBase::ExampleBase() : swapChain(*this) { }
 
-#ifdef WIN32
-    for (int32_t i = 0; i < __argc; i++) {
-        if (__argv[i] == std::string("-validation")) {
-            enableValidation = true;
-        }
-    }
-#endif
-
-    glfwInit();
-    // Android Vulkan initialization is handled in APP_CMD_INIT_WINDOW event
-    initVulkan(enableValidation);
-#endif
-
-}
+ExampleBase::ExampleBase(bool enableValidation) : enableValidation(enableValidation), swapChain(*this) { }
 
 ExampleBase::~ExampleBase() {
     // Clean up Vulkan resources
@@ -83,15 +66,20 @@ ExampleBase::~ExampleBase() {
 #endif
 }
 
-
 void ExampleBase::run() {
 #if defined(__ANDROID__)
+    // Vulkan library is loaded dynamically on Android
+    bool libLoaded = loadVulkanLibrary();
+    assert(libLoaded);
     // Attach vulkan example to global android application state
     state->userData = vulkanExample;
     state->onAppCmd = VulkanExample::handleAppCommand;
     state->onInputEvent = VulkanExample::handleAppInput;
     androidApp = state;
 #else
+    glfwInit();
+    // Android Vulkan initialization is handled in APP_CMD_INIT_WINDOW event
+    initVulkan();
     setupWindow();
     prepare();
 #endif
@@ -103,7 +91,7 @@ void ExampleBase::run() {
     device.waitIdle();
 }
 
-void ExampleBase::initVulkan(bool enableValidation) {
+void ExampleBase::initVulkan() {
     createContext(enableValidation);
     // Find a suitable depth format
     depthFormat = getSupportedDepthFormat(physicalDevice);

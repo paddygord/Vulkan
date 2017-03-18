@@ -52,7 +52,7 @@ namespace vkx {
     class ExampleBase : public Context {
     protected:
         ExampleBase(bool enableValidation);
-        ExampleBase() : ExampleBase(false) {};
+        ExampleBase();
         ~ExampleBase();
 
     public:
@@ -238,7 +238,7 @@ namespace vkx {
 #endif
 
         // Setup the vulkan instance, enable required extensions and connect to the physical device (GPU)
-        void initVulkan(bool enableValidation);
+        virtual void initVulkan();
 
 #if defined(__ANDROID__)
         static int32_t handleAppInput(struct android_app* app, AInputEvent* event);
