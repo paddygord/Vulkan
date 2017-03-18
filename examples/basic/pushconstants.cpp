@@ -63,6 +63,10 @@ public:
         camera.setRotation({ -32.5, 45.0, 0.0 });
         title = "Vulkan Example - Push constants";
 
+    }
+
+    void initVulkan() override {
+        Parent::initVulkan();
         // todo : this crashes on certain Android devices, so commented out for now
 #if !defined(__ANDROID__)        
         // Check requested push constant size against hardware limit

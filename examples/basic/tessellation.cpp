@@ -21,6 +21,7 @@ std::vector<vkx::VertexLayout> vertexLayout =
 };
 
 class VulkanExample : public vkx::ExampleBase {
+    using Parent = vkx::ExampleBase;
 public:
     bool splitScreen = true;
 
@@ -68,10 +69,15 @@ public:
         camera.setTranslation({ -3.0f, 2.3f, -6.5f });
         title = "Vulkan Example - Tessellation shader (PN Triangles)";
         enableTextOverlay = true;
+    }
+
+    void initVulkan() override {
+        Parent::initVulkan();
         // Support for tessellation shaders is optional, so check first
         if (!deviceFeatures.tessellationShader) {
             throw std::runtime_error("Selected GPU does not support tessellation shaders!");
         }
+
     }
 
     ~VulkanExample() {
