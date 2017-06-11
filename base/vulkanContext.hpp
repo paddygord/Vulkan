@@ -10,8 +10,13 @@ namespace vkx {
     public:
         using DevicePickerFunction = std::function<vk::PhysicalDevice(const std::vector<vk::PhysicalDevice>&)>;
         static DevicePickerFunction DEFAULT_DEVICE_PICKER;
+
+        using DeviceExtensionsPickerFunction = std::function<std::set<std::string>(const vk::PhysicalDevice&)>;
+        static DeviceExtensionsPickerFunction DEFAULT_DEVICE_EXTENSIONS_PICKER;
+
         static std::list<std::string> requestedLayers;
         DevicePickerFunction devicePicker { DEFAULT_DEVICE_PICKER };
+        DeviceExtensionsPickerFunction deviceExtensionsPicker { DEFAULT_DEVICE_EXTENSIONS_PICKER };
         // Set to true when example is created with enabled validation layers
         bool enableValidation = false;
         // Set to true when the debug marker extension is detected
@@ -30,6 +35,7 @@ namespace vkx {
         }
 
         std::set<std::string> requiredExtensions;
+        std::set<std::string> requiredDeviceExtensions;
 
         template<typename Container>
         void requireExtensions(const Container& requestedExtensions) {
@@ -40,8 +46,21 @@ namespace vkx {
             requiredExtensions.insert(requestedExtension);
         }
 
+        template<typename Container>
+        void requireDeviceExtensions(const Container& requestedExtensions) {
+            requiredDeviceExtensions.insert(requestedExtensions.begin(), requestedExtensions.end());
+        }
+
+        void requireDeviceExtension(const std::string& requestedExtension) {
+            requiredDeviceExtensions.insert(requestedExtension);
+        }
+
         void setDevicePicker(const DevicePickerFunction& picker) {
             devicePicker = picker;
+        }
+
+        void setDeviceExtensionsPicker(const DeviceExtensionsPickerFunction& picker) {
+            deviceExtensionsPicker = picker;
         }
 
         void createInstance();
@@ -84,11 +103,19 @@ namespace vkx {
             queueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
             queueCreateInfo.queueCount = 1;
             queueCreateInfo.pQueuePriorities = queuePriorities.data();
-            std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
             vk::DeviceCreateInfo deviceCreateInfo;
             deviceCreateInfo.queueCreateInfoCount = 1;
             deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
             deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+
+            std::set<std::string> allDeviceExtensions = deviceExtensionsPicker(physicalDevice);
+            allDeviceExtensions.insert(requiredDeviceExtensions.begin(), requiredDeviceExtensions.end());
+            
+            std::vector<const char*> enabledExtensions;
+            for (const auto& extension : allDeviceExtensions) {
+                enabledExtensions.push_back(extension.c_str());
+            }
+
             // enable the debug marker extension if it is present (likely meaning a debugging tool is present)
             if (vkx::checkDeviceExtensionPresent(physicalDevice, VK_EXT_DEBUG_MARKER_EXTENSION_NAME)) {
                 enabledExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
@@ -112,6 +139,8 @@ namespace vkx {
             requireExtensions(glfw::getRequiredInstanceExtensions());
 #endif
             this->enableValidation = enableValidation;
+
+            requireDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
             createInstance();
 

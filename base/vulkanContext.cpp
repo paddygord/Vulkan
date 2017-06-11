@@ -14,6 +14,10 @@ Context::DevicePickerFunction Context::DEFAULT_DEVICE_PICKER = [](const std::vec
     return devices[0];
 };
 
+Context::DeviceExtensionsPickerFunction Context::DEFAULT_DEVICE_EXTENSIONS_PICKER = [](const vk::PhysicalDevice& device)->std::set<std::string> {
+    return {};
+};
+
 void Context::createInstance() {
     if (enableValidation) {
         requireExtension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);

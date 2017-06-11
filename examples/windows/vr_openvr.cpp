@@ -34,29 +34,99 @@ namespace openvr {
         }
         return result;
     }
+
+    std::set<std::string> getInstanceExtensionsRequired(vr::IVRCompositor* compositor) {
+        auto bytesRequired = compositor->GetVulkanInstanceExtensionsRequired(nullptr, 0);
+        //GetVulkanDeviceExtensionsRequired
+        std::vector<char> extensions;  extensions.resize(bytesRequired);
+        compositor->GetVulkanInstanceExtensionsRequired(extensions.data(), extensions.size());
+        std::set<std::string> result;
+        std::string buffer;
+        for (char c : extensions) {
+            if (c == 0 || c == ' ') {
+                if (!buffer.empty()) {
+                    result.insert(buffer);
+                    buffer.clear();
+                }
+                if (c == 0) {
+                    break;
+                }
+            } else {
+                buffer += c;
+            }
+        }
+
+        return result;
+    }
+
+    std::set<std::string> getDeviceExtensionsRequired(const vk::PhysicalDevice& physicalDevice, vr::IVRCompositor* compositor) {
+        auto bytesRequired = compositor->GetVulkanDeviceExtensionsRequired(physicalDevice, nullptr, 0);
+        //GetVulkanDeviceExtensionsRequired
+        std::vector<char> extensions;  extensions.resize(bytesRequired);
+        compositor->GetVulkanDeviceExtensionsRequired(physicalDevice, extensions.data(), extensions.size());
+        std::set<std::string> result;
+        std::string buffer;
+        for (char c : extensions) {
+            if (c == 0 || c == ' ') {
+                if (!buffer.empty()) {
+                    result.insert(buffer);
+                    buffer.clear();
+                }
+                if (c == 0) {
+                    break;
+                }
+            }
+            else {
+                buffer += c;
+            }
+        }
+
+        return result;
+    }
 }
 
-class OpenVrExample : public VrExampleBase {
-    using Parent = VrExampleBase;
+
+class OpenVrExample : public VrExample {
+    using Parent = VrExample;
 public:
     std::array<glm::mat4, 2> eyeOffsets;
-    vr::IVRSystem* vrSystem{ nullptr };
-    vr::IVRCompositor* vrCompositor{ nullptr };
+    vr::IVRSystem* vrSystem { nullptr };
+    vr::IVRCompositor* vrCompositor { nullptr };
 
-    void submitVrFrame() override {
-        // Flip y-axis since GL UV coords are backwards.
-        static vr::VRTextureBounds_t leftBounds{ 0, 0, 0.5f, 1 };
-        static vr::VRTextureBounds_t rightBounds{ 0.5f, 0, 1, 1 };
-        vr::Texture_t texture{ (void*)_colorBuffer, vr::TextureType_OpenGL, vr::ColorSpace_Auto };
-        vrCompositor->Submit(vr::Eye_Left, &texture, &leftBounds);
-        vrCompositor->Submit(vr::Eye_Right, &texture, &rightBounds);
+    ~OpenVrExample() {
+        vrSystem = nullptr;
+        vrCompositor = nullptr;
+        vr::VR_Shutdown();
     }
 
-    virtual void renderMirror() override {
-        gl::nv::vk::DrawVkImage(vulkanRenderer.framebuffer.colors[0].image, 0, vec2(0), size, 0, glm::vec2(0), glm::vec2(1));
+    void prepareOpenVr() {
+        vr::EVRInitError eError;
+        vrSystem = vr::VR_Init(&eError, vr::VRApplication_Scene);
+        vrSystem->GetRecommendedRenderTargetSize(&renderTargetSize.x, &renderTargetSize.y);
+        vrCompositor = vr::VRCompositor();
+
+        context.requireExtensions(openvr::getInstanceExtensionsRequired(vrCompositor));
+        
+        // Recommended render target size is per-eye, so double the X size for 
+        // left + right eyes
+        renderTargetSize.x *= 2;
+
+        openvr::for_each_eye([&](vr::Hmd_Eye eye) {
+            eyeOffsets[eye] = openvr::toGlm(vrSystem->GetEyeToHeadTransform(eye));
+            eyeProjections[eye] = openvr::toGlm(vrSystem->GetProjectionMatrix(eye, 0.1f, 256.0f));
+        });
+
+        context.setDeviceExtensionsPicker([&](const vk::PhysicalDevice& physicalDevice)->std::set<std::string> {
+            return openvr::getDeviceExtensionsRequired(physicalDevice, vrCompositor);
+        });
     }
 
-    void update(float delta) override {
+    void prepare() {
+        prepareOpenVr();
+        Parent::prepare();
+    }
+
+    void update(float delta) {
         vr::TrackedDevicePose_t currentTrackedDevicePose[vr::k_unMaxTrackedDeviceCount];
         vrCompositor->WaitGetPoses(currentTrackedDevicePose, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
         vr::TrackedDevicePose_t _trackedDevicePose[vr::k_unMaxTrackedDeviceCount];
@@ -70,26 +140,33 @@ public:
         Parent::update(delta);
     }
 
-    void prepare() {
-        vr::EVRInitError eError;
-        vrSystem = vr::VR_Init(&eError, vr::VRApplication_Scene);
-        vrSystem->GetRecommendedRenderTargetSize(&renderTargetSize.x, &renderTargetSize.y);
-        vrCompositor = vr::VRCompositor();
-        // Recommended render target size is per-eye, so double the X size for 
-        // left + right eyes
-        renderTargetSize.x *= 2;
+    void render() {
+        shapesRenderer->renderWithoutSemaphors();
 
-        openvr::for_each_eye([&](vr::Hmd_Eye eye) {
-            eyeOffsets[eye] = openvr::toGlm(vrSystem->GetEyeToHeadTransform(eye));
-            eyeProjections[eye] = openvr::toGlm(vrSystem->GetProjectionMatrix(eye, 0.1f, 256.0f));
-        });
-        Parent::prepare();
+        context.withPrimaryCommandBuffer([](const vk::CommandBuffer&){});
+        vk::Format format = shapesRenderer->framebuffer.colors[0].format;
+        vr::VRVulkanTextureData_t vulkanTexture {
+            (uint64_t)(VkImage)shapesRenderer->framebuffer.colors[0].image,
+            context.device, 
+            context.physicalDevice,
+            context.instance,
+            context.queue,
+            context.graphicsQueueIndex,
+            renderTargetSize.x, renderTargetSize.y, (uint32_t)(VkFormat)format, 0
+        };
+        // Flip y-axis since GL UV coords are backwards.
+        static vr::VRTextureBounds_t leftBounds { 0, 0, 0.5f, 1 };
+        static vr::VRTextureBounds_t rightBounds { 0.5f, 0, 1, 1 };
+        vr::Texture_t texture { (void*)&vulkanTexture, vr::TextureType_Vulkan, vr::ColorSpace_Auto };
+        vrCompositor->Submit(vr::Eye_Left, &texture, &leftBounds);
+        vrCompositor->Submit(vr::Eye_Right, &texture, &rightBounds);
     }
 
     std::string getWindowTitle() {
-        std::string device(vulkanContext.deviceProperties.deviceName);
-        return "OpenGL Interop - " + device + " - " + std::to_string(frameCounter) + " fps";
+        std::string device(context.deviceProperties.deviceName);
+        return "OpenVR SDK Example " + device + " - " + std::to_string((int)lastFPS) + " fps";
     }
 };
 
 RUN_EXAMPLE(OpenVrExample)
+

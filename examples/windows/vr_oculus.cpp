@@ -1,5 +1,4 @@
-#include <common.hpp>
-#include <vulkanShapes.hpp>
+#include "vr_common.hpp"
 #include <OVR_CAPI_Vk.h>
 
 namespace ovr {
@@ -103,27 +102,17 @@ namespace ovr {
         result.w = q.w;
         return result;
     }
+
+    void OVR_CDECL logger(uintptr_t userData, int level, const char* message) {
+        OutputDebugStringA("OVR_SDK: ");
+        OutputDebugStringA(message);
+        OutputDebugStringA("\n");
+    }
 }
 
-
-void OVR_CDECL ovrLogger(uintptr_t userData, int level, const char* message) {
-    OutputDebugStringA("OVR_SDK: ");
-    OutputDebugStringA(message);
-    OutputDebugStringA("\n");
-}
-
-class OculusExample {
+class OculusExample : public VrExample {
+    using Parent = VrExample;
 public:
-    vkx::Context context;
-    std::shared_ptr<vkx::ShapesRenderer> shapesRenderer { std::make_shared<vkx::ShapesRenderer>(context, true) };
-    GLFWwindow* window { nullptr };
-    uint32_t frameCounter { 0 };
-    double fpsTimer { 0 };
-    float lastFPS { 0 };
-    glm::uvec2 size { 1280, 720 };
-    glm::uvec2 renderTargetSize;
-    std::array<glm::mat4, 2> eyeViews;
-    std::array<glm::mat4, 2> eyeProjections;
     ovr::Session _session {};
     ovr::HmdDesc _hmdDesc {};
     ovr::GraphicsLuid _luid {};
@@ -132,29 +121,15 @@ public:
     ovr::MirrorTexture _mirrorTexture;
     ovr::ViewScaleDesc _viewScaleDesc;
 
-
-    OculusExample() { }
-
     ~OculusExample() {
-        shapesRenderer.reset();
-
         // Shut down Oculus
         ovr_Destroy(_session);
         _session = nullptr;
         ovr_Shutdown();
-
-        // Shut down Vulkan 
-        context.destroyContext();
-
-        // Shut down GLFW
-        if (nullptr != window) {
-            glfwDestroyWindow(window);
-        }
-        glfwTerminate();
     }
 
     void prepareOculus() {
-        ovrInitParams initParams { 0, OVR_MINOR_VERSION, ovrLogger, (uintptr_t)this, 0 };
+        ovrInitParams initParams { 0, OVR_MINOR_VERSION, ovr::logger, (uintptr_t)this, 0 };
         if (!OVR_SUCCESS(ovr_Initialize(&initParams))) {
             throw std::runtime_error("Unable to initialize Oculus SDK");
         }
@@ -183,9 +158,17 @@ public:
             renderTargetSize.y = std::max(renderTargetSize.y, (uint32_t)eyeSize.h);
             renderTargetSize.x += eyeSize.w;
         });
+
+        context.requireExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+        context.setDevicePicker([this](const std::vector<vk::PhysicalDevice>& devices)->vk::PhysicalDevice {
+            VkPhysicalDevice result;
+            if (!OVR_SUCCESS(ovr_GetSessionPhysicalDeviceVk(_session, _luid, context.instance, &result))) {
+                throw std::runtime_error("Unable to identify Vulkan device");
+            }
+            return result;
+        });
     }
 
-    vk::ImageBlit imgBlit;
 
     void prepareOculusVk() {
         ovr_SetSynchonizationQueueVk(_session, context.queue);
@@ -222,42 +205,10 @@ public:
         imgBlit.dstOffsets[1] = imgBlit.srcOffsets[1] = vk::Offset3D { (int32_t)renderTargetSize.x, (int32_t)renderTargetSize.y, 1 };
     }
 
-    void prepareVulkan() {
-        context.requireExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-        context.setDevicePicker([this](const std::vector<vk::PhysicalDevice>& devices)->vk::PhysicalDevice {
-            VkPhysicalDevice result;
-            if (!OVR_SUCCESS(ovr_GetSessionPhysicalDeviceVk(_session, _luid, context.instance, &result))) {
-                throw std::runtime_error("Unable to identify Vulkan device");
-            }
-            return result;
-        });
-        context.createContext();
-    }
-
-    void prepareWindow() {
-        // Make the on screen window 1/4 the resolution of the render target
-        size = renderTargetSize;
-        size /= 4;
-
-        glfwInit();
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        window = glfwCreateWindow(size.x, size.y, "glfw", nullptr, nullptr);
-        if (!window) {
-            throw std::runtime_error("Unable to create rendering window");
-        }
-    }
-
-    void prepareRenderer() {
-        shapesRenderer->framebufferSize = renderTargetSize;
-        shapesRenderer->prepare();
-    }
-
     void prepare() {
         prepareOculus();
-        prepareVulkan();
-        prepareWindow();
+        Parent::prepare();
         prepareOculusVk();
-        prepareRenderer();
     }
 
     void update(float delta) {
@@ -268,7 +219,7 @@ public:
             const auto& vp = _sceneLayer.Viewport[eye];
             _sceneLayer.RenderPose[eye] = eyePoses[eye];
         });
-        shapesRenderer->update(delta, eyeProjections, eyeViews);
+        Parent::update(delta);
     }
 
     void render() {
@@ -297,37 +248,13 @@ public:
         }
     }
 
-    void run() {
-        prepare();
-        auto tStart = std::chrono::high_resolution_clock::now();
-        static auto lastFrameCounter = frameCounter;
-        while (!glfwWindowShouldClose(window)) {
-            auto tEnd = std::chrono::high_resolution_clock::now();
-            auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-            glfwPollEvents();
-            update((float)tDiff / 1000.0f);
-            render();
-            ++frameCounter;
-            fpsTimer += (float)tDiff;
-            if (fpsTimer > 1000.0f) {
-                std::string windowTitle = getWindowTitle();
-                glfwSetWindowTitle(window, windowTitle.c_str());
-                lastFPS = (float)(frameCounter - lastFrameCounter);
-                lastFPS *= 1000.0f;
-                lastFPS /= fpsTimer;
-                fpsTimer = 0.0f;
-                lastFrameCounter = frameCounter;
-            }
-            tStart = tEnd;
-        }
-    }
-
     std::string getWindowTitle() {
         std::string device(context.deviceProperties.deviceName);
         return "Oculus SDK Example " + device + " - " + std::to_string((int)lastFPS) + " fps";
     }
 
 #if 0
+    // FIXME restore mirror window functionality
     void renderMirror() override {
         GLuint mirrorTextureId;
         ovr_GetMirrorTextureBufferGL(_session, _mirrorTexture, &mirrorTextureId);
