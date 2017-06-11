@@ -11,11 +11,15 @@ namespace vkx {
         using DevicePickerFunction = std::function<vk::PhysicalDevice(const std::vector<vk::PhysicalDevice>&)>;
         static DevicePickerFunction DEFAULT_DEVICE_PICKER;
 
+        using InstanceExtensionsPickerFunction = std::function<std::set<std::string>()>;
+        using InstanceExtensionsPickerFunctions = std::list<InstanceExtensionsPickerFunction>;
+
         using DeviceExtensionsPickerFunction = std::function<std::set<std::string>(const vk::PhysicalDevice&)>;
         static DeviceExtensionsPickerFunction DEFAULT_DEVICE_EXTENSIONS_PICKER;
 
         static std::list<std::string> requestedLayers;
         DevicePickerFunction devicePicker { DEFAULT_DEVICE_PICKER };
+        InstanceExtensionsPickerFunctions instanceExtensionsPickers;
         DeviceExtensionsPickerFunction deviceExtensionsPicker { DEFAULT_DEVICE_EXTENSIONS_PICKER };
         // Set to true when example is created with enabled validation layers
         bool enableValidation = false;
@@ -55,12 +59,23 @@ namespace vkx {
             requiredDeviceExtensions.insert(requestedExtension);
         }
 
+        void addInstanceExtensionPicker(const InstanceExtensionsPickerFunction& function) {
+            instanceExtensionsPickers.push_back(function);
+        }
+
         void setDevicePicker(const DevicePickerFunction& picker) {
             devicePicker = picker;
         }
 
         void setDeviceExtensionsPicker(const DeviceExtensionsPickerFunction& picker) {
             deviceExtensionsPicker = picker;
+        }
+
+        void setValidationEnabled(bool enable) {
+            if (instance != vk::Instance()) {
+                throw std::runtime_error("Cannot change validations state after instance creation");
+            }
+            enableValidation = enable;
         }
 
         void createInstance();
@@ -125,14 +140,10 @@ namespace vkx {
                 deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
                 deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
             }
-            if (enableValidation) {
-                deviceCreateInfo.enabledLayerCount = (uint32_t)debug::validationLayerNames.size();
-                deviceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames.data();
-            }
             device = physicalDevice.createDevice(deviceCreateInfo);
         }
 
-        void createContext(bool enableValidation = false) {
+        void createContext() {
 #if defined(__ANDROID__)
             requireExtension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 #else

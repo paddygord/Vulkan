@@ -93,6 +93,7 @@ public:
     vr::IVRSystem* vrSystem { nullptr };
     vr::IVRCompositor* vrCompositor { nullptr };
 
+
     ~OpenVrExample() {
         vrSystem = nullptr;
         vrCompositor = nullptr;
@@ -141,25 +142,37 @@ public:
     }
 
     void render() {
-        shapesRenderer->renderWithoutSemaphors();
+        vk::Fence submitFence = swapChain.getSubmitFence(true);
+        auto currentImage = swapChain.acquireNextImage(shapesRenderer->semaphores.renderStart);
 
-        context.withPrimaryCommandBuffer([](const vk::CommandBuffer&){});
+        shapesRenderer->render();
+
         vk::Format format = shapesRenderer->framebuffer.colors[0].format;
-        vr::VRVulkanTextureData_t vulkanTexture {
-            (uint64_t)(VkImage)shapesRenderer->framebuffer.colors[0].image,
-            context.device, 
-            context.physicalDevice,
-            context.instance,
-            context.queue,
-            context.graphicsQueueIndex,
-            renderTargetSize.x, renderTargetSize.y, (uint32_t)(VkFormat)format, 0
-        };
+        vr::VRVulkanTextureData_t vulkanTexture {};
+        vulkanTexture.m_nImage = (uint64_t)(VkImage)shapesRenderer->framebuffer.colors[0].image,
+        vulkanTexture.m_pDevice = (VkDevice)context.device;
+        vulkanTexture.m_pPhysicalDevice = (VkPhysicalDevice)context.physicalDevice;
+        vulkanTexture.m_pInstance = (VkInstance)context.instance;
+        vulkanTexture.m_pQueue = (VkQueue)context.queue;
+        vulkanTexture.m_nQueueFamilyIndex = context.graphicsQueueIndex;
+        vulkanTexture.m_nWidth = renderTargetSize.x;
+        vulkanTexture.m_nHeight = renderTargetSize.y;
+        vulkanTexture.m_nFormat = (uint32_t)(VkFormat)format;
+        vulkanTexture.m_nSampleCount = 1;
+
         // Flip y-axis since GL UV coords are backwards.
         static vr::VRTextureBounds_t leftBounds { 0, 0, 0.5f, 1 };
         static vr::VRTextureBounds_t rightBounds { 0.5f, 0, 1, 1 };
+
         vr::Texture_t texture { (void*)&vulkanTexture, vr::TextureType_Vulkan, vr::ColorSpace_Auto };
-        vrCompositor->Submit(vr::Eye_Left, &texture, &leftBounds);
-        vrCompositor->Submit(vr::Eye_Right, &texture, &rightBounds);
+        //vrCompositor->Submit(vr::Eye_Left, &texture, &leftBounds);
+        //vrCompositor->Submit(vr::Eye_Right, &texture, &rightBounds);
+
+        context.submit(cmdBuffers[currentImage],
+            { { shapesRenderer->semaphores.renderComplete,  vk::PipelineStageFlagBits::eBottomOfPipe } },
+            { blitComplete }, submitFence);
+        swapChain.queuePresent(blitComplete);
+
     }
 
     std::string getWindowTitle() {

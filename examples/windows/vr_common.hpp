@@ -1,9 +1,12 @@
 #include <common.hpp>
+#include <vulkanContext.hpp>
+#include <vulkanSwapChain.hpp>
 #include <vulkanShapes.hpp>
 
 class VrExample {
 public:
     vkx::Context context;
+    vkx::SwapChain swapChain { context };
     std::shared_ptr<vkx::ShapesRenderer> shapesRenderer { std::make_shared<vkx::ShapesRenderer>(context, true) };
     GLFWwindow* window { nullptr };
     double fpsTimer { 0 };
@@ -13,7 +16,6 @@ public:
     glm::uvec2 renderTargetSize;
     std::array<glm::mat4, 2> eyeViews;
     std::array<glm::mat4, 2> eyeProjections;
-    vk::ImageBlit imgBlit;
 
     ~VrExample() {
         shapesRenderer.reset();
@@ -28,10 +30,6 @@ public:
         glfwTerminate();
     }
 
-    void prepareVulkan() {
-        context.createContext();
-    }
-
     void prepareWindow() {
         // Make the on screen window 1/4 the resolution of the render target
         size = renderTargetSize;
@@ -43,16 +41,31 @@ public:
         if (!window) {
             throw std::runtime_error("Unable to create rendering window");
         }
+        context.addInstanceExtensionPicker([]()->std::set<std::string> {
+            return glfw::getRequiredInstanceExtensions();
+        });
+    }
+
+    void prepareVulkan() {
+        //context.setValidationEnabled(true);
+        context.createContext();
+    }
+
+    void prepareSwapchain() {
+        swapChain.createSurface(window);
+        swapChain.create(vk::Extent2D { size.x, size.y });
     }
 
     void prepareRenderer() {
         shapesRenderer->framebufferSize = renderTargetSize;
+        shapesRenderer->colorFormats = { vk::Format::eR8G8B8A8Srgb };
         shapesRenderer->prepare();
     }
 
     virtual void prepare() {
-        prepareVulkan();
         prepareWindow();
+        prepareVulkan();
+        prepareSwapchain();
         prepareRenderer();
     }
 

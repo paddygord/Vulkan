@@ -12,6 +12,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "vulkanContext.hpp"
 #include "vulkanTools.h"
 
 namespace vkx {

@@ -28,18 +28,30 @@ void Context::createInstance() {
     appInfo.pEngineName = "VulkanExamples";
     appInfo.apiVersion = VK_API_VERSION_1_0;
 
+    std::set<std::string> instanceExtensions;
+    instanceExtensions.insert(requiredExtensions.begin(), requiredExtensions.end());
+    for (const auto& picker : instanceExtensionsPickers) {
+        auto extensions = picker();
+        instanceExtensions.insert(extensions.begin(), extensions.end());
+    }
+
     std::vector<const char*> enabledExtensions;
-    for (const auto& extension : requiredExtensions) {
+    for (const auto& extension : instanceExtensions) {
         enabledExtensions.push_back(extension.c_str());
     }
+
     // Enable surface extensions depending on os
     vk::InstanceCreateInfo instanceCreateInfo;
     instanceCreateInfo.pApplicationInfo = &appInfo;
     if (enabledExtensions.size() > 0) {
         instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
         instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+    }
+
+    if (enableValidation) {
         instanceCreateInfo.enabledLayerCount = (uint32_t)debug::validationLayerNames.size();
         instanceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames.data();
     }
+
     instance = vk::createInstance(instanceCreateInfo);
 }

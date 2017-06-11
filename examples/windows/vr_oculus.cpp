@@ -120,6 +120,11 @@ public:
     ovr::TextureSwapChain& _eyeTexture = _sceneLayer.ColorTexture[0];
     ovr::MirrorTexture _mirrorTexture;
     ovr::ViewScaleDesc _viewScaleDesc;
+    ovrLayerHeader* headerList = &_sceneLayer.Header;
+    vk::Semaphore blitComplete;
+    std::vector<vk::CommandBuffer> oculusBlitCommands;
+    std::vector<vk::CommandBuffer> mirrorBlitCommands;
+
 
     ~OculusExample() {
         // Shut down Oculus
@@ -169,10 +174,7 @@ public:
         });
     }
 
-
-    void prepareOculusVk() {
-        ovr_SetSynchonizationQueueVk(_session, context.queue);
-
+    void prepareOculusSwapchain() {
         ovrTextureSwapChainDesc desc = {};
         desc.Type = ovrTexture_2D;
         desc.ArraySize = 1;
@@ -186,11 +188,40 @@ public:
             throw std::runtime_error("Unable to create swap chain");
         }
 
-        int length = 0;
-        if (!OVR_SUCCESS(ovr_GetTextureSwapChainLength(_session, _eyeTexture, &length)) || !length) {
+        int oculusSwapchainLength = 0;
+        if (!OVR_SUCCESS(ovr_GetTextureSwapChainLength(_session, _eyeTexture, &oculusSwapchainLength)) || !oculusSwapchainLength) {
             throw std::runtime_error("Unable to count swap chain textures");
         }
 
+        // Submission command buffers
+        if (oculusBlitCommands.empty()) {
+            vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+            cmdBufAllocateInfo.commandPool = context.getCommandPool();
+            cmdBufAllocateInfo.commandBufferCount = oculusSwapchainLength;
+            oculusBlitCommands = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
+        }
+
+        vk::ImageBlit sceneBlit;
+        sceneBlit.dstSubresource.aspectMask = sceneBlit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        sceneBlit.dstSubresource.layerCount = sceneBlit.srcSubresource.layerCount = 1;
+        sceneBlit.dstOffsets[1] = sceneBlit.srcOffsets[1] = vk::Offset3D { (int32_t)renderTargetSize.x, (int32_t)renderTargetSize.y, 1 };
+        for (size_t i = 0; i < oculusSwapchainLength; ++i) {
+            vk::CommandBuffer& cmdBuffer = oculusBlitCommands[i];
+            VkImage oculusImage;
+            if (!OVR_SUCCESS(ovr_GetTextureSwapChainBufferVk(_session, _eyeTexture, i, &oculusImage))) {
+                throw std::runtime_error("Unable to acquire vulkan image for index " + std::to_string(i));
+            }
+            cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+            cmdBuffer.begin({});
+            vkx::setImageLayout(cmdBuffer, oculusImage, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+            cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, oculusImage, vk::ImageLayout::eTransferDstOptimal, sceneBlit, vk::Filter::eNearest);
+            // FIXME any image transition needed here for output?
+            cmdBuffer.end();
+        }
+    }
+
+    void prepareOculusMirror() {
+        // Mirroring command buffers
         ovrMirrorTextureDesc mirrorDesc;
         memset(&mirrorDesc, 0, sizeof(mirrorDesc));
         mirrorDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
@@ -200,13 +231,44 @@ public:
             throw std::runtime_error("Could not create mirror texture");
         }
 
-        imgBlit.dstSubresource.aspectMask = imgBlit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-        imgBlit.dstSubresource.layerCount = imgBlit.srcSubresource.layerCount = 1;
-        imgBlit.dstOffsets[1] = imgBlit.srcOffsets[1] = vk::Offset3D { (int32_t)renderTargetSize.x, (int32_t)renderTargetSize.y, 1 };
+        VkImage mirrorImage;
+        ovr_GetMirrorTextureBufferVk(_session, _mirrorTexture, &mirrorImage);
+        if (mirrorBlitCommands.empty()) {
+            vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+            cmdBufAllocateInfo.commandPool = context.getCommandPool();
+            cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
+            mirrorBlitCommands = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
+        }
+
+        vk::ImageBlit mirrorBlit;
+        mirrorBlit.dstSubresource.aspectMask = mirrorBlit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        mirrorBlit.dstSubresource.layerCount = mirrorBlit.srcSubresource.layerCount = 1;
+        mirrorBlit.srcOffsets[1] = mirrorBlit.dstOffsets[1] = { (int32_t)size.x, (int32_t)size.y, 1 };
+
+        for (size_t i = 0; i < swapChain.imageCount; ++i) {
+            vk::CommandBuffer& cmdBuffer = mirrorBlitCommands[i];
+            cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+            cmdBuffer.begin({});
+            vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+            cmdBuffer.blitImage(mirrorImage, vk::ImageLayout::eTransferSrcOptimal, swapChain.images[i].image, vk::ImageLayout::eTransferDstOptimal, mirrorBlit, vk::Filter::eNearest);
+            vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR);
+            cmdBuffer.end();
+        }
+    }
+
+
+    // Setup any Oculus specific work that requires an existing Vulkan instance/device/queue
+    void prepareOculusVk() {
+        ovr_SetSynchonizationQueueVk(_session, context.queue);
+        prepareOculusSwapchain();
+        prepareOculusMirror();
+        blitComplete = context.device.createSemaphore({});
     }
 
     void prepare() {
         prepareOculus();
+        // FIXME the Oculus API hangs if validation is enabled
+        //context.setValidationEnabled(true);
         Parent::prepare();
         prepareOculusVk();
     }
@@ -223,48 +285,41 @@ public:
     }
 
     void render() {
-        shapesRenderer->renderWithoutSemaphors();
+        vk::Fence submitFence = swapChain.getSubmitFence(true);
+        auto swapchainIndex = swapChain.acquireNextImage(shapesRenderer->semaphores.renderStart);
 
-        int curIndex;
-        if (!OVR_SUCCESS(ovr_GetTextureSwapChainCurrentIndex(_session, _eyeTexture, &curIndex))) {
+        shapesRenderer->render();
+
+        int oculusIndex;
+        if (!OVR_SUCCESS(ovr_GetTextureSwapChainCurrentIndex(_session, _eyeTexture, &oculusIndex))) {
             throw std::runtime_error("Unable to acquire next texture index");
         }
-        VkImage swapchainImage;
-        if (!OVR_SUCCESS(ovr_GetTextureSwapChainBufferVk(_session, _eyeTexture, curIndex, &swapchainImage))) {
-            throw std::runtime_error("Unable to acquire vulkan image for index " + std::to_string(curIndex));
-        }
 
-        context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& cmdBuffer) {
-            cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, swapchainImage, vk::ImageLayout::eTransferDstOptimal, imgBlit, vk::Filter::eNearest);
-        });
+        // Blit from our framebuffer to the Oculus output image (pre-recorded command buffer)
+        context.submit(oculusBlitCommands[oculusIndex], { { shapesRenderer->semaphores.renderComplete, vk::PipelineStageFlagBits::eColorAttachmentOutput } });
 
+        // The lack of explicit synchronization here is baffling.  One of these calls must be blocking, 
+        // meaning there would have to be some backend use of waitIdle or fences, meaning less optimal 
+        // performance than with semaphors
         if (!OVR_SUCCESS(ovr_CommitTextureSwapChain(_session, _eyeTexture))) {
-            throw std::runtime_error("Unable to commit swap chain for index " + std::to_string(curIndex));
+            throw std::runtime_error("Unable to commit swap chain for index " + std::to_string(oculusIndex));
+        }
+        if (!OVR_SUCCESS(ovr_SubmitFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1))) {
+            throw std::runtime_error("Unable to submit frame for index " + std::to_string(oculusIndex));
         }
 
-        ovrLayerHeader* headerList = &_sceneLayer.Header;
-        if (!OVR_SUCCESS(ovr_SubmitFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1))) {
-            throw std::runtime_error("Unable to submit frame for index " + std::to_string(curIndex));
-        }
+        // Blit from the mirror buffer to the swap chain image
+        // Technically I could move this to with the other submit, for blitting the framebuffer to the texture,
+        // but there's no real way of knowing when this image is properly populated.  Presumably its reliable here
+        // because of the blocking functionality of the ovr_SubmitFrame (or the ovr_CommitTextureSwapChain).
+        context.submit(mirrorBlitCommands[swapchainIndex], {}, { blitComplete }, submitFence);
+        swapChain.queuePresent(blitComplete);
     }
 
     std::string getWindowTitle() {
         std::string device(context.deviceProperties.deviceName);
         return "Oculus SDK Example " + device + " - " + std::to_string((int)lastFPS) + " fps";
     }
-
-#if 0
-    // FIXME restore mirror window functionality
-    void renderMirror() override {
-        GLuint mirrorTextureId;
-        ovr_GetMirrorTextureBufferGL(_session, _mirrorTexture, &mirrorTextureId);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, _mirrorFbo);
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mirrorTextureId, 0);
-        glBlitFramebuffer(0, 0, size.x, size.y, 0, size.y, size.x, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-    }
-#endif
-
 };
 
 RUN_EXAMPLE(OculusExample)
