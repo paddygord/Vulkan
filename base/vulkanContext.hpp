@@ -8,7 +8,10 @@
 namespace vkx {
     class Context {
     public:
+        using DevicePickerFunction = std::function<vk::PhysicalDevice(const std::vector<vk::PhysicalDevice>&)>;
+        static DevicePickerFunction DEFAULT_DEVICE_PICKER;
         static std::list<std::string> requestedLayers;
+        DevicePickerFunction devicePicker { DEFAULT_DEVICE_PICKER };
         // Set to true when example is created with enabled validation layers
         bool enableValidation = false;
         // Set to true when the debug marker extension is detected
@@ -27,8 +30,8 @@ namespace vkx {
         }
 
         std::set<std::string> requiredExtensions;
-        
-        template<typename Container> 
+
+        template<typename Container>
         void requireExtensions(const Container& requestedExtensions) {
             requiredExtensions.insert(requestedExtensions.begin(), requestedExtensions.end());
         }
@@ -37,51 +40,27 @@ namespace vkx {
             requiredExtensions.insert(requestedExtension);
         }
 
-        void createContext(bool enableValidation = false) {
-#if defined(__ANDROID__)
-            requireExtension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-#else
-            requireExtensions(glfw::getRequiredInstanceExtensions());
-#endif
-            this->enableValidation = enableValidation;
-            if (enableValidation) {
-                requireExtension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-            }
+        void setDevicePicker(const DevicePickerFunction& picker) {
+            devicePicker = picker;
+        }
 
-            {
-                // Vulkan instance
-                vk::ApplicationInfo appInfo;
-                appInfo.pApplicationName = "VulkanExamples";
-                appInfo.pEngineName = "VulkanExamples";
-                appInfo.apiVersion = VK_API_VERSION_1_0;
+        void createInstance();
 
-                std::vector<const char*> enabledExtensions;
-                for (const auto& extension : requiredExtensions) {
-                    enabledExtensions.push_back(extension.c_str());
-                }
-                // Enable surface extensions depending on os
-                vk::InstanceCreateInfo instanceCreateInfo;
-                instanceCreateInfo.pApplicationInfo = &appInfo;
-                if (enabledExtensions.size() > 0) {
-                    instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-                    instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-                    instanceCreateInfo.enabledLayerCount = (uint32_t)debug::validationLayerNames.size();
-                    instanceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames.data();
-                }
-                instance = vk::createInstance(instanceCreateInfo);
-            }
-
+        void loadFunctions() {
 #if defined(__ANDROID__)
             loadVulkanFunctions(instance);
 #endif
+        }
 
+        void pickDevice() {
             // Physical device
             physicalDevices = instance.enumeratePhysicalDevices();
+
             // Note :
             // This example will always use the first physical device reported,
             // change the vector index if you have multiple Vulkan devices installed
             // and want to use another one
-            physicalDevice = physicalDevices[0];
+            physicalDevice = devicePicker(physicalDevices);
             struct Version {
                 uint32_t patch : 12;
                 uint32_t minor : 10;
@@ -94,36 +73,53 @@ namespace vkx {
             deviceFeatures = physicalDevice.getFeatures();
             // Gather physical device memory properties
             deviceMemoryProperties = physicalDevice.getMemoryProperties();
+        }
 
+        void buildDevice() {
             // Vulkan device
-            {
-                // Find a queue that supports graphics operations
-                uint32_t graphicsQueueIndex = findQueue(vk::QueueFlagBits::eGraphics);
-                std::array<float, 1> queuePriorities = { 0.0f };
-                vk::DeviceQueueCreateInfo queueCreateInfo;
-                queueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
-                queueCreateInfo.queueCount = 1;
-                queueCreateInfo.pQueuePriorities = queuePriorities.data();
-                std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-                vk::DeviceCreateInfo deviceCreateInfo;
-                deviceCreateInfo.queueCreateInfoCount = 1;
-                deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-                deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
-                // enable the debug marker extension if it is present (likely meaning a debugging tool is present)
-                if (vkx::checkDeviceExtensionPresent(physicalDevice, VK_EXT_DEBUG_MARKER_EXTENSION_NAME)) {
-                    enabledExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
-                    enableDebugMarkers = true;
-                }
-                if (enabledExtensions.size() > 0) {
-                    deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-                    deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-                }
-                if (enableValidation) {
-                    deviceCreateInfo.enabledLayerCount = (uint32_t)debug::validationLayerNames.size();
-                    deviceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames.data();
-                }
-                device = physicalDevice.createDevice(deviceCreateInfo);
+            // Find a queue that supports graphics operations
+            uint32_t graphicsQueueIndex = findQueue(vk::QueueFlagBits::eGraphics);
+            std::array<float, 1> queuePriorities = { 0.0f };
+            vk::DeviceQueueCreateInfo queueCreateInfo;
+            queueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
+            queueCreateInfo.queueCount = 1;
+            queueCreateInfo.pQueuePriorities = queuePriorities.data();
+            std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+            vk::DeviceCreateInfo deviceCreateInfo;
+            deviceCreateInfo.queueCreateInfoCount = 1;
+            deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+            deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+            // enable the debug marker extension if it is present (likely meaning a debugging tool is present)
+            if (vkx::checkDeviceExtensionPresent(physicalDevice, VK_EXT_DEBUG_MARKER_EXTENSION_NAME)) {
+                enabledExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+                enableDebugMarkers = true;
             }
+            if (enabledExtensions.size() > 0) {
+                deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
+                deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+            }
+            if (enableValidation) {
+                deviceCreateInfo.enabledLayerCount = (uint32_t)debug::validationLayerNames.size();
+                deviceCreateInfo.ppEnabledLayerNames = debug::validationLayerNames.data();
+            }
+            device = physicalDevice.createDevice(deviceCreateInfo);
+        }
+
+        void createContext(bool enableValidation = false) {
+#if defined(__ANDROID__)
+            requireExtension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+#else
+            requireExtensions(glfw::getRequiredInstanceExtensions());
+#endif
+            this->enableValidation = enableValidation;
+
+            createInstance();
+
+            loadFunctions();
+
+            pickDevice();
+
+            buildDevice();
 
             if (enableValidation) {
                 debug::setupDebugging(instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning);
@@ -132,12 +128,12 @@ namespace vkx {
             if (enableDebugMarkers) {
                 debug::marker::setup(device);
             }
+
             pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
             // Find a queue that supports graphics operations
             graphicsQueueIndex = findQueue(vk::QueueFlagBits::eGraphics);
             // Get the graphics queue
             queue = device.getQueue(graphicsQueueIndex, 0);
-
         }
 
         void destroyContext() {
@@ -292,7 +288,7 @@ namespace vkx {
         void emptyDumpster(vk::Fence fence) {
             VoidLambdaList newDumpster;
             newDumpster.swap(dumpster);
-            recycler.push(FencedLambda{ fence, [fence, newDumpster, this] {
+            recycler.push(FencedLambda { fence, [fence, newDumpster, this] {
                 for (const auto & f : newDumpster) { f(); }
             } });
         }
@@ -596,7 +592,7 @@ namespace vkx {
             const vk::ArrayProxy<const vk::PipelineStageFlags>& waitStages = {},
             const vk::ArrayProxy<const vk::Semaphore>& signals = {},
             const vk::Fence& fence = vk::Fence()
-            ) {
+        ) {
             vk::SubmitInfo info;
             info.commandBufferCount = commandBuffers.size();
             info.pCommandBuffers = commandBuffers.data();

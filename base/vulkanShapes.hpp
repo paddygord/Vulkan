@@ -463,6 +463,14 @@ namespace vkx {
             submitInfo.pCommandBuffers = &cmdBuffer;
             context.queue.submit(submitInfo, nullptr);
         }
+
+        void renderWithoutSemaphors() {
+            vk::SubmitInfo submitInfo;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &cmdBuffer;
+            context.queue.submit(submitInfo, nullptr);
+        }
+
     };
 
 }

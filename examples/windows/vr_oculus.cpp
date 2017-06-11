@@ -1,6 +1,6 @@
-#include "vr_common.hpp"
-#include <OVR_CAPI.h>
-#include <OVR_CAPI_GL.h>
+#include <common.hpp>
+#include <vulkanShapes.hpp>
+#include <OVR_CAPI_Vk.h>
 
 namespace ovr {
     using TextureSwapChainDesc = ovrTextureSwapChainDesc;
@@ -25,7 +25,7 @@ namespace ovr {
     template <typename Function>
     inline void for_each_eye(Function function) {
         for (ovrEyeType eye = ovrEyeType::ovrEye_Left;
-        eye < ovrEyeType::ovrEye_Count;
+            eye < ovrEyeType::ovrEye_Count;
             eye = static_cast<ovrEyeType>(eye + 1)) {
             function(eye);
         }
@@ -103,114 +103,66 @@ namespace ovr {
         result.w = q.w;
         return result;
     }
-    
 }
 
-class OpenGLInteropExample : public VrExampleBase {
-    using Parent = VrExampleBase;
+
+void OVR_CDECL ovrLogger(uintptr_t userData, int level, const char* message) {
+    OutputDebugStringA("OVR_SDK: ");
+    OutputDebugStringA(message);
+    OutputDebugStringA("\n");
+}
+
+class OculusExample {
 public:
-    GLuint _mirrorFbo{ 0 };
-    ovr::Session _session{};
-    ovr::HmdDesc _hmdDesc{};
-    ovr::GraphicsLuid _luid{};
-    ovr::TextureSwapChain _eyeTexture;
-    ovr::MirrorTexture _mirrorTexture;
+    vkx::Context context;
+    std::shared_ptr<vkx::ShapesRenderer> shapesRenderer { std::make_shared<vkx::ShapesRenderer>(context, true) };
+    GLFWwindow* window { nullptr };
+    uint32_t frameCounter { 0 };
+    double fpsTimer { 0 };
+    float lastFPS { 0 };
+    glm::uvec2 size { 1280, 720 };
+    glm::uvec2 renderTargetSize;
+    std::array<glm::mat4, 2> eyeViews;
+    std::array<glm::mat4, 2> eyeProjections;
+    ovr::Session _session {};
+    ovr::HmdDesc _hmdDesc {};
+    ovr::GraphicsLuid _luid {};
     ovr::LayerEyeFov _sceneLayer;
+    ovr::TextureSwapChain& _eyeTexture = _sceneLayer.ColorTexture[0];
+    ovr::MirrorTexture _mirrorTexture;
     ovr::ViewScaleDesc _viewScaleDesc;
 
-    OpenGLInteropExample() {
-        ovr_Initialize(nullptr);
-    }
 
-    ~OpenGLInteropExample() {
+    OculusExample() { }
+
+    ~OculusExample() {
+        shapesRenderer.reset();
+
+        // Shut down Oculus
         ovr_Destroy(_session);
         _session = nullptr;
         ovr_Shutdown();
+
+        // Shut down Vulkan 
+        context.destroyContext();
+
+        // Shut down GLFW
+        if (nullptr != window) {
+            glfwDestroyWindow(window);
+        }
+        glfwTerminate();
     }
 
-    void submitVrFrame() override {
-        ovrLayerHeader* headerList = &_sceneLayer.Header;
-        ovr_SubmitFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1);
-    }
-
-
-    void renderMirror() override {
-        GLuint mirrorTextureId;
-        ovr_GetMirrorTextureBufferGL(_session, _mirrorTexture, &mirrorTextureId);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, _mirrorFbo);
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mirrorTextureId, 0);
-        glBlitFramebuffer(0, 0, size.x, size.y, 0, size.y, size.x, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-    }
-
-    void setupVrFramebuffer() override {
-        {
-            ovrTextureSwapChainDesc desc = {};
-            desc.Type = ovrTexture_2D;
-            desc.ArraySize = 1;
-            desc.Width = renderTargetSize.x;
-            desc.Height = renderTargetSize.y;
-            desc.MipLevels = 1;
-            desc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
-            desc.SampleCount = 1;
-            desc.StaticImage = ovrFalse;
-            if (!OVR_SUCCESS(ovr_CreateTextureSwapChainGL(_session, &desc, &_eyeTexture))) {
-                throw std::runtime_error("Unable to create swap chain");
-            }
-            int length = 0;
-            if (!OVR_SUCCESS(ovr_GetTextureSwapChainLength(_session, _eyeTexture, &length)) || !length) {
-                throw std::runtime_error("Unable to count swap chain textures");
-            }
-            for (int i = 0; i < length; ++i) {
-                GLuint chainTexId;
-                ovr_GetTextureSwapChainBufferGL(_session, _eyeTexture, i, &chainTexId);
-                glBindTexture(GL_TEXTURE_2D, chainTexId);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            }
-            glBindTexture(GL_TEXTURE_2D, 0);
+    void prepareOculus() {
+        ovrInitParams initParams { 0, OVR_MINOR_VERSION, ovrLogger, (uintptr_t)this, 0 };
+        if (!OVR_SUCCESS(ovr_Initialize(&initParams))) {
+            throw std::runtime_error("Unable to initialize Oculus SDK");
         }
 
-        _sceneLayer.ColorTexture[0] = _eyeTexture;
-        // Set up the framebuffer object
-        glCreateFramebuffers(1, &_fbo);
-
-        ovrMirrorTextureDesc mirrorDesc;
-        memset(&mirrorDesc, 0, sizeof(mirrorDesc));
-        mirrorDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
-        mirrorDesc.Width = size.x;
-        mirrorDesc.Height = size.y;
-        if (!OVR_SUCCESS(ovr_CreateMirrorTextureGL(_session, &mirrorDesc, &_mirrorTexture))) {
-            throw std::runtime_error("Could not create mirror texture");
-        }
-        glCreateFramebuffers(1, &_mirrorFbo);
-    }
-
-    virtual void bindVrFramebuffer() {
-        int curIndex;
-        if (!OVR_SUCCESS(ovr_GetTextureSwapChainCurrentIndex(_session, _eyeTexture, &curIndex))) {
-            throw std::runtime_error("Unable to acquire next texture index");
-        }
-        GLuint curTexId;
-        if (!OVR_SUCCESS(ovr_GetTextureSwapChainBufferGL(_session, _eyeTexture, curIndex, &curTexId))) {
-            throw std::runtime_error("Unable to acquire GL texture for index " + std::to_string(curIndex));
-        }
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _fbo);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, curTexId, 0);
-    }
-
-    virtual void unbindVrFramebuffer() {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
-        ovr_CommitTextureSwapChain(_session, _eyeTexture);
-    }
-
-    void prepare() {
         if (!OVR_SUCCESS(ovr_Create(&_session, &_luid))) {
             throw std::runtime_error("Unable to create HMD session");
         }
+
         _hmdDesc = ovr_GetHmdDesc(_session);
         _viewScaleDesc.HmdSpaceToWorldScaleInMeters = 1.0f;
         memset(&_sceneLayer, 0, sizeof(ovrLayerEyeFov));
@@ -231,8 +183,81 @@ public:
             renderTargetSize.y = std::max(renderTargetSize.y, (uint32_t)eyeSize.h);
             renderTargetSize.x += eyeSize.w;
         });
+    }
 
-        Parent::prepare();
+    vk::ImageBlit imgBlit;
+
+    void prepareOculusVk() {
+        ovr_SetSynchonizationQueueVk(_session, context.queue);
+
+        ovrTextureSwapChainDesc desc = {};
+        desc.Type = ovrTexture_2D;
+        desc.ArraySize = 1;
+        desc.Width = renderTargetSize.x;
+        desc.Height = renderTargetSize.y;
+        desc.MipLevels = 1;
+        desc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
+        desc.SampleCount = 1;
+        desc.StaticImage = ovrFalse;
+        if (!OVR_SUCCESS(ovr_CreateTextureSwapChainVk(_session, context.device, &desc, &_eyeTexture))) {
+            throw std::runtime_error("Unable to create swap chain");
+        }
+
+        int length = 0;
+        if (!OVR_SUCCESS(ovr_GetTextureSwapChainLength(_session, _eyeTexture, &length)) || !length) {
+            throw std::runtime_error("Unable to count swap chain textures");
+        }
+
+        ovrMirrorTextureDesc mirrorDesc;
+        memset(&mirrorDesc, 0, sizeof(mirrorDesc));
+        mirrorDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
+        mirrorDesc.Width = size.x;
+        mirrorDesc.Height = size.y;
+        if (!OVR_SUCCESS(ovr_CreateMirrorTextureWithOptionsVk(_session, context.device, &mirrorDesc, &_mirrorTexture))) {
+            throw std::runtime_error("Could not create mirror texture");
+        }
+
+        imgBlit.dstSubresource.aspectMask = imgBlit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        imgBlit.dstSubresource.layerCount = imgBlit.srcSubresource.layerCount = 1;
+        imgBlit.dstOffsets[1] = imgBlit.srcOffsets[1] = vk::Offset3D { (int32_t)renderTargetSize.x, (int32_t)renderTargetSize.y, 1 };
+    }
+
+    void prepareVulkan() {
+        context.requireExtension(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+        context.setDevicePicker([this](const std::vector<vk::PhysicalDevice>& devices)->vk::PhysicalDevice {
+            VkPhysicalDevice result;
+            if (!OVR_SUCCESS(ovr_GetSessionPhysicalDeviceVk(_session, _luid, context.instance, &result))) {
+                throw std::runtime_error("Unable to identify Vulkan device");
+            }
+            return result;
+        });
+        context.createContext();
+    }
+
+    void prepareWindow() {
+        // Make the on screen window 1/4 the resolution of the render target
+        size = renderTargetSize;
+        size /= 4;
+
+        glfwInit();
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        window = glfwCreateWindow(size.x, size.y, "glfw", nullptr, nullptr);
+        if (!window) {
+            throw std::runtime_error("Unable to create rendering window");
+        }
+    }
+
+    void prepareRenderer() {
+        shapesRenderer->framebufferSize = renderTargetSize;
+        shapesRenderer->prepare();
+    }
+
+    void prepare() {
+        prepareOculus();
+        prepareVulkan();
+        prepareWindow();
+        prepareOculusVk();
+        prepareRenderer();
     }
 
     void update(float delta) {
@@ -242,15 +267,77 @@ public:
         ovr::for_each_eye([&](ovrEyeType eye) {
             const auto& vp = _sceneLayer.Viewport[eye];
             _sceneLayer.RenderPose[eye] = eyePoses[eye];
-            //renderScene(_eyeProjections[eye], ovr::toGlm(eyePoses[eye]));
         });
-        Parent::update(delta);
+        shapesRenderer->update(delta, eyeProjections, eyeViews);
+    }
+
+    void render() {
+        shapesRenderer->renderWithoutSemaphors();
+
+        int curIndex;
+        if (!OVR_SUCCESS(ovr_GetTextureSwapChainCurrentIndex(_session, _eyeTexture, &curIndex))) {
+            throw std::runtime_error("Unable to acquire next texture index");
+        }
+        VkImage swapchainImage;
+        if (!OVR_SUCCESS(ovr_GetTextureSwapChainBufferVk(_session, _eyeTexture, curIndex, &swapchainImage))) {
+            throw std::runtime_error("Unable to acquire vulkan image for index " + std::to_string(curIndex));
+        }
+
+        context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& cmdBuffer) {
+            cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, swapchainImage, vk::ImageLayout::eTransferDstOptimal, imgBlit, vk::Filter::eNearest);
+        });
+
+        if (!OVR_SUCCESS(ovr_CommitTextureSwapChain(_session, _eyeTexture))) {
+            throw std::runtime_error("Unable to commit swap chain for index " + std::to_string(curIndex));
+        }
+
+        ovrLayerHeader* headerList = &_sceneLayer.Header;
+        if (!OVR_SUCCESS(ovr_SubmitFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1))) {
+            throw std::runtime_error("Unable to submit frame for index " + std::to_string(curIndex));
+        }
+    }
+
+    void run() {
+        prepare();
+        auto tStart = std::chrono::high_resolution_clock::now();
+        static auto lastFrameCounter = frameCounter;
+        while (!glfwWindowShouldClose(window)) {
+            auto tEnd = std::chrono::high_resolution_clock::now();
+            auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+            glfwPollEvents();
+            update((float)tDiff / 1000.0f);
+            render();
+            ++frameCounter;
+            fpsTimer += (float)tDiff;
+            if (fpsTimer > 1000.0f) {
+                std::string windowTitle = getWindowTitle();
+                glfwSetWindowTitle(window, windowTitle.c_str());
+                lastFPS = (float)(frameCounter - lastFrameCounter);
+                lastFPS *= 1000.0f;
+                lastFPS /= fpsTimer;
+                fpsTimer = 0.0f;
+                lastFrameCounter = frameCounter;
+            }
+            tStart = tEnd;
+        }
     }
 
     std::string getWindowTitle() {
-        std::string device(vulkanContext.deviceProperties.deviceName);
-        return "OpenGL Interop - " + device + " - " + std::to_string(frameCounter) + " fps";
+        std::string device(context.deviceProperties.deviceName);
+        return "Oculus SDK Example " + device + " - " + std::to_string((int)lastFPS) + " fps";
     }
+
+#if 0
+    void renderMirror() override {
+        GLuint mirrorTextureId;
+        ovr_GetMirrorTextureBufferGL(_session, _mirrorTexture, &mirrorTextureId);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, _mirrorFbo);
+        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mirrorTextureId, 0);
+        glBlitFramebuffer(0, 0, size.x, size.y, 0, size.y, size.x, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    }
+#endif
+
 };
 
-RUN_EXAMPLE(OpenGLInteropExample)
+RUN_EXAMPLE(OculusExample)

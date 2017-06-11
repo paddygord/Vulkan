@@ -20,24 +20,21 @@ if (WIN32)
 
   ExternalProject_Add(
     ${EXTERNAL_NAME}
-    URL http://hifi-public.s3.amazonaws.com/dependencies/ovr_sdk_win_1.3.0_public.zip
-    URL_MD5 a2dcf695e0f03a70fdd1ed7480585e82
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
+    URL https://s3.amazonaws.com/Oculus/ovr_sdk_win_1.15.0.zip
+    URL_MD5 45e86e55358da52293fb8eb8ef5df5ef
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+    PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/LibOVRCMakeLists.txt" <SOURCE_DIR>/CMakeLists.txt
     LOG_DOWNLOAD 1
   )
 
   ExternalProject_Get_Property(${EXTERNAL_NAME} SOURCE_DIR)
-  set(LIBOVR_DIR ${SOURCE_DIR}/OculusSDK/LibOVR)
-  if ("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
-    set(LIBOVR_LIB_DIR ${LIBOVR_DIR}/Lib/Windows/x64/Release/VS2015 CACHE TYPE INTERNAL)
-  else()
-    set(LIBOVR_LIB_DIR ${LIBOVR_DIR}/Lib/Windows/Win32/Release/VS2015 CACHE TYPE INTERNAL)
-  endif()
-
-  set(${EXTERNAL_NAME_UPPER}_INCLUDE_DIRS ${LIBOVR_DIR}/Include CACHE TYPE INTERNAL)
-  set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${LIBOVR_LIB_DIR}/LibOVR.lib CACHE TYPE INTERNAL)
+  ExternalProject_Get_Property(${EXTERNAL_NAME} INSTALL_DIR)
+  set(${EXTERNAL_NAME_UPPER}_INCLUDE_DIRS ${INSTALL_DIR}/Include CACHE TYPE INTERNAL)
+  set(${EXTERNAL_NAME_UPPER}_LIBRARY_DEBUG ${INSTALL_DIR}/Lib/LibOVRd.lib CACHE TYPE INTERNAL)
+  set(${EXTERNAL_NAME_UPPER}_LIBRARY_RELEASE ${INSTALL_DIR}/Lib/LibOVR.lib CACHE TYPE INTERNAL)
+  include(SelectLibraryConfigurations)
+  select_library_configurations(LIBOVR)
+  set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${${EXTERNAL_NAME_UPPER}_LIBRARIES} CACHE TYPE INTERNAL)
   
 elseif(APPLE)
   

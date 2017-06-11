@@ -17,6 +17,7 @@
 #include <iostream>
 #include <iomanip>
 #include <list>
+#include <memory>
 #include <mutex>
 #include <random>
 #include <set>
