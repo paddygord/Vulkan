@@ -17,7 +17,8 @@ public:
 
     OpenGLInteropExample() : vulkanRenderer{ vulkanContext } {
         glfwInit();
-        vulkanContext.createContext(false);
+        vulkanContext.setValidationEnabled(true);
+        vulkanContext.createContext();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         glfwWindowHint(GLFW_DEPTH_BITS, 16);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);

@@ -20,7 +20,8 @@ public:
     } semaphores;
 
     ShapesTestExample() : vulkanRenderer{ *this, true }, swapChain(*this) {
-        createContext(true);
+        setValidationEnabled(true);
+        createContext();
 
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);

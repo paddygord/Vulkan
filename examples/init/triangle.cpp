@@ -73,8 +73,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     TriangleExample() : swapChain(*this) {
-        bool enableValidation = true;
-        createContext(enableValidation);
+        setValidationEnabled(true);
+        createContext();
         createWindow();
     }
 

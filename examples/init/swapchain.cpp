@@ -279,8 +279,8 @@ public:
     SwapchainExample() : swapChain(*this) {
         glfwInit();
         // Construct the Vulkan instance just as we did in the init_context example
-        bool enableValidation = true;
-        createContext(enableValidation);
+        setValidationEnabled(true);
+        createContext();
 
         // Construct the window.  The window doesn't need any special attributes, it just 
         // need to be a native Win32 or XCB window surface. Window is independent of the contenxt and
