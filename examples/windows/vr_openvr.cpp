@@ -35,14 +35,10 @@ namespace openvr {
         return result;
     }
 
-    std::set<std::string> getInstanceExtensionsRequired(vr::IVRCompositor* compositor) {
-        auto bytesRequired = compositor->GetVulkanInstanceExtensionsRequired(nullptr, 0);
-        //GetVulkanDeviceExtensionsRequired
-        std::vector<char> extensions;  extensions.resize(bytesRequired);
-        compositor->GetVulkanInstanceExtensionsRequired(extensions.data(), extensions.size());
+    std::set<std::string> toStringSet(const std::vector<char>& data) {
         std::set<std::string> result;
         std::string buffer;
-        for (char c : extensions) {
+        for (char c : data) {
             if (c == 0 || c == ' ') {
                 if (!buffer.empty()) {
                     result.insert(buffer);
@@ -57,34 +53,23 @@ namespace openvr {
         }
 
         return result;
+
+    }
+
+    std::set<std::string> getInstanceExtensionsRequired(vr::IVRCompositor* compositor) {
+        auto bytesRequired = compositor->GetVulkanInstanceExtensionsRequired(nullptr, 0);
+        std::vector<char> extensions;  extensions.resize(bytesRequired);
+        compositor->GetVulkanInstanceExtensionsRequired(extensions.data(), extensions.size());
+        return toStringSet(extensions);
     }
 
     std::set<std::string> getDeviceExtensionsRequired(const vk::PhysicalDevice& physicalDevice, vr::IVRCompositor* compositor) {
         auto bytesRequired = compositor->GetVulkanDeviceExtensionsRequired(physicalDevice, nullptr, 0);
-        //GetVulkanDeviceExtensionsRequired
         std::vector<char> extensions;  extensions.resize(bytesRequired);
         compositor->GetVulkanDeviceExtensionsRequired(physicalDevice, extensions.data(), extensions.size());
-        std::set<std::string> result;
-        std::string buffer;
-        for (char c : extensions) {
-            if (c == 0 || c == ' ') {
-                if (!buffer.empty()) {
-                    result.insert(buffer);
-                    buffer.clear();
-                }
-                if (c == 0) {
-                    break;
-                }
-            }
-            else {
-                buffer += c;
-            }
-        }
-
-        return result;
+        return toStringSet(extensions);
     }
 }
-
 
 class OpenVrExample : public VrExample {
     using Parent = VrExample;
@@ -92,7 +77,6 @@ public:
     std::array<glm::mat4, 2> eyeOffsets;
     vr::IVRSystem* vrSystem { nullptr };
     vr::IVRCompositor* vrCompositor { nullptr };
-
 
     ~OpenVrExample() {
         vrSystem = nullptr;
@@ -107,7 +91,7 @@ public:
         vrCompositor = vr::VRCompositor();
 
         context.requireExtensions(openvr::getInstanceExtensionsRequired(vrCompositor));
-        
+
         // Recommended render target size is per-eye, so double the X size for 
         // left + right eyes
         renderTargetSize.x *= 2;
@@ -117,7 +101,7 @@ public:
             eyeProjections[eye] = openvr::toGlm(vrSystem->GetProjectionMatrix(eye, 0.1f, 256.0f));
         });
 
-        context.setDeviceExtensionsPicker([&](const vk::PhysicalDevice& physicalDevice)->std::set<std::string> {
+        context.setDeviceExtensionsPicker([this](const vk::PhysicalDevice& physicalDevice)->std::set<std::string> {
             return openvr::getDeviceExtensionsRequired(physicalDevice, vrCompositor);
         });
     }
@@ -165,12 +149,12 @@ public:
         static vr::VRTextureBounds_t rightBounds { 0.5f, 0, 1, 1 };
 
         vr::Texture_t texture { (void*)&vulkanTexture, vr::TextureType_Vulkan, vr::ColorSpace_Auto };
-        //vrCompositor->Submit(vr::Eye_Left, &texture, &leftBounds);
-        //vrCompositor->Submit(vr::Eye_Right, &texture, &rightBounds);
+        vrCompositor->Submit(vr::Eye_Left, &texture, &leftBounds);
+        vrCompositor->Submit(vr::Eye_Right, &texture, &rightBounds);
 
         context.submit(cmdBuffers[currentImage],
-            { { shapesRenderer->semaphores.renderComplete,  vk::PipelineStageFlagBits::eBottomOfPipe } },
-            { blitComplete }, submitFence);
+        { { shapesRenderer->semaphores.renderComplete,  vk::PipelineStageFlagBits::eBottomOfPipe } },
+        { blitComplete }, submitFence);
         swapChain.queuePresent(blitComplete);
 
     }
