@@ -106,9 +106,38 @@ public:
         });
     }
 
+    void prepareOpenVrVk() {
+        blitComplete = context.device.createSemaphore({});
+
+        if (mirrorBlitCommands.empty()) {
+            vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+            cmdBufAllocateInfo.commandPool = context.getCommandPool();
+            cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
+            mirrorBlitCommands = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
+        }
+
+        vk::ImageBlit mirrorBlit;
+        mirrorBlit.dstSubresource.aspectMask = mirrorBlit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        mirrorBlit.dstSubresource.layerCount = mirrorBlit.srcSubresource.layerCount = 1;
+        mirrorBlit.srcOffsets[1] = { (int32_t)renderTargetSize.x, (int32_t)renderTargetSize.y, 1 };
+        mirrorBlit.dstOffsets[1] = { (int32_t)size.x, (int32_t)size.y, 1 };
+
+        for (size_t i = 0; i < swapChain.imageCount; ++i) {
+            vk::CommandBuffer& cmdBuffer = mirrorBlitCommands[i];
+            cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+            cmdBuffer.begin(vk::CommandBufferBeginInfo {});
+            vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+            cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, swapChain.images[i].image, vk::ImageLayout::eTransferDstOptimal, mirrorBlit, vk::Filter::eNearest);
+            vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR);
+            cmdBuffer.end();
+        }
+    }
+
     void prepare() {
         prepareOpenVr();
+        //context.setValidationEnabled(true);
         Parent::prepare();
+        prepareOpenVrVk();
     }
 
     void update(float delta) {
@@ -125,15 +154,22 @@ public:
         Parent::update(delta);
     }
 
+    vk::Fence fence;
+
     void render() {
-        vk::Fence submitFence = swapChain.getSubmitFence(true);
+        if (fence) {
+            vk::Result fenceRes = context.device.waitForFences(fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
+            context.device.resetFences(fence);
+        } else {
+            fence = context.device.createFence({});
+        }
         auto currentImage = swapChain.acquireNextImage(shapesRenderer->semaphores.renderStart);
 
         shapesRenderer->render();
 
         vk::Format format = shapesRenderer->framebuffer.colors[0].format;
         vr::VRVulkanTextureData_t vulkanTexture {};
-        vulkanTexture.m_nImage = (uint64_t)(VkImage)shapesRenderer->framebuffer.colors[0].image,
+        vulkanTexture.m_nImage = (uint64_t)(VkImage)shapesRenderer->framebuffer.colors[0].image;
         vulkanTexture.m_pDevice = (VkDevice)context.device;
         vulkanTexture.m_pPhysicalDevice = (VkPhysicalDevice)context.physicalDevice;
         vulkanTexture.m_pInstance = (VkInstance)context.instance;
@@ -147,16 +183,14 @@ public:
         // Flip y-axis since GL UV coords are backwards.
         static vr::VRTextureBounds_t leftBounds { 0, 0, 0.5f, 1 };
         static vr::VRTextureBounds_t rightBounds { 0.5f, 0, 1, 1 };
-
         vr::Texture_t texture { (void*)&vulkanTexture, vr::TextureType_Vulkan, vr::ColorSpace_Auto };
-        vrCompositor->Submit(vr::Eye_Left, &texture, &leftBounds);
-        vrCompositor->Submit(vr::Eye_Right, &texture, &rightBounds);
+        //vrCompositor->Submit(vr::Eye_Left, &texture, &leftBounds);
+        //vrCompositor->Submit(vr::Eye_Right, &texture, &rightBounds);
 
-        context.submit(cmdBuffers[currentImage],
-        { { shapesRenderer->semaphores.renderComplete,  vk::PipelineStageFlagBits::eBottomOfPipe } },
-        { blitComplete }, submitFence);
+        context.submit(mirrorBlitCommands[currentImage],
+            { { shapesRenderer->semaphores.renderComplete,  vk::PipelineStageFlagBits::eBottomOfPipe } },
+            { blitComplete }, fence);
         swapChain.queuePresent(blitComplete);
-
     }
 
     std::string getWindowTitle() {

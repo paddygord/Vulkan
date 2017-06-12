@@ -212,7 +212,7 @@ public:
                 throw std::runtime_error("Unable to acquire vulkan image for index " + std::to_string(i));
             }
             cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-            cmdBuffer.begin({});
+            cmdBuffer.begin(vk::CommandBufferBeginInfo {});
             vkx::setImageLayout(cmdBuffer, oculusImage, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
             cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, oculusImage, vk::ImageLayout::eTransferDstOptimal, sceneBlit, vk::Filter::eNearest);
             // FIXME any image transition needed here for output?
@@ -248,7 +248,7 @@ public:
         for (size_t i = 0; i < swapChain.imageCount; ++i) {
             vk::CommandBuffer& cmdBuffer = mirrorBlitCommands[i];
             cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-            cmdBuffer.begin({});
+            cmdBuffer.begin(vk::CommandBufferBeginInfo {});
             vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
             cmdBuffer.blitImage(mirrorImage, vk::ImageLayout::eTransferSrcOptimal, swapChain.images[i].image, vk::ImageLayout::eTransferDstOptimal, mirrorBlit, vk::Filter::eNearest);
             vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR);
@@ -268,7 +268,7 @@ public:
     void prepare() {
         prepareOculus();
         // FIXME the Oculus API hangs if validation is enabled
-        //context.setValidationEnabled(true);
+        context.setValidationEnabled(true);
         Parent::prepare();
         prepareOculusVk();
     }

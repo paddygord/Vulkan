@@ -16,6 +16,8 @@ public:
     glm::uvec2 renderTargetSize;
     std::array<glm::mat4, 2> eyeViews;
     std::array<glm::mat4, 2> eyeProjections;
+    vk::Semaphore blitComplete;
+    std::vector<vk::CommandBuffer> mirrorBlitCommands;
 
     ~VrExample() {
         shapesRenderer.reset();
