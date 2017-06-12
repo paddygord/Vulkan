@@ -3,12 +3,12 @@
 #include <vulkanSwapChain.hpp>
 #include <vulkanShapes.hpp>
 
-class VrExample {
+class VrExample : glfw::Window {
+    using Parent = glfw::Window;
 public:
     vkx::Context context;
     vkx::SwapChain swapChain { context };
     std::shared_ptr<vkx::ShapesRenderer> shapesRenderer { std::make_shared<vkx::ShapesRenderer>(context, true) };
-    GLFWwindow* window { nullptr };
     double fpsTimer { 0 };
     float lastFPS { 0 };
     uint32_t frameCounter { 0 };
@@ -16,8 +16,6 @@ public:
     glm::uvec2 renderTargetSize;
     std::array<glm::mat4, 2> eyeViews;
     std::array<glm::mat4, 2> eyeProjections;
-    vk::Semaphore blitComplete;
-    std::vector<vk::CommandBuffer> mirrorBlitCommands;
 
     ~VrExample() {
         shapesRenderer.reset();
@@ -31,6 +29,8 @@ public:
         }
         glfwTerminate();
     }
+
+    typedef void(*GLFWkeyfun)(GLFWwindow*, int, int, int, int);
 
     void prepareWindow() {
         // Make the on screen window 1/4 the resolution of the render target
@@ -46,6 +46,8 @@ public:
         context.addInstanceExtensionPicker([]()->std::set<std::string> {
             return glfw::getRequiredInstanceExtensions();
         });
+
+        Parent::prepareWindow();
     }
 
     void prepareVulkan() {
@@ -63,6 +65,18 @@ public:
         shapesRenderer->colorFormats = { vk::Format::eR8G8B8A8Srgb };
         shapesRenderer->prepare();
     }
+
+    virtual void recenter() = 0;
+
+    void keyEvent(int key, int scancode, int action, int mods) override {
+        switch (key) {
+        case GLFW_KEY_R:
+            recenter();
+        default:
+            break;
+        }
+    }
+
 
     virtual void prepare() {
         prepareWindow();

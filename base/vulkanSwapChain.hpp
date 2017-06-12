@@ -211,8 +211,8 @@ namespace vkx {
         }
 
         // Acquires the next image in the swap chain
-        uint32_t acquireNextImage(vk::Semaphore presentCompleteSemaphore) {
-            auto resultValue = context.device.acquireNextImageKHR(swapChain, UINT64_MAX, presentCompleteSemaphore, vk::Fence());
+        uint32_t acquireNextImage(const vk::Semaphore& presentCompleteSemaphore, const vk::Fence& fence = vk::Fence()) {
+            auto resultValue = context.device.acquireNextImageKHR(swapChain, UINT64_MAX, presentCompleteSemaphore, fence);
             vk::Result result = resultValue.result;
             if (result != vk::Result::eSuccess) {
                 // TODO handle eSuboptimalKHR

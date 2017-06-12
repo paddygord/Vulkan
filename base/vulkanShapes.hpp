@@ -445,30 +445,19 @@ namespace vkx {
 #endif
         }
 
-        void render() {
-            std::vector<vk::Semaphore> waitSemaphores;
-            std::vector<vk::PipelineStageFlags> waitStages;
-            waitSemaphores.push_back(semaphores.renderStart);
-            waitStages.push_back(vk::PipelineStageFlagBits::eBottomOfPipe);
-            std::vector<vk::Semaphore> signalSemaphores;
-            signalSemaphores.push_back(semaphores.renderComplete);
-
-            vk::SubmitInfo submitInfo;
-            submitInfo.waitSemaphoreCount = (uint32_t)waitSemaphores.size();
-            submitInfo.pWaitSemaphores = waitSemaphores.data();
-            submitInfo.pWaitDstStageMask = waitStages.data();
-            submitInfo.signalSemaphoreCount = (uint32_t)signalSemaphores.size();
-            submitInfo.pSignalSemaphores = signalSemaphores.data();
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &cmdBuffer;
-            context.queue.submit(submitInfo, nullptr);
+        void render(
+            const vk::ArrayProxy<const vkx::Context::SemaphoreStagePair>& wait,
+            const vk::ArrayProxy<const vk::Semaphore>& signals,
+            const vk::Fence& fence = vk::Fence()) {
+            context.submit(cmdBuffer, wait, signals, fence);
         }
 
-        void renderWithoutSemaphors() {
-            vk::SubmitInfo submitInfo;
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &cmdBuffer;
-            context.queue.submit(submitInfo, nullptr);
+        void render() {
+            render({ { semaphores.renderStart, vk::PipelineStageFlagBits::eBottomOfPipe } }, { semaphores.renderComplete });
+        }
+
+        void renderWithoutSemaphores() {
+            render({}, {});
         }
 
     };

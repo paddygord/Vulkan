@@ -71,6 +71,9 @@ namespace openvr {
     }
 }
 
+// Allow a maximum of two outstanding presentation operations.
+#define FRAME_LAG 2
+
 class OpenVrExample : public VrExample {
     using Parent = VrExample;
 public:
@@ -78,10 +81,26 @@ public:
     vr::IVRSystem* vrSystem { nullptr };
     vr::IVRCompositor* vrCompositor { nullptr };
 
+    size_t frameIndex { 0 };
+
+    using EyeImages = std::array<vkx::CreateImageResult, 2>;
+    using StagingImages = std::array<EyeImages, FRAME_LAG>;
+    StagingImages stagingImages;
+    std::array<std::vector<vk::CommandBuffer>, FRAME_LAG> stagingBlitCommands;
+    std::array<vk::Semaphore, FRAME_LAG> stagingBlitCompletes;
+    std::array<vk::Fence, FRAME_LAG> frameFences;
+
+    vk::Semaphore mirrorBlitComplete;
+    std::vector<vk::CommandBuffer> mirrorBlitCommands;
+
     ~OpenVrExample() {
         vrSystem = nullptr;
         vrCompositor = nullptr;
         vr::VR_Shutdown();
+    }
+
+    void recenter() override {
+        vrSystem->ResetSeatedZeroPose();
     }
 
     void prepareOpenVr() {
@@ -99,6 +118,8 @@ public:
         openvr::for_each_eye([&](vr::Hmd_Eye eye) {
             eyeOffsets[eye] = openvr::toGlm(vrSystem->GetEyeToHeadTransform(eye));
             eyeProjections[eye] = openvr::toGlm(vrSystem->GetProjectionMatrix(eye, 0.1f, 256.0f));
+            // FIXME Strange distortion and inverted Z view when doing this, but correct head tracking
+            eyeProjections[eye][1][1] *= -1.0f;
         });
 
         context.setDeviceExtensionsPicker([this](const vk::PhysicalDevice& physicalDevice)->std::set<std::string> {
@@ -106,8 +127,8 @@ public:
         });
     }
 
-    void prepareOpenVrVk() {
-        blitComplete = context.device.createSemaphore({});
+    void prepareMirrorBlit() {
+        mirrorBlitComplete = context.device.createSemaphore({});
 
         if (mirrorBlitCommands.empty()) {
             vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
@@ -133,9 +154,68 @@ public:
         }
     }
 
+    void prepareStagingImages() {
+        vk::ImageCreateInfo imageCreate;
+        imageCreate.imageType = vk::ImageType::e2D;
+        imageCreate.extent = vk::Extent3D { renderTargetSize.x / 2, renderTargetSize.y, 1 };
+        imageCreate.format = vk::Format::eR8G8B8A8Srgb;
+        imageCreate.mipLevels = 1;
+        imageCreate.arrayLayers = 1;
+        imageCreate.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eSampled;
+
+        for (size_t frame = 0; frame < FRAME_LAG; ++frame) {
+            for (size_t eye = 0; eye < 2; ++eye) {
+                stagingImages[frame][eye] = context.createImage(imageCreate);
+            }
+        }
+    }
+
+    void prepareStagingBlit() {
+        for (size_t frame = 0; frame < FRAME_LAG; ++frame) {
+            stagingBlitCompletes[frame] = context.device.createSemaphore({});
+
+            auto& blitCommands = stagingBlitCommands[frame];
+            if (blitCommands.empty()) {
+                vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+                cmdBufAllocateInfo.commandPool = context.getCommandPool();
+                cmdBufAllocateInfo.commandBufferCount = 2;
+                blitCommands = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
+            }
+
+            for (size_t eye = 0; eye < 2; ++eye) {
+                vk::ImageBlit blit;
+                blit.dstSubresource.aspectMask = blit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+                blit.dstSubresource.layerCount = blit.srcSubresource.layerCount = 1;
+                blit.srcOffsets[1] = { (int32_t)renderTargetSize.x / 2, (int32_t)renderTargetSize.y, 1 };
+                blit.dstOffsets[1] = { (int32_t)renderTargetSize.x / 2, (int32_t)renderTargetSize.y, 1 };
+                // Offset the source image for the right eye
+                if (eye == vr::Eye_Right) {
+                    blit.srcOffsets[0].x = (int32_t)renderTargetSize.x / 2;
+                    blit.srcOffsets[1].x += (int32_t)renderTargetSize.x / 2;
+                }
+                vk::CommandBuffer& cmdBuffer = blitCommands[eye];
+                cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+                cmdBuffer.begin(vk::CommandBufferBeginInfo {});
+                const auto& stagingImage = stagingImages[frame][eye];
+                vkx::setImageLayout(cmdBuffer, stagingImage.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+                cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, stagingImage.image, vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eNearest);
+                vkx::setImageLayout(cmdBuffer, stagingImage.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral);
+                cmdBuffer.end();
+            }
+        }
+    }
+
+    void prepareOpenVrVk() {
+        prepareStagingImages();
+        prepareStagingBlit();
+        prepareMirrorBlit();
+        for (size_t frame = 0; frame < FRAME_LAG; ++frame) {
+            frameFences[frame] = context.device.createFence({ vk::FenceCreateFlagBits::eSignaled });
+        }
+    }
+
     void prepare() {
         prepareOpenVr();
-        //context.setValidationEnabled(true);
         Parent::prepare();
         prepareOpenVrVk();
     }
@@ -154,43 +234,51 @@ public:
         Parent::update(delta);
     }
 
-    vk::Fence fence;
-
     void render() {
-        if (fence) {
-            vk::Result fenceRes = context.device.waitForFences(fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
-            context.device.resetFences(fence);
-        } else {
-            fence = context.device.createFence({});
-        }
-        auto currentImage = swapChain.acquireNextImage(shapesRenderer->semaphores.renderStart);
+        context.device.waitForFences(frameFences[frameIndex], VK_TRUE, UINT64_MAX);
+        context.device.resetFences(frameFences[frameIndex]);
+
+        auto currentImage = swapChain.acquireNextImage(shapesRenderer->semaphores.renderStart, frameFences[frameIndex]);
 
         shapesRenderer->render();
 
-        vk::Format format = shapesRenderer->framebuffer.colors[0].format;
-        vr::VRVulkanTextureData_t vulkanTexture {};
-        vulkanTexture.m_nImage = (uint64_t)(VkImage)shapesRenderer->framebuffer.colors[0].image;
-        vulkanTexture.m_pDevice = (VkDevice)context.device;
-        vulkanTexture.m_pPhysicalDevice = (VkPhysicalDevice)context.physicalDevice;
-        vulkanTexture.m_pInstance = (VkInstance)context.instance;
-        vulkanTexture.m_pQueue = (VkQueue)context.queue;
-        vulkanTexture.m_nQueueFamilyIndex = context.graphicsQueueIndex;
-        vulkanTexture.m_nWidth = renderTargetSize.x;
-        vulkanTexture.m_nHeight = renderTargetSize.y;
-        vulkanTexture.m_nFormat = (uint32_t)(VkFormat)format;
-        vulkanTexture.m_nSampleCount = 1;
+        // Perform both eye blits and the mirror blit concurrently
+        context.submit(
+            { stagingBlitCommands[frameIndex][vr::Eye_Left], stagingBlitCommands[frameIndex][vr::Eye_Right], mirrorBlitCommands[currentImage] },
+            { { shapesRenderer->semaphores.renderComplete, vk::PipelineStageFlagBits::eColorAttachmentOutput } },
+            { stagingBlitCompletes[frameIndex] });
 
-        // Flip y-axis since GL UV coords are backwards.
-        static vr::VRTextureBounds_t leftBounds { 0, 0, 0.5f, 1 };
-        static vr::VRTextureBounds_t rightBounds { 0.5f, 0, 1, 1 };
-        vr::Texture_t texture { (void*)&vulkanTexture, vr::TextureType_Vulkan, vr::ColorSpace_Auto };
-        //vrCompositor->Submit(vr::Eye_Left, &texture, &leftBounds);
-        //vrCompositor->Submit(vr::Eye_Right, &texture, &rightBounds);
+        //-----------------------------------------------------------------------------------------
+        // OpenVR BEGIN: Submit eyes to compositor, left eye just rendered
+        //-----------------------------------------------------------------------------------------
+        vr::VRTextureBounds_t textureBounds;
+        textureBounds.uMin = 0.0f;
+        textureBounds.uMax = 1.0f;
+        textureBounds.vMin = 0.0f;
+        textureBounds.vMax = 1.0f;
 
-        context.submit(mirrorBlitCommands[currentImage],
-            { { shapesRenderer->semaphores.renderComplete,  vk::PipelineStageFlagBits::eBottomOfPipe } },
-            { blitComplete }, fence);
-        swapChain.queuePresent(blitComplete);
+        vr::VRVulkanTextureData_t vulkanData;
+        vulkanData.m_pDevice = (VkDevice_T *)context.device;
+        vulkanData.m_pPhysicalDevice = (VkPhysicalDevice_T *)context.physicalDevice;
+        vulkanData.m_pInstance = (VkInstance_T *)context.instance;
+        vulkanData.m_pQueue = (VkQueue_T *)context.queue;
+        vulkanData.m_nQueueFamilyIndex = context.graphicsQueueIndex;
+        vulkanData.m_nWidth = renderTargetSize.x / 2;
+        vulkanData.m_nHeight = renderTargetSize.y;
+        vulkanData.m_nFormat = (uint32_t)stagingImages[frameIndex][vr::Eye_Left].format;
+        vulkanData.m_nSampleCount = 1;
+        vr::Texture_t texture = { &vulkanData, vr::TextureType_Vulkan, vr::ColorSpace_Auto };
+
+        // Submit left eye
+        vulkanData.m_nImage = (uint64_t)(VkImage)stagingImages[frameIndex][vr::Eye_Left].image;
+        vr::VRCompositor()->Submit(vr::Eye_Left, &texture, &textureBounds);
+
+        // Submit right eye
+        vulkanData.m_nImage = (uint64_t)(VkImage)stagingImages[frameIndex][vr::Eye_Right].image;
+        vr::VRCompositor()->Submit(vr::Eye_Right, &texture, &textureBounds);
+
+        swapChain.queuePresent(stagingBlitCompletes[frameIndex]);
+        frameIndex = (frameIndex + 1) % FRAME_LAG;
     }
 
     std::string getWindowTitle() {

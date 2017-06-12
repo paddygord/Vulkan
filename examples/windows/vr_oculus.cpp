@@ -133,6 +133,10 @@ public:
         ovr_Shutdown();
     }
 
+    void recenter() override {
+        ovr_RecenterTrackingOrigin(_session);
+    }
+
     void prepareOculus() {
         ovrInitParams initParams { 0, OVR_MINOR_VERSION, ovr::logger, (uintptr_t)this, 0 };
         if (!OVR_SUCCESS(ovr_Initialize(&initParams))) {
@@ -152,7 +156,7 @@ public:
         ovr::for_each_eye([&](ovrEyeType eye) {
             ovrEyeRenderDesc erd = ovr_GetRenderDesc(_session, eye, _hmdDesc.DefaultEyeFov[eye]);
             ovrMatrix4f ovrPerspectiveProjection =
-                ovrMatrix4f_Projection(erd.Fov, 0.01f, 1000.0f, ovrProjection_ClipRangeOpenGL);
+                ovrMatrix4f_Projection(erd.Fov, 0.1f, 256.0f, ovrProjection_ClipRangeOpenGL);
             eyeProjections[eye] = ovr::toGlm(ovrPerspectiveProjection);
             _viewScaleDesc.HmdToEyeOffset[eye] = erd.HmdToEyeOffset;
 
@@ -215,7 +219,7 @@ public:
             cmdBuffer.begin(vk::CommandBufferBeginInfo {});
             vkx::setImageLayout(cmdBuffer, oculusImage, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
             cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, oculusImage, vk::ImageLayout::eTransferDstOptimal, sceneBlit, vk::Filter::eNearest);
-            // FIXME any image transition needed here for output?
+            vkx::setImageLayout(cmdBuffer, oculusImage, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal);
             cmdBuffer.end();
         }
     }
@@ -268,7 +272,7 @@ public:
     void prepare() {
         prepareOculus();
         // FIXME the Oculus API hangs if validation is enabled
-        context.setValidationEnabled(true);
+        // context.setValidationEnabled(true);
         Parent::prepare();
         prepareOculusVk();
     }
