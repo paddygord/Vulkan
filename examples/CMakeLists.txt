@@ -58,21 +58,11 @@ ENDMACRO()
 subdirlist(SUBDIRS ${CMAKE_CURRENT_SOURCE_DIR})
 build_examples(${SUBDIRS})
 
-set(TARGET_NAME glinterop)
-target_opengl()
-target_glew()
-
-set(TARGET_NAME stereo)
-target_opengl()
-target_glew()
-
 set(TARGET_NAME vr_oculus)
-target_opengl()
 target_glew()
 target_oculus()
 
 set(TARGET_NAME vr_openvr)
-target_opengl()
 target_glew()
 target_openvr()
 
