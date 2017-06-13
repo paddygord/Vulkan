@@ -31,6 +31,8 @@ This information comes from the [original repository readme](https://github.com/
 
 ## [Offscreen Rendering Examples](EXAMPLES_OFFSCREEN.md)
 
+## [VR Examples](EXAMPLES_VR.md)
+
 ## [Compute Examples](EXAMPLES_COMPUTE.md)
 
 ## [Broken Examples](EXAMPLES_BROKEN.md) 
