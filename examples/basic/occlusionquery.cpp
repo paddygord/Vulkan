@@ -73,7 +73,7 @@ public:
     // Passed query samples
     uint64_t passedSamples[2];
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         passedSamples[0] = passedSamples[1] = 1;
         size = { 1280, 720 };
         camera.setZoom(-35.0f);

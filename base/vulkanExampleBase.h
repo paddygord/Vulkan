@@ -32,7 +32,7 @@
 
 #define VERTEX_BUFFER_BIND_ID 0
 #define INSTANCE_BUFFER_BIND_ID 1
-#define ENABLE_VALIDATION true
+//#define ENABLE_VALIDATION true
 
 namespace vkx {
     struct UpdateOperation {
@@ -51,7 +51,6 @@ namespace vkx {
 
     class ExampleBase : public Context {
     protected:
-        ExampleBase(bool enableValidation);
         ExampleBase();
         ~ExampleBase();
 
@@ -61,8 +60,6 @@ namespace vkx {
         void windowResize(const glm::uvec2& newSize);
 
     private:
-        // Set to true when example is created with enabled validation layers
-        bool enableValidation{ false };
         // Set to true when the debug marker extension is detected
         bool enableDebugMarkers{ false };
         // fps timer (one second interval)

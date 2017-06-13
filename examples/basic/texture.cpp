@@ -56,7 +56,7 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    TextureExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    TextureExample() {
         camera.setZoom(-2.5f);
         camera.setRotation({ 0.0f, 15.0f, 0.0f });
         title = "Vulkan Example - Texturing";

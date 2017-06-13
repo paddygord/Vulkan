@@ -57,7 +57,7 @@ public:
 
     glm::vec4 lightPos = glm::vec4(1.0f, 2.0f, 0.0f, 0.0f);
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         size.width = 1280;
         size.height = 720;
         camera.setZoom(-3.75f);

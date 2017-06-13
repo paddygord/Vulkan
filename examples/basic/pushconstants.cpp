@@ -53,7 +53,7 @@ public:
     // and will be updated via a push constant
     std::array<glm::vec4, 6> pushConstants;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         size.width = 1280;
         size.height = 720;
         camera.setZoom(-30.0);

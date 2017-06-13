@@ -101,7 +101,7 @@ public:
     vk::PipelineLayout pipelineLayout;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setZoom(-1.5f);
         title = "Vulkan Example - Distance field fonts";
     }

@@ -73,7 +73,7 @@ public:
     vk::DescriptorSet descriptorSetPostCompute;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         enableTextOverlay = false;
         title = "Vulkan Example - Compute shader particle system";
     }

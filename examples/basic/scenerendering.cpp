@@ -415,7 +415,7 @@ public:
         std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
     } vertices;
 
-    VulkanExample() : Parent(ENABLE_VALIDATION) {
+    VulkanExample() {
         rotationSpeed = 0.5f;
         enableTextOverlay = true;
         camera.type = Camera::CameraType::firstperson;

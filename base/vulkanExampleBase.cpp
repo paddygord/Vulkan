@@ -15,8 +15,6 @@ using namespace vkx;
 // Instead, use the `run` method
 ExampleBase::ExampleBase() : swapChain(*this) { }
 
-ExampleBase::ExampleBase(bool enableValidation) : enableValidation(enableValidation), swapChain(*this) { }
-
 ExampleBase::~ExampleBase() {
     // Clean up Vulkan resources
     swapChain.cleanup();
@@ -92,7 +90,9 @@ void ExampleBase::run() {
 }
 
 void ExampleBase::initVulkan() {
-    setValidationEnabled(enableValidation);
+#ifndef NDEBUG
+    setValidationEnabled(true);
+#endif
     createContext();
     // Find a suitable depth format
     depthFormat = getSupportedDepthFormat(physicalDevice);

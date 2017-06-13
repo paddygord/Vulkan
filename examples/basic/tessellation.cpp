@@ -64,7 +64,7 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setRotation({ -350.0f, 60.0f, 0.0f });
         camera.setTranslation({ -3.0f, 2.3f, -6.5f });
         title = "Vulkan Example - Tessellation shader (PN Triangles)";

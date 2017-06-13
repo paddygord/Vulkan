@@ -64,7 +64,7 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setZoom(-35);
         camera.setRotation({ -35.0, 0.0, 0 });
         title = "Vulkan Example - Tessellation shader displacement mapping";

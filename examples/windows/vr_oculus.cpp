@@ -209,7 +209,7 @@ public:
         sceneBlit.dstSubresource.aspectMask = sceneBlit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
         sceneBlit.dstSubresource.layerCount = sceneBlit.srcSubresource.layerCount = 1;
         sceneBlit.dstOffsets[1] = sceneBlit.srcOffsets[1] = vk::Offset3D { (int32_t)renderTargetSize.x, (int32_t)renderTargetSize.y, 1 };
-        for (size_t i = 0; i < oculusSwapchainLength; ++i) {
+        for (int i = 0; i < oculusSwapchainLength; ++i) {
             vk::CommandBuffer& cmdBuffer = oculusBlitCommands[i];
             VkImage oculusImage;
             if (!OVR_SUCCESS(ovr_GetTextureSwapChainBufferVk(_session, _eyeTexture, i, &oculusImage))) {
@@ -316,7 +316,7 @@ public:
         // Technically I could move this to with the other submit, for blitting the framebuffer to the texture,
         // but there's no real way of knowing when this image is properly populated.  Presumably its reliable here
         // because of the blocking functionality of the ovr_SubmitFrame (or the ovr_CommitTextureSwapChain).
-        context.submit(mirrorBlitCommands[swapchainIndex], {}, { blitComplete }, submitFence);
+        context.submit(mirrorBlitCommands[swapchainIndex], {}, {}, blitComplete, submitFence);
         swapChain.queuePresent(blitComplete);
     }
 

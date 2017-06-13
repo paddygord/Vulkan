@@ -95,7 +95,7 @@ public:
     // all descriptor sets
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() : vkx::OffscreenExampleBase() {
         camera.setZoom(-10.25f);
         camera.setRotation({ 7.5f, -343.0f, 0.0f });
         timerSpeed *= 0.5f;

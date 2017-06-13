@@ -17,10 +17,10 @@ namespace vkx {
         using DeviceExtensionsPickerFunction = std::function<std::set<std::string>(const vk::PhysicalDevice&)>;
         static DeviceExtensionsPickerFunction DEFAULT_DEVICE_EXTENSIONS_PICKER;
 
-        static std::list<std::string> requestedLayers;
         DevicePickerFunction devicePicker { DEFAULT_DEVICE_PICKER };
-        InstanceExtensionsPickerFunctions instanceExtensionsPickers;
         DeviceExtensionsPickerFunction deviceExtensionsPicker { DEFAULT_DEVICE_EXTENSIONS_PICKER };
+
+        InstanceExtensionsPickerFunctions instanceExtensionsPickers;
         // Set to true when example is created with enabled validation layers
         bool enableValidation = false;
         // Set to true when the debug marker extension is detected
@@ -365,11 +365,21 @@ namespace vkx {
             return s_cmdPool;
         }
 
-        void destroyCommandPool() {
+        void destroyCommandPool() const {
             if (s_cmdPool) {
                 device.destroyCommandPool(s_cmdPool);
                 s_cmdPool = vk::CommandPool();
             }
+        }
+
+        std::vector<vk::CommandBuffer> allocateCommandBuffers(uint32_t count, vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary) {
+            std::vector<vk::CommandBuffer> result;
+            vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
+            commandBufferAllocateInfo.commandPool = getCommandPool();
+            commandBufferAllocateInfo.commandBufferCount = count;
+            commandBufferAllocateInfo.level = vk::CommandBufferLevel::ePrimary;
+            result = device.allocateCommandBuffers(commandBufferAllocateInfo);
+            return result;
         }
 
         vk::CommandBuffer createCommandBuffer(vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary, bool begin = false) const {
@@ -409,6 +419,8 @@ namespace vkx {
         }
 
         // Create a short lived command buffer which is immediately executed and released
+        // This function is intended for initialization only.  It incurs a queue and device 
+        // flush and may impact performance if used in non-setup code
         template <typename F>
         void withPrimaryCommandBuffer(F f) const {
             vk::CommandBuffer commandBuffer = createCommandBuffer(vk::CommandBufferLevel::ePrimary, true);
@@ -671,6 +683,16 @@ namespace vkx {
             }
             submit(commandBuffers, waitSemaphores, waitStages, signals, fence);
         }
+
+        // Helper submit function when there is only one wait semaphore, to remove ambiguity
+        void submit(
+            const vk::ArrayProxy<const vk::CommandBuffer>& commandBuffers,
+            const SemaphoreStagePair& wait,
+            const vk::ArrayProxy<const vk::Semaphore>& signals = {},
+            const vk::Fence& fence = vk::Fence()) const {
+            submit(commandBuffers, wait.first, wait.second, signals, fence);
+        }
+
     };
 
     // Template specialization for texture objects

@@ -6,7 +6,7 @@ namespace vkx {
 
     class OffscreenExampleBase : public vkx::ExampleBase {
     protected:
-        OffscreenExampleBase(bool enableValidation) : vkx::ExampleBase(enableValidation), offscreen(*this) {}
+        OffscreenExampleBase() : offscreen(*this) {}
         ~OffscreenExampleBase() {
             offscreen.destroy();
         }

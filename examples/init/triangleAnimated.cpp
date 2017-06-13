@@ -38,7 +38,7 @@ public:
     } uboVS;
 
     // As before
-    VulkanExample() : Parent(ENABLE_VALIDATION) {
+    VulkanExample() {
         size.width = 1280;
         size.height = 720;
         camera.setZoom(-2.5f);

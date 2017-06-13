@@ -34,7 +34,7 @@ macro(BUILD_EXAMPLES)
             add_executable(${EXAMPLE_NAME} ${EXAMPLE} ${SHADERS} ${COMPILED_SHADERS})
             set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "examples/${_FOLDER_NAME}")
             
-            add_dependencies(${EXAMPLE_NAME} base)
+            add_dependencies(${EXAMPLE_NAME} common)
             target_link_libraries(${EXAMPLE_NAME} ${EXAMPLE_LIBS})
             if (NOT WIN32)
                 target_link_libraries(${EXAMPLE_NAME} Threads::Threads)

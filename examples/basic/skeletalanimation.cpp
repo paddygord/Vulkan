@@ -336,7 +336,7 @@ public:
 
     float runningTime = 0.0f;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.type = camera.lookat;
         camera.setZoom(-150.0f);
         zoomSpeed = 2.5f;

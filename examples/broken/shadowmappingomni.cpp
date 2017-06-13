@@ -102,7 +102,7 @@ public:
 
     //vk::CommandBuffer offscreen.cmdBuffer;
 
-    VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setZoom(-175.0f);
         zoomSpeed = 10.0f;
         timerSpeed *= 0.25f;

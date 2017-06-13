@@ -1,4 +1,5 @@
 #include "glfw.hpp"
+#include <mutex>
 
 namespace glfw {
     std::set<std::string> getRequiredInstanceExtensions() {
@@ -13,6 +14,53 @@ namespace glfw {
         return result;
     }
 
+    struct Destroyer {
+
+        ~Destroyer() {
+            glfwTerminate();
+        }
+    };
+
+    static std::shared_ptr<Destroyer> DESTROYER;
+
+    Window::Window() {
+        static std::once_flag once;
+        std::call_once(once, [] {
+            if (GLFW_TRUE == glfwInit()) {
+                DESTROYER.reset(new Destroyer());
+            }
+        });
+    }
+
+    void Window::runWindowLoop(const std::function<void()>& frameHandler) {
+        while (!glfwWindowShouldClose(window)) {
+            glfwPollEvents();
+            frameHandler();
+        }
+    }
+
+
+    void Window::createWindow(const glm::uvec2& size, const glm::ivec2& position) {
+        // Disable window resize
+        window = glfwCreateWindow(size.x, size.y, "Window Title", NULL, NULL);
+        if (position != glm::ivec2 { INT_MIN, INT_MIN }) {
+            glfwSetWindowPos(window, position.x, position.y);
+        }
+        prepareWindow();
+    }
+
+    void Window::setSizeLimits(const glm::uvec2& minSize, const glm::uvec2& maxSize) {
+        glfwSetWindowSizeLimits(window, minSize.x, minSize.y, maxSize.x ? maxSize.x : minSize.x, maxSize.y ? maxSize.y : minSize.y);
+    }
+
+    void Window::showWindow(bool show) {
+        if (show) {
+            glfwShowWindow(window);
+        } else {
+            glfwHideWindow(window);
+        }
+    }
+
     void Window::prepareWindow() {
         glfwSetWindowUserPointer(window, this);
         glfwSetKeyCallback(window, KeyboardHandler);
@@ -23,12 +71,16 @@ namespace glfw {
         glfwSetScrollCallback(window, MouseScrollHandler);
     }
 
-    vk::SurfaceKHR createWindowSurface(vk::Instance instance, GLFWwindow* window, const vk::AllocationCallbacks* allocator) {
+    void Window::destroyWindow() {
+        glfwDestroyWindow(window);
+        window = nullptr;
+    }
+
+    vk::SurfaceKHR createWindowSurface(const vk::Instance& instance, GLFWwindow* window, const vk::AllocationCallbacks* allocator) {
         VkSurfaceKHR rawSurface;
         vk::Result result = static_cast<vk::Result>(glfwCreateWindowSurface((VkInstance)instance, window, reinterpret_cast<const VkAllocationCallbacks*>(allocator), &rawSurface));
         return vk::createResultValue( result, rawSurface, "vk::CommandBuffer::begin" );
     }
-
 
     void Window::KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods) {
         Window* example = (Window*)glfwGetWindowUserPointer(window);
@@ -47,17 +99,17 @@ namespace glfw {
 
     void Window::MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset) {
         Window* example = (Window*)glfwGetWindowUserPointer(window);
-        example->mouseScrolled(yoffset);
+        example->mouseScrolled((float)yoffset);
     }
 
     void Window::CloseHandler(GLFWwindow* window) {
         Window* example = (Window*)glfwGetWindowUserPointer(window);
-        example->closeWindow();
+        example->windowClosed();
     }
 
     void Window::FramebufferSizeHandler(GLFWwindow* window, int width, int height) {
         Window* example = (Window*)glfwGetWindowUserPointer(window);
-        example->resizeWindow(glm::uvec2(width, height));
+        example->windowResized(glm::uvec2(width, height));
     }
 
 }

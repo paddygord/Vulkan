@@ -55,7 +55,7 @@ public:
     vk::DescriptorSet descriptorSetPostCompute, descriptorSetBaseImage;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setZoom(-2.0f);
         enableTextOverlay = true;
         title = "Vulkan Example - Compute shader image processing";

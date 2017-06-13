@@ -8,7 +8,7 @@ __declspec(thread) VkCommandPool Context::s_cmdPool;
 thread_local vk::CommandPool Context::s_cmdPool;
 #endif
 
-std::list<std::string> Context::requestedLayers { { "VK_LAYER_LUNARG_standard_validation" } };
+//std::list<std::string> Context::requestedLayers { { "VK_LAYER_LUNARG_standard_validation" } };
 
 Context::DevicePickerFunction Context::DEFAULT_DEVICE_PICKER = [](const std::vector<vk::PhysicalDevice>& devices)->vk::PhysicalDevice {
     return devices[0];

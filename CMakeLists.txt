@@ -77,18 +77,15 @@ include_directories(${GLSLANG_INCLUDE_DIRS})
 link_libraries(${GLSLANG_LIBRARIES})
 
 add_subdirectory(base)
-link_libraries(base)
+
 include_directories(base)
-
-foreach(EXTERNAL ${EXTERNALS})
-    add_dependencies(base ${EXTERNAL})
-endforeach()
-
+link_libraries(common)
 if (NOT WIN32)
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
     link_libraries(${CMAKE_THREAD_LIBS_INIT})
 endif()
+
 
 add_subdirectory(examples)
 

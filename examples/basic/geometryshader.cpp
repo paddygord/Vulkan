@@ -54,7 +54,7 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setZoom(-8.0f);
         camera.setRotation({ 0.0f, -25.0f, 0.0f });
         title = "Vulkan Example - Geometry shader";

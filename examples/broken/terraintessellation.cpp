@@ -93,7 +93,7 @@ public:
     // View frustum passed to tessellation control shader for culling
     vkTools::Frustum frustum;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         enableTextOverlay = true;
         title = "Vulkan Example - Dynamic terrain tessellation";
         //camera.type = Camera::CameraType::firstperson;

@@ -102,7 +102,7 @@ public:
     // View frustum for culling invisible objects
     vkTools::Frustum frustum;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setZoom(-32.5f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;

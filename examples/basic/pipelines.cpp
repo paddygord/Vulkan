@@ -55,7 +55,7 @@ public:
         vk::Pipeline toon;
     } pipelines;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setZoom(-10.5f);
         camera.setRotation({ -25.0f, 15.0f, 0.0f });
         enableTextOverlay = true;

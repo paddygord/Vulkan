@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 #include <set>
 #include <vulkan/vulkan.hpp>
 #include <glm/glm.hpp>
@@ -9,18 +10,63 @@
 
 namespace glfw {
     std::set<std::string> getRequiredInstanceExtensions();
-    vk::SurfaceKHR createWindowSurface(vk::Instance, GLFWwindow* window, const vk::AllocationCallbacks* pAllocator = nullptr);
+    vk::SurfaceKHR createWindowSurface(const vk::Instance& instance, GLFWwindow* window, const vk::AllocationCallbacks* pAllocator = nullptr);
 
     class Window {
-
     protected:
+        Window();
+
+        virtual void createWindow(const glm::uvec2& size, const glm::ivec2& position = { INT_MIN, INT_MIN });
+        void showWindow(bool show = true);
+        void setSizeLimits(const glm::uvec2& minSize, const glm::uvec2& maxSize = {});
         virtual void prepareWindow();
-        virtual void keyEvent(int key, int scancode, int action, int mods) { }
-        virtual void mouseButtonEvent(int button, int action, int mods) { }
+        virtual void destroyWindow();
+        void runWindowLoop(const std::function<void()>& frameHandler);
+        
+        //
+        // Event handlers are called by the GLFW callback mechanism and should not be called directly
+        //
+
+        virtual void windowResized(const glm::uvec2& newSize) { }
+        virtual void windowClosed() { }
+
+        // Keyboard handling
+        virtual void keyEvent(int key, int scancode, int action, int mods) { 
+            switch(action) {
+            case GLFW_PRESS:
+                keyPressed(key, mods);
+                break;
+
+            case GLFW_RELEASE:
+                keyReleased(key, mods);
+                break;
+
+            default:
+                break;
+            }
+        }
+        virtual void keyPressed(int key, int mods) { }
+        virtual void keyReleased(int key, int mods) { }
+
+        // Mouse handling 
+        virtual void mouseButtonEvent(int button, int action, int mods) { 
+            switch (action) {
+            case GLFW_PRESS:
+                mousePressed(button, mods);
+                break;
+
+            case GLFW_RELEASE:
+                mouseReleased(button, mods);
+                break;
+
+            default:
+                break;
+            }
+        }
+        virtual void mousePressed(int button, int mods) { }
+        virtual void mouseReleased(int button, int mods) { }
         virtual void mouseMoved(const glm::vec2& newPos) { }
         virtual void mouseScrolled(float delta) { }
-        virtual void resizeWindow(const glm::uvec2& newSize) { }
-        virtual void closeWindow() { }
 
         static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);
         static void MouseButtonHandler(GLFWwindow* window, int button, int action, int mods);

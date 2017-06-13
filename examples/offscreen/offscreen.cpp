@@ -70,7 +70,7 @@ public:
 
     glm::vec3 meshPos = glm::vec3(0.0f, -1.5f, 0.0f);
 
-    VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setZoom(-6.5f);
         camera.setRotation({ -11.25f, 45.0f, 0.0f });
         timerSpeed *= 0.25f;

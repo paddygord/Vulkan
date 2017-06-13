@@ -50,7 +50,7 @@ public:
 
     glm::vec4 lightPos = glm::vec4(0.0f, -3.5f, 0.0f, 0.0f);
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         size.width = 1280;
         size.height = 720;
         camera.setTranslation({ 0.0, -0.5f, -2.75f });

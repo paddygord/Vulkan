@@ -6,8 +6,8 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "common.hpp"
-#include "vulkanTools.h"
+#include <common.hpp>
+#include <vulkanVersion.hpp>
 
 namespace vkx {
     // A trimmed down version of our context class.
@@ -45,28 +45,10 @@ namespace vkx {
                 appInfo.pEngineName = "VulkanExamples";
                 appInfo.apiVersion = VK_API_VERSION_1_0;
 
-                std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
-                // Enable surface extensions depending on os
-#if defined(_WIN32)
-                enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#elif defined(__ANDROID__)
-                enabledExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-#elif defined(__linux__)
-                enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#endif
-
                 vk::InstanceCreateInfo instanceCreateInfo;
                 instanceCreateInfo.pApplicationInfo = &appInfo;
-                if (enabledExtensions.size() > 0) {
-                    instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-                    instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-                }
                 instance = vk::createInstance(instanceCreateInfo);
             }
-
-#if defined(__ANDROID__)
-            loadVulkanFunctions(instance);
-#endif
 
             // Physical device
             physicalDevices = instance.enumeratePhysicalDevices();

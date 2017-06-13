@@ -96,7 +96,7 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         enableVsync = true;
 		enableTextOverlay = true;
         camera.type = Camera::lookat;

@@ -61,7 +61,7 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ -0.5f, -112.75f, 0.0f });

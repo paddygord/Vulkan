@@ -62,7 +62,7 @@ public:
     vk::DescriptorSet descriptorSetPostCompute;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setZoom(-2.0f);
         title = "Vulkan Example - Compute shader ray tracing";
         uboCompute.aspectRatio = (float)size.width / (float)size.height;

@@ -88,7 +88,7 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
     vk::CommandBuffer offscreenCmdBuffer;
     
-    VulkanExample() : vkx::OffscreenExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         
         camera.setZoom(-8.0f);
         size.width = 1024;

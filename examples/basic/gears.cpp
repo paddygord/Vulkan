@@ -30,7 +30,7 @@ public:
     vk::PipelineLayout pipelineLayout;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setTranslation({ 0, 0, -16.0f });
         camera.setRotation({ -23.75, 41.25, 21.0 });
         timerSpeed *= 0.25f;

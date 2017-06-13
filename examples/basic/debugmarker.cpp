@@ -188,7 +188,7 @@ public:
         const char name[17] = "debug marker tag";
     } demoTag;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ -4.35f, 16.25f, 0.0f });

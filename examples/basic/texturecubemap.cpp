@@ -57,7 +57,7 @@ public:
     vk::PipelineLayout pipelineLayout;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() : vkx::ExampleBase(ENABLE_VALIDATION) {
+    VulkanExample() {
         camera.setZoom(-4.0f);
         camera.setRotation({ -2.25f, -35.0f, 0.0f });
         rotationSpeed = 0.25f;
