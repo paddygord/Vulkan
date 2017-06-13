@@ -1,28 +1,26 @@
 # C++ Vulkan examples and demos
 
 <img src="./documentation/images/vulkanlogoscene.png" alt="Vulkan demo scene" height="256px">
+<img src="./documentation/images/c_0.jpg" alt="C++" height="256px">
 
 This is a fork of [Sascha Willems](https://github.com/SaschaWillems) excellent [Vulkan examples](https://github.com/SaschaWillems/Vulkan) with some modifications.  
 
-* All of the code except for the VulkanDebug stuff has been ported to use the [nVidia VKCPP wrapper](https://github.com/nvpro-pipeline/vkcpp)
+* All of the code except for the VulkanDebug stuff has been ported to use the [Vulkan C++ API](https://github.com/KhronosGroup/Vulkan-Hpp)
 * All platform specific code for Windows and Linux has been consolidated to use [GLFW 3.2](http://www.glfw.org/)
 * Project files for Visual Studio have been removed in favor of a pure [CMake](https://cmake.org/) based system
 * Binary files have been removed in favor of CMake external projects
 * Enable validation layers by default when building in debug mode
 * Avoid excessive use of vkDeviceWaitIdle and vkQueueWaitIdle
 * Avoid excessive use of explicit image layout transitions, instead using implicit transitions via the RenderPass and Subpass definitions
-* A number of fixes to bugs that prevent the original examples from running on Visual Studio 2012 have been fixed (not necessarily all though)
 
 ## Known issues
 
-* I've only tested so far on Windows using Visual Studio 2012 and Visual Studio 2015.  
-* I'm still cleaning up after the migration to VKCPP so the code isn't as clean as it could be.  Lots of unnecessary function parameters and structure assignments remain
-
-Assorted C++ examples for [Vulkan(tm)](https://www.khronos.org/vulkan/), the new graphics and compute API from Khronos.
+* I've only tested so far on Windows using VS 2013, 2015 & VS 2017.  
+* I'm still cleaning up after the migration to `Vulkan.hpp` so the code isn't as clean as it could be.  Lots of unnecessary function parameters and structure assignments remain
 
 # Building
 
-Use the provided CMakeLists.txt for use with [CMake](https://cmake.org) to generate a build configuration for your toolchain.
+Use the provided CMakeLists.txt for use with [CMake](https://cmake.org) to generate a build configuration for your toolchain.  Using 64 bit builds is strongly recommended. 
 
 # Examples 
 
@@ -40,7 +38,7 @@ output, instead printing out some basic information of about the current device.
 
 Create a window and a Vulkan swap chain connected to it.  Uses an empty command 
 buffer to clear the frame with a different color for each swap chain image.  This is 
-the most basic possible application that colors any pixels on a surface.
+the most basic possible application that colors any pixels on a window surface.
 
 ### [Triangle](examples/init/triangle.cpp)
 <img src="./documentation/screenshots/basic_triangle.png" height="96px" align="right">
