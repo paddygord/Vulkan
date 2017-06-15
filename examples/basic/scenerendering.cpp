@@ -266,10 +266,6 @@ private:
     }
 
 public:
-#if defined(__ANDROID__)
-    AAssetManager* assetManager = nullptr;
-#endif
-
     std::string assetPath = "";
 
     std::vector<SceneMaterial> materials;
@@ -329,27 +325,12 @@ public:
 
         int flags = aiProcess_PreTransformVertices | aiProcess_Triangulate | aiProcess_GenNormals;
 
-#if defined(__ANDROID__)
-        AAsset* asset = AAssetManager_open(assetManager, filename.c_str(), AASSET_MODE_STREAMING);
-        assert(asset);
-        size_t size = AAsset_getLength(asset);
-        assert(size > 0);
-        void *meshData = malloc(size);
-        AAsset_read(asset, meshData, size);
-        AAsset_close(asset);
-        aScene = Importer.ReadFileFromMemory(meshData, size, flags);
-        free(meshData);
-#else
         aScene = Importer.ReadFile(filename.c_str(), flags);
-#endif
         if (aScene) {
             loadMaterials();
             loadMeshes(copyCmd);
         } else {
             printf("Error parsing '%s': '%s'\n", filename.c_str(), Importer.GetErrorString());
-#if defined(__ANDROID__)
-            LOGE("Error parsing '%s': '%s'", filename.c_str(), Importer.GetErrorString());
-#endif
         }
 
     }
@@ -576,11 +557,8 @@ public:
     }
 
     void loadScene() {
-        withPrimaryCommandBuffer([&](const vk::CommandBuffer& cmdBuffer){
-            scene = new Scene(*this, textureLoader);
-#if defined(__ANDROID__)
-            scene->assetManager = androidApp->activity->assetManager;
-#endif
+        context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& cmdBuffer){
+            scene = new Scene(context, textureLoader);
             scene->assetPath = getAssetPath() + "models/sibenik/";
             scene->load(getAssetPath() + "models/sibenik/sibenik.dae", cmdBuffer);
         });
@@ -607,8 +585,8 @@ public:
         updateUniformBuffers();
     }
 
-    void keyPressed(uint32_t keyCode) override {
-        Parent::keyPressed(keyCode);
+    void keyPressed(int keyCode, int mods) override {
+        Parent::keyPressed(keyCode, mods);
         switch (keyCode) {
         case GLFW_KEY_W:
         case GAMEPAD_BUTTON_A:
@@ -638,16 +616,12 @@ public:
     }
 
     virtual void getOverlayText(vkx::TextOverlay *textOverlay) {
-#if defined(__ANDROID__)
-        textOverlay->addText("Press \"Button A\" to toggle wireframe", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-#else
         textOverlay->addText("Press \"w\" to toggle wireframe", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
         if ((scene) && (scene->renderSingleScenePart)) {
             textOverlay->addText("Rendering mesh " + std::to_string(scene->scenePartIndex + 1) + " of " + std::to_string(static_cast<uint32_t>(scene->meshes.size())) + "(\"p\" to toggle)", 5.0f, 100.0f, vkx::TextOverlay::alignLeft);
         } else {
             textOverlay->addText("Rendering whole scene (\"p\" to toggle)", 5.0f, 100.0f, vkx::TextOverlay::alignLeft);
         }
-#endif
     }
 };
 

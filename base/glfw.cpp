@@ -32,9 +32,82 @@ namespace glfw {
         });
     }
 
+    void Window::updateJoysticks() {
+        if (glfwJoystickPresent(0)) {
+            // FIXME implement joystick handling
+            int axisCount { 0 };
+            const float* axes = glfwGetJoystickAxes(0, &axisCount);
+            if (axisCount >= 2) {
+                gamePadState.axes.x = axes[0] * 0.01f;
+                gamePadState.axes.y = axes[1] * -0.01f;
+            }
+            if (axisCount >= 4) {
+            }
+            if (axisCount >= 6) {
+                float lt = (axes[4] + 1.0f) / 2.0f;
+                float rt = (axes[5] + 1.0f) / 2.0f;
+                gamePadState.axes.rz = (rt - lt);
+            }
+            uint32_t newButtons { 0 };
+            static uint32_t oldButtons { 0 };
+            {
+                int buttonCount { 0 };
+                const uint8_t* buttons = glfwGetJoystickButtons(0, &buttonCount);
+                for (uint8_t i = 0; i < buttonCount && i < 64; ++i) {
+                    if (buttons[i]) {
+                        newButtons |= (1 << i);
+                    }
+                }
+            }
+            auto changedButtons = newButtons & ~oldButtons;
+            if (changedButtons & 0x01) {
+                keyEvent(GAMEPAD_BUTTON_A, 0, GLFW_PRESS, 0);
+            }
+            if (changedButtons & 0x02) {
+                keyEvent(GAMEPAD_BUTTON_B, 0, GLFW_PRESS, 0);
+            }
+            if (changedButtons & 0x04) {
+                keyEvent(GAMEPAD_BUTTON_X, 0, GLFW_PRESS, 0);
+            }
+            if (changedButtons & 0x08) {
+                keyEvent(GAMEPAD_BUTTON_Y, 0, GLFW_PRESS, 0);
+            }
+            if (changedButtons & 0x10) {
+                keyEvent(GAMEPAD_BUTTON_L1, 0, GLFW_PRESS, 0);
+            }
+            if (changedButtons & 0x20) {
+                keyEvent(GAMEPAD_BUTTON_R1, 0, GLFW_PRESS, 0);
+            }
+            auto releasedButtons = oldButtons & ~newButtons;
+            if (releasedButtons & 0x01) {
+                keyEvent(GAMEPAD_BUTTON_A, 0, GLFW_RELEASE, 0);
+            }
+            if (releasedButtons & 0x02) {
+                keyEvent(GAMEPAD_BUTTON_B, 0, GLFW_RELEASE, 0);
+            }
+            if (releasedButtons & 0x04) {
+                keyEvent(GAMEPAD_BUTTON_X, 0, GLFW_RELEASE, 0);
+            }
+            if (releasedButtons & 0x08) {
+                keyEvent(GAMEPAD_BUTTON_Y, 0, GLFW_RELEASE, 0);
+            }
+            if (releasedButtons & 0x10) {
+                keyEvent(GAMEPAD_BUTTON_L1, 0, GLFW_RELEASE, 0);
+            }
+            if (releasedButtons & 0x20) {
+                keyEvent(GAMEPAD_BUTTON_R1, 0, GLFW_RELEASE, 0);
+            }
+
+            oldButtons = newButtons;
+        } else {
+            memset(&gamePadState.axes, 0, sizeof(gamePadState.axes));
+        }
+    }
+
     void Window::runWindowLoop(const std::function<void()>& frameHandler) {
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
+            updateJoysticks();
             frameHandler();
         }
     }

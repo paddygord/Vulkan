@@ -290,7 +290,7 @@ public:
         updateUniformBuffers();
     }
 
-    virtual void keyPressed(uint32_t keyCode) {
+    void keyPressed(int keyCode, int mods) override {
         switch (keyCode) {
         case GLFW_KEY_KP_ADD:
         case GLFW_KEY_SPACE:
@@ -305,11 +305,7 @@ public:
     }
 
     virtual void getOverlayText(vkx::TextOverlay *textOverlay) {
-#if defined(__ANDROID__)
-        textOverlay->addText("Press \"Button A\" to toggle material cap", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-#else
         textOverlay->addText("Press \"space\" to toggle material cap", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-#endif
     }
 
     void changeMatCapIndex(uint32_t delta) {

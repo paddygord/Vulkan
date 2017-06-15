@@ -589,7 +589,7 @@ public:
         updateUniformBuffers();
     }
 
-    virtual void keyPressed(uint32_t keyCode) {
+    void keyPressed(int keyCode, int mods) override {
         switch (keyCode) {
         case GLFW_KEY_KP_ADD:
         case GAMEPAD_BUTTON_R1:
@@ -614,15 +614,9 @@ public:
         std::stringstream ss;
         ss << std::setprecision(2) << std::fixed << uboTess.tessellationFactor;
 
-#if defined(__ANDROID__)
-        textOverlay->addText("Tessellation factor: " + ss.str() + " (Buttons L1/R1)", 5.0f, 85.0f, TextOverlay::alignLeft);
-        textOverlay->addText("Press \"Button A\" to toggle wireframe", 5.0f, 100.0f, TextOverlay::alignLeft);
-        textOverlay->addText("Press \"Button X\" to toggle tessellation", 5.0f, 115.0f, TextOverlay::alignLeft);
-#else
         textOverlay->addText("Tessellation factor: " + ss.str() + " (numpad +/-)", 5.0f, 85.0f, TextOverlay::alignLeft);
         textOverlay->addText("Press \"f\" to toggle wireframe", 5.0f, 100.0f, TextOverlay::alignLeft);
         textOverlay->addText("Press \"t\" to toggle tessellation", 5.0f, 115.0f, TextOverlay::alignLeft);
-#endif
 
         textOverlay->addText("pipeline stats:", size.width - 5.0f, 5.0f, TextOverlay::alignRight);
         textOverlay->addText("VS:" + std::to_string(pipelineStats[0]), size.width - 5.0f, 20.0f, TextOverlay::alignRight);

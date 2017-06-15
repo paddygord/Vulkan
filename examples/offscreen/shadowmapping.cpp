@@ -98,7 +98,7 @@ public:
 
     VulkanExample() {
         enableVsync = true;
-		enableTextOverlay = true;
+        enableTextOverlay = true;
         camera.type = Camera::lookat;
         camera.setZoom(-10.0f);
         camera.setRotation({ -15.0f, -390.0f, 0.0f });
@@ -132,7 +132,7 @@ public:
         // Create separate command buffer for offscreen 
         // rendering
         if (offscreen.cmdBuffer) {
-            trashCommandBuffer(offscreen.cmdBuffer);
+            context.trashCommandBuffer(offscreen.cmdBuffer);
         }
         vk::CommandBufferAllocateInfo cmd = vkx::commandBufferAllocateInfo(cmdPool, vk::CommandBufferLevel::ePrimary, 1);
         offscreen.cmdBuffer = device.allocateCommandBuffers(cmd)[0];
@@ -211,11 +211,11 @@ public:
             { { 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f }, QUAD_COLOR_NORMAL }
         };
 #undef QUAD_COLOR_NORMAL
-        meshes.quad.vertices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
+        meshes.quad.vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
         // Setup indices
         std::vector<uint32_t> indexBuffer = { 0,1,2, 2,3,0 };
         meshes.quad.indexCount = indexBuffer.size();
-        meshes.quad.indices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
+        meshes.quad.indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
     }
 
     void setupVertexDescriptions() {
@@ -392,8 +392,8 @@ public:
         // Load shaders
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/shadowmapping/quad.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/shadowmapping/quad.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/shadowmapping/quad.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/shadowmapping/quad.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayouts.quad, renderPass);
@@ -411,17 +411,17 @@ public:
         pipelineCreateInfo.stageCount = shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
 
-        pipelines.quad = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.quad = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
         // 3D scene
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/shadowmapping/scene.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/shadowmapping/scene.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/shadowmapping/scene.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/shadowmapping/scene.frag.spv", vk::ShaderStageFlagBits::eFragment);
         rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
-        pipelines.scene = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.scene = context.device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
         // Offscreen pipeline
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/shadowmapping/offscreen.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/shadowmapping/offscreen.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/shadowmapping/offscreen.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/shadowmapping/offscreen.frag.spv", vk::ShaderStageFlagBits::eFragment);
         pipelineCreateInfo.layout = pipelineLayouts.offscreen;
         pipelineCreateInfo.renderPass = offscreen.renderPass;
         // Cull front faces
@@ -433,17 +433,17 @@ public:
         dynamicState =
             vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
 
-        pipelines.offscreen = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.offscreen = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Debug quad vertex shader uniform buffer block
-        uniformDataVS = createUniformBuffer(uboVSscene);
+        uniformDataVS = context.createUniformBuffer(uboVSscene);
         // Offsvreen vertex shader uniform buffer block
-        uniformDataOffscreenVS = createUniformBuffer(uboOffscreenVS);
+        uniformDataOffscreenVS = context.createUniformBuffer(uboOffscreenVS);
         // Scene vertex shader uniform buffer block
-        uniformData.scene = createUniformBuffer(uboVSscene);
+        uniformData.scene = context.createUniformBuffer(uboVSscene);
 
         updateLight();
         updateUniformBufferOffscreen();
@@ -538,7 +538,7 @@ public:
         viewChanged();
     }
 
-    void keyPressed(uint32_t key) override {
+    void keyPressed(int key, int mods) override {
         switch (key) {
         case GLFW_KEY_S:
             toggleShadowMapDisplay();
@@ -550,16 +550,11 @@ public:
     }
 
     
-	void getOverlayText(TextOverlay *textOverlay) override 
-	{
-#if defined(__ANDROID__)
-		textOverlay->addText("Press \"Button A\" to toggle shadow map", 5.0f, 85.0f, TextOverlay::alignLeft);
-		textOverlay->addText("Press \"Button X\" to toggle light's pov", 5.0f, 100.0f, TextOverlay::alignLeft);
-#else
-		textOverlay->addText("Press \"s\" to toggle shadow map", 5.0f, 85.0f, TextOverlay::alignLeft);
-		textOverlay->addText("Press \"l\" to toggle light's pov", 5.0f, 100.0f, TextOverlay::alignLeft);
-#endif
-	}
+    void getOverlayText(TextOverlay *textOverlay) override
+    {
+        textOverlay->addText("Press \"s\" to toggle shadow map", 5.0f, 85.0f, TextOverlay::alignLeft);
+        textOverlay->addText("Press \"l\" to toggle light's pov", 5.0f, 100.0f, TextOverlay::alignLeft);
+    }
 
 };
 

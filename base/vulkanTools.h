@@ -15,6 +15,7 @@
 #define DEFAULT_FENCE_TIMEOUT 100000000000
 
 namespace vkx {
+
     // Check if extension is globally available
     vk::Bool32 checkGlobalExtensionPresent(const char* extensionName);
     // Check if extension is present on the given device
@@ -24,21 +25,33 @@ namespace vkx {
     vk::Format getSupportedDepthFormat(vk::PhysicalDevice physicalDevice);
     vk::AccessFlags accessFlagsForLayout(vk::ImageLayout layout);
 
+    vk::ImageMemoryBarrier getImageMemoryBarrier(
+        const vk::Image& image,
+        const vk::ImageLayout& newImageLayout,
+        const vk::ImageLayout& oldImageLayout,
+        const vk::ImageSubresourceRange& subresourceRange);
+
+    vk::ImageMemoryBarrier getImageMemoryBarrier(
+        const vk::Image& image,
+        const vk::ImageLayout& newImageLayout,
+        const vk::ImageLayout& oldImageLayout,
+        const vk::ImageAspectFlags& aspect = vk::ImageAspectFlagBits::eColor);
+
     // Put an image memory barrier for setting an image layout on the sub resource into the given command buffer
     void setImageLayout(
-        vk::CommandBuffer cmdbuffer,
-        vk::Image image,
-        vk::ImageAspectFlags aspectMask,
-        vk::ImageLayout oldImageLayout,
-        vk::ImageLayout newImageLayout,
-        vk::ImageSubresourceRange subresourceRange);
+        const vk::CommandBuffer& cmdbuffer,
+        const vk::Image& image,
+        const vk::ImageLayout& newImageLayout,
+        const vk::ImageLayout& oldImageLayout,
+        const vk::ImageSubresourceRange& subresourceRange);
     // Uses a fixed sub resource layout with first mip level and layer
     void setImageLayout(
-        vk::CommandBuffer cmdbuffer,
-        vk::Image image,
-        vk::ImageAspectFlags aspectMask,
-        vk::ImageLayout oldImageLayout,
-        vk::ImageLayout newImageLayout);
+        const vk::CommandBuffer& cmdbuffer,
+        const vk::Image& image,
+        const vk::ImageLayout& newImageLayout,
+        const vk::ImageLayout& oldImageLayout = vk::ImageLayout::eUndefined,
+        const vk::ImageAspectFlags& aspectMask = vk::ImageAspectFlagBits::eColor,
+        uint32_t levelCount = 1);
 
     // Load a text file (e.g. GLGL shader) into a std::string
     std::string readTextFile(const std::string& filename);
@@ -47,11 +60,7 @@ namespace vkx {
     std::vector<uint8_t> readBinaryFile(const std::string& filename);
 
     // Load a SPIR-V shader
-#if defined(__ANDROID__)
-    vk::ShaderModule loadShader(AAssetManager* assetManager, const char *fileName, vk::Device device, vk::ShaderStageFlagBits stage);
-#else
     vk::ShaderModule loadShader(const std::string& filename, vk::Device device, vk::ShaderStageFlagBits stage);
-#endif
 
     // Load a GLSL shader
     // Note : Only for testing purposes, support for directly feeding GLSL shaders into Vulkan
@@ -161,6 +170,131 @@ namespace vkx {
         }
     };
 
+    template <typename T>
+    void updateVectorBindings(const T*& pointer, uint32_t& size, const std::vector<T>& vector) {
+        if (vector.empty()) {
+            pointer = nullptr;
+            size = 0;
+        } else {
+            pointer = vector.data();
+            size = (uint32_t)vector.size();
+        }
+    }
+
+    struct GraphicsPipelineCreateInfo : public vk::GraphicsPipelineCreateInfo {
+        GraphicsPipelineCreateInfo() {
+            pVertexInputState = &inputState.createInfo;
+            pDynamicState = &dynamicState.createInfo;
+            pColorBlendState = &colorBlendState.createInfo;
+            pViewportState = &viewportState.createInfo;
+            pInputAssemblyState = &inputAssemblyState;
+            pRasterizationState = &rasterizationState;
+            pMultisampleState = &multisampleState;
+            pDepthStencilState = &depthStencilState;
+        }
+
+        operator vk::GraphicsPipelineCreateInfo&() {
+            update();
+            return *this;
+        }
+
+
+        void update() {
+            inputState.update();
+            colorBlendState.update();
+            dynamicState.update();
+            viewportState.update();
+            updateVectorBindings(pStages, stageCount, shaderStages);
+        }
+
+        struct VertexInputState {
+            vk::PipelineVertexInputStateCreateInfo createInfo;
+            std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
+            std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
+            void update() {
+                // Assign to vertex input state
+                updateVectorBindings(createInfo.pVertexBindingDescriptions, createInfo.vertexBindingDescriptionCount, bindingDescriptions);
+                updateVectorBindings(createInfo.pVertexAttributeDescriptions, createInfo.vertexAttributeDescriptionCount, attributeDescriptions);
+            }
+        } inputState;
+
+        struct ColorBlendState {
+            vk::PipelineColorBlendStateCreateInfo createInfo;
+            std::vector<vk::PipelineColorBlendAttachmentState> blendAttachmentStates;
+            void update() {
+                updateVectorBindings(createInfo.pAttachments, createInfo.attachmentCount, blendAttachmentStates);
+            }
+        } colorBlendState;
+
+        struct DynamicState {
+            vk::PipelineDynamicStateCreateInfo createInfo;
+            std::vector<vk::DynamicState> dynamicStateEnables;
+
+            void update() {
+                updateVectorBindings(createInfo.pDynamicStates, createInfo.dynamicStateCount, dynamicStateEnables);
+            }
+
+        } dynamicState;
+
+        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
+        vk::PipelineRasterizationStateCreateInfo rasterizationState;
+
+        struct ViewportState {
+            vk::PipelineViewportStateCreateInfo createInfo;
+            std::vector<vk::Viewport> viewports;
+            std::vector<vk::Rect2D> scissors;
+            void update() {
+                //updateVectorBindings(createInfo.pViewports, createInfo.viewportCount, viewports);
+                //updateVectorBindings(createInfo.pScissors, createInfo.scissorCount, scissors);
+            }
+        } viewportState;
+        vk::PipelineDepthStencilStateCreateInfo depthStencilState;
+        vk::PipelineMultisampleStateCreateInfo multisampleState;
+        std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
+    };
+
+    struct SubmitInfo : public vk::SubmitInfo {
+        std::vector<vk::CommandBuffer> commandBuffers;
+        std::vector<vk::Semaphore> waitSemaphores;
+        std::vector<vk::PipelineStageFlags> waitStages;
+        std::vector<vk::Semaphore> signalSemaphores;
+
+        SubmitInfo() {
+        }
+
+        SubmitInfo(
+            vk::ArrayProxy<const vk::CommandBuffer> commandBuffers_, 
+            vk::ArrayProxy<const std::pair<const vk::Semaphore, const vk::PipelineStageFlags>> waits_ = {}, 
+            vk::ArrayProxy<const vk::Semaphore> signalsSemaphores_ = {}) {
+            waitSemaphores.reserve(waits_.size());
+            waitStages.reserve(waits_.size());
+            std::for_each(waits_.begin(), waits_.end(), [this](const std::pair<vk::Semaphore, vk::PipelineStageFlags>& pair) {
+                waitSemaphores.push_back(pair.first);
+                waitStages.push_back(pair.second);
+            });
+            signalSemaphores.reserve(signalsSemaphores_.size());
+            signalSemaphores.insert(signalSemaphores.end(), signalsSemaphores_.begin(), signalsSemaphores_.end());
+            commandBuffers.reserve(commandBuffers_.size());
+            commandBuffers.insert(commandBuffers.end(), commandBuffers_.begin(), commandBuffers_.end());
+        }
+
+        void addWait(const vk::Semaphore& semaphore, const vk::PipelineStageFlags& stageFlags) {
+            waitStages.push_back(stageFlags);
+            waitSemaphores.push_back(semaphore);
+        }
+
+        SubmitInfo& update() {
+            updateVectorBindings(pCommandBuffers, commandBufferCount, commandBuffers);
+            if (waitStages.size() != waitSemaphores.size()) {
+                throw std::runtime_error("Mismatched wait semaphores and stages");
+            }
+            updateVectorBindings(pWaitSemaphores, waitSemaphoreCount, waitSemaphores);
+            updateVectorBindings(pWaitDstStageMask, waitSemaphoreCount, waitStages);
+            updateVectorBindings(pSignalSemaphores, signalSemaphoreCount, signalSemaphores);
+            return *this;
+        }
+    };
+    
     // Contains all vulkan objects
     // required for a uniform data object
     using UniformData = vkx::CreateBufferResult;

@@ -16,13 +16,13 @@
 #include "vulkanTools.h"
 
 namespace vkx {
-    struct SwapChainImage {
+    struct SwapchainImage {
         vk::Image image;
         vk::ImageView view;
         vk::Fence fence;
     };
 
-    class SwapChain {
+    class Swapchain {
     private:
         const vkx::Context& context;
         vk::SurfaceKHR surface;
@@ -30,7 +30,7 @@ namespace vkx {
         vk::PresentInfoKHR presentInfo;
 
     public:
-        std::vector<SwapChainImage> images;
+        std::vector<SwapchainImage> images;
         vk::Format colorFormat;
         vk::ColorSpaceKHR colorSpace;
         uint32_t imageCount{ 0 };
@@ -38,27 +38,15 @@ namespace vkx {
         // Index of the deteced graphics and presenting device queue
         uint32_t queueNodeIndex = UINT32_MAX;
 
-        SwapChain(const vkx::Context& context) : context(context) {
+        Swapchain(const vkx::Context& context) : context(context) {
             presentInfo.swapchainCount = 1;
             presentInfo.pSwapchains = &swapChain;
             presentInfo.pImageIndices = &currentImage;
         }
 
-        void createSurface(
-#ifdef __ANDROID__
-            ANativeWindow* window
-#else
-            GLFWwindow* window
-#endif
-            ) {
+        void createSurface(GLFWwindow* window) {
             // Create surface depending on OS
-#ifdef __ANDROID__
-            vk::AndroidSurfaceCreateInfoKHR surfaceCreateInfo;
-            surfaceCreateInfo.window = window;
-            surface = instance.createAndroidSurfaceKHR(surfaceCreateInfo);
-#else
             surface = glfw::createWindowSurface(context.instance, window);
-#endif
 
             // Get list of supported surface formats
             std::vector<vk::SurfaceFormatKHR> surfaceFormats = context.physicalDevice.getSurfaceFormatsKHR(surface);
@@ -245,7 +233,7 @@ namespace vkx {
         }
 
         // Present the current image to the queue
-        vk::Result queuePresent(vk::Semaphore waitSemaphore) {
+        vk::Result queuePresent(const vk::Semaphore& waitSemaphore) {
             presentInfo.waitSemaphoreCount = waitSemaphore ? 1 : 0;
             presentInfo.pWaitSemaphores = &waitSemaphore;
             return context.queue.presentKHR(presentInfo);

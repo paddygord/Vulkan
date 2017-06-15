@@ -9,6 +9,7 @@
 #include "vulkanDebug.h"
 #include <iostream>
 #include <sstream>
+#include <unordered_set>
 
 using namespace vk;
 using namespace vkx::debug;
@@ -59,10 +60,26 @@ namespace vkx {
             OutputDebugStringA(message.c_str());
             OutputDebugStringA("\n");
 #endif
+            static const std::unordered_set<std::string> ignored {
+                "SPIR-V",
+                "Debug Report callbacks",
+                "tessellation evaluation shader consumes input location",
+            };
+
+            std::string::size_type ignoreStringIndex = std::string::npos;
+            for (const auto& ignore : ignored) {
+                ignoreStringIndex = message.find(ignore);
+                if (std::string::npos != ignoreStringIndex) {
+                    break;
+                }
+            }
+            if (std::string::npos == ignoreStringIndex) {
+                int i = 0;
+            }
             return false;
         }
 
-        void setupDebugging(vk::Instance instance, vk::DebugReportFlagsEXT flags) {
+        void setupDebugging(const vk::Instance& instance, const vk::DebugReportFlagsEXT& flags) {
             CreateDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
             DestroyDebugReportCallback = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
             dbgBreakCallback = (PFN_vkDebugReportMessageEXT)vkGetInstanceProcAddr(instance, "vkDebugReportMessageEXT");
@@ -80,7 +97,7 @@ namespace vkx {
             assert(!err);
         }
 
-        void freeDebugCallback(vk::Instance instance) {
+        void freeDebugCallback(const vk::Instance& instance) {
             DestroyDebugReportCallback(instance, msgCallback, nullptr);
         }
 

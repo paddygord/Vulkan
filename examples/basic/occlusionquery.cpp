@@ -122,7 +122,7 @@ public:
         queryResult.buffer = device.createBuffer(bufferCreateInfo);
         memReqs = device.getBufferMemoryRequirements(queryResult.buffer);
         memAlloc.allocationSize = memReqs.size;
-        memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
+        memAlloc.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
         queryResult.memory = device.allocateMemory(memAlloc);
         device.bindBufferMemory(queryResult.buffer, queryResult.memory, 0);
 

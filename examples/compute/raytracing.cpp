@@ -92,10 +92,10 @@ public:
 
     // Prepare a texture target that is used to store compute shader calculations
     void prepareTextureTarget(vkx::Texture& tex, uint32_t width, uint32_t height, vk::Format format) {
-        withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
+        context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
             // Get device properties for the requested texture format
             vk::FormatProperties formatProperties;
-            formatProperties = physicalDevice.getFormatProperties(format);
+            formatProperties = context.physicalDevice.getFormatProperties(format);
             // Check if requested image format supports image storage operations
             assert(formatProperties.optimalTilingFeatures &  vk::FormatFeatureFlagBits::eStorageImage);
 
@@ -117,14 +117,10 @@ public:
                 vk::ImageUsageFlagBits::eSampled |
                 vk::ImageUsageFlagBits::eStorage;
 
-            tex = createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+            tex = context.createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
             tex.imageLayout = vk::ImageLayout::eGeneral;
-            vkx::setImageLayout(
-                setupCmdBuffer, tex.image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::ePreinitialized,
-                tex.imageLayout);
+            vkx::setImageLayout(setupCmdBuffer, tex.image, tex.imageLayout, vk::ImageLayout::ePreinitialized);
 
             // Create sampler
             vk::SamplerCreateInfo sampler;
@@ -205,10 +201,10 @@ public:
         };
 #undef dim
 
-        meshes.quad.vertices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
+        meshes.quad.vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
         std::vector<uint32_t> indexBuffer = { 0,1,2, 2,3,0 };
         meshes.quad.indexCount = indexBuffer.size();
-        meshes.quad.indices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
+        meshes.quad.indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
     }
 
     void setupVertexDescriptions() {
@@ -336,8 +332,8 @@ public:
         // Display pipeline
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/raytracing/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/raytracing/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/raytracing/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/raytracing/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayout, renderPass);
@@ -354,7 +350,7 @@ public:
         pipelineCreateInfo.pStages = shaderStages.data();
         pipelineCreateInfo.renderPass = renderPass;
 
-        pipelines.display = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.display = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
     }
 
@@ -422,14 +418,14 @@ public:
         vk::ComputePipelineCreateInfo computePipelineCreateInfo =
             vkx::computePipelineCreateInfo(computePipelineLayout);
 
-        computePipelineCreateInfo.stage = loadShader(getAssetPath() + "shaders/raytracing/raytracing.comp.spv", vk::ShaderStageFlagBits::eCompute);
-        pipelines.compute = device.createComputePipelines(pipelineCache, computePipelineCreateInfo, nullptr)[0];
+        computePipelineCreateInfo.stage = context.loadShader(getAssetPath() + "shaders/raytracing/raytracing.comp.spv", vk::ShaderStageFlagBits::eCompute);
+        pipelines.compute = device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo, nullptr)[0];
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
-        uniformDataCompute = createUniformBuffer(uboCompute);
+        uniformDataCompute = context.createUniformBuffer(uboCompute);
         updateUniformBuffers();
     }
 
@@ -445,7 +441,7 @@ public:
     void getComputeQueue() {
         uint32_t queueIndex = 0;
 
-        std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();
+        std::vector<vk::QueueFamilyProperties> queueProps = context.physicalDevice.getQueueFamilyProperties();
         uint32_t queueCount = queueProps.size();
 
         for (queueIndex = 0; queueIndex < queueCount; queueIndex++) {

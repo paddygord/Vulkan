@@ -93,7 +93,7 @@ public:
         vk::FormatProperties formatProperties;
 
         // Get device properties for the requested texture format
-        formatProperties = physicalDevice.getFormatProperties(format);
+        formatProperties = context.physicalDevice.getFormatProperties(format);
         // Check if requested image format supports image storage operations
         assert(formatProperties.optimalTilingFeatures &  vk::FormatFeatureFlagBits::eStorageImage);
 
@@ -114,15 +114,10 @@ public:
             vk::ImageUsageFlagBits::eSampled |
             vk::ImageUsageFlagBits::eStorage;
 
-        tex = createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+        tex = context.createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
         tex.imageLayout = vk::ImageLayout::eGeneral;
-        withPrimaryCommandBuffer([&](const vk::CommandBuffer& layoutCmd) {
-            tex.imageLayout = vk::ImageLayout::eGeneral;
-            vkx::setImageLayout(
-                layoutCmd, tex.image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::eUndefined,
-                tex.imageLayout);
+        context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& layoutCmd) {
+            vkx::setImageLayout(layoutCmd, tex.image, tex.imageLayout);
         });
 
         // Create sampler
@@ -216,12 +211,12 @@ public:
             { {  dim, -dim, 0.0f }, { 1.0f, 0.0f } }
         };
 #undef dim
-        meshes.quad.vertices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
+        meshes.quad.vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
 
         // Setup indices
         std::vector<uint32_t> indexBuffer = { 0,1,2, 2,3,0 };
         meshes.quad.indexCount = indexBuffer.size();
-        meshes.quad.indices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
+        meshes.quad.indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
     }
 
     void setupVertexDescriptions() {
@@ -388,8 +383,8 @@ public:
         // Load shaders
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/computeshader/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/computeshader/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/computeshader/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/computeshader/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayout, renderPass);
@@ -406,7 +401,7 @@ public:
         pipelineCreateInfo.pStages = shaderStages.data();
         pipelineCreateInfo.renderPass = renderPass;
 
-        pipelines.postCompute = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.postCompute = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
     void prepareCompute() {
@@ -482,9 +477,9 @@ public:
         std::vector<std::string> shaderNames = { "sharpen", "edgedetect", "emboss" };
         for (auto& shaderName : shaderNames) {
             std::string fileName = getAssetPath() + "shaders/computeshader/" + shaderName + ".comp.spv";
-            computePipelineCreateInfo.stage = loadShader(fileName.c_str(), vk::ShaderStageFlagBits::eCompute);
+            computePipelineCreateInfo.stage = context.loadShader(fileName.c_str(), vk::ShaderStageFlagBits::eCompute);
             vk::Pipeline pipeline;
-            pipeline = device.createComputePipelines(pipelineCache, computePipelineCreateInfo, nullptr)[0];
+            pipeline = device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo, nullptr)[0];
 
             pipelines.compute.push_back(pipeline);
         }
@@ -493,7 +488,7 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
-        uniformDataVS = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, uboVS);
+        uniformDataVS = context.createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, uboVS);
         uniformDataVS.map();
         updateUniformBuffers();
     }
@@ -508,7 +503,7 @@ public:
     // Find and create a compute capable device queue
     void getComputeQueue() {
         uint32_t queueIndex = 0;
-        std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();
+        std::vector<vk::QueueFamilyProperties> queueProps = context.physicalDevice.getQueueFamilyProperties();
         uint32_t queueCount = queueProps.size();
 
         for (queueIndex = 0; queueIndex < queueCount; queueIndex++) {
@@ -562,7 +557,7 @@ public:
         updateUniformBuffers();
     }
 
-    virtual void keyPressed(uint32_t keyCode) {
+    void keyPressed(int keyCode, int mods) override {
         switch (keyCode) {
         case GLFW_KEY_KP_ADD:
         case GAMEPAD_BUTTON_R1:
@@ -576,11 +571,7 @@ public:
     }
 
     virtual void getOverlayText(vkx::TextOverlay *textOverlay) {
-#if defined(__ANDROID__)
-        textOverlay->addText("Press \"L1/R1\" to change shaders", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-#else
         textOverlay->addText("Press \"NUMPAD +/-\" to change shaders", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-#endif
     }
 
     virtual void switchComputePipeline(int32_t dir) {

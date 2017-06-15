@@ -18,6 +18,14 @@ Context::DeviceExtensionsPickerFunction Context::DEFAULT_DEVICE_EXTENSIONS_PICKE
     return {};
 };
 
+
+vk::DeviceMemory Context::allocateMemory(const vk::MemoryAllocateInfo & allocateInfo) const {
+    auto result = device.allocateMemory(allocateInfo);
+    // All allocation funneled through here so it's easy to add code to set breakpoints on specific allocations
+    // when validation reports leaks
+    return result;
+}
+
 void Context::createInstance() {
     if (enableValidation) {
         requireExtension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);

@@ -282,7 +282,7 @@ public:
         uniformData.GS.copy(uboGS);
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         loadMeshes();
         setupVertexDescriptions();
@@ -295,13 +295,13 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
+    void render() override {
         if (!prepared)
             return;
         draw();
     }
 
-    virtual void viewChanged() {
+    void viewChanged() override {
         updateUniformBuffers();
     }
 };

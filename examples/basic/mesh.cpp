@@ -101,9 +101,6 @@ public:
     // The other example will use the VulkanMesh loader which has some additional functionality for loading meshes
     void loadMesh() {
         vkx::MeshLoader* meshLoader = new vkx::MeshLoader();
-#if defined(__ANDROID__)
-        meshLoader->assetManager = androidApp->activity->assetManager;
-#endif
         meshLoader->load(getAssetPath() + "models/voyager/voyager.dae");
 
         // Generate vertex buffer
@@ -344,7 +341,7 @@ public:
         updateUniformBuffers();
     }
 
-    virtual void keyPressed(uint32_t keyCode) {
+    void keyPressed(int keyCode, int mods) override {
         switch (keyCode) {
         case GLFW_KEY_W:
         case GAMEPAD_BUTTON_A:

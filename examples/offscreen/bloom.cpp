@@ -222,9 +222,8 @@ public:
             vkx::setImageLayout(
                 cmdBuffer,
                 offscreen.framebuffers[1].colors[0].image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::eColorAttachmentOptimal,
-                vk::ImageLayout::eShaderReadOnlyOptimal);
+                vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::ImageLayout::eColorAttachmentOptimal);
 
             cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.radialBlur, 0, descriptorSets.horizontalBlur, nullptr);
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blur);
@@ -258,12 +257,12 @@ public:
             { { 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f }, QUAD_COLOR_NORMAL }
         };
 #undef QUAD_COLOR_NORMAL
-        meshes.quad.vertices = createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
+        meshes.quad.vertices = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
 
         // Setup indices
         std::vector<uint32_t> indexBuffer = { 0,1,2, 2,3,0 };
         meshes.quad.indexCount = indexBuffer.size();
-        meshes.quad.indices = createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
+        meshes.quad.indices = context.createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
     }
 
     void setupVertexDescriptions() {
@@ -482,8 +481,8 @@ public:
 
         // Vertical gauss blur
         // Load shaders
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/bloom/gaussblur.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/bloom/gaussblur.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/bloom/gaussblur.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/bloom/gaussblur.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayouts.radialBlur, renderPass);
@@ -509,44 +508,44 @@ public:
         blendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eSrcAlpha;
         blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eDstAlpha;
 
-        pipelines.blur = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.blur = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
         // Phong pass (3D model)
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/bloom/phongpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/bloom/phongpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/bloom/phongpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/bloom/phongpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         pipelineCreateInfo.layout = pipelineLayouts.scene;
         blendAttachmentState.blendEnable = VK_FALSE;
         depthStencilState.depthWriteEnable = VK_TRUE;
 
-        pipelines.phongPass = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.phongPass = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
         // Color only pass (offscreen blur base)
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/bloom/colorpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/bloom/colorpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/bloom/colorpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/bloom/colorpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
-        pipelines.colorPass = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.colorPass = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
         // Skybox (cubemap
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/bloom/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/bloom/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/bloom/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/bloom/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment);
         depthStencilState.depthWriteEnable = VK_FALSE;
-        pipelines.skyBox = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.skyBox = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Phong and color pass vertex shader uniform buffer
-        uniformData.vsScene = createUniformBuffer(ubos.scene);
+        uniformData.vsScene = context.createUniformBuffer(ubos.scene);
         // Fullscreen quad display vertex shader uniform buffer
-        uniformData.vsFullScreen = createUniformBuffer(ubos.fullscreen);
+        uniformData.vsFullScreen = context.createUniformBuffer(ubos.fullscreen);
         // Fullscreen quad fragment shader uniform buffers
         // Vertical blur
-        uniformData.fsVertBlur = createUniformBuffer(ubos.vertBlur);
+        uniformData.fsVertBlur = context.createUniformBuffer(ubos.vertBlur);
         // Horizontal blur
-        uniformData.fsHorzBlur = createUniformBuffer(ubos.horzBlur);
+        uniformData.fsHorzBlur = context.createUniformBuffer(ubos.horzBlur);
         // Skybox
-        uniformData.vsSkyBox = createUniformBuffer(ubos.skyBox);
+        uniformData.vsSkyBox = context.createUniformBuffer(ubos.skyBox);
 
         // Intialize uniform buffers
         updateUniformBuffersScene();
@@ -593,7 +592,7 @@ public:
 
         // Offscreen rendering
         if (bloom) {
-            submit(offscreen.cmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
+            context.submit(offscreen.cmdBuffer, { Context::SemaphoreStagePair { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
         } 
 
         // Scene rendering
@@ -631,7 +630,7 @@ public:
         updateUniformBuffersScreen();
     }
 
-    virtual void keyPressed(uint32_t keyCode) {
+    void keyPressed(int keyCode, int mods) override {
         switch (keyCode) {
         case GLFW_KEY_KP_ADD:
         case GAMEPAD_BUTTON_R1:
@@ -649,13 +648,8 @@ public:
     }
 
     virtual void getOverlayText(vkx::TextOverlay *textOverlay) {
-#if defined(__ANDROID__)
-        textOverlay->addText("Press \"L1/R1\" to change blur scale", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-        textOverlay->addText("Press \"Button A\" to toggle bloom", 5.0f, 105.0f, vkx::TextOverlay::alignLeft);
-#else
         textOverlay->addText("Press \"NUMPAD +/-\" to change blur scale", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
         textOverlay->addText("Press \"B\" to toggle bloom", 5.0f, 105.0f, vkx::TextOverlay::alignLeft);
-#endif
     }
 
     void changeBlurScale(float delta) {

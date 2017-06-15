@@ -7,7 +7,7 @@ class VrExample : glfw::Window {
     using Parent = glfw::Window;
 public:
     vkx::Context context;
-    vkx::SwapChain swapChain { context };
+    vkx::Swapchain swapchain { context };
     std::shared_ptr<vkx::ShapesRenderer> shapesRenderer { std::make_shared<vkx::ShapesRenderer>(context, true) };
     double fpsTimer { 0 };
     float lastFPS { 0 };
@@ -56,9 +56,9 @@ public:
     }
 
     void prepareSwapchain() {
-        swapChain.createSurface(window);
+        swapchain.createSurface(window);
         auto extent2d = vk::Extent2D { size.x, size.y };
-        swapChain.create(extent2d);
+        swapchain.create(extent2d);
     }
 
     void prepareRenderer() {

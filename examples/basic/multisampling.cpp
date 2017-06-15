@@ -166,22 +166,17 @@ public:
 
         // Initial image layout transitions
         // We need to transform the MSAA target layouts before using them
-        withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
+        context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
             // Tansform MSAA color target
-            vkx::setImageLayout(
-                setupCmdBuffer,
-                multisampleTarget.color.image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eColorAttachmentOptimal);
+            vkx::setImageLayout(setupCmdBuffer, multisampleTarget.color.image, vk::ImageLayout::eColorAttachmentOptimal);
 
             // Tansform MSAA depth target
             vkx::setImageLayout(
                 setupCmdBuffer,
                 multisampleTarget.depth.image,
-                vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
+                vk::ImageLayout::eDepthStencilAttachmentOptimal,
                 vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eDepthStencilAttachmentOptimal);
+                vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil);
         });
 
     }

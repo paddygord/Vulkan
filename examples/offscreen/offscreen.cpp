@@ -348,8 +348,8 @@ public:
         // Load shaders
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/offscreen/quad.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/offscreen/quad.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/offscreen/quad.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/offscreen/quad.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayouts.quad, renderPass);
@@ -366,26 +366,26 @@ public:
         pipelineCreateInfo.pStages = shaderStages.data();
 
         // Mirror
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/offscreen/mirror.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/offscreen/mirror.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/offscreen/mirror.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/offscreen/mirror.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
-        pipelines.mirror = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.mirror = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
         // Solid shading pipeline
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/offscreen/offscreen.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/offscreen/offscreen.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/offscreen/offscreen.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/offscreen/offscreen.frag.spv", vk::ShaderStageFlagBits::eFragment);
         pipelineCreateInfo.layout = pipelineLayouts.offscreen;
-        pipelines.shaded = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.shaded = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Mesh vertex shader uniform buffer block
-        uniformData.vsShared = createUniformBuffer(ubos.vsShared);
+        uniformData.vsShared = context.createUniformBuffer(ubos.vsShared);
         // Mirror plane vertex shader uniform buffer block
-        uniformData.vsMirror = createUniformBuffer(ubos.vsShared);
+        uniformData.vsMirror = context.createUniformBuffer(ubos.vsShared);
         // Offscreen vertex shader uniform buffer block
-        uniformData.vsOffScreen = createUniformBuffer(ubos.vsShared);
+        uniformData.vsOffScreen = context.createUniformBuffer(ubos.vsShared);
 
         updateUniformBuffers();
         updateUniformBufferOffscreen();

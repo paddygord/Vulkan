@@ -240,10 +240,7 @@ public:
         vkx::setImageLayout(
             offscreen.cmdBuffer,
             offscreen.framebuffers[0].colors[0].image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+            vk::ImageLayout::eColorAttachmentOptimal);
 
 
         // Render scene from cube face's point of view
@@ -298,9 +295,8 @@ public:
         vkx::setImageLayout(
             offscreen.cmdBuffer,
             shadowCubeMap.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
             vk::ImageLayout::eTransferDstOptimal,
+            vk::ImageLayout::eShaderReadOnlyOptimal,
             subresourceRange);
 
         for (uint32_t face = 0; face < 6; ++face) {
@@ -311,9 +307,8 @@ public:
         vkx::setImageLayout(
             offscreen.cmdBuffer,
             shadowCubeMap.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eTransferDstOptimal,
             vk::ImageLayout::eShaderReadOnlyOptimal,
+            vk::ImageLayout::eTransferDstOptimal,
             subresourceRange);
 
         offscreen.cmdBuffer.end();
@@ -330,9 +325,8 @@ public:
         vkx::setImageLayout(
             cmdBuffer,
             shadowCubeMap.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eTransferDstOptimal,
             vk::ImageLayout::eShaderReadOnlyOptimal,
+            vk::ImageLayout::eTransferDstOptimal,
             subresourceRange);
     }
 
@@ -629,7 +623,7 @@ public:
         updateDrawCommandBuffers();
     }
 
-    void keyPressed(uint32_t key) override {
+    void keyPressed(int key, int mods) override {
         switch (key) {
         case GLFW_KEY_D:
             toggleCubeMapDisplay();

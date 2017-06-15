@@ -124,13 +124,6 @@ public:
         demoMeshes.models = new vkx::MeshLoader();
         demoMeshes.skybox = new vkx::MeshLoader();
 
-#if defined(__ANDROID__)
-        demoMeshes.logos->assetManager = androidApp->activity->assetManager;
-        demoMeshes.background->assetManager = androidApp->activity->assetManager;
-        demoMeshes.models->assetManager = androidApp->activity->assetManager;
-        demoMeshes.skybox->assetManager = androidApp->activity->assetManager;
-#endif
-
         demoMeshes.logos->load(getAssetPath() + "models/vulkanscenelogos.dae");
         demoMeshes.background->load(getAssetPath() + "models/vulkanscenebackground.dae");
         demoMeshes.models->load(getAssetPath() + "models/vulkanscenemodels.dae");

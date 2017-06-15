@@ -23,9 +23,9 @@ namespace vkx {
 
         // Load debug function pointers and set debug callback
         // if callBack is NULL, default message callback will be used
-        void setupDebugging(vk::Instance instance, vk::DebugReportFlagsEXT flags);
+        void setupDebugging(const vk::Instance& instance, const vk::DebugReportFlagsEXT& flags);
         // Clear debug callback
-        void freeDebugCallback(vk::Instance instance);
+        void freeDebugCallback(const vk::Instance& instance);
 
         // Setup and functions for the VK_EXT_debug_marker_extension
         // Extension spec can be found at https://github.com/KhronosGroup/Vulkan-Docs/blob/1.0-VK_EXT_debug_marker/doc/specs/vulkan/appendices/VK_EXT_debug_marker.txt

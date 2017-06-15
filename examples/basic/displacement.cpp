@@ -73,7 +73,7 @@ public:
     void initVulkan() override {
         Parent::initVulkan();
         // Support for tessellation shaders is optional, so check first
-        if (!deviceFeatures.tessellationShader) {
+        if (!context.deviceFeatures.tessellationShader) {
             throw std::runtime_error("Selected GPU does not support tessellation shaders!");
         }
     }
@@ -343,12 +343,11 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Tessellation evaluation shader uniform buffer
-        uniformDataTE = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, uboTE);
-        uniformDataTE.map();
+        uniformDataTE = createUniformBuffer(uboTE);
 
         // Tessellation control shader uniform buffer
-        uniformDataTC = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, uboTC);
-        uniformDataTC.map();
+        uniformDataTC = createUniformBuffer(uboTC);
+
         updateUniformBuffers();
     }
 
@@ -411,7 +410,7 @@ public:
     }
 
 
-    void keyPressed(uint32_t key) override {
+    void keyPressed(int key, int mods) override {
         switch (key) {
         case GLFW_KEY_KP_ADD:
             changeTessellationLevel(0.25);

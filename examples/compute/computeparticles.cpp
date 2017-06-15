@@ -10,12 +10,7 @@
 
 #include "vulkanExampleBase.h"
 
-#if defined(__ANDROID__)
-// Lower particle count on Android for performance reasons
-#define PARTICLE_COUNT 64 * 1024
-#else
 #define PARTICLE_COUNT 256 * 1024
-#endif
 
 class VulkanExample : public vkx::ExampleBase {
 public:
@@ -166,7 +161,7 @@ public:
         // Staging
         // SSBO is static, copy to device local memory 
         // This results in better performance
-        computeStorageBuffer = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, particleBuffer);
+        computeStorageBuffer = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, particleBuffer);
 
         // Binding description
         vertices.bindingDescriptions.resize(1);
@@ -276,8 +271,8 @@ public:
         // Load shaders
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/computeparticles/particle.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/computeparticles/particle.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/computeparticles/particle.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/computeparticles/particle.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayout, renderPass);
@@ -304,7 +299,7 @@ public:
         blendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eSrcAlpha;
         blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eDstAlpha;
 
-        pipelines.postCompute = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.postCompute = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
     void prepareCompute() {
@@ -364,16 +359,16 @@ public:
             vkx::computePipelineCreateInfo(computePipelineLayout);
 
         vkx::shader::initGlsl();
-        computePipelineCreateInfo.stage = loadGlslShader(getAssetPath() + "shaders/computeparticles/particle.comp", vk::ShaderStageFlagBits::eCompute);
+        computePipelineCreateInfo.stage = context.loadGlslShader(getAssetPath() + "shaders/computeparticles/particle.comp", vk::ShaderStageFlagBits::eCompute);
         vkx::shader::finalizeGlsl();
 
-        pipelines.compute = device.createComputePipelines(pipelineCache, computePipelineCreateInfo, nullptr)[0];
+        pipelines.compute = device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo, nullptr)[0];
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Compute shader uniform buffer block
-        uniformData.computeShader.ubo = createUniformBuffer(computeUbo);
+        uniformData.computeShader.ubo = context.createUniformBuffer(computeUbo);
         updateUniformBuffers();
     }
 
@@ -395,7 +390,7 @@ public:
     // Find and create a compute capable device queue
     void getComputeQueue() {
         uint32_t queueIndex = 0;
-        std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();
+        std::vector<vk::QueueFamilyProperties> queueProps = context.physicalDevice.getQueueFamilyProperties();
         uint32_t queueCount = queueProps.size();
 
 
@@ -448,7 +443,7 @@ public:
         animate = !animate;
     }
 
-    void keyPressed(uint32_t key) override {
+    void keyPressed(int key, int mods) override {
         switch (key) {
         case GLFW_KEY_A:
             toggleAnimation();

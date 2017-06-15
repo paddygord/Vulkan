@@ -80,12 +80,6 @@ namespace vkx {
 
         void createInstance();
 
-        void loadFunctions() {
-#if defined(__ANDROID__)
-            loadVulkanFunctions(instance);
-#endif
-        }
-
         void pickDevice() {
             // Physical device
             physicalDevices = instance.enumeratePhysicalDevices();
@@ -144,18 +138,11 @@ namespace vkx {
         }
 
         void createContext() {
-#if defined(__ANDROID__)
-            requireExtension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-#else
             requireExtensions(glfw::getRequiredInstanceExtensions());
-#endif
-            this->enableValidation = enableValidation;
 
             requireDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
             createInstance();
-
-            loadFunctions();
 
             pickDevice();
 
@@ -377,7 +364,7 @@ namespace vkx {
             vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
             commandBufferAllocateInfo.commandPool = getCommandPool();
             commandBufferAllocateInfo.commandBufferCount = count;
-            commandBufferAllocateInfo.level = vk::CommandBufferLevel::ePrimary;
+            commandBufferAllocateInfo.level = level;
             result = device.allocateCommandBuffers(commandBufferAllocateInfo);
             return result;
         }
@@ -428,6 +415,8 @@ namespace vkx {
             flushCommandBuffer(commandBuffer, true);
         }
 
+        vk::DeviceMemory allocateMemory(const vk::MemoryAllocateInfo & allocateInfo) const;
+
         CreateImageResult createImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags = vk::MemoryPropertyFlagBits::eDeviceLocal) const {
             CreateImageResult result;
             result.device = device;
@@ -438,7 +427,7 @@ namespace vkx {
             vk::MemoryAllocateInfo memAllocInfo;
             memAllocInfo.allocationSize = result.allocSize = memReqs.size;
             memAllocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, memoryPropertyFlags);
-            result.memory = device.allocateMemory(memAllocInfo);
+            result.memory = allocateMemory(memAllocInfo);
             device.bindImageMemory(result.image, result.memory, 0);
             return result;
         }
@@ -450,10 +439,16 @@ namespace vkx {
             imageCreateInfo.usage = imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferDst;
             CreateImageResult result = createImage(imageCreateInfo, memoryPropertyFlags);
 
+            vk::ImageSubresourceRange subresourceRange {
+                vk::ImageAspectFlagBits::eColor,
+                0,
+                imageCreateInfo.mipLevels,
+                0,
+                imageCreateInfo.arrayLayers
+            };
             withPrimaryCommandBuffer([&](const vk::CommandBuffer& copyCmd) {
-                vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, imageCreateInfo.mipLevels, 0, 1);
                 // Prepare for transfer
-                setImageLayout(copyCmd, result.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
+                setImageLayout(copyCmd, result.image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eUndefined, subresourceRange);
 
                 // Prepare for transfer
                 std::vector<vk::BufferImageCopy> bufferCopyRegions;
@@ -474,8 +469,9 @@ namespace vkx {
                     }
                 }
                 copyCmd.copyBufferToImage(staging.buffer, result.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
+
                 // Prepare for shader read
-                setImageLayout(copyCmd, result.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, range);
+                setImageLayout(copyCmd, result.image, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferDstOptimal, subresourceRange);
             });
             staging.destroy();
             return result;
@@ -508,7 +504,7 @@ namespace vkx {
             vk::MemoryAllocateInfo memAlloc;
             result.allocSize = memAlloc.allocationSize = memReqs.size;
             memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, memoryPropertyFlags);
-            result.memory = device.allocateMemory(memAlloc);
+            result.memory = allocateMemory(memAlloc);
             if (data != nullptr) {
                 copyToMemory(result.memory, data, size);
             }
@@ -617,11 +613,7 @@ namespace vkx {
         inline vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) const {
             vk::PipelineShaderStageCreateInfo shaderStage;
             shaderStage.stage = stage;
-#if defined(__ANDROID__)
-            shaderStage.module = loadShader(androidApp->activity->assetManager, fileName.c_str(), device, stage);
-#else
             shaderStage.module = vkx::loadShader(fileName.c_str(), device, stage);
-#endif
             shaderStage.pName = "main"; // todo : make param
             assert(shaderStage.module);
             shaderModules.push_back(shaderStage.module);

@@ -59,14 +59,14 @@ namespace openvr {
     std::set<std::string> getInstanceExtensionsRequired(vr::IVRCompositor* compositor) {
         auto bytesRequired = compositor->GetVulkanInstanceExtensionsRequired(nullptr, 0);
         std::vector<char> extensions;  extensions.resize(bytesRequired);
-        compositor->GetVulkanInstanceExtensionsRequired(extensions.data(), extensions.size());
+        compositor->GetVulkanInstanceExtensionsRequired(extensions.data(), (uint32_t)extensions.size());
         return toStringSet(extensions);
     }
 
     std::set<std::string> getDeviceExtensionsRequired(const vk::PhysicalDevice& physicalDevice, vr::IVRCompositor* compositor) {
         auto bytesRequired = compositor->GetVulkanDeviceExtensionsRequired(physicalDevice, nullptr, 0);
         std::vector<char> extensions;  extensions.resize(bytesRequired);
-        compositor->GetVulkanDeviceExtensionsRequired(physicalDevice, extensions.data(), extensions.size());
+        compositor->GetVulkanDeviceExtensionsRequired(physicalDevice, extensions.data(), (uint32_t)extensions.size());
         return toStringSet(extensions);
     }
 }
@@ -133,7 +133,7 @@ public:
         if (mirrorBlitCommands.empty()) {
             vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
             cmdBufAllocateInfo.commandPool = context.getCommandPool();
-            cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
+            cmdBufAllocateInfo.commandBufferCount = swapchain.imageCount;
             mirrorBlitCommands = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
         }
 
@@ -143,13 +143,13 @@ public:
         mirrorBlit.srcOffsets[1] = vk::Offset3D { (int32_t)renderTargetSize.x, (int32_t)renderTargetSize.y, 1 };
         mirrorBlit.dstOffsets[1] = vk::Offset3D { (int32_t)size.x, (int32_t)size.y, 1 };
 
-        for (size_t i = 0; i < swapChain.imageCount; ++i) {
+        for (size_t i = 0; i < swapchain.imageCount; ++i) {
             vk::CommandBuffer& cmdBuffer = mirrorBlitCommands[i];
             cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
             cmdBuffer.begin(vk::CommandBufferBeginInfo {});
-            vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-            cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, swapChain.images[i].image, vk::ImageLayout::eTransferDstOptimal, mirrorBlit, vk::Filter::eNearest);
-            vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR);
+            vkx::setImageLayout(cmdBuffer, swapchain.images[i].image, vk::ImageLayout::eTransferDstOptimal);
+            cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, swapchain.images[i].image, vk::ImageLayout::eTransferDstOptimal, mirrorBlit, vk::Filter::eNearest);
+            vkx::setImageLayout(cmdBuffer, swapchain.images[i].image, vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eTransferDstOptimal);
             cmdBuffer.end();
         }
     }
@@ -197,9 +197,9 @@ public:
                 cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
                 cmdBuffer.begin(vk::CommandBufferBeginInfo {});
                 const auto& stagingImage = stagingImages[frame][eye];
-                vkx::setImageLayout(cmdBuffer, stagingImage.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+                vkx::setImageLayout(cmdBuffer, stagingImage.image, vk::ImageLayout::eTransferDstOptimal);
                 cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, stagingImage.image, vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eNearest);
-                vkx::setImageLayout(cmdBuffer, stagingImage.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral);
+                vkx::setImageLayout(cmdBuffer, stagingImage.image, vk::ImageLayout::eGeneral, vk::ImageLayout::eTransferDstOptimal);
                 cmdBuffer.end();
             }
         }
@@ -238,14 +238,14 @@ public:
         context.device.waitForFences(frameFences[frameIndex], VK_TRUE, UINT64_MAX);
         context.device.resetFences(frameFences[frameIndex]);
 
-        auto currentImage = swapChain.acquireNextImage(shapesRenderer->semaphores.renderStart, frameFences[frameIndex]);
+        auto currentImage = swapchain.acquireNextImage(shapesRenderer->semaphores.renderStart, frameFences[frameIndex]);
 
         shapesRenderer->render();
 
         // Perform both eye blits and the mirror blit concurrently
         context.submit(
             { stagingBlitCommands[frameIndex][vr::Eye_Left], stagingBlitCommands[frameIndex][vr::Eye_Right], mirrorBlitCommands[currentImage] },
-            { { shapesRenderer->semaphores.renderComplete, vk::PipelineStageFlagBits::eColorAttachmentOutput } },
+            { vkx::Context::SemaphoreStagePair { shapesRenderer->semaphores.renderComplete, vk::PipelineStageFlagBits::eColorAttachmentOutput } },
             { stagingBlitCompletes[frameIndex] });
 
         //-----------------------------------------------------------------------------------------
@@ -277,7 +277,7 @@ public:
         vulkanData.m_nImage = (uint64_t)(VkImage)stagingImages[frameIndex][vr::Eye_Right].image;
         vr::VRCompositor()->Submit(vr::Eye_Right, &texture, &textureBounds);
 
-        swapChain.queuePresent(stagingBlitCompletes[frameIndex]);
+        swapchain.queuePresent(stagingBlitCompletes[frameIndex]);
         frameIndex = (frameIndex + 1) % FRAME_LAG;
     }
 

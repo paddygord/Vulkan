@@ -194,11 +194,11 @@ public:
         };
 #undef QUAD_COLOR_NORMAL
 
-        meshes.quad.vertices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
+        meshes.quad.vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
 
         std::vector<uint32_t> indexBuffer = { 0,1,2, 2,3,0 };
         meshes.quad.indexCount = indexBuffer.size();
-        meshes.quad.indices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
+        meshes.quad.indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
     }
 
     void setupVertexDescriptions() {
@@ -361,8 +361,8 @@ public:
         // Load shaders
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/radialblur/radialblur.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/radialblur/radialblur.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/radialblur/radialblur.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/radialblur/radialblur.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayouts.radialBlur, renderPass);
@@ -388,39 +388,39 @@ public:
         blendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eSrcAlpha;
         blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eDstAlpha;
 
-        pipelines.radialBlur = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.radialBlur = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
         // No blending (for debug display)
         blendAttachmentState.blendEnable = VK_FALSE;
-        pipelines.fullScreenOnly = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.fullScreenOnly = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
         // Phong pass
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/radialblur/phongpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/radialblur/phongpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/radialblur/phongpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/radialblur/phongpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         pipelineCreateInfo.layout = pipelineLayouts.scene;
         blendAttachmentState.blendEnable = VK_FALSE;
         depthStencilState.depthWriteEnable = VK_TRUE;
 
-        pipelines.phongPass = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.phongPass = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
         // Color only pass (offscreen blur base)
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/radialblur/colorpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/radialblur/colorpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/radialblur/colorpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/radialblur/colorpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
-        pipelines.colorPass = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.colorPass = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Phong and color pass vertex shader uniform buffer
-        uniformData.vsScene = createUniformBuffer(uboVS);
+        uniformData.vsScene = context.createUniformBuffer(uboVS);
 
         // Fullscreen quad vertex shader uniform buffer
-        uniformData.vsQuad = createUniformBuffer(uboVS);
+        uniformData.vsQuad = context.createUniformBuffer(uboVS);
 
         // Fullscreen quad fragment shader uniform buffer
-        uniformData.fsQuad = createUniformBuffer(uboVS);
+        uniformData.fsQuad = context.createUniformBuffer(uboVS);
 
         updateUniformBuffersScene();
         updateUniformBuffersScreen();
@@ -478,7 +478,7 @@ public:
         updateUniformBuffersScreen();
     }
 
-    void keyPressed(uint32_t keyCode) override {
+    void keyPressed(int keyCode, int mods) override {
         switch (keyCode) {
         case GLFW_KEY_B:
         case GAMEPAD_BUTTON_A:
@@ -492,13 +492,8 @@ public:
     }
 
     void getOverlayText(vkx::TextOverlay *textOverlay) override  {
-#if defined(__ANDROID__)
-        textOverlay->addText("Press \"Button A\" to toggle blur", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-        textOverlay->addText("Press \"Button X\" to display offscreen texture", 5.0f, 105.0f, vkx::TextOverlay::alignLeft);
-#else
         textOverlay->addText("Press \"B\" to toggle blur", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
         textOverlay->addText("Press \"T\" to display offscreen texture", 5.0f, 105.0f, vkx::TextOverlay::alignLeft);
-#endif
     }
 
     void toggleBlur() {

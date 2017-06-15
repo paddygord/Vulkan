@@ -82,14 +82,11 @@ namespace vkx {
 // an image and put it into an active command buffer
 // See chapter 11.4 "vk::Image Layout" for details
 
-void setImageLayout(
-    vk::CommandBuffer cmdbuffer,
-    vk::Image image,
-    vk::ImageAspectFlags aspectMask,
-    vk::ImageLayout oldImageLayout,
-    vk::ImageLayout newImageLayout,
-    vk::ImageSubresourceRange subresourceRange) {
-
+vk::ImageMemoryBarrier getImageMemoryBarrier(
+    const vk::Image& image,
+    const vk::ImageLayout& newImageLayout,
+    const vk::ImageLayout& oldImageLayout,
+    const vk::ImageSubresourceRange& subresourceRange) {
     // Create an image barrier object
     vk::ImageMemoryBarrier imageMemoryBarrier;
     imageMemoryBarrier.oldLayout = oldImageLayout;
@@ -98,6 +95,26 @@ void setImageLayout(
     imageMemoryBarrier.subresourceRange = subresourceRange;
     imageMemoryBarrier.srcAccessMask = accessFlagsForLayout(oldImageLayout);
     imageMemoryBarrier.dstAccessMask = accessFlagsForLayout(newImageLayout);
+    return imageMemoryBarrier;
+}
+
+vk::ImageMemoryBarrier getImageMemoryBarrier(
+    const vk::Image& image,
+    const vk::ImageLayout& newImageLayout,
+    const vk::ImageLayout& oldImageLayout,
+    const vk::ImageAspectFlags& aspect) {
+    return getImageMemoryBarrier(image, newImageLayout, oldImageLayout, { aspect, 0, 1, 0, 1 });
+}
+
+void setImageLayout(
+    const vk::CommandBuffer& cmdbuffer,
+    const vk::Image& image,
+    const vk::ImageLayout& newImageLayout,
+    const vk::ImageLayout& oldImageLayout,
+    const vk::ImageSubresourceRange& subresourceRange) {
+
+    // Create an image barrier object
+    vk::ImageMemoryBarrier imageMemoryBarrier = getImageMemoryBarrier(image, newImageLayout, oldImageLayout, subresourceRange);
 
     // Put barrier on top
     // Put barrier inside setup command buffer
@@ -110,16 +127,13 @@ void setImageLayout(
 
 // Fixed sub resource on first mip level and layer
 void setImageLayout(
-    vk::CommandBuffer cmdbuffer,
-    vk::Image image,
-    vk::ImageAspectFlags aspectMask,
-    vk::ImageLayout oldImageLayout,
-    vk::ImageLayout newImageLayout) {
-    vk::ImageSubresourceRange subresourceRange;
-    subresourceRange.aspectMask = aspectMask;
-    subresourceRange.levelCount = 1;
-    subresourceRange.layerCount = 1;
-    setImageLayout(cmdbuffer, image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
+    const vk::CommandBuffer& cmdbuffer,
+    const vk::Image& image,
+    const vk::ImageLayout& newImageLayout,
+    const vk::ImageLayout& oldImageLayout,
+    const vk::ImageAspectFlags& aspectMask,
+    uint32_t levelCount) {
+    setImageLayout(cmdbuffer, image, newImageLayout, oldImageLayout, { aspectMask, 0, levelCount, 0, 1 });
 }
 
 void exitFatal(std::string message, std::string caption) {
@@ -173,33 +187,6 @@ std::string readTextFile(const std::string& fileName) {
     return fileContent;
 }
 
-#if defined(__ANDROID__)
-// Android shaders are stored as assets in the apk
-// So they need to be loaded via the asset manager
-vk::ShaderModule loadShader(AAssetManager* assetManager, const char *fileName, vk::Device device, vk::ShaderStageFlagBits stage) {
-    // Load shader from compressed asset
-    AAsset* asset = AAssetManager_open(assetManager, fileName, AASSET_MODE_STREAMING);
-    assert(asset);
-    size_t size = AAsset_getLength(asset);
-    assert(size > 0);
-
-    char *shaderCode = new char[size];
-    AAsset_read(asset, shaderCode, size);
-    AAsset_close(asset);
-
-    vk::ShaderModule shaderModule;
-    vk::ShaderModuleCreateInfo moduleCreateInfo;
-    moduleCreateInfo.codeSize = size;
-    moduleCreateInfo.pCode = (uint32_t*)shaderCode;
-    moduleCreateInfo.flags = 0;
-
-    shaderModule = device.createShaderModule(moduleCreateInfo, NULL);
-
-    delete[] shaderCode;
-
-    return shaderModule;
-}
-#else
 vk::ShaderModule loadShader(const std::string& filename, vk::Device device, vk::ShaderStageFlagBits stage) {
     std::vector<uint8_t> binaryData = readBinaryFile(filename);
     vk::ShaderModuleCreateInfo moduleCreateInfo;
@@ -207,7 +194,6 @@ vk::ShaderModule loadShader(const std::string& filename, vk::Device device, vk::
     moduleCreateInfo.pCode = (uint32_t*)binaryData.data();
     return device.createShaderModule(moduleCreateInfo);
 }
-#endif
 
 vk::ShaderModule loadShaderGLSL(const std::string& filename, vk::Device device, vk::ShaderStageFlagBits stage) {
     std::string shaderSrc = readTextFile(filename);
@@ -559,9 +545,6 @@ vk::ClearColorValue clearColor(const glm::vec4& v = glm::vec4(0)) {
 }
 
 const std::string& getAssetPath() {
-#if defined(__ANDROID__)
-    return "";
-#else
     static std::string path;
     static std::once_flag once;
 
@@ -573,7 +556,6 @@ const std::string& getAssetPath() {
         path = file + "/../data/";
     });
     return path;
-#endif
     }
 
 }

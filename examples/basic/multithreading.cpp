@@ -112,11 +112,7 @@ public:
         // Get number of max. concurrrent threads
         numThreads = std::thread::hardware_concurrency();
         assert(numThreads > 0);
-#if defined(__ANDROID__)
-        LOGD("numThreads = %d", numThreads);
-#else
         std::cout << "numThreads = " << numThreads << std::endl;
-#endif
         srand(time(NULL));
 
         threadPool.setThreadCount(numThreads);

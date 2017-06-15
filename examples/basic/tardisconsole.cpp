@@ -94,7 +94,7 @@ public:
         if (!loader.load(assetPath)) {
             throw std::runtime_error("Failed to load model");
         }
-        mesh = loader.createBuffers(*this, vertexLayout, 0.01f);
+        mesh = loader.createBuffers(context, vertexLayout, 0.01f);
 
         // Binding description
         bindingDescriptions.resize(1);

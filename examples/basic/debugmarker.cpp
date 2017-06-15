@@ -229,7 +229,7 @@ public:
 
     // Prepare a texture target and framebuffer for offscreen rendering
     void prepareOffscreen() {
-        vk::CommandBuffer cmdBuffer = ExampleBase::createCommandBuffer(vk::CommandBufferLevel::ePrimary, true);
+        vk::CommandBuffer cmdBuffer = context.createCommandBuffer(vk::CommandBufferLevel::ePrimary, true);
 
         vk::FormatProperties formatProperties;
 
@@ -259,21 +259,18 @@ public:
         // Texture will be sampled in a shader and is also the blit destination
         imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
 
-        offscreenFrameBuf.textureTarget = createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+        offscreenFrameBuf.textureTarget = context.createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
         // Transform image layout to transfer destination
         tex.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
         vkx::setImageLayout(
             cmdBuffer,
             tex.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eUndefined,
             tex.imageLayout);
 
         // Create sampler
         vk::SamplerCreateInfo sampler;
-        sampler.magFilter = OFFSCREEN_FILTER;
-        sampler.minFilter = OFFSCREEN_FILTER;
+        sampler.minFilter = sampler.magFilter = OFFSCREEN_FILTER;
         sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
         sampler.addressModeU = vk::SamplerAddressMode::eClampToEdge;
         sampler.addressModeV = sampler.addressModeU;
@@ -334,8 +331,6 @@ public:
         vkx::setImageLayout(
             cmdBuffer,
             offscreenFrameBuf.color.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eUndefined,
             vk::ImageLayout::eColorAttachmentOptimal);
 
         colorImageView.image = offscreenFrameBuf.color.image;
@@ -357,9 +352,9 @@ public:
         vkx::setImageLayout(
             cmdBuffer,
             offscreenFrameBuf.depth.image,
-            vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
+            vk::ImageLayout::eDepthStencilAttachmentOptimal,
             vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eDepthStencilAttachmentOptimal);
+            vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil);
 
         depthStencilView.image = offscreenFrameBuf.depth.image;
         offscreenFrameBuf.depth.view = device.createImageView(depthStencilView);
@@ -377,10 +372,10 @@ public:
         fbufCreateInfo.layers = 1;
         offscreenFrameBuf.framebuffer = device.createFramebuffer(fbufCreateInfo);
 
-        ExampleBase::flushCommandBuffer(cmdBuffer, true);
+        context.flushCommandBuffer(cmdBuffer, true);
 
         // Command buffer for offscreen rendering
-        offscreenCmdBuffer = ExampleBase::createCommandBuffer(vk::CommandBufferLevel::ePrimary, false);
+        offscreenCmdBuffer = context.createCommandBuffer(vk::CommandBufferLevel::ePrimary, false);
 
         // Name for debugging
         DebugMarker::setObjectName(device, (uint64_t)(VkImage)offscreenFrameBuf.color.image, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, "Off-screen color framebuffer");
@@ -425,21 +420,24 @@ public:
 
         offscreenCmdBuffer.endRenderPass();
 
-        // Make sure color writes to the framebuffer are finished before using it as transfer source
-        vkx::setImageLayout(
-            offscreenCmdBuffer,
-            offscreenFrameBuf.color.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            vk::ImageLayout::eTransferSrcOptimal);
+        // Put barrier on top
+        // Put barrier inside setup command buffer
+        offscreenCmdBuffer.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTopOfPipe,
+            vk::PipelineStageFlagBits::eTopOfPipe,
+            vk::DependencyFlags(),
+            nullptr, nullptr, {
+                // Make sure color writes to the framebuffer are finished before using it as transfer source
+                getImageMemoryBarrier(
+                    offscreenFrameBuf.color.image,
+                    vk::ImageLayout::eTransferSrcOptimal,
+                    vk::ImageLayout::eColorAttachmentOptimal),
+                // Transform texture target to transfer destination
+                getImageMemoryBarrier(offscreenFrameBuf.textureTarget.image,
+                    vk::ImageLayout::eTransferDstOptimal,
+                    vk::ImageLayout::eShaderReadOnlyOptimal)
+            });
 
-        // Transform texture target to transfer destination
-        vkx::setImageLayout(
-            offscreenCmdBuffer,
-            offscreenFrameBuf.textureTarget.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::ImageLayout::eTransferDstOptimal);
 
         // Blit offscreen color buffer to our texture target
         vk::ImageBlit imgBlit;
@@ -466,9 +464,8 @@ public:
         vkx::setImageLayout(
             offscreenCmdBuffer,
             offscreenFrameBuf.color.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eTransferSrcOptimal,
-            vk::ImageLayout::eColorAttachmentOptimal);
+            vk::ImageLayout::eColorAttachmentOptimal,
+            vk::ImageLayout::eTransferSrcOptimal);
 
         // Transform texture target back to shader read
         // Makes sure that writes to the texture are finished before
@@ -476,9 +473,8 @@ public:
         vkx::setImageLayout(
             offscreenCmdBuffer,
             offscreenFrameBuf.textureTarget.image,
-            vk::ImageAspectFlagBits::eColor,
-            vk::ImageLayout::eTransferDstOptimal,
-            vk::ImageLayout::eShaderReadOnlyOptimal);
+            vk::ImageLayout::eShaderReadOnlyOptimal,
+            vk::ImageLayout::eTransferDstOptimal);
 
         DebugMarker::endRegion(offscreenCmdBuffer);
 
@@ -488,9 +484,6 @@ public:
     // Load a model file as separate meshes into a scene
     void loadModel(std::string filename, Scene *scene) {
         vkx::MeshLoader* meshLoader = new vkx::MeshLoader();
-#if defined(__ANDROID__)
-        meshLoader->assetManager = androidApp->activity->assetManager;
-#endif
         meshLoader->load(filename);
 
         scene->meshes.resize(meshLoader->m_Entries.size());
@@ -528,20 +521,10 @@ public:
 
         // Static mesh should always be device local
 
-        bool useStaging = true;
-        if (useStaging) {
-            // Create staging buffers
-            // Vertex data
-            scene->vertices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
-            // Index data
-            scene->indices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
-        } else {
-            // Vertex buffer
-            scene->vertices = createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
-            // Index buffer
-            scene->indices = createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
-        }
-
+        // Vertex data
+        scene->vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
+        // Index data
+        scene->indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
         delete(meshLoader);
     }
 
@@ -813,12 +796,12 @@ public:
         // Name shader moduels for debugging
         // Shader module count starts at 2 when text overlay in base class is enabled
         uint32_t moduleIndex = enableTextOverlay ? 2 : 0;
-        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)shaderModules[moduleIndex + 0], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Toon shading vertex shader");
-        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)shaderModules[moduleIndex + 1], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Toon shading fragment shader");
-        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)shaderModules[moduleIndex + 2], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Color-only vertex shader");
-        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)shaderModules[moduleIndex + 3], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Color-only fragment shader");
-        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)shaderModules[moduleIndex + 4], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Postprocess vertex shader");
-        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)shaderModules[moduleIndex + 5], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Postprocess fragment shader");
+        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)context.shaderModules[moduleIndex + 0], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Toon shading vertex shader");
+        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)context.shaderModules[moduleIndex + 1], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Toon shading fragment shader");
+        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)context.shaderModules[moduleIndex + 2], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Color-only vertex shader");
+        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)context.shaderModules[moduleIndex + 3], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Color-only fragment shader");
+        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)context.shaderModules[moduleIndex + 4], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Postprocess vertex shader");
+        DebugMarker::setObjectName(device, (uint64_t)(VkShaderModule)context.shaderModules[moduleIndex + 5], VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT, "Postprocess fragment shader");
 
         // Name pipelines for debugging
         DebugMarker::setObjectName(device, (uint64_t)(VkPipeline)pipelines.toonshading, VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, "Toon shading pipeline");
@@ -831,7 +814,7 @@ public:
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
 
-        uniformData.vsScene = createUniformBuffer(uboVS);
+        uniformData.vsScene = context.createUniformBuffer(uboVS);
 
         // Name uniform buffer for debugging
         DebugMarker::setObjectName(device, (uint64_t)(VkBuffer)uniformData.vsScene.buffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, "Scene uniform buffer block");
@@ -894,7 +877,7 @@ public:
         updateUniformBuffers();
     }
 
-    virtual void keyPressed(uint32_t keyCode) {
+    void keyPressed(int keyCode, int mods) override {
         switch (keyCode) {
         case GLFW_KEY_W:
         case GAMEPAD_BUTTON_X:

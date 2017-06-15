@@ -13,10 +13,6 @@
 #include <gli/gli.hpp>
 #include "vulkanTools.h"
 
-#if defined(__ANDROID__)
-#include <android/asset_manager.h>
-#endif
-
 namespace vkx {
 
     struct Texture {
@@ -84,32 +80,9 @@ namespace vkx {
             context.device.freeCommandBuffers(context.getCommandPool(), cmdBuffer);
         }
 
-#if defined(__ANDROID__)
-        AAssetManager* assetManager = nullptr;
-#endif
-
         // Load a 2D texture
         Texture loadTexture(const std::string& filename, vk::Format format, bool forceLinear = false, vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled) {
-#if defined(__ANDROID__)
-            assert(assetManager != nullptr);
-
-            // Textures are stored inside the apk on Android (compressed)
-            // So they need to be loaded via the asset manager
-            AAsset* asset = AAssetManager_open(assetManager, filename.c_str(), AASSET_MODE_STREAMING);
-            assert(asset);
-            size_t size = AAsset_getLength(asset);
-            assert(size > 0);
-
-            void *textureData = malloc(size);
-            AAsset_read(asset, textureData, size);
-            AAsset_close(asset);
-
-            gli::texture2D tex2D(gli::load((const char*)textureData, size));
-
-            free(textureData);
-#else
             gli::texture2D tex2D(gli::load(filename.c_str()));
-#endif        
             assert(!tex2D.empty());
 
             Texture texture;
@@ -180,9 +153,8 @@ namespace vkx {
                 setImageLayout(
                     cmdBuffer,
                     texture.image,
-                    vk::ImageAspectFlagBits::eColor,
-                    vk::ImageLayout::ePreinitialized,
                     vk::ImageLayout::eTransferDstOptimal,
+                    vk::ImageLayout::ePreinitialized,
                     subresourceRange);
 
                 // Copy mip levels from staging buffer
@@ -191,9 +163,8 @@ namespace vkx {
                 setImageLayout(
                     cmdBuffer,
                     texture.image,
-                    vk::ImageAspectFlagBits::eColor,
-                    vk::ImageLayout::eTransferDstOptimal,
                     texture.imageLayout,
+                    vk::ImageLayout::eTransferDstOptimal,
                     subresourceRange);
 
                 // Submit command buffer containing copy and image layout commands
@@ -246,9 +217,8 @@ namespace vkx {
                 setImageLayout(
                     cmdBuffer,
                     texture.image,
-                    vk::ImageAspectFlagBits::eColor,
-                    vk::ImageLayout::ePreinitialized,
-                    texture.imageLayout);
+                    texture.imageLayout,
+                    vk::ImageLayout::ePreinitialized);
 
                 // Submit command buffer containing copy and image layout commands
                 cmdBuffer.end();
@@ -300,26 +270,7 @@ namespace vkx {
 
         // Load a cubemap texture (single file)
         Texture loadCubemap(const std::string& filename, vk::Format format) {
-#if defined(__ANDROID__)
-            assert(assetManager != nullptr);
-
-            // Textures are stored inside the apk on Android (compressed)
-            // So they need to be loaded via the asset manager
-            AAsset* asset = AAssetManager_open(assetManager, filename.c_str(), AASSET_MODE_STREAMING);
-            assert(asset);
-            size_t size = AAsset_getLength(asset);
-            assert(size > 0);
-
-            void *textureData = malloc(size);
-            AAsset_read(asset, textureData, size);
-            AAsset_close(asset);
-
-            gli::textureCube texCube(gli::load((const char*)textureData, size));
-
-            free(textureData);
-#else
             gli::textureCube texCube(gli::load(filename));
-#endif    
             Texture texture;
             assert(!texCube.empty());
             texture.extent.width = (uint32_t)texCube[0].dimensions().x;
@@ -367,9 +318,8 @@ namespace vkx {
                 setImageLayout(
                     cmdBuffer,
                     texture.image,
-                    vk::ImageAspectFlagBits::eColor,
-                    vk::ImageLayout::eUndefined,
                     vk::ImageLayout::eTransferDstOptimal,
+                    vk::ImageLayout::eUndefined,
                     subresourceRange);
                 // Setup buffer copy regions for each face including all of it's miplevels
                 std::vector<vk::BufferImageCopy> bufferCopyRegions;
@@ -398,9 +348,8 @@ namespace vkx {
                 setImageLayout(
                     cmdBuffer,
                     texture.image,
-                    vk::ImageAspectFlagBits::eColor,
-                    vk::ImageLayout::eTransferDstOptimal,
                     vk::ImageLayout::eShaderReadOnlyOptimal,
+                    vk::ImageLayout::eTransferDstOptimal,
                     subresourceRange);
             });
 
@@ -432,26 +381,7 @@ namespace vkx {
 
         // Load an array texture (single file)
         Texture loadTextureArray(const std::string& filename, vk::Format format) {
-#if defined(__ANDROID__)
-            assert(assetManager != nullptr);
-
-            // Textures are stored inside the apk on Android (compressed)
-            // So they need to be loaded via the asset manager
-            AAsset* asset = AAssetManager_open(assetManager, filename.c_str(), AASSET_MODE_STREAMING);
-            assert(asset);
-            size_t size = AAsset_getLength(asset);
-            assert(size > 0);
-
-            void *textureData = malloc(size);
-            AAsset_read(asset, textureData, size);
-            AAsset_close(asset);
-
-            gli::texture2DArray tex2DArray(gli::load((const char*)textureData, size));
-
-            free(textureData);
-#else
             gli::texture2DArray tex2DArray(gli::load(filename));
-#endif    
 
             Texture texture;
             assert(!tex2DArray.empty());
@@ -538,9 +468,8 @@ namespace vkx {
             setImageLayout(
                 cmdBuffer,
                 texture.image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::eUndefined,
                 vk::ImageLayout::eTransferDstOptimal,
+                vk::ImageLayout::eUndefined,
                 subresourceRange);
 
             // Copy the cube map faces from the staging buffer to the optimal tiled image
@@ -551,9 +480,8 @@ namespace vkx {
             setImageLayout(
                 cmdBuffer,
                 texture.image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::eTransferDstOptimal,
                 texture.imageLayout,
+                vk::ImageLayout::eTransferDstOptimal,
                 subresourceRange);
 
             cmdBuffer.end();

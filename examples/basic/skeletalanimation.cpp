@@ -349,19 +349,24 @@ public:
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
         device.destroyPipeline(pipelines.skinning);
+        device.destroyPipeline(pipelines.texture);
 
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
 
 
         textures.colorMap.destroy();
+        textures.floor.destroy();
 
         uniformData.vsScene.destroy();
+        uniformData.floor.destroy();
 
         // Destroy and free mesh resources 
         skinnedMesh->meshBuffer.destroy();
         delete(skinnedMesh->meshLoader);
         delete(skinnedMesh);
+
+        meshes.floor.destroy();
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
@@ -388,9 +393,6 @@ public:
     void loadMesh() {
         skinnedMesh = new SkinnedMesh();
         skinnedMesh->meshLoader = new vkx::MeshLoader();
-#if defined(__ANDROID__)
-        skinnedMesh->meshLoader->assetManager = androidApp->activity->assetManager;
-#endif
         skinnedMesh->meshLoader->load(getAssetPath() + "models/goblin.dae", 0);
         skinnedMesh->setAnimation(0);
 
@@ -703,7 +705,7 @@ public:
         std::cout << "Animation speed = " << skinnedMesh->animationSpeed << std::endl;
     }
 
-    void keyPressed(uint32_t key) override {
+    void keyPressed(int key, int mods) override {
         switch (key) {
         case GLFW_KEY_KP_ADD:
         case GLFW_KEY_KP_SUBTRACT:

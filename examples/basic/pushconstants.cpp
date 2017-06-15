@@ -68,14 +68,12 @@ public:
     void initVulkan() override {
         Parent::initVulkan();
         // todo : this crashes on certain Android devices, so commented out for now
-#if !defined(__ANDROID__)        
         // Check requested push constant size against hardware limit
         // Specs require 128 bytes, so if the device complies our 
         // push constant buffer should always fit into memory
         vk::PhysicalDeviceProperties deviceProps;
         deviceProps = physicalDevice.getProperties();
         assert(sizeof(pushConstants) <= deviceProps.limits.maxPushConstantsSize);
-#endif
     }
 
     ~VulkanExample() {
@@ -272,7 +270,7 @@ public:
         pipelineCreateInfo.pStages = shaderStages.data();
 
         if (pipelines.solid) {
-            trashPipeline(pipelines.solid);
+            context.trashPipeline(pipelines.solid);
         }
         pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
 

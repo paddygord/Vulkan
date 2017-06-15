@@ -6,7 +6,7 @@ namespace vkx {
 
     class OffscreenExampleBase : public vkx::ExampleBase {
     protected:
-        OffscreenExampleBase() : offscreen(*this) {}
+
         ~OffscreenExampleBase() {
             offscreen.destroy();
         }
@@ -171,14 +171,14 @@ namespace vkx {
                 renderPassInfo.pDependencies = subpassDependencies.data();
                 renderPass = context.device.createRenderPass(renderPassInfo);
             }
-        } offscreen;
+        } offscreen { context };
 
         virtual void buildOffscreenCommandBuffer() = 0;
 
         void draw() override {
             prepareFrame();
             if (offscreen.active) {
-                submit(offscreen.cmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
+                context.submit(offscreen.cmdBuffer, { Context::SemaphoreStagePair { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
             }
             drawCurrentCommandBuffer(offscreen.active ? offscreen.renderComplete : vk::Semaphore());
             submitFrame();

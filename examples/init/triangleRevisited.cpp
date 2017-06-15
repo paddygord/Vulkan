@@ -157,12 +157,12 @@ public:
             { { -1.0f,  1.0f, 0.0f },{ 0.0f, 1.0f, 0.0f } },
             { { 0.0f, -1.0f, 0.0f },{ 0.0f, 0.0f, 1.0f } }
         };
-        vertices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
+        vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
 
         // Setup indices
         std::vector<uint32_t> indexBuffer = { 0, 1, 2 };
         indexCount = (uint32_t)indexBuffer.size();
-        indices = stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
+        indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
 
         // As before
         bindingDescriptions.resize(1);
@@ -192,7 +192,7 @@ public:
         uboVS.projectionMatrix = getProjection();
         uboVS.viewMatrix = glm::translate(glm::mat4(), camera.position);
         uboVS.modelMatrix = glm::mat4_cast(camera.orientation);
-        uniformDataVS = createUniformBuffer(uboVS);
+        uniformDataVS = context.createUniformBuffer(uboVS);
     }
 
     void setupDescriptorSetLayout() {
@@ -306,8 +306,8 @@ public:
         // Load shaders
         // Shaders are loaded from the SPIR-V format, which can be generated from glsl
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/triangle/triangle.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/triangle/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/triangle/triangle.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/triangle/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         // Assign states
         // Assign pipeline state create information
@@ -324,7 +324,7 @@ public:
         pipelineCreateInfo.pDynamicState = &dynamicState;
 
         // Create rendering pipeline
-        pipeline = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipeline = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
     void setupDescriptorPool() {

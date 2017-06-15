@@ -34,13 +34,6 @@
 #include <GL/glew.h>
 #endif
 
-#if defined(__ANDROID__)
-#include <android/native_activity.h>
-#include <android/asset_manager.h>
-#include <android_native_app_glue.h>
-#include "vulkanandroid.h"
-#endif
-
 #include <glm/glm.hpp>
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -105,30 +98,11 @@ public:
 #include <vulkan/vulkan.hpp>
 
 // Cross platform window management
-#if !defined(__ANDROID__)
 #include "glfw.hpp"
-#endif
 
 // Boilerplate for running an example
-#if defined(__ANDROID__)
-#define ENTRY_POINT_START \
-        void android_main(android_app* state) { \
-            app_dummy();
-
-#define ENTRY_POINT_END \
-        }
-#else
-#define ENTRY_POINT_START \
-        int main(const int argc, const char *argv[]) {
-
-#define ENTRY_POINT_END \
-            return 0; \
-        }
-#endif
-
 #define RUN_EXAMPLE(ExampleType) \
-    ENTRY_POINT_START \
-        ExampleType* example = new ExampleType(); \
-        example->run(); \
-        delete(example); \
-    ENTRY_POINT_END
+    int main(const int argc, const char *argv[]) { \
+        ExampleType().run(); \
+        return 0; \
+    }

@@ -8,7 +8,6 @@
 
 #include "vulkanExampleBase.h"
 
-
 // Vertex layout for this example
 struct Vertex {
     float pos[3];
@@ -139,23 +138,7 @@ public:
     }
 
     void loadTexture(std::string fileName, vk::Format format, bool forceLinearTiling) {
-#if defined(__ANDROID__)
-        // Textures are stored inside the apk on Android (compressed)
-        // So they need to be loaded via the asset manager
-        AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, fileName.c_str(), AASSET_MODE_STREAMING);
-        assert(asset);
-        size_t size = AAsset_getLength(asset);
-        assert(size > 0);
-
-        void *textureData = malloc(size);
-        AAsset_read(asset, textureData, size);
-        AAsset_close(asset);
-
-        gli::texture2D tex2D(gli::load((const char*)textureData, size));
-#else
         gli::texture2D tex2D(gli::load(fileName));
-#endif
-
         assert(!tex2D.empty());
         auto dimensions = tex2D.dimensions();
 
@@ -192,13 +175,13 @@ public:
             // Create optimal tiled target image
             imageCreateInfo.tiling = vk::ImageTiling::eOptimal;
             imageCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
-            texture = stageToDeviceImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, tex2D);
+            texture = context.stageToDeviceImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, tex2D);
         } else {
             // Prefer using optimal tiling, as linear tiling  may support only a small set of features 
             // depending on implementation (e.g. no mip maps, only one layer, etc.)
             imageCreateInfo.tiling = vk::ImageTiling::eLinear;
             imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
-            texture = createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eHostVisible);
+            texture = context.createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eHostVisible);
 
             // Get sub resource layout
             // Mip map count, array layer, etc.
@@ -217,7 +200,7 @@ public:
 
             // Linear tiled images don't need to be staged
             // and can be directly used as textures
-            withPrimaryCommandBuffer([&](const vk::CommandBuffer& cmdBuffer){
+            context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& cmdBuffer){
                 // Setup image memory barrier transfer image to shader read layout
                 setImageLayout(
                     cmdBuffer,
@@ -456,7 +439,7 @@ public:
         pipelineCreateInfo.stageCount = shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
 
-        trashPipeline(pipelines.solid);
+        context.trashPipeline(pipelines.solid);
         pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
@@ -509,7 +492,7 @@ public:
         updateUniformBuffers();
     }
 
-    void keyPressed(uint32_t keyCode) override {
+    void keyPressed(int keyCode, int mods) override {
         switch (keyCode) {
         case GLFW_KEY_KP_ADD:
             changeLodBias(0.1f);

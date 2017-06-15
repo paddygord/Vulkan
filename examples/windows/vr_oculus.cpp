@@ -217,9 +217,9 @@ public:
             }
             cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
             cmdBuffer.begin(vk::CommandBufferBeginInfo {});
-            vkx::setImageLayout(cmdBuffer, oculusImage, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+            vkx::setImageLayout(cmdBuffer, oculusImage, vk::ImageLayout::eTransferDstOptimal);
             cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, oculusImage, vk::ImageLayout::eTransferDstOptimal, sceneBlit, vk::Filter::eNearest);
-            vkx::setImageLayout(cmdBuffer, oculusImage, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal);
+            vkx::setImageLayout(cmdBuffer, oculusImage, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eTransferDstOptimal);
             cmdBuffer.end();
         }
     }
@@ -240,7 +240,7 @@ public:
         if (mirrorBlitCommands.empty()) {
             vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
             cmdBufAllocateInfo.commandPool = context.getCommandPool();
-            cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
+            cmdBufAllocateInfo.commandBufferCount = swapchain.imageCount;
             mirrorBlitCommands = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
         }
 
@@ -249,13 +249,13 @@ public:
         mirrorBlit.dstSubresource.layerCount = mirrorBlit.srcSubresource.layerCount = 1;
         mirrorBlit.srcOffsets[1] = mirrorBlit.dstOffsets[1] = { (int32_t)size.x, (int32_t)size.y, 1 };
 
-        for (size_t i = 0; i < swapChain.imageCount; ++i) {
+        for (size_t i = 0; i < swapchain.imageCount; ++i) {
             vk::CommandBuffer& cmdBuffer = mirrorBlitCommands[i];
             cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
             cmdBuffer.begin(vk::CommandBufferBeginInfo {});
-            vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-            cmdBuffer.blitImage(mirrorImage, vk::ImageLayout::eTransferSrcOptimal, swapChain.images[i].image, vk::ImageLayout::eTransferDstOptimal, mirrorBlit, vk::Filter::eNearest);
-            vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR);
+            vkx::setImageLayout(cmdBuffer, swapchain.images[i].image, vk::ImageLayout::eTransferDstOptimal);
+            cmdBuffer.blitImage(mirrorImage, vk::ImageLayout::eTransferSrcOptimal, swapchain.images[i].image, vk::ImageLayout::eTransferDstOptimal, mirrorBlit, vk::Filter::eNearest);
+            vkx::setImageLayout(cmdBuffer, swapchain.images[i].image, vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eTransferDstOptimal);
             cmdBuffer.end();
         }
     }
@@ -289,8 +289,8 @@ public:
     }
 
     void render() {
-        vk::Fence submitFence = swapChain.getSubmitFence(true);
-        auto swapchainIndex = swapChain.acquireNextImage(shapesRenderer->semaphores.renderStart);
+        vk::Fence submitFence = swapchain.getSubmitFence(true);
+        auto swapchainIndex = swapchain.acquireNextImage(shapesRenderer->semaphores.renderStart);
 
         shapesRenderer->render();
 
@@ -300,7 +300,7 @@ public:
         }
 
         // Blit from our framebuffer to the Oculus output image (pre-recorded command buffer)
-        context.submit(oculusBlitCommands[oculusIndex], { { shapesRenderer->semaphores.renderComplete, vk::PipelineStageFlagBits::eColorAttachmentOutput } });
+        context.submit(oculusBlitCommands[oculusIndex], { vkx::Context::SemaphoreStagePair { shapesRenderer->semaphores.renderComplete, vk::PipelineStageFlagBits::eColorAttachmentOutput } });
 
         // The lack of explicit synchronization here is baffling.  One of these calls must be blocking, 
         // meaning there would have to be some backend use of waitIdle or fences, meaning less optimal 
@@ -317,7 +317,7 @@ public:
         // but there's no real way of knowing when this image is properly populated.  Presumably its reliable here
         // because of the blocking functionality of the ovr_SubmitFrame (or the ovr_CommitTextureSwapChain).
         context.submit(mirrorBlitCommands[swapchainIndex], {}, {}, blitComplete, submitFence);
-        swapChain.queuePresent(blitComplete);
+        swapchain.queuePresent(blitComplete);
     }
 
     std::string getWindowTitle() {

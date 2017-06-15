@@ -136,11 +136,7 @@ public:
         glm::vec3 projected = glm::project(glm::vec3(0.0f), uboVS.model, uboVS.projection, glm::vec4(0, 0, (float)size.width, (float)size.height));
         textOverlay->addText("Uniform cube", projected.x, projected.y, TextOverlay::alignCenter);
 
-#if defined(__ANDROID__)
-        // toto
-#else
         textOverlay->addText("Hold middle mouse button and drag to move", 5.0f, size.height - 40.0f, TextOverlay::alignLeft);
-#endif
         textOverlay->endTextUpdate();
     }
 
@@ -367,7 +363,7 @@ public:
         updateTextOverlay();
     }
 
-    void keyPressed(uint32_t keyCode) override {
+    void keyPressed(int keyCode, int mods) override {
         switch (keyCode) {
         case GLFW_KEY_KP_ADD:
         case GLFW_KEY_SPACE:

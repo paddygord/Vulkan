@@ -80,7 +80,7 @@ public:
 
         gears.resize(positions.size());
         for (int32_t i = 0; i < gears.size(); ++i) {
-            gears[i] = new VulkanGear(*this);
+            gears[i] = new VulkanGear(context);
             gears[i]->generate(
                 innerRadiuses[i],
                 outerRadiuses[i],
@@ -210,7 +210,7 @@ public:
         pipelineCreateInfo.pDynamicState = &dynamicState;
         pipelineCreateInfo.stageCount = shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
-        trashPipeline(pipelines.solid);
+        context.trashPipeline(pipelines.solid);
         pipelines.solid = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 

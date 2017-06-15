@@ -32,10 +32,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#if defined(__ANDROID__)
-#include <android/asset_manager.h>
-#endif
-
 #include "vulkanTools.h"
 
 namespace vkx {
@@ -176,10 +172,6 @@ namespace vkx {
         };
 
     public:
-#if defined(__ANDROID__)
-        AAssetManager* assetManager = nullptr;
-#endif
-
         std::vector<MeshEntry> m_Entries;
 
         struct Dimension {
@@ -223,26 +215,7 @@ namespace vkx {
 
         // Load the mesh with custom flags
         bool load(const std::string& filename, int flags) {
-#if defined(__ANDROID__)
-            // Meshes are stored inside the apk on Android (compressed)
-            // So they need to be loaded via the asset manager
-
-            AAsset* asset = AAssetManager_open(assetManager, filename.c_str(), AASSET_MODE_STREAMING);
-            assert(asset);
-            size_t size = AAsset_getLength(asset);
-
-            assert(size > 0);
-
-            void *meshData = malloc(size);
-            AAsset_read(asset, meshData, size);
-            AAsset_close(asset);
-
-            pScene = Importer.ReadFileFromMemory(meshData, size, flags);
-
-            free(meshData);
-#else
             pScene = Importer.ReadFile(filename.c_str(), flags);
-#endif
             if (!pScene) {
                 throw std::runtime_error("Unable to parse " + filename);
             }

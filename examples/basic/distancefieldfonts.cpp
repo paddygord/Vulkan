@@ -50,26 +50,20 @@ public:
         vkx::Texture fontBitmap;
     } textures;
 
-    struct {
+    struct Vertices : public vkx::CreateBufferResult {
         void operator=(const vkx::CreateBufferResult& result) {
-            buffer = result.buffer;
-            memory = result.memory;
+            (vkx::CreateBufferResult&)(*this) = result;
         }
-        vk::Buffer buffer;
-        vk::DeviceMemory memory;
         vk::PipelineVertexInputStateCreateInfo inputState;
         std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
         std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
     } vertices;
 
-    struct {
+    struct Indices : public vkx::CreateBufferResult {
         void operator=(const vkx::CreateBufferResult& result) {
-            buffer = result.buffer;
-            memory = result.memory;
+            (vkx::CreateBufferResult&)(*this) = result;
         }
         int count;
-        vk::Buffer buffer;
-        vk::DeviceMemory memory;
     } indices;
 
     struct {
@@ -115,18 +109,16 @@ public:
         textures.fontBitmap.destroy();
 
         device.destroyPipeline(pipelines.sdf);
+        device.destroyPipeline(pipelines.bitmap);
 
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
 
-        device.destroyBuffer(vertices.buffer);
-        device.freeMemory(vertices.memory);
+        vertices.destroy();
+        indices.destroy();
 
-        device.destroyBuffer(indices.buffer);
-        device.freeMemory(indices.memory);
-
-        device.destroyBuffer(uniformData.vs.buffer);
-        device.freeMemory(uniformData.vs.memory);
+        uniformData.vs.destroy();
+        uniformData.fs.destroy();
     }
 
     // Basic parser fpr AngelCode bitmap font format files
@@ -134,26 +126,9 @@ public:
     void parsebmFont() {
         std::string fileName = getAssetPath() + "font.fnt";
 
-#if defined(__ANDROID__)
-        // Font description file is stored inside the apk
-        // So we need to load it using the asset manager
-        AAsset* asset = AAssetManager_open(androidApp->activity->assetManager, fileName.c_str(), AASSET_MODE_STREAMING);
-        assert(asset);
-        size_t size = AAsset_getLength(asset);
-
-        assert(size > 0);
-
-        void *fileData = malloc(size);
-        AAsset_read(asset, fileData, size);
-        AAsset_close(asset);
-
-        std::stringbuf sbuf((const char*)fileData);
-        std::istream istream(&sbuf);
-#else
         std::filebuf fileBuffer;
         fileBuffer.open(fileName, std::ios::in);
         std::istream istream(&fileBuffer);
-#endif
 
         assert(istream.good());
 
@@ -535,7 +510,7 @@ public:
     }
 
 
-    void keyPressed(uint32_t key) override {
+    void keyPressed(int key, int mods) override {
         switch (key) {
         case GLFW_KEY_S:
             toggleSplitScreen();

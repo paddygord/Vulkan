@@ -13,7 +13,7 @@ using namespace vkx;
 
 // Avoid doing work in the ctor as it can't make use of overridden virtual functions
 // Instead, use the `run` method
-ExampleBase::ExampleBase() : swapChain(*this) { }
+ExampleBase::ExampleBase() { }
 
 ExampleBase::~ExampleBase() {
     // Clean up Vulkan resources
@@ -38,7 +38,7 @@ ExampleBase::~ExampleBase() {
         device.destroyFramebuffer(framebuffers[i]);
     }
 
-    for (auto& shaderModule : shaderModules) {
+    for (auto& shaderModule : context.shaderModules) {
         device.destroyShaderModule(shaderModule);
     }
     depthStencil.destroy();
@@ -54,33 +54,17 @@ ExampleBase::~ExampleBase() {
     device.destroySemaphore(semaphores.acquireComplete);
     device.destroySemaphore(semaphores.renderComplete);
 
-    destroyContext();
+    context.destroyContext();
 
-#if defined(__ANDROID__)
-    // todo : android cleanup (if required)
-#else
     glfwDestroyWindow(window);
     glfwTerminate();
-#endif
 }
 
 void ExampleBase::run() {
-#if defined(__ANDROID__)
-    // Vulkan library is loaded dynamically on Android
-    bool libLoaded = loadVulkanLibrary();
-    assert(libLoaded);
-    // Attach vulkan example to global android application state
-    state->userData = vulkanExample;
-    state->onAppCmd = VulkanExample::handleAppCommand;
-    state->onInputEvent = VulkanExample::handleAppInput;
-    androidApp = state;
-#else
-    glfwInit();
-    // Android Vulkan initialization is handled in APP_CMD_INIT_WINDOW event
+
     initVulkan();
     setupWindow();
     prepare();
-#endif
 
     renderLoop();
 
@@ -91,11 +75,11 @@ void ExampleBase::run() {
 
 void ExampleBase::initVulkan() {
 #ifndef NDEBUG
-    setValidationEnabled(true);
+    context.setValidationEnabled(true);
 #endif
-    createContext();
+    context.createContext();
     // Find a suitable depth format
-    depthFormat = getSupportedDepthFormat(physicalDevice);
+    depthFormat = getSupportedDepthFormat(context.physicalDevice);
 
     // Create synchronization objects
     vk::SemaphoreCreateInfo semaphoreCreateInfo;
@@ -118,125 +102,19 @@ void ExampleBase::initVulkan() {
 }
 
 void ExampleBase::renderLoop() {
-#if defined(__ANDROID__)
-    while (1) {
-        int ident;
-        int events;
-        struct android_poll_source* source;
-        bool destroy = false;
-
-        focused = true;
-
-        while ((ident = ALooper_pollAll(focused ? 0 : -1, NULL, &events, (void**)&source)) >= 0) {
-            if (source != NULL) {
-                source->process(androidApp, source);
-            }
-            if (androidApp->destroyRequested != 0) {
-                LOGD("Android app destroy requested");
-                destroy = true;
-                break;
-            }
-        }
-
-        // App destruction requested
-        // Exit loop, example will be destroyed in application main
-        if (destroy) {
-            break;
-        }
-
-        // Render frame
-        if (prepared) {
-            auto tStart = std::chrono::high_resolution_clock::now();
-            render();
-            frameCounter++;
-            auto tEnd = std::chrono::high_resolution_clock::now();
-            auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-            frameTimer = tDiff / 1000.0f;
-            // Convert to clamped timer value
-            if (!paused) {
-                timer += timerSpeed * frameTimer;
-                if (timer > 1.0) {
-                    timer -= 1.0f;
-                }
-            }
-            fpsTimer += (float)tDiff;
-            if (fpsTimer > 1000.0f) {
-                lastFPS = frameCounter;
-                updateTextOverlay();
-                fpsTimer = 0.0f;
-                frameCounter = 0;
-            }
-        }
-    }
-#else
     auto tStart = std::chrono::high_resolution_clock::now();
-    while (!glfwWindowShouldClose(window)) {
+    glfw::Window::runWindowLoop([&] {
         auto tEnd = std::chrono::high_resolution_clock::now();
         auto tDiff = std::chrono::duration<float, std::milli>(tEnd - tStart).count();
         auto tDiffSeconds = tDiff / 1000.0f;
         tStart = tEnd;
-        glfwPollEvents();
-
-        if (glfwJoystickPresent(0)) {
-            // FIXME implement joystick handling
-            int axisCount{ 0 };
-            const float* axes = glfwGetJoystickAxes(0, &axisCount);
-            if (axisCount >= 2) {
-                gamePadState.axes.x = axes[0] * 0.01f;
-                gamePadState.axes.y = axes[1] * -0.01f;
-            }
-            if (axisCount >= 4) {
-            }
-            if (axisCount >= 6) {
-                float lt = (axes[4] + 1.0f) / 2.0f;
-                float rt = (axes[5] + 1.0f) / 2.0f;
-                gamePadState.axes.rz = (rt - lt);
-            }
-            uint32_t newButtons{ 0 };
-            static uint32_t oldButtons{ 0 };
-            {
-                int buttonCount{ 0 };
-                const uint8_t* buttons = glfwGetJoystickButtons(0, &buttonCount);
-                for (uint8_t i = 0; i < buttonCount && i < 64; ++i) {
-                    if (buttons[i]) {
-                        newButtons |= (1 << i);
-                    }
-                }
-            }
-            auto changedButtons = newButtons & ~oldButtons;
-            if (changedButtons & 0x01) {
-                keyPressed(GAMEPAD_BUTTON_A);
-            }
-            if (changedButtons & 0x02) {
-                keyPressed(GAMEPAD_BUTTON_B);
-            }
-            if (changedButtons & 0x04) {
-                keyPressed(GAMEPAD_BUTTON_X);
-            }
-            if (changedButtons & 0x08) {
-                keyPressed(GAMEPAD_BUTTON_Y);
-            }
-            if (changedButtons & 0x10) {
-                keyPressed(GAMEPAD_BUTTON_L1);
-            }
-            if (changedButtons & 0x20) {
-                keyPressed(GAMEPAD_BUTTON_R1);
-            }
-            oldButtons = newButtons;
-        } else {
-            memset(&gamePadState.axes, 0, sizeof(gamePadState.axes));
-        }
-
-
         render();
         update(tDiffSeconds);
-
-    }
-#endif
+    });
 }
 
 std::string ExampleBase::getWindowTitle() {
-    std::string device(deviceProperties.deviceName);
+    std::string device(context.deviceProperties.deviceName);
     std::string windowTitle;
     windowTitle = title + " - " + device + " - " + std::to_string(frameCounter) + " fps";
     return windowTitle;
@@ -247,13 +125,13 @@ const std::string& ExampleBase::getAssetPath() {
 }
 
 void ExampleBase::prepare() {
-    if (enableValidation) {
-        debug::setupDebugging(instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning);
+    if (context.enableValidation) {
+        debug::setupDebugging(context.instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning);
     }
     if (enableDebugMarkers) {
         debug::marker::setup(device);
     }
-    cmdPool = getCommandPool();
+    cmdPool = context.getCommandPool();
 
     swapChain.create(size, enableVsync);
     setupDepthStencil();
@@ -262,13 +140,10 @@ void ExampleBase::prepare() {
     setupFrameBuffer();
 
     // Create a simple texture loader class
-    textureLoader = new TextureLoader(*this);
-#if defined(__ANDROID__)
-    textureLoader->assetManager = androidApp->activity->assetManager;
-#endif
+    textureLoader = new TextureLoader(context);
     if (enableTextOverlay) {
         // Load the text rendering shaders
-        textOverlay = new TextOverlay(*this,
+        textOverlay = new TextOverlay(context,
             size.width,
             size.height,
             renderPass);
@@ -277,12 +152,9 @@ void ExampleBase::prepare() {
 }
 MeshBuffer ExampleBase::loadMesh(const std::string& filename, const MeshLayout& vertexLayout, float scale) {
     MeshLoader loader;
-#if defined(__ANDROID__)
-    loader.assetManager = androidApp->activity->assetManager;
-#endif
     loader.load(filename);
     assert(loader.m_Entries.size() > 0);
-    return loader.createBuffers(*this, vertexLayout, scale);
+    return loader.createBuffers(context, vertexLayout, scale);
 }
 
 vk::SubmitInfo ExampleBase::prepareSubmitInfo(
@@ -309,11 +181,11 @@ void ExampleBase::updateTextOverlay() {
     std::stringstream ss;
     ss << std::fixed << std::setprecision(2) << (frameTimer * 1000.0f) << "ms (" << lastFPS << " fps)";
     textOverlay->addText(ss.str(), 5.0f, 25.0f, TextOverlay::alignLeft);
-    textOverlay->addText(deviceProperties.deviceName, 5.0f, 45.0f, TextOverlay::alignLeft);
+    textOverlay->addText(context.deviceProperties.deviceName, 5.0f, 45.0f, TextOverlay::alignLeft);
     getOverlayText(textOverlay);
     textOverlay->endTextUpdate();
 
-    trashCommandBuffers(textCmdBuffers);
+    context.trashCommandBuffers(textCmdBuffers);
     populateSubCommandBuffers(textCmdBuffers, [&](const vk::CommandBuffer& cmdBuffer) {
         textOverlay->writeCommandBuffer(cmdBuffer);
     });
@@ -336,171 +208,22 @@ void ExampleBase::submitFrame() {
     swapChain.queuePresent(semaphores.renderComplete);
 }
 
-#if defined(__ANDROID__)
-int32_t ExampleBase::handleAppInput(struct android_app* app, AInputEvent* event) {
-    ExampleBase* vulkanExample = (ExampleBase*)app->userData;
-    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION) {
-        if (AInputEvent_getSource(event) == AINPUT_SOURCE_JOYSTICK) {
-            vulkanExample->gamePadState.axes.x = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_X, 0);
-            vulkanExample->gamePadState.axes.y = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_Y, 0);
-            vulkanExample->gamePadState.axes.z = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_Z, 0);
-            vulkanExample->gamePadState.axes.rz = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_RZ, 0);
-        } else {
-            // todo : touch input
-        }
-        return 1;
-    }
-
-    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY) {
-        int32_t keyCode = AKeyEvent_getKeyCode((const AInputEvent*)event);
-        int32_t action = AKeyEvent_getAction((const AInputEvent*)event);
-        int32_t button = 0;
-
-        if (action == AKEY_EVENT_ACTION_UP)
-            return 0;
-
-        switch (keyCode) {
-        case AKEYCODE_BUTTON_A:
-            vulkanExample->keyPressed(GAMEPAD_BUTTON_A);
-            break;
-        case AKEYCODE_BUTTON_B:
-            vulkanExample->keyPressed(GAMEPAD_BUTTON_B);
-            break;
-        case AKEYCODE_BUTTON_X:
-            vulkanExample->keyPressed(GAMEPAD_BUTTON_X);
-            break;
-        case AKEYCODE_BUTTON_Y:
-            vulkanExample->keyPressed(GAMEPAD_BUTTON_Y);
-            break;
-        case AKEYCODE_BUTTON_L1:
-            vulkanExample->keyPressed(GAMEPAD_BUTTON_L1);
-            break;
-        case AKEYCODE_BUTTON_R1:
-            vulkanExample->keyPressed(GAMEPAD_BUTTON_R1);
-            break;
-        case AKEYCODE_BUTTON_START:
-            vulkanExample->keyPressed(GAMEPAD_BUTTON_START);
-            break;
-        };
-
-        LOGD("Button %d pressed", keyCode);
-    }
-
-    return 0;
-}
-
-void ExampleBase::handleAppCommand(android_app * app, int32_t cmd) {
-    assert(app->userData != NULL);
-    ExampleBase* vulkanExample = (ExampleBase*)app->userData;
-    switch (cmd) {
-    case APP_CMD_SAVE_STATE:
-        LOGD("APP_CMD_SAVE_STATE");
-        /*
-        vulkanExample->app->savedState = malloc(sizeof(struct saved_state));
-        *((struct saved_state*)vulkanExample->app->savedState) = vulkanExample->state;
-        vulkanExample->app->savedStateSize = sizeof(struct saved_state);
-        */
-        break;
-    case APP_CMD_INIT_WINDOW:
-        LOGD("APP_CMD_INIT_WINDOW");
-        if (vulkanExample->androidApp->window != NULL) {
-            vulkanExample->initVulkan(false);
-            vulkanExample->initSwapchain();
-            vulkanExample->prepare();
-            assert(vulkanExample->prepared);
-        } else {
-            LOGE("No window assigned!");
-        }
-        break;
-    case APP_CMD_LOST_FOCUS:
-        LOGD("APP_CMD_LOST_FOCUS");
-        vulkanExample->focused = false;
-        break;
-    case APP_CMD_GAINED_FOCUS:
-        LOGD("APP_CMD_GAINED_FOCUS");
-        vulkanExample->focused = true;
-        break;
-    }
-}
-#else
-
-void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    if (action == GLFW_PRESS) {
-        example->keyPressed(key);
-    }
-}
-
-void ExampleBase::MouseHandler(GLFWwindow* window, int button, int action, int mods) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    if (action == GLFW_PRESS) {
-        glm::dvec2 mousePos; glfwGetCursorPos(window, &mousePos.x, &mousePos.y);
-        example->mousePos = mousePos;
-    }
-}
-
-void ExampleBase::MouseMoveHandler(GLFWwindow* window, double posx, double posy) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    example->mouseMoved(glm::vec2(posx, posy));
-}
-
-void ExampleBase::MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    example->mouseScrolled(yoffset);
-}
-
-void ExampleBase::CloseHandler(GLFWwindow* window) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    example->prepared = false;
-    glfwSetWindowShouldClose(window, 1);
-}
-
-void ExampleBase::FramebufferSizeHandler(GLFWwindow* window, int width, int height) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    example->windowResize(glm::uvec2(width, height));
-}
-
 void ExampleBase::setupWindow() {
     bool fullscreen = false;
-
-#ifdef _WIN32
-    // Check command line arguments
-    for (int32_t i = 0; i < __argc; i++) {
-        if (__argv[i] == std::string("-fullscreen")) {
-            fullscreen = true;
-        }
-    }
-#endif
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto monitor = glfwGetPrimaryMonitor();
     auto mode = glfwGetVideoMode(monitor);
     size.width = mode->width;
     size.height = mode->height;
+    size.width /= 2;
+    size.height /= 2;
 
-    if (fullscreen) {
-        window = glfwCreateWindow(size.width, size.height, "My Title", monitor, NULL);
-    } else {
-        size.width /= 2;
-        size.height /= 2;
-        window = glfwCreateWindow(size.width, size.height, "Window Title", NULL, NULL);
-    }
+    createWindow({ size.width, size.height });
 
-    glfwSetWindowUserPointer(window, this);
-    glfwSetKeyCallback(window, KeyboardHandler);
-    glfwSetMouseButtonCallback(window, MouseHandler);
-    glfwSetCursorPosCallback(window, MouseMoveHandler);
-    glfwSetWindowCloseCallback(window, CloseHandler);
-    glfwSetFramebufferSizeCallback(window, FramebufferSizeHandler);
-    glfwSetScrollCallback(window, MouseScrollHandler);
-    if (!window) {
-        throw std::runtime_error("Could not create window");
-    }
     swapChain.createSurface(window);
     camera.setAspectRatio(size);
 }
-
-#endif
 
 void ExampleBase::setupDepthStencil() {
     depthStencil.destroy();
@@ -513,15 +236,16 @@ void ExampleBase::setupDepthStencil() {
     image.mipLevels = 1;
     image.arrayLayers = 1;
     image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eTransferSrc;
-    depthStencil = createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    depthStencil = context.createImage(image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-    withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
+    context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
         setImageLayout(
             setupCmdBuffer,
             depthStencil.image,
-            aspect,
+            vk::ImageLayout::eDepthStencilAttachmentOptimal,
             vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eDepthStencilAttachmentOptimal);
+            aspect
+        );
     });
 
 
@@ -626,7 +350,7 @@ void ExampleBase::setupRenderPass() {
     renderPass = device.createRenderPass(renderPassInfo);
 }
 
-void ExampleBase::windowResize(const glm::uvec2& newSize) {
+void ExampleBase::windowResized(const glm::uvec2& newSize) {
     if (!prepared) {
         return;
     }

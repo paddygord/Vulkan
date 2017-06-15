@@ -22,17 +22,9 @@
 #include "vulkanMeshLoader.hpp"
 #include "vulkanTextOverlay.hpp"
 
-#define GAMEPAD_BUTTON_A 0x1000
-#define GAMEPAD_BUTTON_B 0x1001
-#define GAMEPAD_BUTTON_X 0x1002
-#define GAMEPAD_BUTTON_Y 0x1003
-#define GAMEPAD_BUTTON_L1 0x1004
-#define GAMEPAD_BUTTON_R1 0x1005
-#define GAMEPAD_BUTTON_START 0x1006
 
 #define VERTEX_BUFFER_BIND_ID 0
 #define INSTANCE_BUFFER_BIND_ID 1
-//#define ENABLE_VALIDATION true
 
 namespace vkx {
     struct UpdateOperation {
@@ -49,7 +41,7 @@ namespace vkx {
     };
 
 
-    class ExampleBase : public Context {
+    class ExampleBase : public glfw::Window {
     protected:
         ExampleBase();
         ~ExampleBase();
@@ -57,7 +49,7 @@ namespace vkx {
     public:
         void run();
         // Called if the window is resized and some resources have to be recreatesd
-        void windowResize(const glm::uvec2& newSize);
+        void windowResized(const glm::uvec2& newSize) override;
 
     private:
         // Set to true when the debug marker extension is detected
@@ -93,7 +85,7 @@ namespace vkx {
             if (drawCmdBuffers.empty()) {
                 throw std::runtime_error("Draw command buffers have not been populated.");
             }
-            trashCommandBuffers(primaryCmdBuffers);
+            context.trashCommandBuffers(primaryCmdBuffers);
 
             // FIXME find a better way to ensure that the draw and text buffers are no longer in use before 
             // executing them within this command buffer.
@@ -136,6 +128,47 @@ namespace vkx {
             primaryCmdBuffersDirty = false;
         }
     protected:
+
+        inline vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) const {
+            return context.loadShader(fileName, stage);
+        }
+
+        inline vk::PipelineShaderStageCreateInfo loadGlslShader(const std::string& fileName, vk::ShaderStageFlagBits stage) const {
+            return context.loadGlslShader(fileName, stage);
+        }
+
+        CreateImageResult createImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
+            return context.createImage(imageCreateInfo, memoryPropertyFlags);
+        }
+
+        template <typename T>
+        CreateBufferResult createUniformBuffer(const T& data, size_t count = 3) const {
+            return context.createUniformBuffer(data, count);
+        }
+
+        template <typename T>
+        CreateBufferResult createBuffer(const vk::BufferUsageFlags& usage, const T& data) const {
+            return context.createBuffer(usage, data);
+        }
+
+        template <typename T>
+        CreateBufferResult stageToDeviceBuffer(const vk::BufferUsageFlags& usage, const std::vector<T>& data) const {
+            return context.stageToDeviceBuffer(usage, sizeof(T)* data.size(), data.data());
+        }
+
+        template <typename T>
+        CreateBufferResult stageToDeviceBuffer(const vk::BufferUsageFlags& usage, const T& data) const {
+            return context.stageToDeviceBuffer(usage, sizeof(T), (void*)&data);
+        }
+
+        Context context;
+        const vk::Device& device { context.device };
+        const vk::Queue& queue { context.queue };
+        const vk::PhysicalDevice& physicalDevice { context.physicalDevice };
+        const vk::PipelineCache& pipelineCache { context.pipelineCache };
+        const vk::PhysicalDeviceProperties& deviceProperties { context.deviceProperties };
+        const vk::PhysicalDeviceFeatures& deviceFeatures { context.deviceFeatures };
+
         // Last frame time, measured using a high performance timer (if available)
         float frameTimer{ 1.0f };
         // Frame counter to display fps
@@ -164,7 +197,7 @@ namespace vkx {
         vk::DescriptorPool descriptorPool;
 
         // Wraps the swap chain to present images (framebuffers) to the windowing system
-        SwapChain swapChain;
+        Swapchain swapChain { context };
 
         // Synchronization semaphores
         struct {
@@ -214,35 +247,10 @@ namespace vkx {
 
         CreateImageResult depthStencil;
 
-        // Gamepad state (only one pad supported)
-
-        struct GamePadState {
-            struct Axes {
-                float x = 0.0f;
-                float y = 0.0f;
-                float z = 0.0f;
-                float rz = 0.0f;
-            } axes;
-        } gamePadState;
-
-        // OS specific 
-#if defined(__ANDROID__)
-        android_app* androidApp;
-        // true if application has focused, false if moved to background
-        bool focused = false;
-#else 
-        GLFWwindow* window;
-#endif
-
         // Setup the vulkan instance, enable required extensions and connect to the physical device (GPU)
         virtual void initVulkan();
 
-#if defined(__ANDROID__)
-        static int32_t handleAppInput(struct android_app* app, AInputEvent* event);
-        static void handleAppCommand(android_app* app, int32_t cmd);
-#else
         virtual void setupWindow();
-#endif
 
         // A default draw implementation
         virtual void draw() {
@@ -328,30 +336,23 @@ namespace vkx {
         // Can be overriden in derived class to setup a custom render pass (e.g. for MSAA)
         virtual void setupRenderPass();
 
-
         void populateSubCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers, std::function<void(const vk::CommandBuffer& commandBuffer)> f) {
             if (!cmdBuffers.empty()) {
-                trashCommandBuffers(cmdBuffers);
+                context.trashCommandBuffers(cmdBuffers);
             }
 
-            vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
-            cmdBufAllocateInfo.commandPool = getCommandPool();
-            cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
-            cmdBufAllocateInfo.level = vk::CommandBufferLevel::eSecondary;
-            cmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
+            cmdBuffers = context.allocateCommandBuffers(swapChain.imageCount, vk::CommandBufferLevel::eSecondary);
 
-            vk::CommandBufferInheritanceInfo inheritance;
-            inheritance.renderPass = renderPass;
-            inheritance.subpass = 0;
-            vk::CommandBufferBeginInfo beginInfo;
-            beginInfo.flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse;
-            beginInfo.pInheritanceInfo = &inheritance;
+            vk::CommandBufferInheritanceInfo inheritance { renderPass };
             for (size_t i = 0; i < swapChain.imageCount; ++i) {
                 currentBuffer = i;
                 inheritance.framebuffer = framebuffers[i];
                 vk::CommandBuffer& cmdBuffer = cmdBuffers[i];
                 cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-                cmdBuffer.begin(beginInfo);
+                cmdBuffer.begin({
+                    vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
+                    &inheritance
+                });
                 f(cmdBuffer);
                 cmdBuffer.end();
             }
@@ -376,7 +377,7 @@ namespace vkx {
             vk::Fence fence = swapChain.getSubmitFence();
             {
                 uint32_t fenceIndex = currentBuffer;
-                dumpster.push_back([fenceIndex, this] {
+                context.dumpster.push_back([fenceIndex, this] {
                     swapChain.clearSubmitFence(fenceIndex);
                 });
             }
@@ -389,12 +390,12 @@ namespace vkx {
                 semaphores.transferComplete = vk::Semaphore();
                 waitSemaphores.push_back(transferComplete);
                 waitStages.push_back(vk::PipelineStageFlagBits::eTransfer);
-                dumpster.push_back([transferComplete, this] {
+                context.dumpster.push_back([transferComplete, this] {
                     device.destroySemaphore(transferComplete);
                 });
             }
 
-            emptyDumpster(fence);
+            context.emptyDumpster(fence);
 
             vk::Semaphore transferPending;
             std::vector<vk::Semaphore> signalSemaphores{ { semaphores.renderComplete } };
@@ -417,7 +418,7 @@ namespace vkx {
             }
 
             executePendingTransfers(transferPending);
-            recycle();
+            context.recycle();
         }
 
         void executePendingTransfers(vk::Semaphore transferPending) {
@@ -462,7 +463,7 @@ namespace vkx {
                     queue.submit(transferSubmitInfo, transferFence);
                 }
 
-                recycler.push({ transferFence, [transferPending, transferCmdBuffer, this] {
+                context.recycler.push({ transferFence, [transferPending, transferCmdBuffer, this] {
                     device.destroySemaphore(transferPending);
                     device.freeCommandBuffers(cmdPool, transferCmdBuffer);
                 } });
@@ -513,12 +514,9 @@ namespace vkx {
             return camera.matrices.view;
         }
 
-#if defined(__ANDROID__)
-
-#else
         // Called if a key is pressed
         // Can be overriden in derived class to do custom key handling
-        virtual void keyPressed(uint32_t key) {
+        void keyPressed(int key, int mods) override {
             switch (key) {
             case GLFW_KEY_P:
                 paused = !paused;
@@ -541,7 +539,7 @@ namespace vkx {
         }
 
         // Keyboard movement handler
-        virtual void mouseMoved(const glm::vec2& newPos) {
+        void mouseMoved(const glm::vec2& newPos) override {
             glm::vec2 deltaPos = mousePos - newPos;
             if (deltaPos.x == 0 && deltaPos.y == 0) {
                 return;
@@ -565,14 +563,6 @@ namespace vkx {
             camera.dolly((float)delta * 0.1f * zoomSpeed);
             viewChanged();
         }
-
-        static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);
-        static void MouseHandler(GLFWwindow* window, int button, int action, int mods);
-        static void MouseMoveHandler(GLFWwindow* window, double posx, double posy);
-        static void MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset);
-        static void FramebufferSizeHandler(GLFWwindow* window, int width, int height);
-        static void CloseHandler(GLFWwindow* window);
-#endif
     };
 }
 

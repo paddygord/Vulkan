@@ -366,7 +366,7 @@ public:
         updateUniformBuffers();
     }
 
-    virtual void keyPressed(uint32_t keyCode) {
+    void keyPressed(int keyCode, int mods) override {
         switch (keyCode) {
         case GLFW_KEY_KP_ADD:
         case GAMEPAD_BUTTON_R1:
@@ -390,11 +390,7 @@ public:
     virtual void getOverlayText(vkx::TextOverlay *textOverlay) {
         std::stringstream ss;
         ss << std::setprecision(2) << std::fixed << uboTC.tessLevel;
-#if defined(__ANDROID__)
-        textOverlay->addText("Tessellation level: " + ss.str() + " (Buttons L1/R1 to change)", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-#else
         textOverlay->addText("Tessellation level: " + ss.str() + " (NUMPAD +/- to change)", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-#endif
     }
 
     void changeTessellationLevel(float delta) {
