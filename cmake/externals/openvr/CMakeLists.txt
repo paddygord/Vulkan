@@ -1,10 +1,9 @@
 include(ExternalProject)
 include(SelectLibraryConfigurations)
 
-set(EXTERNAL_NAME OpenVR)
+set(EXTERNAL_NAME openvr)
 
 string(TOUPPER ${EXTERNAL_NAME} EXTERNAL_NAME_UPPER)
-
 ExternalProject_Add(
   ${EXTERNAL_NAME}
   URL https://github.com/ValveSoftware/openvr/archive/v1.0.7.zip
