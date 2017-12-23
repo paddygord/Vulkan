@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.2)
+project(LibOVR)
+
+set(LIBOVR_DIR "OculusSDK/LibOVR")
+include_directories(${LIBOVR_DIR}/Include ${LIBOVR_DIR}/Src)
+file(GLOB HEADER_FILES ${LIBOVR_DIR}/Include/*.h)
+file(GLOB EXTRA_HEADER_FILES ${LIBOVR_DIR}/Include/Extras/*.h)  
+file(GLOB_RECURSE SOURCE_FILES ${LIBOVR_DIR}/Src/*.c ${LIBOVR_DIR}/Src/*.cpp)
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DOVR_BUILD_DEBUG")
+add_library(LibOVR STATIC ${SOURCE_FILES} ${HEADER_FILES} ${EXTRA_HEADER_FILES})
+set_target_properties(LibOVR PROPERTIES DEBUG_POSTFIX "d")
+
+install(TARGETS LibOVR DESTINATION Lib)
+install(FILES ${HEADER_FILES} DESTINATION Include)
+install(FILES ${EXTRA_HEADER_FILES} DESTINATION Include/Extras)

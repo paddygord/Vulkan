@@ -1,0 +1,49 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 26
+    defaultConfig {
+        applicationId "org.saintandreas.vulkanexamples"
+        minSdkVersion 26
+        targetSdkVersion 26
+        versionCode 1
+        versionName "1.0"
+        ndk { abiFilter "arm64-v8a" }
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_PLATFORM=android-26',
+                        '-DANDROID_TOOLCHAIN=clang',
+                        '-DANDROID_STL=c++_shared',
+                        '-DVULKAN_SDK=' + vulkan_sdk
+            }
+        }
+        compileOptions {
+            sourceCompatibility JavaVersion.VERSION_1_8
+            targetCompatibility JavaVersion.VERSION_1_8
+        }
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs += "${android.ndkDirectory}/sources/third_party/vulkan/src/build-android/jniLibs"
+            assets.srcDirs += "$projectDir.absolutePath/../../data"
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path '../../CMakeLists.txt'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+}

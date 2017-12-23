@@ -5,6 +5,7 @@
 *.suo
 *.user
 *.sln.docstates
+*.spv
 
 # Build results
 [Dd]ebug/
@@ -203,3 +204,16 @@ vulkanCapsViewer/vulkanreport.json
 
 # DLLs in bin
 !bin/*.dll
+bin_debug
+gradle
+gradlew
+gradlew.bat
+local.properties
+
+*.iml
+.gradle
+/local.properties
+.DS_Store
+.externalNativeBuild
+
+
