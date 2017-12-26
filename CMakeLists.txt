@@ -16,6 +16,8 @@ if(NOT ("${CMAKE_SIZEOF_VOID_P}" EQUAL "8"))
   message(FATAL_ERROR "32 bit builds not supported")
 endif()
 
+find_package(Threads REQUIRED)
+
 if (NOT ANDROID)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/bin")
@@ -49,7 +51,6 @@ endif()
 add_subdirectory(base)
 
 include_directories(base)
-link_libraries(common)
 if (NOT WIN32)
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)

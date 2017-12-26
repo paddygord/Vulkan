@@ -17,7 +17,7 @@
 
 #define VERTEX_BUFFER_BIND_ID 0
 
-class TriangleExample : public vkx::Context {
+class TriangleExample {
 
 #if !defined(__ANDROID__)
 public:
@@ -25,7 +25,10 @@ public:
     float zoom{ -2.5f };
     std::string title{ "Vulkan Example - Basic indexed triangle" };
     vk::Extent2D size{ 1280, 720 };
-    vkx::SwapChain swapChain;
+    vkx::Context context;
+    const vk::Device& device{ context.device };
+    const vk::Queue& queue{ context.queue };
+    vkx::SwapChain swapChain{ context };
     uint32_t currentBuffer;
     vk::CommandPool cmdPool;
     vk::DescriptorPool descriptorPool;
@@ -74,9 +77,12 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    TriangleExample() : swapChain(*this) {
-        setValidationEnabled(true);
-        createContext();
+    TriangleExample() {
+#if !defined(__ANDROID__)
+        glfwInit();
+#endif
+        context.setValidationEnabled(true);
+        context.createContext();
         createWindow();
     }
 
@@ -122,13 +128,13 @@ public:
     }
 
     void prepare() {
-        if (enableValidation) {
-            vkx::debug::setupDebugging(instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning | vk::DebugReportFlagBitsEXT::ePerformanceWarning);
+        if (context.enableValidation) {
+            vkx::debug::setupDebugging(context.instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning | vk::DebugReportFlagBitsEXT::ePerformanceWarning);
         }
-        if (enableDebugMarkers) {
+        if (context.enableDebugMarkers) {
             vkx::debug::marker::setup(device);
         }
-        cmdPool = getCommandPool();
+        cmdPool = context.getCommandPool();
         swapChain.createSurface(window);
         swapChain.create(size);
 
@@ -284,7 +290,7 @@ public:
         stagingBuffers.vertices.buffer = device.createBuffer(vertexBufferInfo);
         memReqs = device.getBufferMemoryRequirements(stagingBuffers.vertices.buffer);
         memAlloc.allocationSize = memReqs.size;
-        memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
+        memAlloc.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
         stagingBuffers.vertices.memory = device.allocateMemory(memAlloc);
         // Map and copy
         data = device.mapMemory(stagingBuffers.vertices.memory, 0, memAlloc.allocationSize, vk::MemoryMapFlags());
@@ -298,7 +304,7 @@ public:
         vertices.buffer = device.createBuffer(vertexBufferInfo);
         memReqs = device.getBufferMemoryRequirements(vertices.buffer);
         memAlloc.allocationSize = memReqs.size;
-        memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
+        memAlloc.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
         vertices.memory = device.allocateMemory(memAlloc);
         device.bindBufferMemory(vertices.buffer, vertices.memory, 0);
 
@@ -310,7 +316,7 @@ public:
         stagingBuffers.indices.buffer = device.createBuffer(indexbufferInfo);
         memReqs = device.getBufferMemoryRequirements(stagingBuffers.indices.buffer);
         memAlloc.allocationSize = memReqs.size;
-        memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
+        memAlloc.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
         stagingBuffers.indices.memory = device.allocateMemory(memAlloc);
         data = device.mapMemory(stagingBuffers.indices.memory, 0, indexBufferSize, vk::MemoryMapFlags());
         memcpy(data, indexBuffer.data(), indexBufferSize);
@@ -322,7 +328,7 @@ public:
         indices.buffer = device.createBuffer(indexbufferInfo);
         memReqs = device.getBufferMemoryRequirements(indices.buffer);
         memAlloc.allocationSize = memReqs.size;
-        memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
+        memAlloc.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
         indices.memory = device.allocateMemory(memAlloc);
         device.bindBufferMemory(indices.buffer, indices.memory, 0);
 
@@ -408,7 +414,7 @@ public:
         // Get the memory type index that supports host visibile memory access
         // Most implementations offer multiple memory tpyes and selecting the 
         // correct one to allocate memory from is important
-        allocInfo.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
+        allocInfo.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
         // Allocate memory for the uniform buffer
         (uniformDataVS.memory) = device.allocateMemory(allocInfo);
         // Bind memory to buffer
@@ -625,7 +631,7 @@ public:
         pipelineCreateInfo.pDynamicState = &dynamicState;
 
         // Create rendering pipeline
-        pipeline = device.createGraphicsPipelines(pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipeline = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
     }
 
 

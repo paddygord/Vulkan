@@ -169,9 +169,21 @@ public:
     }
 
     void loadTextures() {
-        textures.colorMap = textureLoader->loadTexture(
-            getAssetPath() + "textures/darkmetal_bc3.ktx",
-            vk::Format::eBc3UnormBlock);
+        if (context.deviceFeatures.textureCompressionBC) {
+            textures.colorMap = textureLoader->loadTexture(
+                getAssetPath() + "textures/darkmetal_bc3_unorm.ktx",
+                vk::Format::eBc3UnormBlock);
+        } else if (context.deviceFeatures.textureCompressionASTC_LDR) {
+            textures.colorMap = textureLoader->loadTexture(
+                getAssetPath() + "textures/darkmetal_astc_8x8_unorm.ktx",
+                vk::Format::eAstc8x8UnormBlock);
+        } else if (context.deviceFeatures.textureCompressionETC2) {
+            textures.colorMap = textureLoader->loadTexture(
+                getAssetPath() + "textures/darkmetal_etc2_unorm.ktx",
+                vk::Format::eEtc2R8G8B8UnormBlock);
+        } else {
+            throw std::runtime_error("Device does not support any compressed texture format!");
+        }
     }
 
     void setupVertexDescriptions() {

@@ -87,7 +87,23 @@ public:
     }
 
     void loadTextures() {
-        textureArray = textureLoader->loadTextureArray(getAssetPath() + "textures/texturearray_bc3.ktx", vk::Format::eBc3UnormBlock);
+        const auto& deviceFeatures = context.deviceFeatures;
+        vk::Format format;
+        std::string filename;
+        if (deviceFeatures.textureCompressionBC) {
+            filename = "texturearray_bc3_unorm.ktx";
+            format = vk::Format::eBc3UnormBlock;
+        } else if (deviceFeatures.textureCompressionASTC_LDR) {
+            filename = "texturearray_astc_8x8_unorm.ktx";
+            format = vk::Format::eAstc8x8UnormBlock;
+        } else if (deviceFeatures.textureCompressionETC2) {
+            filename = "texturearray_etc2_unorm.ktx";
+            format = vk::Format::eEtc2R8G8B8UnormBlock;
+        } else {
+            throw std::runtime_error("Device does not support any compressed texture format!");
+        }
+
+        textureArray = textureLoader->loadTextureArray(getAssetPath() + "textures/" + filename, format);
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {

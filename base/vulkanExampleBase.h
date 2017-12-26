@@ -19,6 +19,7 @@
 #include "vulkanSwapChain.hpp"
 #include "vulkanTextureLoader.hpp"
 #include "vulkanMeshLoader.hpp"
+#include "VulkanModel.hpp"
 #include "vulkanTextOverlay.hpp"
 
 #define GAMEPAD_BUTTON_A 0x1000

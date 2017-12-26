@@ -304,12 +304,32 @@ public:
         uniformData.objectVS.copy(uboVS);
     }
 
+    void loadTextures() {
+        vk::Format format;
+        std::string filename;
+        const auto& deviceFeatures = context.deviceFeatures;
+        if (deviceFeatures.textureCompressionBC) {
+            filename = "cubemap_yokohama_bc3_unorm.ktx";
+            format = vk::Format::eBc3UnormBlock;
+        } else if (deviceFeatures.textureCompressionASTC_LDR) {
+            filename = "cubemap_yokohama_astc_8x8_unorm.ktx";
+            format = vk::Format::eAstc8x8UnormBlock;
+        } else if (deviceFeatures.textureCompressionETC2) {
+            filename = "cubemap_yokohama_etc2_unorm.ktx";
+            format = vk::Format::eEtc2R8G8B8UnormBlock;
+        } else {
+            throw std::runtime_error("Device does not support any compressed texture format!");
+        }
+
+        cubeMap = textureLoader->loadCubemap(getAssetPath() + "textures/" + filename, format);
+    }
+
     void prepare() {
         ExampleBase::prepare();
         loadMeshes();
         setupVertexDescriptions();
         prepareUniformBuffers();
-        cubeMap = textureLoader->loadCubemap(getAssetPath() + "textures/cubemap_yokohama.ktx", vk::Format::eBc3UnormBlock);
+        loadTextures();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();

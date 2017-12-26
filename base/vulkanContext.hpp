@@ -472,6 +472,16 @@ namespace vkx {
             return result;
         }
 
+        template <typename T>
+        CreateImageResult stageToDeviceImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, const std::vector<T>& data) const {
+            return stageToDeviceImage(usage, memoryPropertyFlags, data.size() * sizeof(T), (void*)data.data());
+        }
+
+        template <typename T>
+        CreateImageResult stageToDeviceImage(const vk::ImageCreateInfo& imageCreateInfo, const std::vector<T>& data) const {
+            return stageToDeviceImage(usage, vk::MemoryPropertyFlagBits::eDeviceLocal, data.size() * sizeof(T), (void*)data.data());
+        }
+
         CreateImageResult stageToDeviceImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, const gli::texture2d& tex2D) const {
             std::vector<MipData> mips;
             for (size_t i = 0; i < imageCreateInfo.mipLevels; ++i) {
@@ -481,6 +491,7 @@ namespace vkx {
             }
             return stageToDeviceImage(imageCreateInfo, memoryPropertyFlags, (vk::DeviceSize)tex2D.size(), tex2D.data(), mips);
         }
+
 
         CreateBufferResult createBuffer(const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void * data = nullptr) const {
             CreateBufferResult result;
@@ -562,7 +573,7 @@ namespace vkx {
         }
 
         CreateBufferResult stageToDeviceBuffer(const vk::BufferUsageFlags& usage, size_t size, const void* data) const {
-            CreateBufferResult staging = createBuffer(vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible, size, data);
+            CreateBufferResult staging = createBuffer(vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, size, data);
             CreateBufferResult result = createBuffer(usage | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eDeviceLocal, size);
             withPrimaryCommandBuffer([&](vk::CommandBuffer copyCmd) {
                 copyCmd.copyBuffer(staging.buffer, result.buffer, vk::BufferCopy(0, 0, size));

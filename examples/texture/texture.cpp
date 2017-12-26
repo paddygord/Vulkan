@@ -468,8 +468,8 @@ public:
         setupVertexDescriptions();
         prepareUniformBuffers();
         loadTexture(
-            getAssetPath() + "textures/pattern_02_bc2.ktx",
-            vk::Format::eBc2UnormBlock,
+            getAssetPath() + "textures/metalplate01_rgba.ktx",
+            vk::Format::eR8G8B8A8Unorm,
             false);
         setupDescriptorSetLayout();
         preparePipelines();

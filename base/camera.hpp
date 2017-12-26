@@ -119,6 +119,10 @@ public:
         updateViewMatrix();
     };
 
+    void setPosition(const glm::vec3& translation) {
+        setTranslation(translation);
+    }
+
     void setTranslation(const glm::vec3& translation) {
         position = vec3(-translation.x, - translation.y, translation.z);
         updateViewMatrix();
