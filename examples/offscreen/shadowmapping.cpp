@@ -124,6 +124,7 @@ public:
         meshes.quad.destroy();
 
         // Uniform buffers
+        uniformData.scene.destroy();
         uniformDataVS.destroy();
         uniformDataOffscreenVS.destroy();
     }
