@@ -1,6 +1,34 @@
-file(GLOB COMMON_SOURCE *.cpp *.h *.hpp)
-add_library(common ${COMMON_SOURCE})
-set_target_properties(common PROPERTIES FOLDER "examples")
-foreach(EXTERNAL ${EXTERNALS})
-    add_dependencies(common ${EXTERNAL})
+set(TARGET_NAME base)
+
+set(SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../data/shaders")
+file(GLOB_RECURSE SHADERS
+    ${SHADER_DIR}/*.vert
+    ${SHADER_DIR}/*.frag
+    ${SHADER_DIR}/*.comp
+    ${SHADER_DIR}/*.tesc
+    ${SHADER_DIR}/*.tese
+    ${SHADER_DIR}/*.geom
+)
+
+GroupSources("base")
+GroupSources("data/shaders")
+foreach(SHADER ${SHADERS})
+    compile_spirv_shader(${SHADER})
+    list(APPEND COMPILED_SHADERS ${COMPILE_SPIRV_SHADER_RETURN})
+    source_group("compiled" FILES ${COMPILE_SPIRV_SHADER_RETURN})
 endforeach()
+add_custom_target(shaders SOURCES ${SHADERS} ${COMPILED_SHADERS})
+
+file(GLOB_RECURSE COMMON_SOURCE *.cpp *.h *.hpp)
+add_library(${TARGET_NAME} STATIC ${COMMON_SOURCE})
+
+target_glfw3()
+target_glm()
+target_gli()
+target_vulkan()
+target_assimp()
+
+if (ANDROID)
+    add_dependencies(${TARGET_NAME} app-glue)
+    target_link_libraries(${TARGET_NAME} app-glue android log m)
+endif()

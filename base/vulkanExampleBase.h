@@ -10,21 +10,22 @@
 
 #include "common.hpp"
 
+#include "vks/vks.hpp"
+#include "vks/util/helpers.hpp"
+#include "vks/util/filesystem.hpp"
 #include "camera.hpp"
-#include "vulkanTools.h"
-#include "vulkanDebug.h"
-#include "vulkanShaders.h"
-#include "vulkanFramebuffer.hpp"
 
-#include "vulkanContext.hpp"
-#include "vulkanSwapChain.hpp"
-#include "vulkanTextureLoader.hpp"
-#include "vulkanMeshLoader.hpp"
-#include "vulkanTextOverlay.hpp"
-
+#define GAMEPAD_BUTTON_A 0x1000
+#define GAMEPAD_BUTTON_B 0x1001
+#define GAMEPAD_BUTTON_X 0x1002
+#define GAMEPAD_BUTTON_Y 0x1003
+#define GAMEPAD_BUTTON_L1 0x1004
+#define GAMEPAD_BUTTON_R1 0x1005
+#define GAMEPAD_BUTTON_START 0x1006
 
 #define VERTEX_BUFFER_BIND_ID 0
 #define INSTANCE_BUFFER_BIND_ID 1
+//#define ENABLE_VALIDATION true
 
 namespace vkx {
     struct UpdateOperation {
@@ -40,8 +41,7 @@ namespace vkx {
         }
     };
 
-
-    class ExampleBase : public glfw::Window {
+    class ExampleBase {
     protected:
         ExampleBase();
         ~ExampleBase();
@@ -49,7 +49,7 @@ namespace vkx {
     public:
         void run();
         // Called if the window is resized and some resources have to be recreatesd
-        void windowResized(const glm::uvec2& newSize) override;
+        void windowResize(const glm::uvec2& newSize);
 
     private:
         // Set to true when the debug marker extension is detected
@@ -63,21 +63,53 @@ namespace vkx {
         bool enableVsync{ false };
         // Command buffers used for rendering
         std::vector<vk::CommandBuffer> primaryCmdBuffers;
-        std::vector<vk::CommandBuffer> textCmdBuffers;
         std::vector<vk::CommandBuffer> drawCmdBuffers;
         bool primaryCmdBuffersDirty{ true };
         std::vector<vk::ClearValue> clearValues;
         vk::RenderPassBeginInfo renderPassBeginInfo;
 
+
+        vk::Viewport viewport() {
+            return vks::util::viewport(size);
+        }
+
+        vk::Rect2D scissor() {
+            return vks::util::rect2D(size);
+        }
+
+        vk::ShaderModule loadShaderModule(const std::string& filename) const {
+            std::vector<uint8_t> binaryData = vks::util::readBinaryFile(filename);
+            vk::ShaderModuleCreateInfo moduleCreateInfo;
+            moduleCreateInfo.codeSize = binaryData.size();
+            moduleCreateInfo.pCode = (uint32_t*)binaryData.data();
+            return context.device.createShaderModule(moduleCreateInfo);
+        }
+
+        // Load a SPIR-V shader
+        vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) const {
+            vk::PipelineShaderStageCreateInfo shaderStage;
+            shaderStage.stage = stage;
+            shaderStage.module = loadShaderModule(fileName);
+            shaderStage.pName = "main"; // todo : make param
+            return shaderStage;
+        }
+
+        static vk::ClearColorValue toClearColor(const glm::vec4& v = glm::vec4(0)) {
+            vk::ClearColorValue result;
+            memcpy(&result.float32, &v, sizeof(result.float32));
+            return result;
+        }
+
+
         virtual void setupRenderPassBeginInfo() {
             clearValues.clear();
-            clearValues.push_back(vkx::clearColor(glm::vec4(0.1, 0.1, 0.1, 1.0)));
+            clearValues.push_back(toClearColor(glm::vec4(0.1, 0.1, 0.1, 1.0)));
             clearValues.push_back(vk::ClearDepthStencilValue{ 1.0f, 0 });
 
             renderPassBeginInfo = vk::RenderPassBeginInfo();
             renderPassBeginInfo.renderPass = renderPass;
             renderPassBeginInfo.renderArea.extent = size;
-            renderPassBeginInfo.clearValueCount = clearValues.size();
+            renderPassBeginInfo.clearValueCount = (uint32_t)clearValues.size();
             renderPassBeginInfo.pClearValues = clearValues.data();
         }
 
@@ -89,7 +121,7 @@ namespace vkx {
 
             // FIXME find a better way to ensure that the draw and text buffers are no longer in use before 
             // executing them within this command buffer.
-            queue.waitIdle();
+            context.queue.waitIdle();
 
             // Destroy command buffers if already present
             if (primaryCmdBuffers.empty()) {
@@ -119,56 +151,12 @@ namespace vkx {
                 if (!drawCmdBuffers.empty()) {
                     cmdBuffer.executeCommands(drawCmdBuffers[i]);
                 }
-                if (enableTextOverlay && !textCmdBuffers.empty() && textOverlay && textOverlay->visible) {
-                    cmdBuffer.executeCommands(textCmdBuffers[i]);
-                }
                 cmdBuffer.endRenderPass();
                 cmdBuffer.end();
             }
             primaryCmdBuffersDirty = false;
         }
     protected:
-
-        inline vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) const {
-            return context.loadShader(fileName, stage);
-        }
-
-        inline vk::PipelineShaderStageCreateInfo loadGlslShader(const std::string& fileName, vk::ShaderStageFlagBits stage) const {
-            return context.loadGlslShader(fileName, stage);
-        }
-
-        CreateImageResult createImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags = vk::MemoryPropertyFlagBits::eDeviceLocal) {
-            return context.createImage(imageCreateInfo, memoryPropertyFlags);
-        }
-
-        template <typename T>
-        CreateBufferResult createUniformBuffer(const T& data, size_t count = 3) const {
-            return context.createUniformBuffer(data, count);
-        }
-
-        template <typename T>
-        CreateBufferResult createBuffer(const vk::BufferUsageFlags& usage, const T& data) const {
-            return context.createBuffer(usage, data);
-        }
-
-        template <typename T>
-        CreateBufferResult stageToDeviceBuffer(const vk::BufferUsageFlags& usage, const std::vector<T>& data) const {
-            return context.stageToDeviceBuffer(usage, sizeof(T)* data.size(), data.data());
-        }
-
-        template <typename T>
-        CreateBufferResult stageToDeviceBuffer(const vk::BufferUsageFlags& usage, const T& data) const {
-            return context.stageToDeviceBuffer(usage, sizeof(T), (void*)&data);
-        }
-
-        Context context;
-        const vk::Device& device { context.device };
-        const vk::Queue& queue { context.queue };
-        const vk::PhysicalDevice& physicalDevice { context.physicalDevice };
-        const vk::PipelineCache& pipelineCache { context.pipelineCache };
-        const vk::PhysicalDeviceProperties& deviceProperties { context.deviceProperties };
-        const vk::PhysicalDeviceFeatures& deviceFeatures { context.deviceFeatures };
-
         // Last frame time, measured using a high performance timer (if available)
         float frameTimer{ 1.0f };
         // Frame counter to display fps
@@ -196,8 +184,13 @@ namespace vkx {
         // Descriptor set pool
         vk::DescriptorPool descriptorPool;
 
+        vks::Context context;
+        const vk::PhysicalDevice& physicalDevice { context.physicalDevice };
+        const vk::Device& device { context.device };
+        const vk::Queue& queue { context.queue };
+
         // Wraps the swap chain to present images (framebuffers) to the windowing system
-        Swapchain swapChain { context };
+        vks::SwapChain swapChain;
 
         // Synchronization semaphores
         struct {
@@ -208,20 +201,25 @@ namespace vkx {
             vk::Semaphore transferComplete;
         } semaphores;
 
-        // Simple texture loader
-        TextureLoader *textureLoader{ nullptr };
 
         // Returns the base asset path (for shaders, models, textures) depending on the os
         const std::string& getAssetPath();
 
     protected:
+#if defined(__ANDROID__)
+        static int32_t handle_input_event(android_app* app, AInputEvent *event);
+        int32_t onInput(AInputEvent* event);
+        static void handle_app_cmd(android_app* app, int32_t cmd);
+        void onAppCmd(int32_t cmd);
+#endif
+
         // Command buffer pool
         vk::CommandPool cmdPool;
 
         bool prepared = false;
         vk::Extent2D size{ 1280, 720 };
 
-        vk::ClearColorValue defaultClearColor = clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
+        vk::ClearColorValue defaultClearColor = toClearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
 
         // Defines a frame rate independent timer value clamped from -1.0...1.0
         // For use in animations, rotations, etc.
@@ -230,9 +228,6 @@ namespace vkx {
         float timerSpeed = 0.25f;
 
         bool paused = false;
-
-        bool enableTextOverlay = false;
-        TextOverlay *textOverlay{ nullptr };
 
         // Use to adjust mouse rotation speed
         float rotationSpeed = 1.0f;
@@ -245,7 +240,26 @@ namespace vkx {
         std::string title = "Vulkan Example";
         std::string name = "vulkanExample";
 
-        CreateImageResult depthStencil;
+        vks::Image depthStencil;
+
+        // Gamepad state (only one pad supported)
+
+        struct GamePadState {
+            struct Axes {
+                float x = 0.0f;
+                float y = 0.0f;
+                float z = 0.0f;
+                float rz = 0.0f;
+            } axes;
+        } gamePadState;
+
+        // OS specific
+#if defined(__ANDROID__)
+        // true if application has focused, false if moved to background
+        bool focused = false;
+#else
+        GLFWwindow* window;
+#endif
 
         // Setup the vulkan instance, enable required extensions and connect to the physical device (GPU)
         virtual void initVulkan();
@@ -282,12 +296,14 @@ namespace vkx {
             }
             fpsTimer += (float)frameTimer;
             if (fpsTimer > 1.0f) {
-                if (!enableTextOverlay) {
-                    std::string windowTitle = getWindowTitle();
-                    glfwSetWindowTitle(window, windowTitle.c_str());
-                }
+#if !defined(__ANDROID__)
+                std::string windowTitle = getWindowTitle();
+                glfwSetWindowTitle(window, windowTitle.c_str());
+#endif
                 lastFPS = frameCounter;
+#if 0
                 updateTextOverlay();
+#endif
                 fpsTimer = 0.0f;
                 frameCounter = 0;
             }
@@ -318,7 +334,7 @@ namespace vkx {
         }
 
         // Called when view change occurs
-        // Can be overriden in derived class to e.g. update uniform buffers 
+        // Can be overriden in derived class to e.g. update uniform buffers
         // Containing view dependant matrices
         virtual void viewChanged() {}
 
@@ -336,23 +352,30 @@ namespace vkx {
         // Can be overriden in derived class to setup a custom render pass (e.g. for MSAA)
         virtual void setupRenderPass();
 
+
         void populateSubCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers, std::function<void(const vk::CommandBuffer& commandBuffer)> f) {
             if (!cmdBuffers.empty()) {
                 context.trashCommandBuffers(cmdBuffers);
             }
 
-            cmdBuffers = context.allocateCommandBuffers(swapChain.imageCount, vk::CommandBufferLevel::eSecondary);
+            vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
+            cmdBufAllocateInfo.commandPool = context.getCommandPool();
+            cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
+            cmdBufAllocateInfo.level = vk::CommandBufferLevel::eSecondary;
+            cmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
 
-            vk::CommandBufferInheritanceInfo inheritance { renderPass };
-            for (size_t i = 0; i < swapChain.imageCount; ++i) {
+            vk::CommandBufferInheritanceInfo inheritance;
+            inheritance.renderPass = renderPass;
+            inheritance.subpass = 0;
+            vk::CommandBufferBeginInfo beginInfo;
+            beginInfo.flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse;
+            beginInfo.pInheritanceInfo = &inheritance;
+            for (uint32_t i = 0; i < swapChain.imageCount; ++i) {
                 currentBuffer = i;
                 inheritance.framebuffer = framebuffers[i];
                 vk::CommandBuffer& cmdBuffer = cmdBuffers[i];
                 cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-                cmdBuffer.begin({
-                    vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
-                    &inheritance
-                });
+                cmdBuffer.begin(beginInfo);
                 f(cmdBuffer);
                 cmdBuffer.end();
             }
@@ -409,12 +432,12 @@ namespace vkx {
                 submitInfo.waitSemaphoreCount = (uint32_t)waitSemaphores.size();
                 submitInfo.pWaitSemaphores = waitSemaphores.data();
                 submitInfo.pWaitDstStageMask = waitStages.data();
-                submitInfo.signalSemaphoreCount = signalSemaphores.size();
+                submitInfo.signalSemaphoreCount = (uint32_t)signalSemaphores.size();
                 submitInfo.pSignalSemaphores = signalSemaphores.data();
                 submitInfo.commandBufferCount = 1;
                 submitInfo.pCommandBuffers = &primaryCmdBuffers[currentBuffer];
                 // Submit to queue
-                queue.submit(submitInfo, fence);
+                context.queue.submit(submitInfo, fence);
             }
 
             executePendingTransfers(transferPending);
@@ -460,7 +483,7 @@ namespace vkx {
                     transferSubmitInfo.waitSemaphoreCount = 1;
                     transferSubmitInfo.commandBufferCount = 1;
                     transferSubmitInfo.pCommandBuffers = &transferCmdBuffer;
-                    queue.submit(transferSubmitInfo, transferFence);
+                    context.queue.submit(transferSubmitInfo, transferFence);
                 }
 
                 context.recycler.push({ transferFence, [transferPending, transferCmdBuffer, this] {
@@ -474,11 +497,15 @@ namespace vkx {
         // Prepare commonly used Vulkan functions
         virtual void prepare();
 
+#if 0
         // Load a mesh (using ASSIMP) and create vulkan vertex and index buffers with given vertex layout
         vkx::MeshBuffer loadMesh(
             const std::string& filename,
             const vkx::MeshLayout& vertexLayout,
             float scale = 1.0f);
+#endif
+
+        bool platformLoopCondition();
 
         // Start the main render loop
         void renderLoop();
@@ -489,21 +516,23 @@ namespace vkx {
             const std::vector<vk::CommandBuffer>& commandBuffers,
             vk::PipelineStageFlags *pipelineStages);
 
-        void updateTextOverlay();
 
+#if 0
+        void updateTextOverlay();
         // Called when the text overlay is updating
         // Can be overriden in derived class to add custom text to the overlay
-        virtual void getOverlayText(vkx::TextOverlay * textOverlay);
+        virtual void getOverlayText(vkx::TextOverlay* textOverlay);
+#endif
 
         // Prepare the frame for workload submission
-        // - Acquires the next image from the swap chain 
+        // - Acquires the next image from the swap chain
         // - Submits a post present barrier
         // - Sets the default wait and signal semaphores
         void prepareFrame();
 
-        // Submit the frames' workload 
+        // Submit the frames' workload
         // - Submits the text overlay (if enabled)
-        // - 
+        // -
         void submitFrame();
 
         virtual const glm::mat4& getProjection() const {
@@ -516,21 +545,26 @@ namespace vkx {
 
         // Called if a key is pressed
         // Can be overriden in derived class to do custom key handling
-        void keyPressed(int key, int mods) override {
+        virtual void keyPressed(uint32_t key) {
             switch (key) {
             case GLFW_KEY_P:
                 paused = !paused;
                 break;
 
             case GLFW_KEY_F1:
+#if 0
                 if (enableTextOverlay) {
                     textOverlay->visible = !textOverlay->visible;
                     primaryCmdBuffersDirty = true;
                 }
+#endif
                 break;
 
             case GLFW_KEY_ESCAPE:
+#if defined(__ANDROID__)
+#else
                 glfwSetWindowShouldClose(window, 1);
+#endif
                 break;
 
             default:
@@ -538,8 +572,10 @@ namespace vkx {
             }
         }
 
+#if defined(__ANDROID__)
+#else
         // Keyboard movement handler
-        void mouseMoved(const glm::vec2& newPos) override {
+        virtual void mouseMoved(const glm::vec2& newPos) {
             glm::vec2 deltaPos = mousePos - newPos;
             if (deltaPos.x == 0 && deltaPos.y == 0) {
                 return;
@@ -563,7 +599,14 @@ namespace vkx {
             camera.dolly((float)delta * 0.1f * zoomSpeed);
             viewChanged();
         }
+
+        static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);
+        static void MouseHandler(GLFWwindow* window, int button, int action, int mods);
+        static void MouseMoveHandler(GLFWwindow* window, double posx, double posy);
+        static void MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset);
+        static void FramebufferSizeHandler(GLFWwindow* window, int width, int height);
+        static void CloseHandler(GLFWwindow* window);
+#endif
     };
 }
 
-using namespace vkx;

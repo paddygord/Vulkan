@@ -205,3 +205,4 @@ vulkanCapsViewer/vulkanreport.json
 # DLLs in bin
 !bin/*.dll
 bin_debug
+/external/

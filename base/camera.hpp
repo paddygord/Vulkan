@@ -119,6 +119,10 @@ public:
         updateViewMatrix();
     };
 
+    void setPosition(const glm::vec3& translation) {
+        setTranslation(translation);
+    }
+
     void setTranslation(const glm::vec3& translation) {
         position = vec3(-translation.x, - translation.y, translation.z);
         updateViewMatrix();
@@ -188,7 +192,7 @@ public:
         bool retVal = false;
 
         if (type == CameraType::firstperson) {
-            // Use the common console thumbstick layout		
+            // Use the common console thumbstick layout        
             // Left = view, right = move
 
             const float deadZone = 0.0015f;

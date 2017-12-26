@@ -24,21 +24,11 @@ set(EXTERNAL_PROJECT_PREFIX "project")
 set_property(DIRECTORY PROPERTY EP_PREFIX ${EXTERNAL_PROJECT_PREFIX})
 setup_externals_binary_dir()
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/bin")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/bin_debug")
-set(CMAKE_DEBUG_POSTFIX "d")
+set(CMAKE_CXX_STANDARD 14)
 
 add_definitions(-DNOMINMAX)
 add_definitions(-D_USE_MATH_DEFINES)
 add_definitions(-DGLM_FORCE_RADIANS)
 add_definitions(-DGLM_FORCE_DEPTH_ZERO_TO_ONE)
 
-if(WIN32)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
-else()
-    add_definitions(-std=c++14)
-    add_definitions(-std=c++0x)
-    add_definitions(-std=gnu++14)
-endif()
+

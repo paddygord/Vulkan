@@ -1,6 +1,8 @@
 #include "common.hpp"
 
-
+#if defined(__ANDROID__)
+android_app* global_android_app { nullptr };
+#endif
 
 const vec3 Vectors::UNIT_X{ 1.0f, 0.0f, 0.0f };
 const vec3 Vectors::UNIT_Y{ 0.0f, 1.0f, 0.0f };

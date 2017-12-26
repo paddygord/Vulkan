@@ -118,7 +118,7 @@ public:
 
         vk::ClearValue clearValues[2];
         clearValues[0].color = vkx::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        clearValues[1].depthStencil = vk::ClearDepthStencilValue{ 1.0f, 0 };
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = offscreen.renderPass;
@@ -143,7 +143,7 @@ public:
         offscreen.cmdBuffer.end();
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         vk::DeviceSize offsets = 0;
         cmdBuffer.setViewport(0, vkx::viewport(size));
         cmdBuffer.setScissor(0, vkx::rect2D(size));
@@ -169,9 +169,21 @@ public:
     }
 
     void loadTextures() {
-        textures.colorMap = textureLoader->loadTexture(
-            getAssetPath() + "textures/darkmetal_bc3.ktx",
-            vk::Format::eBc3UnormBlock);
+        if (context.deviceFeatures.textureCompressionBC) {
+            textures.colorMap = textureLoader->loadTexture(
+                getAssetPath() + "textures/darkmetal_bc3_unorm.ktx",
+                vk::Format::eBc3UnormBlock);
+        } else if (context.deviceFeatures.textureCompressionASTC_LDR) {
+            textures.colorMap = textureLoader->loadTexture(
+                getAssetPath() + "textures/darkmetal_astc_8x8_unorm.ktx",
+                vk::Format::eAstc8x8UnormBlock);
+        } else if (context.deviceFeatures.textureCompressionETC2) {
+            textures.colorMap = textureLoader->loadTexture(
+                getAssetPath() + "textures/darkmetal_etc2_unorm.ktx",
+                vk::Format::eEtc2R8G8B8UnormBlock);
+        } else {
+            throw std::runtime_error("Device does not support any compressed texture format!");
+        }
     }
 
     void setupVertexDescriptions() {
@@ -381,11 +393,11 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Mesh vertex shader uniform buffer block
-        uniformData.vsShared = context.createUniformBuffer(ubos.vsShared);
+        uniformData.vsShared= context.createUniformBuffer(ubos.vsShared);
         // Mirror plane vertex shader uniform buffer block
-        uniformData.vsMirror = context.createUniformBuffer(ubos.vsShared);
+        uniformData.vsMirror= context.createUniformBuffer(ubos.vsShared);
         // Offscreen vertex shader uniform buffer block
-        uniformData.vsOffScreen = context.createUniformBuffer(ubos.vsShared);
+        uniformData.vsOffScreen= context.createUniformBuffer(ubos.vsShared);
 
         updateUniformBuffers();
         updateUniformBufferOffscreen();
@@ -410,7 +422,7 @@ public:
         uniformData.vsOffScreen.copy(ubos.vsShared);
     }
 
-    void prepare() {
+    void prepare() override {
         offscreen.size = glm::uvec2(512);
         OffscreenExampleBase::prepare();
         loadTextures();
@@ -426,7 +438,7 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
+    void render() override {
         if (!prepared)
             return;
         draw();
@@ -436,7 +448,7 @@ public:
         }
     }
 
-    virtual void viewChanged() {
+    void viewChanged() override {
         updateUniformBuffers();
         updateUniformBufferOffscreen();
     }

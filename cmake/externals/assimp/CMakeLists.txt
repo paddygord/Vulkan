@@ -5,8 +5,8 @@ include(ExternalProject)
 ExternalProject_Add(
   ${EXTERNAL_NAME}
   DOWNLOAD_NAME assimp-3.3.1.zip
-  URL https://codeload.github.com/assimp/assimp/zip/v3.3.1
-  URL_MD5 c20ae75c10d1569cd6fa435eef079f56
+  URL https://codeload.github.com/assimp/assimp/zip/v4.1.0
+  URL_MD5 e98a03f9496ff761e67f29b645e04316
   CMAKE_ARGS ${PLATFORM_CMAKE_ARGS} --config Release -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>  -DBUILD_SHARED_LIBS=1 -DASSIMP_BUILD_ASSIMP_TOOLS=0 -DASSIMP_BUILD_TESTS=0 -DASSIMP_BUILD_STATIC_LIB=OFF -DASSIMP_BUILD_STATIC_LIB=OFF
   LOG_DOWNLOAD 1
   LOG_CONFIGURE 1

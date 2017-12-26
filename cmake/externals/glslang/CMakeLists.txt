@@ -8,9 +8,6 @@ ExternalProject_Add(
   DOWNLOAD_NAME glslang-95d85ce0caea6609372e83324e370fddfa368c28.zip
   URL https://codeload.github.com/KhronosGroup/glslang/zip/95d85ce0caea6609372e83324e370fddfa368c28
   URL_MD5 6eeb4523352a06da51c89fdb1f2db0b6
-#  DOWNLOAD_NAME glslang-5ea6a192f094ebc2b18ca6415f8ff2e465ae8aaa.zip
-#  URL https://codeload.github.com/KhronosGroup/glslang/zip/5ea6a192f094ebc2b18ca6415f8ff2e465ae8aaa
-#  URL_MD5 7dca405a49b0df07bf4a8e6f8d8292d5
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   BINARY_DIR ${EXTERNAL_PROJECT_PREFIX}/build
   LOG_DOWNLOAD 1

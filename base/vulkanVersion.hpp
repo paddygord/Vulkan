@@ -7,7 +7,9 @@
 
 #pragma once
 
-#include "common.hpp"
+#include <cstdint>
+#include <string>
+#include <sstream>
 
 namespace vkx {
 
@@ -30,6 +32,7 @@ namespace vkx {
         operator uint32_t() const {
             uint32_t result;
             memcpy(&result, this, sizeof(uint32_t));
+            return result;
         }
 
         std::string toString() const {

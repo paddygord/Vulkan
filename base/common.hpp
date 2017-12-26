@@ -19,6 +19,7 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <queue>
 #include <random>
 #include <set>
 #include <string>
@@ -29,9 +30,10 @@
 #include <thread>
 #include <vector>
 
-
-#ifdef GLEW_STATIC
-#include <GL/glew.h>
+#if defined(__ANDROID__)
+#include <android/native_activity.h>
+#include <android/asset_manager.h>
+#include <android_native_app_glue.h>
 #endif
 
 #include <glm/glm.hpp>
@@ -45,6 +47,13 @@
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtx/transform.hpp>
 #include <glm/gtx/quaternion.hpp>
+
+// Image loading
+#include <gli/gli.hpp>
+
+// Vulkan!
+#include <vulkan/vulkan.hpp>
+
 
 using glm::ivec2;
 using glm::uvec2;
@@ -90,19 +99,54 @@ public:
     static const vec3 ZERO4;
 };
 
+#if defined(__ANDROID__)
+#include <android/keycodes.h>
 
-// Image loading 
-#include <gli/gli.hpp>
+extern android_app* global_android_app;
+#define GLFW_KEY_F1 AKEYCODE_F1
+#define GLFW_KEY_ESCAPE AKEYCODE_ESCAPE
+#define GLFW_KEY_KP_ADD AKEYCODE_NUMPAD_ADD
+#define GLFW_KEY_KP_SUBTRACT AKEYCODE_NUMPAD_SUBTRACT
+#define GLFW_KEY_SPACE AKEYCODE_SPACE
+#define GLFW_KEY_A AKEYCODE_A
+#define GLFW_KEY_B AKEYCODE_B
+#define GLFW_KEY_D AKEYCODE_D
+#define GLFW_KEY_F AKEYCODE_F
+#define GLFW_KEY_G AKEYCODE_G
+#define GLFW_KEY_L AKEYCODE_L
+#define GLFW_KEY_O AKEYCODE_O
+#define GLFW_KEY_P AKEYCODE_P
+#define GLFW_KEY_R AKEYCODE_R
+#define GLFW_KEY_S AKEYCODE_S
+#define GLFW_KEY_T AKEYCODE_T
+#define GLFW_KEY_W AKEYCODE_W
 
-// Vulkan!
-#include <vulkan/vulkan.hpp>
 
-// Cross platform window management
-#include "glfw.hpp"
+#else
+// Cross platform window management (except android)
+#include "glfw/glfw.hpp"
+#endif
 
 // Boilerplate for running an example
+#if defined(__ANDROID__)
+#define ENTRY_POINT_START \
+        void android_main(android_app* state) { \
+            global_android_app = state;
+
+#define ENTRY_POINT_END \
+        }
+#else
+#define ENTRY_POINT_START \
+        int main(const int argc, const char *argv[]) {
+
+#define ENTRY_POINT_END \
+            return 0; \
+        }
+#endif
+
 #define RUN_EXAMPLE(ExampleType) \
-    int main(const int argc, const char *argv[]) { \
-        ExampleType().run(); \
-        return 0; \
-    }
+    ENTRY_POINT_START \
+        ExampleType* example = new ExampleType(); \
+        example->run(); \
+        delete(example); \
+    ENTRY_POINT_END
