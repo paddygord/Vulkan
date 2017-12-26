@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.saintandreas.vulkanexamples">
+
+    <uses-sdk android:minSdkVersion="26" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.gamepad"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+        <activity
+            android:name=".MainActivity"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Bloom">
+            <meta-data android:name="android.app.lib_name" android:value="bloom" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.ComputeParticles">
+            <meta-data android:name="android.app.lib_name" android:value="computeparticles" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.ComputeParticlesAsync">
+            <meta-data android:name="android.app.lib_name" android:value="computeparticlesasync" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.ComputeShader">
+            <meta-data android:name="android.app.lib_name" android:value="computeshader" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Context">
+            <meta-data android:name="android.app.lib_name" android:value="context" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.DebugMarker">
+            <meta-data android:name="android.app.lib_name" android:value="debugmarker" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Displacement">
+            <meta-data android:name="android.app.lib_name" android:value="displacement" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.DistanceFieldFonts">
+            <meta-data android:name="android.app.lib_name" android:value="distancefieldfonts" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Gears">
+            <meta-data android:name="android.app.lib_name" android:value="gears" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.GeometryShader">
+            <meta-data android:name="android.app.lib_name" android:value="geometryshader" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Indirect">
+            <meta-data android:name="android.app.lib_name" android:value="indirect" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Instancing">
+            <meta-data android:name="android.app.lib_name" android:value="instancing" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Mesh">
+            <meta-data android:name="android.app.lib_name" android:value="mesh" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Multisampling">
+            <meta-data android:name="android.app.lib_name" android:value="multisampling" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Multithreading">
+            <meta-data android:name="android.app.lib_name" android:value="multithreading" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.OcclusionQuery">
+            <meta-data android:name="android.app.lib_name" android:value="occlusionquery" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Offscreen">
+            <meta-data android:name="android.app.lib_name" android:value="offscreen" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.ParallaxMapping">
+            <meta-data android:name="android.app.lib_name" android:value="parallaxmapping" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.ParticleFire">
+            <meta-data android:name="android.app.lib_name" android:value="particlefire" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Pipelines">
+            <meta-data android:name="android.app.lib_name" android:value="pipelines" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.PushConstants">
+            <meta-data android:name="android.app.lib_name" android:value="pushconstants" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.RadialBlur">
+            <meta-data android:name="android.app.lib_name" android:value="radialblur" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Raytracing">
+            <meta-data android:name="android.app.lib_name" android:value="raytracing" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.SceneRendering">
+            <meta-data android:name="android.app.lib_name" android:value="scenerendering" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.ShadowMapping">
+            <meta-data android:name="android.app.lib_name" android:value="shadowmapping" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Swapchain">
+            <meta-data android:name="android.app.lib_name" android:value="swapchain" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.TardisConsole">
+            <meta-data android:name="android.app.lib_name" android:value="tardisconsole" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Tessellation">
+            <meta-data android:name="android.app.lib_name" android:value="tessellation" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.Texture">
+            <meta-data android:name="android.app.lib_name" android:value="texture" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.TextureArray">
+            <meta-data android:name="android.app.lib_name" android:value="texturearray" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.TextureCubemap">
+            <meta-data android:name="android.app.lib_name" android:value="texturecubemap" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.VulkanScene">
+            <meta-data android:name="android.app.lib_name" android:value="vulkanscene" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.TriangleAnimated">
+            <meta-data android:name="android.app.lib_name" android:value="triangleAnimated" />
+        </activity>
+    </application>
+
+</manifest>
