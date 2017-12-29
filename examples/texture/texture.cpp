@@ -6,8 +6,9 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
-
+#include <vulkanExampleBase.h>
+#include <vks/texture.hpp>
+#include <vulkanTools.h>
 
 // Vertex layout for this example
 struct Vertex {
@@ -23,7 +24,7 @@ public:
     // Note that this repository contains a texture loader (TextureLoader.h)
     // that encapsulates texture loading functionality in a class that is used
     // in subsequent demos
-    CreateImageResult texture;
+    vks::texture::Texture2D texture;
 
     struct {
         vk::Buffer buffer;
@@ -39,7 +40,7 @@ public:
         vk::DeviceMemory memory;
     } indices;
 
-    vkx::UniformData uniformDataVS;
+    vks::Buffer uniformDataVS;
 
     struct UboVS {
         glm::mat4 projection;
@@ -60,7 +61,6 @@ public:
         camera.setZoom(-2.5f);
         camera.setRotation({ 0.0f, 15.0f, 0.0f });
         title = "Vulkan Example - Texturing";
-        enableTextOverlay = true;
     }
 
     ~TextureExample() {
@@ -138,131 +138,13 @@ public:
         cmdBuffer.pipelineBarrier(srcStageFlags, destStageFlags, vk::DependencyFlags(), nullptr, nullptr, imageMemoryBarrier);
     }
 
-    void loadTexture(const std::string& fileName, vk::Format format, bool forceLinearTiling) {
-        auto textureData = vkx::readBinaryFile(fileName);
-        gli::texture2d tex2D(gli::load((const char*)textureData.data(), textureData.size()));
-
-        assert(!tex2D.empty());
-        auto dimensions = tex2D.extent();
-
-        vk::FormatProperties formatProperties;
-
-        // Get device properites for the requested texture format
-        formatProperties = context.physicalDevice.getFormatProperties(format);
-
-        // Only use linear tiling if requested (and supported by the device)
-        // Support for linear tiling is mostly limited, so prefer to use
-        // optimal tiling instead
-        // On most implementations linear tiling will only support a very
-        // limited amount of formats and features (mip maps, cubemaps, arrays, etc.)
-        vk::Bool32 useStaging = true;
-
-        // Only use linear tiling if forced
-        if (forceLinearTiling) {
-            // Don't use linear if format is not supported for (linear) shader sampling
-            useStaging = !(formatProperties.linearTilingFeatures &  vk::FormatFeatureFlagBits::eSampledImage);
-        }
-
-        // Load mip map level 0 to linear tiling image
-        vk::ImageCreateInfo imageCreateInfo;
-        imageCreateInfo.imageType = vk::ImageType::e2D;
-        imageCreateInfo.format = format;
-        imageCreateInfo.mipLevels = tex2D.levels();
-        imageCreateInfo.arrayLayers = 1;
-        imageCreateInfo.samples = vk::SampleCountFlagBits::e1;
-        imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
-        imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
-        imageCreateInfo.extent = vk::Extent3D{ (uint32_t)tex2D[0].extent().x, (uint32_t)tex2D[0].extent().y, 1 };
-
-        if (useStaging) {
-            // Create optimal tiled target image
-            imageCreateInfo.tiling = vk::ImageTiling::eOptimal;
-            imageCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
-            texture= context.stageToDeviceImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, tex2D);
-        } else {
-            // Prefer using optimal tiling, as linear tiling  may support only a small set of features 
-            // depending on implementation (e.g. no mip maps, only one layer, etc.)
-            imageCreateInfo.tiling = vk::ImageTiling::eLinear;
-            imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
-            texture= context.createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eHostVisible);
-
-            // Get sub resource layout
-            // Mip map count, array layer, etc.
-            vk::ImageSubresource subRes;
-            subRes.aspectMask = vk::ImageAspectFlagBits::eColor;
-
-            // Get sub resources layout 
-            // Includes row pitch, size offsets, etc.
-            vk::SubresourceLayout subResLayout = device.getImageSubresourceLayout(texture.image, subRes);
-
-            // Map image memory
-            texture.map();
-            // Copy image data into memory
-            texture.copy(tex2D[subRes.mipLevel].size(), tex2D[subRes.mipLevel].data());
-            texture.unmap();
-
-            // Linear tiled images don't need to be staged
-            // and can be directly used as textures
-           context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& cmdBuffer){
-                // Setup image memory barrier transfer image to shader read layout
-                setImageLayout(
-                    cmdBuffer,
-                    texture.image,
-                    vk::ImageAspectFlagBits::eColor,
-                    vk::ImageLayout::ePreinitialized,
-                    vk::ImageLayout::eShaderReadOnlyOptimal,
-                    0,
-                    1);
-            });
-        }
-
-        // Create sampler
-        // In Vulkan textures are accessed by samplers
-        // This separates all the sampling information from the 
-        // texture data
-        // This means you could have multiple sampler objects
-        // for the same texture with different settings
-        // Similar to the samplers available with OpenGL 3.3
-        vk::SamplerCreateInfo sampler;
-        sampler.magFilter = vk::Filter::eLinear;
-        sampler.minFilter = vk::Filter::eLinear;
-        sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
-        sampler.addressModeU = vk::SamplerAddressMode::eRepeat;
-        sampler.addressModeV = vk::SamplerAddressMode::eRepeat;
-        sampler.addressModeW = vk::SamplerAddressMode::eRepeat;
-        sampler.mipLodBias = 0.0f;
-        sampler.compareOp = vk::CompareOp::eNever;
-        sampler.minLod = 0.0f;
-        // Max level-of-detail should match mip level count
-        sampler.maxLod = (useStaging) ? (float)tex2D.levels() : 0.0f;
-        // Enable anisotropic filtering
-        sampler.maxAnisotropy = 8;
-        sampler.anisotropyEnable = VK_TRUE;
-        sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-        texture.sampler = device.createSampler(sampler);
-
-        // Create image view
-        // Textures are not directly accessed by the shaders and
-        // are abstracted by image views containing additional
-        // information and sub resource ranges
-        vk::ImageViewCreateInfo view;
-        view.viewType = vk::ImageViewType::e2D;
-        view.format = format;
-        view.components = { vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA };
-        view.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-        view.subresourceRange.baseMipLevel = 0;
-        view.subresourceRange.baseArrayLayer = 0;
-        view.subresourceRange.layerCount = 1;
-        // Linear tiling usually won't support mip maps
-        // Only set mip map count if optimal tiling is used
-        view.subresourceRange.levelCount = (useStaging) ? tex2D.levels() : 1;
-        view.image = texture.image;
-        texture.view = device.createImageView(view);
+    void loadTexture(const std::string& fileName, vk::Format format) {
+        texture.loadFromFile(context, fileName, format);
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
         vk::DeviceSize offsets = 0;
@@ -299,22 +181,20 @@ public:
 
     void setupVertexDescriptions() {
         // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex);
+        vertices.bindingDescriptions = {
+            vk::VertexInputBindingDescription{ VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex }
+        };
 
         // Attribute descriptions
         // Describes memory layout and shader positions
-        vertices.attributeDescriptions.resize(3);
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
-        // Location 1 : Texture coordinates
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32Sfloat, sizeof(float) * 3);
-        // Location 1 : Vertex normal
-        vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5);
+        vertices.attributeDescriptions = {
+            // Location 0 : Position
+            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, 0 },
+            // Location 1 : Texture coordinates
+            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, sizeof(float) * 3 },
+            // Location 1 : Vertex normal
+            vk::VertexInputAttributeDescription{ 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5 },
+        };
 
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
@@ -327,69 +207,34 @@ public:
         // Example uses one ubo and one image sampler
         std::vector<vk::DescriptorPoolSize> poolSizes =
         {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 1),
-            vkx::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 1)
+            vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, 1 },
+            vk::DescriptorPoolSize{ vk::DescriptorType::eCombinedImageSampler, 1 },
         };
-
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex,
-                0),
+            vk::DescriptorSetLayoutBinding{ 0,  vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Fragment shader image sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                1)
+            vk::DescriptorSetLayoutBinding{ 1,  vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-
-        descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
-
+        descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
         // vk::Image descriptor for the color map texture
-        vk::DescriptorImageInfo texDescriptor =
-            vkx::descriptorImageInfo(texture.sampler, texture.view, vk::ImageLayout::eGeneral);
-
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
+        vk::DescriptorImageInfo texDescriptor{ texture.sampler, texture.view, vk::ImageLayout::eGeneral };
+        device.updateDescriptorSets({
             // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformDataVS.descriptor),
+            vk::WriteDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataVS.descriptor },
             // Binding 1 : Fragment shader texture sampler
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eCombinedImageSampler,
-                1,
-                &texDescriptor)
-        };
-
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+            vk::WriteDescriptorSet{ descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
+            }, {});
     }
 
     void preparePipelines() {
@@ -419,13 +264,13 @@ public:
             vk::DynamicState::eScissor
         };
         vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
+            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), (uint32_t)dynamicStateEnables.size());
 
         // Load shaders
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/texture/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/texture/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = loadShader(getAssetPath() + "shaders/texture/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = loadShader(getAssetPath() + "shaders/texture/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayout, renderPass);
@@ -467,10 +312,7 @@ public:
         generateQuad();
         setupVertexDescriptions();
         prepareUniformBuffers();
-        loadTexture(
-            getAssetPath() + "textures/metalplate01_rgba.ktx",
-            vk::Format::eR8G8B8A8Unorm,
-            false);
+        loadTexture(getAssetPath() + "textures/metalplate01_rgba.ktx", vk::Format::eR8G8B8A8Unorm);
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();

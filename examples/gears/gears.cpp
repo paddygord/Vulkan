@@ -10,7 +10,7 @@
 
 #include "vulkanGear.h"
 #include "vulkanExampleBase.h"
-
+#include "vulkanTools.h"
 
 class VulkanExample : public vkx::ExampleBase {
     using Parent = vkx::ExampleBase;
@@ -50,8 +50,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
         for (auto& gear : gears) {
             gear->draw(cmdBuffer, pipelineLayout);
@@ -194,8 +194,8 @@ public:
         // Load shaders
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/gears/gears.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/gears/gears.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = loadShader(getAssetPath() + "shaders/gears/gears.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = loadShader(getAssetPath() + "shaders/gears/gears.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
             vkx::pipelineCreateInfo(pipelineLayout, renderPass);
@@ -212,6 +212,10 @@ public:
         pipelineCreateInfo.pStages = shaderStages.data();
         context.trashPipeline(pipelines.solid);
         pipelines.solid = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+
+        for (const auto& shaderStage : shaderStages) {
+            device.destroyShaderModule(shaderStage.module);
+        }
     }
 
     void updateUniformBuffers() {

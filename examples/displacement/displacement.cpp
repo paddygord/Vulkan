@@ -10,11 +10,11 @@
 
 
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_UV
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_UV
 };
 
 class VulkanExample : public vkx::ExampleBase {
@@ -34,10 +34,10 @@ public:
     } vertices;
 
     struct {
-        vkx::MeshBuffer object;
+        vks::model::Model object;
     } meshes;
 
-    vkx::UniformData uniformDataTC, uniformDataTE;
+    vks::Buffer uniformDataTC, uniformDataTE;
 
     struct UboTC {
         float tessLevel = 8.0;
@@ -111,9 +111,9 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        vk::Viewport viewport = vkx::viewport(splitScreen ? (float)size.width / 2.0f : (float)size.width, (float)size.height, 0.0f, 1.0f);
+        vk::Viewport viewport = vks::util::viewport(splitScreen ? (float)size.width / 2.0f : (float)size.width, (float)size.height, 0.0f, 1.0f);
         cmdBuffer.setViewport(0, viewport);
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.setLineWidth(1.0f);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.object.vertices.buffer, { 0 });

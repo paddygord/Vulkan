@@ -62,7 +62,7 @@ namespace vkx {
         } uboVS;
 
         struct {
-            vkx::UniformData vsScene;
+            vks::Buffer vsScene;
         } uniformData;
 
         struct {
@@ -133,9 +133,9 @@ namespace vkx {
             renderPassBeginInfo.pClearValues = clearValues;
             renderPassBeginInfo.framebuffer = framebuffer.framebuffer;
             cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            cmdBuffer.setScissor(0, vkx::rect2D(framebufferSize));
+            cmdBuffer.setScissor(0, vks::util::rect2D(framebufferSize));
             if (stereo) {
-                auto viewport = vkx::viewport(framebufferSize);
+                auto viewport = vks::util::viewport(framebufferSize);
                 viewport.width /= 2.0f;
                 cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
                 // Binding point 0 : Mesh vertex buffer
@@ -149,7 +149,7 @@ namespace vkx {
                     viewport.x += viewport.width;
                 }
             } else {
-                cmdBuffer.setViewport(0, vkx::viewport(framebufferSize));
+                cmdBuffer.setViewport(0, vks::util::viewport(framebufferSize));
                 cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
                 cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
                 // Binding point 0 : Mesh vertex buffer

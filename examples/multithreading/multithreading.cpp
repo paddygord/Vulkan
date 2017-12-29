@@ -14,11 +14,11 @@
 
 // Vertex layout used in this example
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_COLOR,
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_COLOR,
 };
 
 class VulkanExample : public vkx::ExampleBase {
@@ -30,8 +30,8 @@ public:
     } vertices;
 
     struct {
-        vkx::MeshBuffer ufo;
-        vkx::MeshBuffer skysphere;
+        vks::model::Model ufo;
+        vks::model::Model skysphere;
     } meshes;
 
     // Shared matrices used for thread push constant blocks
@@ -78,7 +78,7 @@ public:
     };
 
     struct ThreadData {
-        vkx::MeshBuffer mesh;
+        vks::model::Model mesh;
         vk::CommandPool commandPool;
         // One command buffer per render object
         std::vector<vk::CommandBuffer> commandBuffer;
@@ -231,8 +231,8 @@ public:
         vk::CommandBuffer cmdBuffer = thread->commandBuffer[cmdBufferIndex];
         cmdBuffer.begin(commandBufferBeginInfo);
 
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
 
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phong);
 
@@ -274,8 +274,8 @@ public:
         commandBufferBeginInfo.flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue;
         commandBufferBeginInfo.pInheritanceInfo = &inheritanceInfo;
         secondaryCommandBuffer.begin(commandBufferBeginInfo);
-        secondaryCommandBuffer.setViewport(0, vkx::viewport(size));
-        secondaryCommandBuffer.setScissor(0, vkx::rect2D(size));
+        secondaryCommandBuffer.setViewport(0, vks::util::viewport(size));
+        secondaryCommandBuffer.setScissor(0, vks::util::rect2D(size));
         secondaryCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.starsphere);
 
         glm::mat4 mvp = matrices.projection * glm::mat4_cast(camera.orientation);

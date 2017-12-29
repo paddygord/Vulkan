@@ -8,7 +8,8 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
+#include <vks/texture.hpp>
 
 #if defined(__ANDROID__)
 // Lower particle count on Android for performance reasons
@@ -24,8 +25,8 @@ public:
     bool animate = true;
 
     struct {
-        vkx::Texture particle;
-        vkx::Texture gradient;
+        vks::texture::Texture2D particle;
+        vks::texture::Texture2D gradient;
     } textures;
 
     struct {
@@ -48,7 +49,7 @@ public:
     vk::PipelineLayout computePipelineLayout;
     vk::DescriptorSet computeDescriptorSet;
     vk::DescriptorSetLayout computeDescriptorSetLayout;
-    vkx::CreateBufferResult computeStorageBuffer, drawStorageBuffer;
+    vks::Buffer computeStorageBuffer, drawStorageBuffer;
 
     struct ComputeUbo {
         float deltaT;
@@ -59,7 +60,7 @@ public:
 
     struct {
         struct {
-            vkx::UniformData ubo;
+            vks::Buffer ubo;
         } computeShader;
     } uniformData;
 
@@ -74,7 +75,6 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        enableTextOverlay = false;
         title = "Vulkan Example - Compute shader particle system";
     }
 
@@ -85,12 +85,15 @@ public:
             device.destroyFence(computeResultFence);
         }
 
-        device.destroyPipeline(pipelines.postCompute);
 
         computeStorageBuffer.destroy();
         drawStorageBuffer.destroy();
 
         uniformData.computeShader.ubo.destroy();
+
+        device.destroyPipelineLayout(pipelineLayout);
+        device.destroyDescriptorSetLayout(descriptorSetLayout);
+        device.destroyPipeline(pipelines.postCompute);
 
         device.destroyPipelineLayout(computePipelineLayout);
         device.destroyDescriptorSetLayout(computeDescriptorSetLayout);
@@ -101,8 +104,8 @@ public:
     }
 
     void loadTextures() {
-        textures.particle = textureLoader->loadTexture(getAssetPath() + "textures/particle01_rgba.ktx",  vk::Format::eR8G8B8A8Unorm);
-        textures.gradient = textureLoader->loadTexture(getAssetPath() + "textures/particle_gradient_rgba.ktx",  vk::Format::eR8G8B8A8Unorm);
+        textures.particle.loadFromFile(context, getAssetPath() + "textures/particle01_rgba.ktx",  vk::Format::eR8G8B8A8Unorm);
+        textures.gradient.loadFromFile(context, getAssetPath() + "textures/particle_gradient_rgba.ktx",  vk::Format::eR8G8B8A8Unorm);
     }
 
     void updateComputeCommandBuffers() {
@@ -128,22 +131,22 @@ public:
         drawBarrier.buffer = drawStorageBuffer.buffer;
         drawBarrier.size = computeStorageBuffer.descriptor.range;
         transferCmdBuffer.begin(beginInfo);
-        transferCmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags(), nullptr, { computeBarrier, drawBarrier }, nullptr);
+        transferCmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands, vk::DependencyFlags(), nullptr, { computeBarrier, drawBarrier }, nullptr);
         transferCmdBuffer.copyBuffer(computeStorageBuffer.buffer, drawStorageBuffer.buffer, vk::BufferCopy(0, 0, computeStorageBuffer.size));
 
         computeBarrier.srcAccessMask = vk::AccessFlagBits::eTransferRead;
         computeBarrier.dstAccessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
         drawBarrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
         drawBarrier.dstAccessMask = vk::AccessFlagBits::eVertexAttributeRead;
-        transferCmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe, vk::DependencyFlags(), nullptr, { computeBarrier, drawBarrier }, nullptr);
+        transferCmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands, vk::DependencyFlags(), nullptr, { computeBarrier, drawBarrier }, nullptr);
         transferCmdBuffer.end();
 
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         // Draw the particle system using the update vertex buffer
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetPostCompute, nullptr);
         cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, drawStorageBuffer.buffer, { 0 });
@@ -165,7 +168,7 @@ public:
             particle.gradientPos.x = particle.pos.x / 2.0f;
         }
 
-        uint32_t storageBufferSize = particleBuffer.size() * sizeof(Particle);
+        uint32_t storageBufferSize = (uint32_t)(particleBuffer.size() * sizeof(Particle));
 
         // Staging
         // SSBO is static, copy to device local memory 
@@ -174,119 +177,89 @@ public:
         drawStorageBuffer = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, particleBuffer);
 
         // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, sizeof(Particle), vk::VertexInputRate::eVertex);
+        vertices.bindingDescriptions = {
+            vk::VertexInputBindingDescription{ VERTEX_BUFFER_BIND_ID, sizeof(Particle), vk::VertexInputRate::eVertex }
+        };
 
         // Attribute descriptions
         // Describes memory layout and shader positions
-        vertices.attributeDescriptions.resize(2);
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0,  vk::Format::eR32G32Sfloat, 0);
-        // Location 1 : Gradient position
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1,  vk::Format::eR32G32B32A32Sfloat, 4 * sizeof(float));
+        vertices.attributeDescriptions = {
+            // Location 0 : Position
+            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, 0 },
+            // Location 1 : Gradient position
+            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32A32Sfloat, 4 * sizeof(float) },
+        };
 
         // Assign to vertex buffer
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
+        vertices.inputState.vertexBindingDescriptionCount = (uint32_t)vertices.bindingDescriptions.size();
         vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
+        vertices.inputState.vertexAttributeDescriptionCount = (uint32_t)vertices.attributeDescriptions.size();
         vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
     }
 
     void setupDescriptorPool() {
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 1),
-            vkx::descriptorPoolSize(vk::DescriptorType::eStorageBuffer, 1),
-            vkx::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 2)
+        std::vector<vk::DescriptorPoolSize> poolSizes = {
+            vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, 1 },
+            vk::DescriptorPoolSize{ vk::DescriptorType::eStorageBuffer, 1 },
+            vk::DescriptorPoolSize{ vk::DescriptorType::eCombinedImageSampler, 2 },
         };
 
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings;
-        // Binding 0 : Particle color map
-        setLayoutBindings.push_back(vkx::descriptorSetLayoutBinding(vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 0));
-        // Binding 1 : Particle gradient ramp
-        setLayoutBindings.push_back(vkx::descriptorSetLayoutBinding(vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1));
-
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-        vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pipelineLayoutCreateInfo);
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
+            // Binding 0 : Particle color map
+            { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
+            // Binding 1 : Particle gradient ramp
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
+        };
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-
-        descriptorSetPostCompute = device.allocateDescriptorSets(allocInfo)[0];
-
+        descriptorSetPostCompute = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
         // vk::Image descriptor for the color map texture
-        std::vector<vk::DescriptorImageInfo> texDescriptors;
-        texDescriptors.push_back(vkx::descriptorImageInfo(textures.particle.sampler, textures.particle.view, vk::ImageLayout::eGeneral));
-        texDescriptors.push_back(vkx::descriptorImageInfo(textures.gradient.sampler, textures.gradient.view, vk::ImageLayout::eGeneral));
+        std::vector<vk::DescriptorImageInfo> texDescriptors{
+            { textures.particle.sampler, textures.particle.view, vk::ImageLayout::eGeneral },
+            { textures.gradient.sampler, textures.gradient.view, vk::ImageLayout::eGeneral },
+        };
 
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets;
-        // Binding 0 : Particle color map
-        writeDescriptorSets.push_back(vkx::writeDescriptorSet(descriptorSetPostCompute, vk::DescriptorType::eCombinedImageSampler, 0, &texDescriptors[0]));
-        // Binding 1 : Particle gradient ramp
-        writeDescriptorSets.push_back(vkx::writeDescriptorSet(descriptorSetPostCompute, vk::DescriptorType::eCombinedImageSampler, 1, &texDescriptors[1]));
-
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
+            // Binding 0 : Particle color map
+            { descriptorSetPostCompute, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptors[0] },
+            // Binding 1 : Particle gradient ramp
+            { descriptorSetPostCompute, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptors[1] },
+        };
+        device.updateDescriptorSets(writeDescriptorSets, {});
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::ePointList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
-
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eNone, vk::FrontFace::eCounterClockwise);
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_FALSE, VK_FALSE, vk::CompareOp::eAlways);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState =
-            vkx::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor
-        };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
+        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
+        vk::PipelineRasterizationStateCreateInfo rasterizationState;
+        rasterizationState.lineWidth = 1.0f;
+        vk::PipelineColorBlendAttachmentState blendAttachmentState;
+        vk::PipelineColorBlendStateCreateInfo colorBlendState;
+        colorBlendState.attachmentCount = 1;
+        colorBlendState.pAttachments = &blendAttachmentState;
+        vk::PipelineDepthStencilStateCreateInfo depthStencilState;
+        vk::PipelineViewportStateCreateInfo viewportState{ {}, 1, nullptr, 1, nullptr };
+        vk::PipelineMultisampleStateCreateInfo multisampleState;
+        std::vector<vk::DynamicState> dynamicStateEnables{ vk::DynamicState::eViewport, vk::DynamicState::eScissor };
+        vk::PipelineDynamicStateCreateInfo dynamicState{ {}, (uint32_t)dynamicStateEnables.size(), dynamicStateEnables.data() };
 
         // Rendering pipeline
         // Load shaders
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
+        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages = {
+            loadShader(getAssetPath() + "shaders/computeparticles/particle.vert.spv", vk::ShaderStageFlagBits::eVertex),
+            loadShader(getAssetPath() + "shaders/computeparticles/particle.frag.spv", vk::ShaderStageFlagBits::eFragment),
+        };
 
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/computeparticlesasync/particle.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/computeparticlesasync/particle.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
-
+        vk::GraphicsPipelineCreateInfo pipelineCreateInfo;
+        pipelineCreateInfo.layout = pipelineLayout;
+        pipelineCreateInfo.renderPass = renderPass;
         pipelineCreateInfo.pVertexInputState = &vertices.inputState;
         pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
         pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -295,7 +268,7 @@ public:
         pipelineCreateInfo.pViewportState = &viewportState;
         pipelineCreateInfo.pDepthStencilState = &depthStencilState;
         pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
+        pipelineCreateInfo.stageCount = (uint32_t)shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
         pipelineCreateInfo.renderPass = renderPass;
 
@@ -310,6 +283,10 @@ public:
         blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eDstAlpha;
 
         pipelines.postCompute = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+
+        for (const auto& shaderStage : shaderStages) {
+            device.destroyShaderModule(shaderStage.module);
+        }
     }
 
     void prepareCompute() {
@@ -319,58 +296,33 @@ public:
 
         std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings = {
             // Binding 0 : Particle position storage buffer
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eStorageBuffer,
-                vk::ShaderStageFlagBits::eCompute,
-                0),
+            vk::DescriptorSetLayoutBinding{ 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute },
             // Binding 1 : Uniform buffer
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eCompute,
-                1),
+            vk::DescriptorSetLayoutBinding{ 1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eCompute },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
+        computeDescriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        computePipelineLayout = device.createPipelineLayout({ {}, 1, &computeDescriptorSetLayout });
 
-        computeDescriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
+        computeDescriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &computeDescriptorSetLayout })[0];
 
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&computeDescriptorSetLayout, 1);
-
-        computePipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
-
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &computeDescriptorSetLayout, 1);
-
-        computeDescriptorSet = device.allocateDescriptorSets(allocInfo)[0];
-
-        std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets{
             // Binding 0 : Particle position storage buffer
-            vkx::writeDescriptorSet(
-                computeDescriptorSet,
-                vk::DescriptorType::eStorageBuffer,
-                0,
-                &computeStorageBuffer.descriptor),
+            { computeDescriptorSet, 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &computeStorageBuffer.descriptor },
             // Binding 1 : Uniform buffer
-            vkx::writeDescriptorSet(
-                computeDescriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                1,
-                &uniformData.computeShader.ubo.descriptor)
+        { computeDescriptorSet, 1, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.computeShader.ubo.descriptor },
         };
 
-        device.updateDescriptorSets(computeWriteDescriptorSets.size(), computeWriteDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(computeWriteDescriptorSets, {});
 
         // Create pipeline        
-        vk::ComputePipelineCreateInfo computePipelineCreateInfo =
-            vkx::computePipelineCreateInfo(computePipelineLayout);
+        vk::ComputePipelineCreateInfo computePipelineCreateInfo;
+        computePipelineCreateInfo.layout = computePipelineLayout;
+        computePipelineCreateInfo.stage = loadShader(getAssetPath() + "shaders/computeparticles/particle.comp.spv", vk::ShaderStageFlagBits::eCompute);
 
-        computePipelineCreateInfo.stage = context.loadShader(getAssetPath() + "shaders/computeparticles/particle.comp.spv", vk::ShaderStageFlagBits::eCompute);
+        pipelines.compute = device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo)[0];
 
-        pipelines.compute = device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo, nullptr)[0];
+        device.destroyShaderModule(computePipelineCreateInfo.stage.module);
 
         vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
         cmdBufAllocateInfo.commandPool = context.getCommandPool();
@@ -390,7 +342,7 @@ public:
     void updateUniformBuffers() {
         computeUbo.deltaT = frameTimer * 2.5f;
         if (animate) {
-            computeUbo.destX = sin(glm::radians(timer*360.0)) * 0.75f;
+            computeUbo.destX = sinf(glm::radians(timer*360.0f)) * 0.75f;
             computeUbo.destY = 0.f;
         } else {
             float normalizedMx = (mousePos.x - static_cast<float>(size.width / 2)) / static_cast<float>(size.width / 2);
@@ -406,7 +358,7 @@ public:
     void getComputeQueue() {
         uint32_t queueIndex = 0;
         std::vector<vk::QueueFamilyProperties> queueProps = context.physicalDevice.getQueueFamilyProperties();
-        uint32_t queueCount = queueProps.size();
+        uint32_t queueCount = (uint32_t)queueProps.size();
 
 
         for (queueIndex = 0; queueIndex < queueCount; queueIndex++) {
@@ -487,8 +439,9 @@ public:
         switch (key) {
         case GLFW_KEY_A:
             toggleAnimation();
-            break;
+            return;
         }
+        ExampleBase::keyPressed(key);
     }
 };
 

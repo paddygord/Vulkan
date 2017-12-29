@@ -13,11 +13,11 @@
 
 
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_UV
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_UV
 };
 
 class VulkanExample : public vkx::ExampleBase {
@@ -31,12 +31,12 @@ public:
     } vertices;
 
     struct {
-        vkx::MeshBuffer skybox, object;
+        vks::model::Model skybox, object;
     } meshes;
 
     struct {
-        vkx::UniformData objectVS;
-        vkx::UniformData skyboxVS;
+        vks::Buffer objectVS;
+        vks::Buffer skyboxVS;
     } uniformData;
 
     struct {
@@ -86,8 +86,8 @@ public:
 
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-        cmdBuffer.setViewport(0, vkx::viewport(size, 0.0f, 1.0f));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size, 0.0f, 1.0f));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
 
         vk::DeviceSize offsets = 0;
 

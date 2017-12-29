@@ -10,13 +10,11 @@
 
 
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
-{
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_COLOR,
-    vkx::VertexLayout::VERTEX_LAYOUT_UV
-};
+vks::model::VertexLayout vertexLayout{ {
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_COLOR,
+} };
 
 class VulkanExample : public vkx::ExampleBase {
 public:
@@ -27,7 +25,7 @@ public:
     } vertices;
 
     struct {
-        vkx::MeshBuffer object;
+        vks::model::Model object;
     } meshes;
 
     struct {
@@ -41,8 +39,8 @@ public:
     } uboGS;
 
     struct {
-        vkx::UniformData VS;
-        vkx::UniformData GS;
+        vks::Buffer VS;
+        vks::Buffer GS;
     } uniformData;
 
     struct {
@@ -76,8 +74,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.setLineWidth(1.0f);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.object.vertices.buffer, { 0 });
@@ -91,150 +89,110 @@ public:
     }
 
     void loadMeshes() {
-        meshes.object = loadMesh(getAssetPath() + "models/suzanne.obj", vertexLayout, 0.25f);
+        meshes.object.loadFromFile(context, getAssetPath() + "models/suzanne.obj", vertexLayout, 0.25f);
     }
 
     void setupVertexDescriptions() {
         // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
+        vertices.bindingDescriptions = {
+            vk::VertexInputBindingDescription{ VERTEX_BUFFER_BIND_ID, vertexLayout.stride(), vk::VertexInputRate::eVertex }
+        };
 
         // Attribute descriptions
         // Describes memory layout and shader positions
-        vertices.attributeDescriptions.resize(vertexLayout.size());
-
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
-
-        // Location 1 : Normals
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
-
-        // Location 2 : Texture coordinates
-        vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
-
-        // Location 3 : Texture coordinates
-        vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32Sfloat, sizeof(float) * 8);
+        vertices.attributeDescriptions = {
+            // Location 0 : Position
+            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(0) },
+            // Location 1 : Normals
+            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(1) },
+            // Location 2 : Color
+            vk::VertexInputAttributeDescription{ 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(2) },
+        };
 
         // Assign to vertex buffer
-        vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
+        vertices.inputState.vertexBindingDescriptionCount = (uint32_t)vertices.bindingDescriptions.size();
         vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
+        vertices.inputState.vertexAttributeDescriptionCount = (uint32_t)vertices.attributeDescriptions.size();
         vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
     }
 
     void setupDescriptorPool() {
         // Example uses two ubos
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
+        std::vector<vk::DescriptorPoolSize> poolSizes{
+            vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, 2 },
         };
 
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool(
+            vk::DescriptorPoolCreateInfo{ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() }
+        );
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Vertex shader ubo
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex,
-                0),
+            vk::DescriptorSetLayoutBinding{0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Geometry shader ubo
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eGeometry,
-                1)
+            vk::DescriptorSetLayoutBinding{1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eGeometry },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
+        descriptorSetLayout = device.createDescriptorSetLayout(
+            vk::DescriptorSetLayoutCreateInfo{ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() }
+        );
 
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
-
+        pipelineLayout = device.createPipelineLayout(
+            vk::PipelineLayoutCreateInfo{ {}, 1, &descriptorSetLayout }
+        );
     }
 
     void setupDescriptorSet() {
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-        descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
+        descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
 
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0 : Vertex shader shader ubo
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.VS.descriptor),
+            vk::WriteDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.VS.descriptor },
             // Binding 1 : Geometry shader ubo
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                1,
-                &uniformData.GS.descriptor)
+            vk::WriteDescriptorSet{ descriptorSet, 1, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.GS.descriptor },
         };
 
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
+        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState{ {}, vk::PrimitiveTopology::eTriangleList };
+        vk::PipelineRasterizationStateCreateInfo rasterizationState;
+        rasterizationState.lineWidth = 1.0f;
+        rasterizationState.cullMode = vk::CullModeFlagBits::eBack;
+        rasterizationState.frontFace = vk::FrontFace::eClockwise;
 
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise);
+        vk::PipelineColorBlendAttachmentState blendAttachmentState;
+        blendAttachmentState.colorWriteMask = vks::util::fullColorWriteMask();
+        vk::PipelineColorBlendStateCreateInfo colorBlendState;
+        colorBlendState.attachmentCount = 1;
+        colorBlendState.pAttachments = &blendAttachmentState;
 
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState =
-            vkx::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
+        vk::PipelineDepthStencilStateCreateInfo depthStencilState{ {}, VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual };
+        vk::PipelineViewportStateCreateInfo viewportState{ {}, 1, nullptr, 1, nullptr };
+        vk::PipelineMultisampleStateCreateInfo multisampleState;
 
         std::vector<vk::DynamicState> dynamicStateEnables = {
             vk::DynamicState::eViewport,
             vk::DynamicState::eScissor,
             vk::DynamicState::eLineWidth
         };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
-
+        vk::PipelineDynamicStateCreateInfo dynamicState{ {}, (uint32_t)dynamicStateEnables.size(), dynamicStateEnables.data() };
 
         // Tessellation pipeline
         // Load shaders
-        std::array<vk::PipelineShaderStageCreateInfo, 3> shaderStages;
+        std::vector<vk::PipelineShaderStageCreateInfo> shaderStages{
+            loadShader(getAssetPath() + "shaders/geometryshader/base.vert.spv", vk::ShaderStageFlagBits::eVertex),
+            loadShader(getAssetPath() + "shaders/geometryshader/base.frag.spv", vk::ShaderStageFlagBits::eFragment),
+            loadShader(getAssetPath() + "shaders/geometryshader/normaldebug.geom.spv", vk::ShaderStageFlagBits::eGeometry),
+        };
 
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/geometryshader/base.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/geometryshader/base.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        shaderStages[2] = context.loadShader(getAssetPath() + "shaders/geometryshader/normaldebug.geom.spv", vk::ShaderStageFlagBits::eGeometry);
 
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
-
+        vk::GraphicsPipelineCreateInfo pipelineCreateInfo;
+        pipelineCreateInfo.layout = pipelineLayout;
+        pipelineCreateInfo.renderPass = renderPass;
         pipelineCreateInfo.pVertexInputState = &vertices.inputState;
         pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
         pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -243,22 +201,28 @@ public:
         pipelineCreateInfo.pViewportState = &viewportState;
         pipelineCreateInfo.pDepthStencilState = &depthStencilState;
         pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
+        pipelineCreateInfo.stageCount = (uint32_t)shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
         pipelineCreateInfo.renderPass = renderPass;
 
         // Normal debugging pipeline
-        pipelines.normals = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
+        pipelines.normals = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo)[0];
+        for (const auto shaderStage : shaderStages) {
+            context.device.destroyShaderModule(shaderStage.module);
+        }
 
         // Solid rendering pipeline
         // Shader
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/geometryshader/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/geometryshader/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages = {
+            loadShader(getAssetPath() + "shaders/geometryshader/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex),
+            loadShader(getAssetPath() + "shaders/geometryshader/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment),
+        };
         pipelineCreateInfo.stageCount = 2;
-        pipelines.solid = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.solid = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo)[0];
 
-
+        for (const auto shaderStage : shaderStages) {
+            context.device.destroyShaderModule(shaderStage.module);
+        }
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms

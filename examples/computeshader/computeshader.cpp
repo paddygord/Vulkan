@@ -27,10 +27,10 @@ public:
     } vertices;
 
     struct {
-        vkx::MeshBuffer quad;
+        vks::model::Model quad;
     } meshes;
 
-    vkx::UniformData uniformDataVS;
+    vks::Buffer uniformDataVS;
 
     struct {
         glm::mat4 projection;
@@ -157,7 +157,7 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
 
         cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, { 0 });
 
@@ -166,7 +166,7 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSetBaseImage, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.postCompute);
 
-        vk::Viewport viewport = vkx::viewport((float)size.width / 2, (float)size.height, 0.0f, 1.0f);
+        vk::Viewport viewport = vks::util::viewport((float)size.width / 2, (float)size.height, 0.0f, 1.0f);
         cmdBuffer.setViewport(0, viewport);
         cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
 

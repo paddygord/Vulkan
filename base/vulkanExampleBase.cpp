@@ -7,6 +7,9 @@
 */
 #include "vulkanExampleBase.h"
 
+#include "vks/ui.hpp"
+#include "../external/imgui/imgui.h"
+
 using namespace vkx;
 
 // Avoid doing work in the ctor as it can't make use of overridden virtual functions
@@ -39,13 +42,13 @@ ExampleBase::~ExampleBase() {
         device.destroyFramebuffer(framebuffers[i]);
     }
 
-    for (auto& shaderModule : context.shaderModules) {
-        device.destroyShaderModule(shaderModule);
-    }
     depthStencil.destroy();
 
     device.destroySemaphore(semaphores.acquireComplete);
     device.destroySemaphore(semaphores.renderComplete);
+    device.destroySemaphore(semaphores.overlayComplete);
+
+    ui.destroy();
 
     context.destroyContext();
 
@@ -78,9 +81,10 @@ void ExampleBase::initVulkan() {
     context.setValidationEnabled(true);
 #endif
     context.requireExtensions(glfw::getRequiredInstanceExtensions());
+    context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
     context.create();
 
-    swapChain.setup(context.physicalDevice, context.device, context.queue);
+    swapChain.setup(context.physicalDevice, context.device, context.queue, context.queueIndices.graphics);
 
     // Find a suitable depth format
     depthFormat = context.getSupportedDepthFormat();
@@ -93,6 +97,8 @@ void ExampleBase::initVulkan() {
     // A semaphore used to synchronize command submission
     // Ensures that the image is not presented until all commands have been sumbitted and executed
     semaphores.renderComplete = device.createSemaphore({});
+
+    semaphores.overlayComplete = device.createSemaphore({});
 
     // Set up submit info structure
     // Semaphores will stay the same during application lifetime
@@ -205,13 +211,40 @@ std::string ExampleBase::getWindowTitle() {
     return windowTitle;
 }
 
+void ExampleBase::setupUi() {
+    settings.overlay = settings.overlay && (!benchmark.active);
+    if (!settings.overlay) {
+        return;
+    }
+
+    struct vks::ui::UIOverlayCreateInfo overlayCreateInfo;
+    // Setup default overlay creation info
+    overlayCreateInfo.copyQueue = queue;
+    overlayCreateInfo.framebuffers = framebuffers;
+    overlayCreateInfo.colorformat = swapChain.colorFormat;
+    overlayCreateInfo.depthformat = depthFormat;
+    overlayCreateInfo.size = size;
+
+    // Virtual function call for example to customize overlay creation
+    OnSetupUIOverlay(overlayCreateInfo);
+
+    // Load default shaders if not specified by example
+    if (overlayCreateInfo.shaders.size() == 0) {
+        overlayCreateInfo.shaders = {
+            loadShader(getAssetPath() + "shaders/base/uioverlay.vert.spv", vk::ShaderStageFlagBits::eVertex),
+            loadShader(getAssetPath() + "shaders/base/uioverlay.frag.spv", vk::ShaderStageFlagBits::eFragment),
+        };
+    }
+    ui.create(overlayCreateInfo);
+
+    for (auto& shader : overlayCreateInfo.shaders) {
+        context.device.destroyShaderModule(shader.module);
+        shader.module = vk::ShaderModule{};
+    }
+    updateOverlay();
+}
+
 void ExampleBase::prepare() {
-    if (context.enableValidation) {
-        vks::debug::setupDebugging(context.instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning);
-    }
-    if (enableDebugMarkers) {
-        vks::debug::marker::setup(device);
-    }
     cmdPool = context.getCommandPool();
 
     swapChain.create(size, enableVsync);
@@ -219,18 +252,9 @@ void ExampleBase::prepare() {
     setupRenderPass();
     setupRenderPassBeginInfo();
     setupFrameBuffer();
-
+    setupUi();
     prepared = true;
 }
-
-#if 0
-MeshBuffer ExampleBase::loadMesh(const std::string& filename, const MeshLayout& vertexLayout, float scale) {
-    MeshLoader loader;
-    loader.load(filename);
-    assert(loader.m_Entries.size() > 0);
-    return loader.createBuffers(context, vertexLayout, scale);
-}
-#endif
 
 vk::SubmitInfo ExampleBase::prepareSubmitInfo(
     const std::vector<vk::CommandBuffer>& commandBuffers,
@@ -246,33 +270,6 @@ vk::SubmitInfo ExampleBase::prepareSubmitInfo(
     return submitInfo;
 }
 
-#if 0
-void ExampleBase::updateTextOverlay() {
-    if (!enableTextOverlay)
-        return;
-
-    textOverlay->beginTextUpdate();
-    textOverlay->addText(title, 5.0f, 5.0f, TextOverlay::alignLeft);
-
-    std::stringstream ss;
-    ss << std::fixed << std::setprecision(2) << (frameTimer * 1000.0f) << "ms (" << lastFPS << " fps)";
-    textOverlay->addText(ss.str(), 5.0f, 25.0f, TextOverlay::alignLeft);
-    textOverlay->addText(context.deviceProperties.deviceName, 5.0f, 45.0f, TextOverlay::alignLeft);
-    getOverlayText(textOverlay.get());
-    textOverlay->endTextUpdate();
-
-    context.trashCommandBuffers(textCmdBuffers);
-    populateSubCommandBuffers(textCmdBuffers, [&](const vk::CommandBuffer& cmdBuffer) {
-        textOverlay->writeCommandBuffer(cmdBuffer);
-    });
-    primaryCmdBuffersDirty = true;
-}
-
-void ExampleBase::getOverlayText(vkx::TextOverlay* textOverlay) {
-    // Can be overriden in derived class
-}
-#endif
-
 void ExampleBase::prepareFrame() {
     if (primaryCmdBuffersDirty) {
         buildCommandBuffers();
@@ -282,7 +279,36 @@ void ExampleBase::prepareFrame() {
 }
 
 void ExampleBase::submitFrame() {
-    swapChain.queuePresent(semaphores.renderComplete);
+    bool submitOverlay = settings.overlay && ui.visible;
+    if (submitOverlay) {
+        // Wait for color attachment output to finish before rendering the text overlay
+        vk::PipelineStageFlags stageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        submitInfo.pWaitDstStageMask = &stageFlags;
+
+        // Set semaphores
+        // Wait for render complete semaphore
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = &semaphores.renderComplete;
+        // Signal ready with UI overlay complete semaphpre
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = &semaphores.overlayComplete;
+
+        // Submit current UI overlay command buffer
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &ui.cmdBuffers[currentBuffer];
+        queue.submit({ submitInfo }, {});
+
+        // Reset stage mask
+        submitInfo.pWaitDstStageMask = &submitPipelineStages;
+        // Reset wait and signal semaphores for rendering next frame
+        // Wait for swap chain presentation to finish
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
+        // Signal ready with offscreen semaphore
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = &semaphores.renderComplete;
+    }
+    swapChain.queuePresent(submitOverlay ? semaphores.overlayComplete : semaphores.renderComplete);
 }
 
 void ExampleBase::setupDepthStencil() {
@@ -356,7 +382,7 @@ void ExampleBase::setupRenderPass() {
     attachments[1].loadOp = vk::AttachmentLoadOp::eClear;
     attachments[1].storeOp = vk::AttachmentStoreOp::eDontCare;
     attachments[1].initialLayout = vk::ImageLayout::eUndefined;
-    attachments[1].finalLayout = vk::ImageLayout::eUndefined;
+    attachments[1].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
 
     // Only one depth attachment, so put it first in the references
     vk::AttachmentReference depthReference;
@@ -418,11 +444,6 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
 
     setupDepthStencil();
     setupFrameBuffer();
-#if 0
-    if (enableTextOverlay && textOverlay->visible) {
-        updateTextOverlay();
-    }
-#endif
     setupRenderPassBeginInfo();
 
     // Notify derived class
@@ -461,6 +482,51 @@ const std::string& ExampleBase::getAssetPath() {
 #endif
 }
 
+void ExampleBase::updateOverlay() {
+    if (!settings.overlay)
+        return;
+
+    ImGuiIO& io = ImGui::GetIO();
+
+    io.DisplaySize = ImVec2((float)size.width, (float)size.height);
+    io.DeltaTime = frameTimer;
+
+    io.MousePos = ImVec2(mousePos.x, mousePos.y);
+    io.MouseDown[0] = mouseButtons.left;
+    io.MouseDown[1] = mouseButtons.right;
+
+    ImGui::NewFrame();
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
+    ImGui::SetNextWindowPos(ImVec2(10, 10));
+    ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiSetCond_FirstUseEver);
+    ImGui::Begin("Vulkan Example", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+    ImGui::TextUnformatted(title.c_str());
+    ImGui::TextUnformatted(context.deviceProperties.deviceName);
+    ImGui::Text("%.2f ms/frame (%.1d fps)", (1000.0f / lastFPS), lastFPS);
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 5.0f * UIOverlay->scale));
+#endif
+    ImGui::PushItemWidth(110.0f * ui.scale);
+    OnUpdateUIOverlay();
+    ImGui::PopItemWidth();
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    ImGui::PopStyleVar();
+#endif
+
+    ImGui::End();
+    ImGui::PopStyleVar();
+    ImGui::Render();
+    
+    ui.update();
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    if (mouseButtons.left) {
+        mouseButtons.left = false;
+    }
+#endif
+}
 
 #if defined(__ANDROID__)
 int32_t ExampleBase::handle_input_event(android_app* app, AInputEvent *event) {

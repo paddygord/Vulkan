@@ -11,37 +11,34 @@
 #define SAMPLE_COUNT vk::SampleCountFlagBits::e4
 
 struct {
-    vkx::CreateImageResult color;
-    vkx::CreateImageResult depth;
+    vks::Image color;
+    vks::Image depth;
 } multisampleTarget;
 
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
-{
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_UV,
-    vkx::VertexLayout::VERTEX_LAYOUT_COLOR,
-};
+vks::model::VertexLayout vertexLayout{ {
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_UV,
+    vks::model::Component::VERTEX_COMPONENT_COLOR,
+} };
 
 class VulkanExample : public vkx::ExampleBase {
 public:
     struct {
-        vkx::Texture colorMap;
+        vks::texture::Texture2D colorMap;
     } textures;
 
     struct {
         vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
     } vertices;
 
     struct {
-        vkx::MeshBuffer example;
+        vks::model::Model example;
     } meshes;
 
     struct {
-        vkx::UniformData vsScene;
+        vks::Buffer vsScene;
     } uniformData;
 
     struct UboVS {
@@ -57,6 +54,7 @@ public:
     vk::PipelineLayout pipelineLayout;
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
+    vk::RenderPass uiRenderPass;
 
     VulkanExample() {
         camera.setZoom(-7.5f);
@@ -64,8 +62,22 @@ public:
         camera.setRotation({ 0.0f, -90.0f, 0.0f });
         camera.setTranslation({ 2.5f, 2.5f, -7.5 });
         title = "Vulkan Example - Multisampling";
+        settings.overlay = false;
     }
 
+    // UI overlay configuration needs to be adjusted for this example (renderpass setup, attachment count, etc.)
+    void OnSetupUIOverlay(vks::ui::UIOverlayCreateInfo &createInfo) override
+    {
+        createInfo.renderPass = uiRenderPass;
+        createInfo.framebuffers = framebuffers;
+        createInfo.rasterizationSamples = SAMPLE_COUNT;
+        createInfo.attachmentCount = 1;
+        createInfo.clearValues = {
+            vk::ClearValue { vks::util::clearColor(glm::vec4(1.0f)) },
+            vk::ClearValue { vks::util::clearColor(glm::vec4(1.0f)) },
+            vk::ClearValue { vk::ClearDepthStencilValue{ 1.0f, 0  } },
+        };
+    }
     ~VulkanExample() {
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
@@ -168,15 +180,15 @@ public:
         // We need to transform the MSAA target layouts before using them
        context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
             // Tansform MSAA color target
-            vkx::setImageLayout(
-                setupCmdBuffer,
+           context.setImageLayout(
+               setupCmdBuffer, 
                 multisampleTarget.color.image,
                 vk::ImageAspectFlagBits::eColor,
                 vk::ImageLayout::eUndefined,
                 vk::ImageLayout::eColorAttachmentOptimal);
 
             // Tansform MSAA depth target
-            vkx::setImageLayout(
+            context.setImageLayout(
                 setupCmdBuffer,
                 multisampleTarget.depth.image,
                 vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
@@ -260,23 +272,21 @@ public:
         subpass.pDepthStencilAttachment = &depthReference;
 
 
-        std::vector<vk::SubpassDependency> dependencies;
-        {
-            vk::SubpassDependency dependency;
-            dependency.srcSubpass = 0;
-            dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-            dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
-
-            dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead;
-            dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-            dependencies.push_back(dependency);
-        }
+        std::vector<vk::SubpassDependency> dependencies{
+            { 
+                0, 
+                VK_SUBPASS_EXTERNAL, 
+                vk::PipelineStageFlagBits::eBottomOfPipe, 
+                vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                vk::AccessFlagBits::eColorAttachmentWrite,
+                vk::AccessFlagBits::eColorAttachmentRead 
+            }
+        };
 
         vk::RenderPassCreateInfo renderPassInfo;
-        renderPassInfo.attachmentCount = attachments.size();
+        renderPassInfo.attachmentCount = (uint32_t)attachments.size();
         renderPassInfo.pAttachments = attachments.data();
-        renderPassInfo.dependencyCount = dependencies.size();
+        renderPassInfo.dependencyCount = (uint32_t)dependencies.size();
         renderPassInfo.pDependencies = dependencies.data();
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
@@ -289,7 +299,6 @@ public:
     // multisample target
     void setupFrameBuffer() {
         // Overrides the virtual function of the base class
-
         std::array<vk::ImageView, 4> attachments;
 
         setupMultisampleTarget();
@@ -324,8 +333,8 @@ public:
         //clearValues[1].color = vkx::clearColor({ 1.0f, 1.0f, 1.0f, 1.0f });
         //clearValues[2].depthStencil = { 1.0f, 0 };
 
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
 
@@ -337,162 +346,88 @@ public:
 
     virtual void setupRenderPassBeginInfo() {
         clearValues.clear();
-        clearValues.push_back(vkx::clearColor(glm::vec4(1)));
-        clearValues.push_back(vkx::clearColor(glm::vec4(1)));
+        clearValues.push_back(vks::util::clearColor(glm::vec4(1)));
+        clearValues.push_back(vks::util::clearColor(glm::vec4(1)));
         clearValues.push_back(vk::ClearDepthStencilValue{ 1.0f, 0 });
-
-        renderPassBeginInfo = vk::RenderPassBeginInfo();
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.extent = size;
-        renderPassBeginInfo.clearValueCount = clearValues.size();
-        renderPassBeginInfo.pClearValues = clearValues.data();
+        renderPassBeginInfo = vk::RenderPassBeginInfo{ renderPass, {}, { {}, size }, (uint32_t)clearValues.size(), clearValues.data() };
     }
 
     void loadTextures() {
-        textures.colorMap = textureLoader->loadTexture(
-            getAssetPath() + "models/voyager/voyager.ktx",
-            vk::Format::eBc3UnormBlock);
+        textures.colorMap.loadFromFile(context, getAssetPath() + "models/voyager/voyager.ktx", vk::Format::eBc3UnormBlock);
     }
 
     void loadMeshes() {
-        meshes.example = loadMesh(getAssetPath() + "models/voyager/voyager.dae", vertexLayout, 1.0f);
+        meshes.example.loadFromFile(context, getAssetPath() + "models/voyager/voyager.dae", vertexLayout);
     }
 
     void setupVertexDescriptions() {
-        // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
-
-        // Attribute descriptions
-        vertices.attributeDescriptions.resize(4);
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
-        // Location 1 : Normal
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
-        // Location 2 : Texture coordinates
-        vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
-        // Location 3 : Color
-        vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
-
-        vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
+        vertices.inputState = vertexLayout.vertexInputState();
     }
 
     void setupDescriptorPool() {
         // Example uses one ubo and one combined image sampler
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 1),
-            vkx::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 1),
+        std::vector<vk::DescriptorPoolSize> poolSizes {
+            vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 1),
+            vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 1),
         };
-
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings {
             // Binding 0 : Vertex shader uniform buffer
-            vkx::descriptorSetLayoutBinding(
-            vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex,
-                0),
+            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Fragment shader combined sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                1),
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
-
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1,  &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-
-        descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
-
-        vk::DescriptorImageInfo texDescriptor =
-            vkx::descriptorImageInfo(textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral);
-
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
+        descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
+        vk::DescriptorImageInfo texDescriptor{ textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral };
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets  {
             // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-            descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.vsScene.descriptor),
+            { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsScene.descriptor },
             // Binding 1 : Color map 
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eCombinedImageSampler,
-                1,
-                &texDescriptor)
+            { descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
         };
 
         device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
+        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState{ {}, vk::PrimitiveTopology::eTriangleList };
+        vk::PipelineRasterizationStateCreateInfo rasterizationState;
+        rasterizationState.lineWidth = 1.0f;
+        rasterizationState.cullMode = vk::CullModeFlagBits::eBack;
+        rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        vk::PipelineColorBlendAttachmentState blendAttachmentState;
+        blendAttachmentState.colorWriteMask = vks::util::fullColorWriteMask();
+        vk::PipelineColorBlendStateCreateInfo colorBlendState;
+        colorBlendState.attachmentCount = 1;
+        colorBlendState.pAttachments = &blendAttachmentState;
+        vk::PipelineDepthStencilStateCreateInfo depthStencilState{ {}, VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual };
 
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise);
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState =
-            vkx::pipelineMultisampleStateCreateInfo(SAMPLE_COUNT);
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
+        vk::PipelineViewportStateCreateInfo viewportState{ {}, 1, nullptr, 1, nullptr };
+        vk::PipelineMultisampleStateCreateInfo multisampleState{ {}, SAMPLE_COUNT };
+        std::vector<vk::DynamicState> dynamicStateEnables {
             vk::DynamicState::eViewport,
             vk::DynamicState::eScissor
         };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
+        vk::PipelineDynamicStateCreateInfo dynamicState{ {}, (uint32_t)dynamicStateEnables.size(), dynamicStateEnables.data() };
 
         // Solid rendering pipeline
         // Load shaders
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/mesh/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/mesh/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = loadShader(getAssetPath() + "shaders/mesh/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = loadShader(getAssetPath() + "shaders/mesh/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
-
+        vk::GraphicsPipelineCreateInfo pipelineCreateInfo;
+        pipelineCreateInfo.layout = pipelineLayout;
+        pipelineCreateInfo.renderPass = renderPass;
         pipelineCreateInfo.pVertexInputState = &vertices.inputState;
         pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
         pipelineCreateInfo.pRasterizationState = &rasterizationState;
@@ -505,6 +440,10 @@ public:
         pipelineCreateInfo.pStages = shaderStages.data();
 
         pipelines.solid = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+
+        for (const auto shaderStage : shaderStages) {
+            context.device.destroyShaderModule(shaderStage.module);
+        }
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms

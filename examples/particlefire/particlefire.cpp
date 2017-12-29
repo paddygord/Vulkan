@@ -30,13 +30,13 @@ struct Particle {
 };
 
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_UV,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_TANGENT,
-    vkx::VertexLayout::VERTEX_LAYOUT_BITANGENT
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_UV,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_TANGENT,
+    vks::model::Component::VERTEX_COMPONENT_BITANGENT
 };
 
 class VulkanExample : public vkx::ExampleBase {
@@ -72,8 +72,8 @@ public:
     } particles;
 
     struct {
-        vkx::UniformData fire;
-        vkx::UniformData environment;
+        vks::Buffer fire;
+        vks::Buffer environment;
     } uniformData;
 
     struct {
@@ -135,8 +135,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         // Environment
         meshes.environment.drawIndexed(cmdBuffer);
         // Particle system

@@ -8,7 +8,12 @@
 
 #pragma once
 
-#include "../vks.hpp"
+#include <vector>
+#include <glm/glm.hpp>
+#include <vulkan/vulkan.hpp>
+
+#include "buffer.hpp"
+#include "context.hpp"
 
 namespace vks { namespace model {
 
@@ -29,32 +34,81 @@ struct VertexLayout {
 public:
     /** @brief Components used to generate vertices from */
     std::vector<Component> components;
+    std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
+    std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
 
-    VertexLayout(const std::vector<Component>& components) : components(components) {}
-    VertexLayout(std::vector<Component>&& components) : components(std::move(components)) {}
+    VertexLayout(const std::vector<Component>& components, uint32_t binding = 0) : components(components) {
+        init(binding);
+    }
+    VertexLayout(std::vector<Component>&& components, uint32_t binding = 0) : components(std::move(components)) {
+        init(binding);
+    }
 
-    uint32_t stride()
-    {
+    void init(uint32_t binding) {
+        bindingDescriptions = {
+            vk::VertexInputBindingDescription(binding, stride(), vk::VertexInputRate::eVertex)
+        };
+        auto componentsSize = components.size();
+        attributeDescriptions.reserve(componentsSize);
+        for (uint32_t i = 0; i < componentsSize; ++i) {
+            const auto& component = components[i];
+            const auto format = componentFormat(component);
+            const auto offset = this->offset(i);
+            attributeDescriptions.push_back(vk::VertexInputAttributeDescription{ i, binding, format, offset });
+        }
+    }
+    static vk::Format componentFormat(Component component) {
+        switch (component) {
+        case VERTEX_COMPONENT_UV:
+            return vk::Format::eR32G32Sfloat;
+        case VERTEX_COMPONENT_DUMMY_FLOAT:
+            return vk::Format::eR32Sfloat;
+        case VERTEX_COMPONENT_DUMMY_VEC4:
+            return vk::Format::eR32G32B32A32Sfloat;
+        default:
+            return vk::Format::eR32G32B32Sfloat;
+        }
+    }
+
+    static uint32_t componentSize(Component component) {
+        switch (component) {
+        case VERTEX_COMPONENT_UV:
+            return 2 * sizeof(float);
+        case VERTEX_COMPONENT_DUMMY_FLOAT:
+            return sizeof(float);
+        case VERTEX_COMPONENT_DUMMY_VEC4:
+            return 4 * sizeof(float);
+        default:
+            // All components except the ones listed above are made up of 3 floats
+            return 3 * sizeof(float);
+        }
+    }
+
+    uint32_t stride() const {
         uint32_t res = 0;
-        for (auto& component : components)
-        {
-            switch (component)
-            {
-            case VERTEX_COMPONENT_UV:
-                res += 2 * sizeof(float);
-                break;
-            case VERTEX_COMPONENT_DUMMY_FLOAT:
-                res += sizeof(float);
-                break;
-            case VERTEX_COMPONENT_DUMMY_VEC4:
-                res += 4 * sizeof(float);
-                break;
-            default:
-                // All components except the ones listed above are made up of 3 floats
-                res += 3 * sizeof(float);
-            }
+        for (auto& component : components) {
+            res += componentSize(component);
         }
         return res;
+    }
+
+    uint32_t offset(uint32_t index) const {
+        uint32_t res = 0;
+        assert(index < components.size());
+        for (uint32_t i = 0; i < index; ++i) {
+            res += componentSize(components[i]);
+        }
+        return res;
+    }
+
+    vk::PipelineVertexInputStateCreateInfo vertexInputState() const {
+        return vk::PipelineVertexInputStateCreateInfo {
+            {},
+            (uint32_t)bindingDescriptions.size(),
+            bindingDescriptions.data(),
+            (uint32_t)attributeDescriptions.size(),
+            attributeDescriptions.data()
+        };
     }
 };
 
@@ -128,7 +182,7 @@ struct Model {
     * @param copyQueue Queue used for the memory staging copy commands (must support transfer)
     * @param (Optional) flags ASSIMP model loading flags
     */
-    bool loadFromFile(const Context& context, const std::string& filename, VertexLayout layout, float scale, const int flags = defaultFlags);
+    bool loadFromFile(const Context& context, const std::string& filename, VertexLayout layout, float scale = 1.0f, const int flags = defaultFlags);
 };
 
 } } // Namespace vks::model

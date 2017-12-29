@@ -17,7 +17,7 @@ public:
     bool displaySkybox = true;
 
     // Vertex layout for the models
-    vks::VertexLayout vertexLayout{ {
+    vks::model::VertexLayout vertexLayout{ {
         vks::VERTEX_COMPONENT_POSITION,
         vks::VERTEX_COMPONENT_NORMAL,
         vks::VERTEX_COMPONENT_UV,
@@ -35,8 +35,8 @@ public:
     } models;
 
     struct {
-        vkx::UniformData matrices;
-        vkx::UniformData params;
+        vks::Buffer matrices;
+        vks::Buffer params;
     } uniformBuffers;
 
     struct UBOVS {

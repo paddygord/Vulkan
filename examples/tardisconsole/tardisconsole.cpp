@@ -12,11 +12,11 @@
 
 #include "vulkanExampleBase.h"
 
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_COLOR
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_COLOR
 };
 
 class VulkanExample : public vkx::ExampleBase {
@@ -26,10 +26,10 @@ public:
     std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
     std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
     vk::Pipeline pipeline;
-    vkx::MeshBuffer mesh;
+    vks::model::Model mesh;
 
     struct {
-        vkx::UniformData meshVS;
+        vks::Buffer meshVS;
     } uniformData;
 
     struct {
@@ -73,8 +73,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.models);
         cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, mesh.vertices.buffer, { 0 });

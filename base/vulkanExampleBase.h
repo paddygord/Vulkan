@@ -11,8 +11,12 @@
 #include "common.hpp"
 
 #include "vks/vks.hpp"
-#include "vks/util/helpers.hpp"
-#include "vks/util/filesystem.hpp"
+#include "vks/helpers.hpp"
+#include "vks/filesystem.hpp"
+#include "vks/ui.hpp"
+#include "vks/model.hpp"
+#include "vks/texture.hpp"
+
 #include "camera.hpp"
 
 #define GAMEPAD_BUTTON_A 0x1000
@@ -78,11 +82,14 @@ namespace vkx {
         }
 
         vk::ShaderModule loadShaderModule(const std::string& filename) const {
-            std::vector<uint8_t> binaryData = vks::util::readBinaryFile(filename);
-            vk::ShaderModuleCreateInfo moduleCreateInfo;
-            moduleCreateInfo.codeSize = binaryData.size();
-            moduleCreateInfo.pCode = (uint32_t*)binaryData.data();
-            return context.device.createShaderModule(moduleCreateInfo);
+            vk::ShaderModule result;
+            vks::util::withBinaryFileContexts(filename, [&] (size_t size, const void* data) {
+                result = context.device.createShaderModule(
+                    vk::ShaderModuleCreateInfo{ {}, size, (const uint32_t*)data }
+                );
+            });
+            vk::ShaderModuleCreateInfo x;
+            return result;
         }
 
         // Load a SPIR-V shader
@@ -94,16 +101,9 @@ namespace vkx {
             return shaderStage;
         }
 
-        static vk::ClearColorValue toClearColor(const glm::vec4& v = glm::vec4(0)) {
-            vk::ClearColorValue result;
-            memcpy(&result.float32, &v, sizeof(result.float32));
-            return result;
-        }
-
-
         virtual void setupRenderPassBeginInfo() {
             clearValues.clear();
-            clearValues.push_back(toClearColor(glm::vec4(0.1, 0.1, 0.1, 1.0)));
+            clearValues.push_back(vks::util::clearColor(glm::vec4(0.1, 0.1, 0.1, 1.0)));
             clearValues.push_back(vk::ClearDepthStencilValue{ 1.0f, 0 });
 
             renderPassBeginInfo = vk::RenderPassBeginInfo();
@@ -188,6 +188,7 @@ namespace vkx {
         const vk::PhysicalDevice& physicalDevice { context.physicalDevice };
         const vk::Device& device { context.device };
         const vk::Queue& queue { context.queue };
+        vks::ui::UIOverlay ui { context };
 
         // Wraps the swap chain to present images (framebuffers) to the windowing system
         vks::SwapChain swapChain;
@@ -198,6 +199,8 @@ namespace vkx {
             vk::Semaphore acquireComplete;
             // Command buffer submission and execution
             vk::Semaphore renderComplete;
+            // UI buffer submission and execution
+            vk::Semaphore overlayComplete;
             vk::Semaphore transferComplete;
         } semaphores;
 
@@ -206,12 +209,27 @@ namespace vkx {
         const std::string& getAssetPath();
 
     protected:
-#if defined(__ANDROID__)
-        static int32_t handle_input_event(android_app* app, AInputEvent *event);
-        int32_t onInput(AInputEvent* event);
-        static void handle_app_cmd(android_app* app, int32_t cmd);
-        void onAppCmd(int32_t cmd);
-#endif
+        /** @brief Example settings that can be changed e.g. by command line arguments */
+        struct Settings {
+            /** @brief Activates validation layers (and message output) when set to true */
+            bool validation = false;
+            /** @brief Set to true if fullscreen mode has been requested via command line */
+            bool fullscreen = false;
+            /** @brief Set to true if v-sync will be forced for the swapchain */
+            bool vsync = false;
+            /** @brief Enable UI overlay */
+            bool overlay = true;
+        } settings;
+
+        struct {
+            bool left = false;
+            bool right = false;
+            bool middle = false;
+        } mouseButtons;
+
+        struct {
+            bool active = false;
+        } benchmark;
 
         // Command buffer pool
         vk::CommandPool cmdPool;
@@ -219,7 +237,7 @@ namespace vkx {
         bool prepared = false;
         vk::Extent2D size{ 1280, 720 };
 
-        vk::ClearColorValue defaultClearColor = toClearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
+        vk::ClearColorValue defaultClearColor = vks::util::clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
 
         // Defines a frame rate independent timer value clamped from -1.0...1.0
         // For use in animations, rotations, etc.
@@ -239,7 +257,6 @@ namespace vkx {
 
         std::string title = "Vulkan Example";
         std::string name = "vulkanExample";
-
         vks::Image depthStencil;
 
         // Gamepad state (only one pad supported)
@@ -257,15 +274,21 @@ namespace vkx {
 #if defined(__ANDROID__)
         // true if application has focused, false if moved to background
         bool focused = false;
+        static int32_t handle_input_event(android_app* app, AInputEvent *event);
+        int32_t onInput(AInputEvent* event);
+        static void handle_app_cmd(android_app* app, int32_t cmd);
+        void onAppCmd(int32_t cmd);
 #else
         GLFWwindow* window;
 #endif
+        void updateOverlay();
+
+        virtual void OnUpdateUIOverlay() {}
+        virtual void OnSetupUIOverlay(vks::ui::UIOverlayCreateInfo& uiCreateInfo) {}
 
         // Setup the vulkan instance, enable required extensions and connect to the physical device (GPU)
         virtual void initVulkan();
-
         virtual void setupWindow();
-
         // A default draw implementation
         virtual void draw() {
             // Get next image in the swap chain (back/front buffer)
@@ -275,7 +298,6 @@ namespace vkx {
             // Push the rendered frame to the surface
             submitFrame();
         }
-
         // Pure virtual render function (override in derived class)
         virtual void render() {
             if (!prepared) {
@@ -283,7 +305,6 @@ namespace vkx {
             }
             draw();
         }
-
         virtual void update(float deltaTime) {
             frameTimer = deltaTime;
             ++frameCounter;
@@ -301,12 +322,11 @@ namespace vkx {
                 glfwSetWindowTitle(window, windowTitle.c_str());
 #endif
                 lastFPS = frameCounter;
-#if 0
-                updateTextOverlay();
-#endif
                 fpsTimer = 0.0f;
                 frameCounter = 0;
             }
+
+            updateOverlay();
 
             // Check gamepad state
             const float deadZone = 0.0015f;
@@ -352,6 +372,7 @@ namespace vkx {
         // Can be overriden in derived class to setup a custom render pass (e.g. for MSAA)
         virtual void setupRenderPass();
 
+        void setupUi();
 
         void populateSubCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers, std::function<void(const vk::CommandBuffer& commandBuffer)> f) {
             if (!cmdBuffers.empty()) {
@@ -497,14 +518,6 @@ namespace vkx {
         // Prepare commonly used Vulkan functions
         virtual void prepare();
 
-#if 0
-        // Load a mesh (using ASSIMP) and create vulkan vertex and index buffers with given vertex layout
-        vkx::MeshBuffer loadMesh(
-            const std::string& filename,
-            const vkx::MeshLayout& vertexLayout,
-            float scale = 1.0f);
-#endif
-
         bool platformLoopCondition();
 
         // Start the main render loop
@@ -515,14 +528,6 @@ namespace vkx {
         vk::SubmitInfo prepareSubmitInfo(
             const std::vector<vk::CommandBuffer>& commandBuffers,
             vk::PipelineStageFlags *pipelineStages);
-
-
-#if 0
-        void updateTextOverlay();
-        // Called when the text overlay is updating
-        // Can be overriden in derived class to add custom text to the overlay
-        virtual void getOverlayText(vkx::TextOverlay* textOverlay);
-#endif
 
         // Prepare the frame for workload submission
         // - Acquires the next image from the swap chain
@@ -552,12 +557,7 @@ namespace vkx {
                 break;
 
             case GLFW_KEY_F1:
-#if 0
-                if (enableTextOverlay) {
-                    textOverlay->visible = !textOverlay->visible;
-                    primaryCmdBuffersDirty = true;
-                }
-#endif
+                ui.visible = !ui.visible;
                 break;
 
             case GLFW_KEY_ESCAPE:
@@ -595,7 +595,7 @@ namespace vkx {
             mousePos = newPos;
         }
 
-        void mouseScrolled(float delta) {
+        virtual void mouseScrolled(float delta) {
             camera.dolly((float)delta * 0.1f * zoomSpeed);
             viewChanged();
         }

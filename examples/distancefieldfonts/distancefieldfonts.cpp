@@ -73,8 +73,8 @@ public:
     } indices;
 
     struct {
-        vkx::UniformData vs;
-        vkx::UniformData fs;
+        vks::Buffer vs;
+        vks::Buffer fs;
     } uniformData;
 
     struct {
@@ -178,9 +178,9 @@ public:
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
 
-        vk::Viewport viewport = vkx::viewport((float)size.width, (splitScreen) ? (float)size.height / 2.0f : (float)size.height, 0.0f, 1.0f);
+        vk::Viewport viewport = vks::util::viewport((float)size.width, (splitScreen) ? (float)size.height / 2.0f : (float)size.height, 0.0f, 1.0f);
         cmdBuffer.setViewport(0, viewport);
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
 
         // Signed distance field font
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sdf, nullptr);

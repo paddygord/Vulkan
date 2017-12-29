@@ -16,12 +16,12 @@
 // Texture properties
 
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_UV,
-    vkx::VertexLayout::VERTEX_LAYOUT_COLOR,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_UV,
+    vks::model::Component::VERTEX_COMPONENT_COLOR,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL
 };
 
 class VulkanExample : public vkx::OffscreenExampleBase {
@@ -44,8 +44,8 @@ public:
     float lightFOV = 45.0f;
 
     struct {
-        vkx::MeshBuffer scene;
-        vkx::MeshBuffer quad;
+        vks::model::Model scene;
+        vks::model::Model quad;
     } meshes;
 
     struct {
@@ -54,10 +54,10 @@ public:
         std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
     } vertices;
 
-    vkx::UniformData uniformDataVS, uniformDataOffscreenVS;
+    vks::Buffer uniformDataVS, uniformDataOffscreenVS;
 
     struct {
-        vkx::UniformData scene;
+        vks::Buffer scene;
     } uniformData;
 
     struct {
@@ -153,8 +153,8 @@ public:
         renderPassBeginInfo.clearValueCount = 2;
         renderPassBeginInfo.pClearValues = clearValues;
 
-        offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.size));
-        offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.size));
+        offscreen.cmdBuffer.setViewport(0, vks::util::viewport(offscreen.size));
+        offscreen.cmdBuffer.setScissor(0, vks::util::rect2D(offscreen.size));
         // Set depth bias (aka "Polygon offset")
         offscreen.cmdBuffer.setDepthBias(depthBiasConstant, 0.0f, depthBiasSlope);
         offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
@@ -168,8 +168,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.quad, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.quad);
 

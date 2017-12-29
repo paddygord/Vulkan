@@ -10,13 +10,13 @@
 
 
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_UV,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_TANGENT,
-    vkx::VertexLayout::VERTEX_LAYOUT_BITANGENT
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_UV,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_TANGENT,
+    vks::model::Component::VERTEX_COMPONENT_BITANGENT
 };
 
 class VulkanExample : public vkx::ExampleBase {
@@ -36,12 +36,12 @@ public:
     } vertices;
 
     struct {
-        vkx::MeshBuffer quad;
+        vks::model::Model quad;
     } meshes;
 
     struct {
-        vkx::UniformData vertexShader;
-        vkx::UniformData fragmentShader;
+        vks::Buffer vertexShader;
+        vks::Buffer fragmentShader;
     } uniformData;
 
     struct {
@@ -112,9 +112,9 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        vk::Viewport viewport = vkx::viewport((splitScreen) ? (float)size.width / 2.0f : (float)size.width, (float)size.height, 0.0f, 1.0f);
+        vk::Viewport viewport = vks::util::viewport((splitScreen) ? (float)size.width / 2.0f : (float)size.width, (float)size.height, 0.0f, 1.0f);
         cmdBuffer.setViewport(0, viewport);
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 

@@ -8,21 +8,17 @@
 
 #pragma once
 
-#include "common.hpp"
-
-#include "vks/vks.hpp"
+#include "context.hpp"
 
 namespace vks { namespace ui {
 
-    struct UIOverlayCreateInfo 
-    {
-        const vks::Context& context;
+    struct UIOverlayCreateInfo  {
         vk::Queue copyQueue;
         vk::RenderPass renderPass;
         std::vector<vk::Framebuffer> framebuffers;
         vk::Format colorformat;
         vk::Format depthformat;
-        uvec2 size;
+        vk::Extent2D size;
         std::vector<vk::PipelineShaderStageCreateInfo> shaders;
         vk::SampleCountFlagBits rasterizationSamples{ vk::SampleCountFlagBits::e1 };
         uint32_t subpassCount{ 1 };
@@ -34,7 +30,7 @@ namespace vks { namespace ui {
     {
     private:
         UIOverlayCreateInfo createInfo;
-        const vks::Context& context{ createInfo.context };
+        const vks::Context& context;
         vks::Buffer vertexBuffer;
         vks::Buffer indexBuffer;
         int32_t vertexCount = 0;
@@ -68,11 +64,14 @@ namespace vks { namespace ui {
 
         std::vector<vk::CommandBuffer> cmdBuffers;
 
-        UIOverlay(const UIOverlayCreateInfo& createInfo);
+        UIOverlay(const vks::Context& context) : context(context) {}
         ~UIOverlay();
 
+        void create(const UIOverlayCreateInfo& createInfo);
+        void destroy();
+
         void update();
-        void resize(const uvec2& newSize, const std::vector<vk::Framebuffer>& framebuffers);
+        void resize(const vk::Extent2D& newSize, const std::vector<vk::Framebuffer>& framebuffers);
 
         void submit(const vk::Queue& queue, uint32_t bufferindex, vk::SubmitInfo submitInfo) const;
 

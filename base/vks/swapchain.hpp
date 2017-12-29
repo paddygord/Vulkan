@@ -32,6 +32,7 @@ namespace vks {
         vk::ColorSpaceKHR colorSpace;
         uint32_t imageCount{ 0 };
         uint32_t currentImage{ 0 };
+        uint32_t graphicsQueueIndex{ ~0UL };
 
         SwapChain() {
             presentInfo.swapchainCount = 1;
@@ -39,10 +40,11 @@ namespace vks {
             presentInfo.pImageIndices = &currentImage;
         }
 
-        void setup(const vk::PhysicalDevice& newPhysicalDevice, const vk::Device& newDevice, const vk::Queue& newQueue) {
+        void setup(const vk::PhysicalDevice& newPhysicalDevice, const vk::Device& newDevice, const vk::Queue& newQueue, uint32_t newGraphicsQueueIndex) {
             physicalDevice = newPhysicalDevice;
             device = newDevice;
             queue = newQueue;
+            graphicsQueueIndex = newGraphicsQueueIndex;
         }
 
         void setSurface(const vk::SurfaceKHR& newSurface) {
@@ -51,6 +53,9 @@ namespace vks {
             // Get list of supported surface formats
             std::vector<vk::SurfaceFormatKHR> surfaceFormats = physicalDevice.getSurfaceFormatsKHR(surface);
             auto formatCount = surfaceFormats.size();
+
+            physicalDevice.getSurfaceSupportKHR(graphicsQueueIndex, surface);
+
 
             // If the surface format list only includes one entry with  vk::Format::eUndefined,
             // there is no preferered format, so we assume  vk::Format::eB8G8R8A8Unorm
@@ -117,8 +122,7 @@ namespace vks {
             vk::SurfaceTransformFlagBitsKHR preTransform;
             if (surfCaps.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
                 preTransform = vk::SurfaceTransformFlagBitsKHR::eIdentity;
-            }
-            else {
+            } else {
                 preTransform = surfCaps.currentTransform;
             }
 

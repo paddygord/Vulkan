@@ -273,7 +273,7 @@ public:
 
     // Shared ubo containing matrices used by all
     // materials and meshes
-    vkx::UniformData uniformBuffer;
+    vks::Buffer uniformBuffer;
     struct {
         glm::mat4 projection;
         glm::mat4 view;
@@ -413,8 +413,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         scene->render(cmdBuffer, wireframe);
     }
 

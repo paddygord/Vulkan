@@ -12,7 +12,7 @@
 #define VERTEX_BUFFER_BIND_ID 0
 
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
     vkx::VERTEX_LAYOUT_POSITION,
     vkx::VERTEX_LAYOUT_NORMAL,
@@ -37,13 +37,13 @@ public:
     } vertices;
 
     struct {
-        vkx::MeshBuffer object;
-        vkx::MeshBuffer skysphere;
+        vks::model::Model object;
+        vks::model::Model skysphere;
     } meshes;
 
     struct {
-        vkx::UniformData terrainTessellation;
-        vkx::UniformData skysphereVertex;
+        vks::Buffer terrainTessellation;
+        vks::Buffer skysphereVertex;
     } uniformData;
 
     // Shared values for tessellation control and evaluation stages
@@ -192,8 +192,8 @@ public:
         cmdBuffer.resetQueryPool(queryPool, 0, 2);
     }
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.setLineWidth(1.0f);
         // Skysphere
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skysphere);

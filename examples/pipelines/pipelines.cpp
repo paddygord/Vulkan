@@ -10,12 +10,12 @@
 
 
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_UV,
-    vkx::VertexLayout::VERTEX_LAYOUT_COLOR
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_UV,
+    vks::model::Component::VERTEX_COMPONENT_COLOR
 };
 
 static vk::PhysicalDeviceFeatures features = [] {
@@ -33,10 +33,10 @@ public:
     } vertices;
 
     struct {
-        vkx::MeshBuffer cube;
+        vks::model::Model cube;
     } meshes;
 
-    vkx::UniformData uniformDataVS;
+    vks::Buffer uniformDataVS;
 
     // Same uniform buffer layout as shader
     struct UboVS {
@@ -82,13 +82,13 @@ public:
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
 
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.cube.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.cube.indices.buffer, 0, vk::IndexType::eUint32);
 
         // Left : Solid colored 
-        vk::Viewport viewport = vkx::viewport((float)size.width / 3, (float)size.height, 0.0f, 1.0f);
+        vk::Viewport viewport = vks::util::viewport((float)size.width / 3, (float)size.height, 0.0f, 1.0f);
         cmdBuffer.setViewport(0, viewport);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phong);
 

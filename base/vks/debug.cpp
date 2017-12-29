@@ -21,7 +21,7 @@ namespace vks {
     namespace debug {
 
 #if defined(__ANDROID__)
-        std::vector<const char*> validationLayerNames = {
+        std::list<std::string> validationLayerNames = {
           "VK_LAYER_GOOGLE_threading",
           "VK_LAYER_LUNARG_parameter_validation",
           "VK_LAYER_LUNARG_object_tracker",
@@ -30,7 +30,7 @@ namespace vks {
           "VK_LAYER_GOOGLE_unique_objects"
         };
 #else
-        std::vector<const char*> validationLayerNames = {
+        std::list<std::string> validationLayerNames = {
             // This is a meta layer that enables all of the standard
             // validation layers in the correct order :
             // threading, parameter_validation, device_limits, object_tracker, image, core_validation, swapchain, and unique_objects

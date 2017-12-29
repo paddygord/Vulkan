@@ -1,10 +1,11 @@
 #pragma once
 
 #include "vulkanExampleBase.h"
+#include "vks/framebuffer.hpp"
 
 namespace vkx {
 
-    class OffscreenExampleBase : public vkx::ExampleBase {
+    class OffscreenExampleBase : public ExampleBase {
     protected:
         OffscreenExampleBase() : offscreen(context) {}
         ~OffscreenExampleBase() {
@@ -12,7 +13,7 @@ namespace vkx {
         }
 
         struct Offscreen {
-            const vkx::Context& context;
+            const vks::Context& context;
             bool active{ true };
             vk::RenderPass renderPass;
             vk::CommandBuffer cmdBuffer;
@@ -23,23 +24,23 @@ namespace vkx {
             // This value is chosen as an invalid default that signals that the code should pick a specific depth buffer
             // Alternative, you can set this to undefined to explicitly declare you want no depth buffer.
             vk::Format depthFormat = vk::Format::eR8Uscaled;
-            std::vector<vkx::Framebuffer> framebuffers{ 1 };
+            std::vector<vks::Framebuffer> framebuffers{ 1 };
             vk::ImageUsageFlags attachmentUsage{ vk::ImageUsageFlagBits::eSampled };
             vk::ImageUsageFlags depthAttachmentUsage;
             vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eShaderReadOnlyOptimal };
             vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eUndefined };
 
-            Offscreen(const vkx::Context& context) : context(context) {}
+            Offscreen(const vks::Context& context) : context(context) {}
 
             void prepare() {
                 assert(!colorFormats.empty());
                 assert(size != glm::uvec2());
 
                 if (depthFormat == vk::Format::eR8Uscaled) {
-                    depthFormat = vkx::getSupportedDepthFormat(context.physicalDevice);
+                    depthFormat = context.getSupportedDepthFormat();
                 }
 
-                cmdBuffer = context.device.allocateCommandBuffers(vkx::commandBufferAllocateInfo(context.getCommandPool(), vk::CommandBufferLevel::ePrimary, 1))[0];
+                cmdBuffer = context.allocateCommandBuffers(1)[0];
                 renderComplete = context.device.createSemaphore(vk::SemaphoreCreateInfo());
                 if (!renderPass) {
                     prepareRenderPass();
@@ -98,7 +99,7 @@ namespace vkx {
                 attachments.resize(colorFormats.size());
                 colorAttachmentReferences.resize(attachments.size());
                 // Color attachment
-                for (size_t i = 0; i < attachments.size(); ++i) {
+                for (uint32_t i = 0; i < attachments.size(); ++i) {
                     attachments[i].format = colorFormats[i];
                     attachments[i].loadOp = vk::AttachmentLoadOp::eClear;
                     attachments[i].storeOp = colorFinalLayout == vk::ImageLayout::eUndefined ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
@@ -109,7 +110,7 @@ namespace vkx {
                     attachmentReference.attachment = i;
                     attachmentReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
 
-                    subpass.colorAttachmentCount = colorAttachmentReferences.size();
+                    subpass.colorAttachmentCount = (uint32_t)colorAttachmentReferences.size();
                     subpass.pColorAttachments = colorAttachmentReferences.data();
                 }
 
@@ -124,7 +125,7 @@ namespace vkx {
                     depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
                     depthAttachment.finalLayout = depthFinalLayout;
                     attachments.push_back(depthAttachment);
-                    depthAttachmentReference.attachment = attachments.size() - 1;
+                    depthAttachmentReference.attachment = (uint32_t)attachments.size() - 1;
                     depthAttachmentReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
                     subpass.pDepthStencilAttachment = &depthAttachmentReference;
                 }
@@ -139,7 +140,7 @@ namespace vkx {
                         dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 
                         dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-                        dependency.dstAccessMask = vkx::accessFlagsForLayout(colorFinalLayout);
+                        dependency.dstAccessMask = vks::util::accessFlagsForLayout(colorFinalLayout);
                         dependency.dstStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
                         subpassDependencies.push_back(dependency);
                     }
@@ -152,7 +153,7 @@ namespace vkx {
                         dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
 
                         dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-                        dependency.dstAccessMask = vkx::accessFlagsForLayout(depthFinalLayout);
+                        dependency.dstAccessMask = vks::util::accessFlagsForLayout(depthFinalLayout);
                         dependency.dstStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
                         subpassDependencies.push_back(dependency);
                     }
@@ -163,11 +164,11 @@ namespace vkx {
                 }
 
                 vk::RenderPassCreateInfo renderPassInfo;
-                renderPassInfo.attachmentCount = attachments.size();
+                renderPassInfo.attachmentCount = (uint32_t)attachments.size();
                 renderPassInfo.pAttachments = attachments.data();
                 renderPassInfo.subpassCount = 1;
                 renderPassInfo.pSubpasses = &subpass;
-                renderPassInfo.dependencyCount = subpassDependencies.size();
+                renderPassInfo.dependencyCount = (uint32_t)subpassDependencies.size();
                 renderPassInfo.pDependencies = subpassDependencies.data();
                 renderPass = context.device.createRenderPass(renderPassInfo);
             }

@@ -22,14 +22,14 @@ struct Vertex {
     uint32_t boneIDs[4];
 };
 
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_UV,
-    vkx::VertexLayout::VERTEX_LAYOUT_COLOR,
-    vkx::VertexLayout::VERTEX_LAYOUT_DUMMY_VEC4,
-    vkx::VertexLayout::VERTEX_LAYOUT_DUMMY_VEC4
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_UV,
+    vks::model::Component::VERTEX_COMPONENT_COLOR,
+    vks::model::Component::VERTEX_COMPONENT_DUMMY_VEC4,
+    vks::model::Component::VERTEX_COMPONENT_DUMMY_VEC4
 };
 
 // Maximum number of bones per mesh
@@ -90,7 +90,7 @@ public:
     aiAnimation* pAnimation;
 
     // Vulkan buffers
-    vkx::MeshBuffer meshBuffer;
+    vks::model::Model meshBuffer;
     // Reference to assimp mesh
     // Required for animation
     vkx::MeshLoader* meshLoader;
@@ -296,8 +296,8 @@ public:
     SkinnedMesh *skinnedMesh;
 
     struct {
-        vkx::UniformData vsScene;
-        vkx::UniformData floor;
+        vks::Buffer vsScene;
+        vks::Buffer floor;
     } uniformData;
 
     struct UboVS {
@@ -322,7 +322,7 @@ public:
     } pipelines;
 
     struct {
-        vkx::MeshBuffer floor;
+        vks::model::Model floor;
     } meshes;
 
     vk::PipelineLayout pipelineLayout;
@@ -365,8 +365,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
 
         // Skinned mesh
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);

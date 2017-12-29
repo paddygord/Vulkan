@@ -17,6 +17,7 @@
 #include "debug.hpp"
 #include "image.hpp"
 #include "buffer.hpp"
+#include "helpers.hpp"
 
 namespace vks {
     using StringList = std::list<std::string>;
@@ -51,7 +52,15 @@ namespace vks {
     using FencedLambdaQueue = std::queue<FencedLambda>;
 
     struct Context {
-    public:
+    private:
+        static CStringVector toCStrings(const StringList& values) {
+            CStringVector result;
+            result.reserve(values.size());
+            for (const auto& string : values) {
+                result.push_back(string.c_str());
+            }
+        }
+
         static CStringVector toCStrings(const vk::ArrayProxy<const std::string>& values) {
             CStringVector result;
             result.reserve(values.size());
@@ -60,34 +69,18 @@ namespace vks {
             }
         }
 
-        static StringList filterLayers(const StringList& desiredLayers) {
+        static CStringVector filterLayers(const StringList& desiredLayers) {
             static std::set<std::string> validLayerNames = getAvailableLayers();
-            StringList result;
-            std::copy_if(desiredLayers.begin(), desiredLayers.end(), std::back_inserter(result), [&](const std::string& value) {
-                return (validLayerNames.count(value) != 0);
-            });
+            CStringVector result;
+            for (const auto& string : desiredLayers) {
+                if (validLayerNames.count(string) != 0) {
+                    result.push_back(string.c_str());
+                }
+            }
             return result;
         }
 
-        static vk::AccessFlags accessFlagsForLayout(vk::ImageLayout layout) {
-            switch (layout) {
-            case vk::ImageLayout::ePreinitialized:
-                return vk::AccessFlagBits::eHostWrite;
-            case vk::ImageLayout::eTransferDstOptimal:
-                return vk::AccessFlagBits::eTransferWrite;
-            case vk::ImageLayout::eTransferSrcOptimal:
-                return vk::AccessFlagBits::eTransferRead;
-            case vk::ImageLayout::eColorAttachmentOptimal:
-                return vk::AccessFlagBits::eColorAttachmentWrite;
-            case vk::ImageLayout::eDepthStencilAttachmentOptimal:
-                return vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-            case vk::ImageLayout::eShaderReadOnlyOptimal:
-                return vk::AccessFlagBits::eShaderRead;
-            default:
-                return vk::AccessFlags();
-            }
-        }
-
+    public:
         // Create application wide Vulkan instance
         static std::set<std::string> getAvailableLayers() {
             std::set<std::string> result;
@@ -188,14 +181,12 @@ namespace vks {
                 instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
             }
 
-            /*
             CStringVector layers;
             if (enableValidation) {
                 layers = filterLayers(debug::validationLayerNames);
                 instanceCreateInfo.enabledLayerCount = (uint32_t)layers.size();
                 instanceCreateInfo.ppEnabledLayerNames = layers.data();
             }
-            */
 
             instance = vk::createInstance(instanceCreateInfo);
         }
@@ -215,9 +206,13 @@ namespace vks {
 
             pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
             // Find a queue that supports graphics operations
-            graphicsQueueIndex = findQueue(vk::QueueFlagBits::eGraphics);
+
+            queueIndices.graphics = findQueue(vk::QueueFlagBits::eGraphics);
+            queueIndices.compute = findQueue(vk::QueueFlagBits::eCompute);
+            queueIndices.transfer = findQueue(vk::QueueFlagBits::eTransfer);
+
             // Get the graphics queue
-            queue = device.getQueue(graphicsQueueIndex, 0);
+            queue = device.getQueue(queueIndices.graphics, 0);
         }
 
         void destroyContext() {
@@ -240,53 +235,62 @@ namespace vks {
             instance.destroy();
         }
 
-        uint32_t findQueue(const vk::QueueFlags& flags, const vk::SurfaceKHR& presentSurface = vk::SurfaceKHR()) const {
-            std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();
-            size_t queueCount = queueProps.size();
-            for (uint32_t i = 0; i < queueCount; i++) {
-                if (queueProps[i].queueFlags & flags) {
-                    if (presentSurface && !physicalDevice.getSurfaceSupportKHR(i, presentSurface)) {
-                        continue;
-                    }
+        uint32_t findQueue(const vk::QueueFlags& desiredFlags, const vk::SurfaceKHR& presentSurface = vk::SurfaceKHR()) const {
+            uint32_t bestMatch{ VK_QUEUE_FAMILY_IGNORED };
+            VkQueueFlags bestMatchExtraFlags{ VK_QUEUE_FLAG_BITS_MAX_ENUM };
+            size_t queueCount = queueFamilyProperties.size();
+            for (uint32_t i = 0; i < queueCount; ++i) {
+                auto currentFlags = queueFamilyProperties[i].queueFlags;
+                // Doesn't contain the required flags, skip it
+                if (!(currentFlags & desiredFlags)) {
+                    continue;
+                }
+
+                VkQueueFlags currentExtraFlags = (currentFlags & ~desiredFlags).operator VkQueueFlags();
+
+                // If we find an exact match, return immediately
+                if (0 == currentExtraFlags) {
                     return i;
                 }
+
+                if (bestMatch == VK_QUEUE_FAMILY_IGNORED || currentExtraFlags < bestMatchExtraFlags) {
+                    bestMatch = i;
+                    bestMatchExtraFlags = currentExtraFlags;
+                }
             }
-            throw std::runtime_error("No queue matches the flags " + vk::to_string(flags));
+
+            if (bestMatch == VK_QUEUE_FAMILY_IGNORED) {
+                throw std::runtime_error("No queue matches the flags " + vk::to_string(desiredFlags));
+            }
+
+            return bestMatch;
         }
 
         template<typename T>
-        void trash(T value, std::function<void(const T& t)> destructor) {
+        void trash(T value, std::function<void(T t)> destructor = [](T t) { t.destroy();  }) const {
             if (!value) {
                 return;
             }
-            T trashedValue;
-            std::swap(trashedValue, value);
-            dumpster.push_back([trashedValue, destructor] {
-                destructor(trashedValue);
-            });
+            dumpster.push_back([=] { destructor(value); });
         }
 
         template<typename T>
-        void trash(std::vector<T>& values, std::function<void(const T& t)> destructor) {
+        void trash(std::vector<T>& values, std::function<void(T t)> destructor) const {
             if (values.empty()) {
                 return;
             }
-            std::vector<T> trashedValues;
-            trashedValues.swap(values);
             for (const T& value : trashedValues) {
-                trash(value, destructor);
+                trash<T>(value, destructor);
             }
         }
 
         template<typename T>
-        void trash(std::vector<T>& values, std::function<void(const std::vector<T>& t)> destructor) {
+        void trash(std::vector<T>& values, std::function<void(const std::vector<T>& t)> destructor) const {
             if (values.empty()) {
                 return;
             }
-            std::vector<T> trashedValues;
-            trashedValues.swap(values);
-            dumpster.push_back([trashedValues, destructor] {
-                destructor(trashedValues);
+            dumpster.push_back([=] {
+                destructor(values);
             });
         }
 
@@ -295,21 +299,15 @@ namespace vks {
         // call to make for destroying a given Vulkan object.
         //
 
-        void trashPipeline(vk::Pipeline& pipeline) {
-            std::function<void(const vk::Pipeline& t)> destructor =
-                [this](const vk::Pipeline& pipeline) { device.destroyPipeline(pipeline); };
-            trash(pipeline, destructor);
+        void trashPipeline(vk::Pipeline& pipeline) const {
+            trash<vk::Pipeline>(pipeline, [this](vk::Pipeline& pipeline) { device.destroyPipeline(pipeline); });
         }
 
-        void trashCommandBuffer(vk::CommandBuffer& cmdBuffer) {
-            std::function<void(const vk::CommandBuffer& t)> destructor =
-                [this](const vk::CommandBuffer& cmdBuffer) {
-                device.freeCommandBuffers(getCommandPool(), cmdBuffer);
-            };
-            trash(cmdBuffer, destructor);
+        void trashCommandBuffer(vk::CommandBuffer& cmdBuffer) const {
+            trash<vk::CommandBuffer>(cmdBuffer, [this](vk::CommandBuffer& cmdBuffer) { device.freeCommandBuffers(getCommandPool(), cmdBuffer); });
         }
 
-        void trashCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers) {
+        void trashCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers) const {
             std::function<void(const std::vector<vk::CommandBuffer>& t)> destructor =
                 [this](const std::vector<vk::CommandBuffer>& cmdBuffers) {
                 device.freeCommandBuffers(getCommandPool(), cmdBuffers);
@@ -352,7 +350,6 @@ namespace vks {
         void setImageLayout(
             vk::CommandBuffer cmdbuffer,
             vk::Image image,
-            vk::ImageAspectFlags aspectMask,
             vk::ImageLayout oldImageLayout,
             vk::ImageLayout newImageLayout,
             vk::ImageSubresourceRange subresourceRange) const {
@@ -363,14 +360,14 @@ namespace vks {
             imageMemoryBarrier.newLayout = newImageLayout;
             imageMemoryBarrier.image = image;
             imageMemoryBarrier.subresourceRange = subresourceRange;
-            imageMemoryBarrier.srcAccessMask = accessFlagsForLayout(oldImageLayout);
-            imageMemoryBarrier.dstAccessMask = accessFlagsForLayout(newImageLayout);
+            imageMemoryBarrier.srcAccessMask = vks::util::accessFlagsForLayout(oldImageLayout);
+            imageMemoryBarrier.dstAccessMask = vks::util::accessFlagsForLayout(newImageLayout);
 
             // Put barrier on top
             // Put barrier inside setup command buffer
             cmdbuffer.pipelineBarrier(
-                vk::PipelineStageFlagBits::eTopOfPipe,
-                vk::PipelineStageFlagBits::eTopOfPipe,
+                vk::PipelineStageFlagBits::eAllCommands,
+                vk::PipelineStageFlagBits::eAllCommands,
                 vk::DependencyFlags(),
                 nullptr, nullptr, imageMemoryBarrier);
         }
@@ -386,17 +383,16 @@ namespace vks {
             subresourceRange.aspectMask = aspectMask;
             subresourceRange.levelCount = 1;
             subresourceRange.layerCount = 1;
-            setImageLayout(cmdbuffer, image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
+            setImageLayout(cmdbuffer, image, oldImageLayout, newImageLayout, subresourceRange);
         }
 
         void setImageLayout(
             vk::Image image,
-            vk::ImageAspectFlags aspectMask,
             vk::ImageLayout oldImageLayout,
             vk::ImageLayout newImageLayout,
             vk::ImageSubresourceRange subresourceRange) const {
             withPrimaryCommandBuffer([&](const auto& commandBuffer) {
-                setImageLayout(commandBuffer, image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
+                setImageLayout(commandBuffer, image, oldImageLayout, newImageLayout, subresourceRange);
             });
         }
             
@@ -427,6 +423,7 @@ namespace vks {
             } _version;
             // Store properties (including limits) and features of the phyiscal device
             // So examples can check against them and see if a feature is actually supported
+            queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
             deviceProperties = physicalDevice.getProperties();
             memcpy(&_version, &deviceProperties.apiVersion, sizeof(uint32_t));
             deviceFeatures = physicalDevice.getFeatures();
@@ -478,6 +475,9 @@ namespace vks {
         std::vector<vk::PhysicalDevice> physicalDevices;
         // Physical device (GPU) that Vulkan will ise
         vk::PhysicalDevice physicalDevice;
+
+        // Queue family properties
+        std::vector<vk::QueueFamilyProperties> queueFamilyProperties;
         // Stores physical device properties (for e.g. checking device limits)
         vk::PhysicalDeviceProperties deviceProperties;
         // Stores phyiscal device features (for e.g. checking if a feature is available)
@@ -488,17 +488,20 @@ namespace vks {
         vk::Device device;
         // vk::Pipeline cache object
         vk::PipelineCache pipelineCache;
-        // List of shader modules created (stored for cleanup)
-        mutable std::vector<vk::ShaderModule> shaderModules;
+
+
+        struct QueueIndices {
+            uint32_t graphics{ VK_QUEUE_FAMILY_IGNORED };
+            uint32_t transfer{ VK_QUEUE_FAMILY_IGNORED };
+            uint32_t compute{ VK_QUEUE_FAMILY_IGNORED };
+        } queueIndices;
 
         vk::Queue queue;
-        // Find a queue that supports graphics operations
-        uint32_t graphicsQueueIndex;
 
-        const vk::CommandPool& getCommandPool() const {
+        vk::CommandPool getCommandPool() const {
             if (!s_cmdPool) {
                 vk::CommandPoolCreateInfo cmdPoolInfo;
-                cmdPoolInfo.queueFamilyIndex = graphicsQueueIndex;
+                cmdPoolInfo.queueFamilyIndex = queueIndices.graphics;
                 cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
                 s_cmdPool = device.createCommandPool(cmdPoolInfo);
             }
@@ -512,7 +515,7 @@ namespace vks {
             }
         }
 
-        std::vector<vk::CommandBuffer> allocateCommandBuffers(uint32_t count, vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary) {
+        std::vector<vk::CommandBuffer> allocateCommandBuffers(uint32_t count, vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary) const {
             std::vector<vk::CommandBuffer> result;
             vk::CommandBufferAllocateInfo commandBufferAllocateInfo;
             commandBufferAllocateInfo.commandPool = getCommandPool();
@@ -522,45 +525,35 @@ namespace vks {
             return result;
         }
 
-        vk::CommandBuffer createCommandBuffer(vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary, bool begin = false) const {
+        vk::CommandBuffer createCommandBuffer(vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary) const {
             vk::CommandBuffer cmdBuffer;
             vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
             cmdBufAllocateInfo.commandPool = getCommandPool();
             cmdBufAllocateInfo.level = level;
             cmdBufAllocateInfo.commandBufferCount = 1;
-
             cmdBuffer = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
-
-            // If requested, also start the new command buffer
-            if (begin) {
-                cmdBuffer.begin(vk::CommandBufferBeginInfo());
-            }
-
             return cmdBuffer;
         }
 
-        void flushCommandBuffer(vk::CommandBuffer& commandBuffer, bool free = false) const {
+        void flushCommandBuffer(vk::CommandBuffer& commandBuffer) const {
             if (!commandBuffer) {
                 return;
             }
-
-            commandBuffer.end();
             queue.submit(vk::SubmitInfo{ 0, nullptr, nullptr, 1, &commandBuffer }, vk::Fence());
             queue.waitIdle();
             device.waitIdle();
-            if (free) {
-                device.freeCommandBuffers(getCommandPool(), commandBuffer);
-                commandBuffer = vk::CommandBuffer();
-            }
         }
 
         // Create a short lived command buffer which is immediately executed and released
         // This function is intended for initialization only.  It incurs a queue and device 
         // flush and may impact performance if used in non-setup code
         void withPrimaryCommandBuffer(const std::function<void(const vk::CommandBuffer& commandBuffer)>& f) const {
-            vk::CommandBuffer commandBuffer = createCommandBuffer(vk::CommandBufferLevel::ePrimary, true);
+            vk::CommandBuffer commandBuffer = createCommandBuffer(vk::CommandBufferLevel::ePrimary);
+            commandBuffer.begin(vk::CommandBufferBeginInfo{ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
             f(commandBuffer);
-            flushCommandBuffer(commandBuffer, true);
+            commandBuffer.end();
+            flushCommandBuffer(commandBuffer);
+            device.freeCommandBuffers(getCommandPool(), commandBuffer);
         }
 
         Image createImage(const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags = vk::MemoryPropertyFlagBits::eDeviceLocal) const {
@@ -586,7 +579,7 @@ namespace vks {
             withPrimaryCommandBuffer([&](const vk::CommandBuffer& copyCmd) {
                 vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, imageCreateInfo.mipLevels, 0, 1);
                 // Prepare for transfer
-                setImageLayout(copyCmd, result.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
+                setImageLayout(copyCmd, result.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
 
                 // Prepare for transfer
                 std::vector<vk::BufferImageCopy> bufferCopyRegions;
@@ -608,7 +601,7 @@ namespace vks {
                 }
                 copyCmd.copyBufferToImage(staging.buffer, result.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
                 // Prepare for shader read
-                setImageLayout(copyCmd, result.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, range);
+                setImageLayout(copyCmd, result.image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, range);
             });
             staging.destroy();
             return result;
@@ -813,7 +806,7 @@ namespace vks {
         }
 
 
-        vk::Format getSupportedDepthFormat() {
+        vk::Format getSupportedDepthFormat() const {
             // Since all depth formats may be optional, we need to find a suitable depth format to use
             // Start with the highest precision packed format
             std::vector<vk::Format> depthFormats = {
@@ -840,7 +833,7 @@ namespace vks {
         // A collection of items queued for destruction.  Once a fence has been created
         // for a queued submit, these items can be moved to the recycler for actual destruction
         // by calling the rec
-        VoidLambdaList dumpster;
+        mutable VoidLambdaList dumpster;
         FencedLambdaQueue recycler;
 
         InstanceExtensionsPickerFunctions instanceExtensionsPickers;
@@ -872,6 +865,11 @@ namespace vks {
     // Template specialization for texture objects
     template <>
     inline Buffer Context::createBuffer(const vk::BufferUsageFlags& usage, const gli::texture_cube& texture) const {
+        return createBuffer(usage, (vk::DeviceSize)texture.size(), texture.data());
+    }
+
+    template <>
+    inline Buffer Context::createBuffer(const vk::BufferUsageFlags& usage, const gli::texture2d_array& texture) const {
         return createBuffer(usage, (vk::DeviceSize)texture.size(), texture.data());
     }
 

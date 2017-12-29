@@ -23,7 +23,7 @@ public:
     bool wireframe = false;
 
     struct {
-        vkx::Texture colorMap;
+        vks::texture::Texture2D colorMap;
     } textures;
 
     struct {
@@ -37,13 +37,13 @@ public:
     // This is for demonstration and learning purposes,
     // the other examples use a mesh loader class for easy access
     struct Mesh {
-        CreateBufferResult vertices;
-        CreateBufferResult indices;
+        vks::Buffer vertices;
+        vks::Buffer indices;
         uint32_t indexCount;
     } mesh;
 
     struct {
-        vkx::UniformData vsScene;
+        vks::Buffer vsScene;
     } uniformData;
 
     struct {
@@ -85,8 +85,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, wireframe ? pipelines.wireframe : pipelines.solid);
         // Bind mesh vertex buffer

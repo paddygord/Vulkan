@@ -11,11 +11,11 @@
 
 // Vertex layout used in this example
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL,
-    vkx::VertexLayout::VERTEX_LAYOUT_COLOR,
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_COLOR,
 };
 
 class VulkanExample : public vkx::ExampleBase {
@@ -27,15 +27,15 @@ public:
     } vertices;
 
     struct {
-        vkx::MeshBuffer teapot;
-        vkx::MeshBuffer plane;
-        vkx::MeshBuffer sphere;
+        vks::model::Model teapot;
+        vks::model::Model plane;
+        vks::model::Model sphere;
     } meshes;
 
     struct {
-        vkx::UniformData vsScene;
-        vkx::UniformData teapot;
-        vkx::UniformData sphere;
+        vks::Buffer vsScene;
+        vks::Buffer teapot;
+        vks::Buffer sphere;
     } uniformData;
 
     struct UboVS {
@@ -162,8 +162,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
 
         // Occlusion pass
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.simple);

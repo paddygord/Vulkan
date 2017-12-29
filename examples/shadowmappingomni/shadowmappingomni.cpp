@@ -20,12 +20,12 @@
 #define FB_COLOR_FORMAT   
 
 // Vertex layout for this example
-std::vector<vkx::VertexLayout> vertexLayout =
+vks::model::VertexLayout vertexLayout =
 {
-    vkx::VertexLayout::VERTEX_LAYOUT_POSITION,
-    vkx::VertexLayout::VERTEX_LAYOUT_UV,
-    vkx::VertexLayout::VERTEX_LAYOUT_COLOR,
-    vkx::VertexLayout::VERTEX_LAYOUT_NORMAL
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_UV,
+    vks::model::Component::VERTEX_COMPONENT_COLOR,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL
 };
 
 class VulkanExample : public vkx::OffscreenExampleBase {
@@ -42,13 +42,13 @@ public:
     } vertices;
 
     struct {
-        vkx::MeshBuffer skybox;
-        vkx::MeshBuffer scene;
+        vks::model::Model skybox;
+        vks::model::Model scene;
     } meshes;
 
     struct {
-        vkx::UniformData scene;
-        vkx::UniformData offscreen;
+        vks::Buffer scene;
+        vks::Buffer offscreen;
     } uniformData;
 
     struct {
@@ -285,8 +285,8 @@ public:
         vk::CommandBufferBeginInfo cmdBufInfo;
         cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
         offscreen.cmdBuffer.begin(cmdBufInfo);
-        offscreen.cmdBuffer.setViewport(0, vkx::viewport(offscreen.size));
-        offscreen.cmdBuffer.setScissor(0, vkx::rect2D(offscreen.size));
+        offscreen.cmdBuffer.setViewport(0, vks::util::viewport(offscreen.size));
+        offscreen.cmdBuffer.setScissor(0, vks::util::rect2D(offscreen.size));
 
         vk::ImageSubresourceRange subresourceRange;
         subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
@@ -337,8 +337,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
 
         if (displayCubeMap) {

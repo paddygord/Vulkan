@@ -70,4 +70,30 @@ inline vk::Rect2D rect2D(
     return rect2D(size.width, size.height, offset.x, offset.y);
 }
 
+inline vk::AccessFlags accessFlagsForLayout(vk::ImageLayout layout) {
+    switch (layout) {
+    case vk::ImageLayout::ePreinitialized:
+        return vk::AccessFlagBits::eHostWrite;
+    case vk::ImageLayout::eTransferDstOptimal:
+        return vk::AccessFlagBits::eTransferWrite;
+    case vk::ImageLayout::eTransferSrcOptimal:
+        return vk::AccessFlagBits::eTransferRead;
+    case vk::ImageLayout::eColorAttachmentOptimal:
+        return vk::AccessFlagBits::eColorAttachmentWrite;
+    case vk::ImageLayout::eDepthStencilAttachmentOptimal:
+        return vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+    case vk::ImageLayout::eShaderReadOnlyOptimal:
+        return vk::AccessFlagBits::eShaderRead;
+    default:
+        return vk::AccessFlags();
+    }
+}
+
+inline vk::ClearColorValue clearColor(const glm::vec4& v = glm::vec4(0)) {
+    vk::ClearColorValue result;
+    memcpy(&result.float32, &v, sizeof(result.float32));
+    return result;
+}
+
+
 } } // namespace vks::util

@@ -9,7 +9,7 @@
 #pragma once
 
 #include "model.hpp"
-#include "../util/filesystem.hpp"
+#include "filesystem.hpp"
 
 #include <assimp/Importer.hpp> 
 #include <assimp/scene.h>     
@@ -29,9 +29,9 @@ bool Model::loadFromFile(const Context& context, const std::string& filename, co
     const aiScene* pScene;
 
     // Load file
-    auto meshData = vks::util::readBinaryFile(filename);
-    pScene = Importer.ReadFileFromMemory(meshData.data(), meshData.size(), flags);
-    meshData.swap(std::vector<uint8_t>{});
+    vks::util::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
+        pScene = Importer.ReadFileFromMemory(data, size, flags);
+    });
 
     if (!pScene) {
         std::string error = Importer.GetErrorString();

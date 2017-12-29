@@ -30,7 +30,7 @@ public:
     std::vector<vkx::MeshLoader*> meshes;
 
     struct {
-        vkx::UniformData meshVS;
+        vks::Buffer meshVS;
     } uniformData;
 
     struct {
@@ -99,8 +99,8 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-        cmdBuffer.setViewport(0, vkx::viewport(size));
-        cmdBuffer.setScissor(0, vkx::rect2D(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         for (auto& mesh : meshes) {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, mesh->pipeline);

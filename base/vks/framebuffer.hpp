@@ -12,11 +12,12 @@
 #include <algorithm>
 #include <vulkan/vulkan.hpp>
 
-#include "vulkanContext.hpp"
+#include "context.hpp"
 
-namespace vkx {
+namespace vks {
+    using FramebufferAttachment = Image;
     struct Framebuffer {
-        using Attachment = CreateImageResult;
+        using Attachment = FramebufferAttachment;
         vk::Device device;
         vk::Framebuffer framebuffer;
         Attachment depth;
@@ -38,7 +39,7 @@ namespace vkx {
         // Prepare a new framebuffer for offscreen rendering
         // The contents of this framebuffer are then
         // blitted to our render target
-        void create(const vkx::Context& context, const glm::uvec2& size, const std::vector<vk::Format>& colorFormats, vk::Format depthFormat, const vk::RenderPass& renderPass, vk::ImageUsageFlags colorUsage = vk::ImageUsageFlagBits::eSampled, vk::ImageUsageFlags depthUsage = vk::ImageUsageFlags()) {
+        void create(const vks::Context& context, const glm::uvec2& size, const std::vector<vk::Format>& colorFormats, vk::Format depthFormat, const vk::RenderPass& renderPass, vk::ImageUsageFlags colorUsage = vk::ImageUsageFlagBits::eSampled, vk::ImageUsageFlags depthUsage = vk::ImageUsageFlags()) {
             device = context.device;
             destroy();
 

@@ -305,9 +305,10 @@ public:
 
         // Load shaders
         // Shaders are loaded from the SPIR-V format, which can be generated from glsl
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/triangle/triangle.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/triangle/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        std::vector<vk::PipelineShaderStageCreateInfo> shaderStages{
+            loadShader(getAssetPath() + "shaders/triangle/triangle.vert.spv", vk::ShaderStageFlagBits::eVertex),
+            loadShader(getAssetPath() + "shaders/triangle/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment),
+        };
 
         // Assign states
         // Assign pipeline state create information
@@ -325,6 +326,10 @@ public:
 
         // Create rendering pipeline
         pipeline = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+
+        for (const auto& shaderStage : shaderStages) {
+            context.device.destroyShaderModule(shaderStage.module);
+        }
     }
 
     void setupDescriptorPool() {

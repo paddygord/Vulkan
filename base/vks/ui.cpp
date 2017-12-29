@@ -6,15 +6,16 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "VulkanUIOverlay.h"
-#include "../external/imgui/imgui.h"
+#include "ui.hpp"
+#include "helpers.hpp"
 
-#include "vks/util/helpers.hpp"
+#include "../../external/imgui/imgui.h"
 
 using namespace vks;
 using namespace vks::ui;
 
-UIOverlay::UIOverlay(const UIOverlayCreateInfo& createInfo) : createInfo(createInfo) {
+void UIOverlay::create(const UIOverlayCreateInfo& createInfo) {
+    this->createInfo = createInfo;
 #if defined(__ANDROID__)        
     if (android::screenDensity >= ACONFIGURATION_DENSITY_XXHIGH) {
         scale = 3.5f;
@@ -40,7 +41,7 @@ UIOverlay::UIOverlay(const UIOverlayCreateInfo& createInfo) : createInfo(createI
     style.Colors[ImGuiCol_CheckMark] = ImVec4(1.0f, 0.0f, 0.0f, 0.8f);
     // Dimensions
     ImGuiIO& io = ImGui::GetIO();
-    io.DisplaySize = ImVec2((float)createInfo.size.x, (float)createInfo.size.y);
+    io.DisplaySize = ImVec2((float)createInfo.size.width, (float)createInfo.size.height);
     io.FontGlobalScale = scale;
 
     prepareResources();
@@ -54,21 +55,24 @@ UIOverlay::UIOverlay(const UIOverlayCreateInfo& createInfo) : createInfo(createI
 }
 
 /** Free up all Vulkan resources acquired by the UI overlay */
-UIOverlay::~UIOverlay()
-{
-    vertexBuffer.destroy();
-    indexBuffer.destroy();
-    font.destroy();
-    context.device.destroyDescriptorSetLayout(descriptorSetLayout);
-    context.device.destroyDescriptorPool(descriptorPool);
-    context.device.destroyPipelineLayout(pipelineLayout);
-    context.device.destroyPipeline(pipeline);
-    if (!createInfo.renderPass) {
-        context.device.destroyRenderPass(renderPass);
+UIOverlay::~UIOverlay() { }
+
+void UIOverlay::destroy() {
+    if (commandPool) {
+        vertexBuffer.destroy();
+        indexBuffer.destroy();
+        font.destroy();
+        context.device.destroyDescriptorSetLayout(descriptorSetLayout);
+        context.device.destroyDescriptorPool(descriptorPool);
+        context.device.destroyPipelineLayout(pipelineLayout);
+        context.device.destroyPipeline(pipeline);
+        if (!createInfo.renderPass) {
+            context.device.destroyRenderPass(renderPass);
+        }
+        context.device.freeCommandBuffers(commandPool, cmdBuffers);
+        context.device.destroyCommandPool(commandPool);
+        context.device.destroyFence(fence);
     }
-    context.device.freeCommandBuffers(commandPool, cmdBuffers);
-    context.device.destroyCommandPool(commandPool);
-    context.device.destroyFence(fence);
 }
 
 /** Prepare all vulkan resources required to render the UI overlay */
@@ -124,32 +128,24 @@ void UIOverlay::prepareResources()
     // Command buffer
 
     vk::CommandPoolCreateInfo cmdPoolInfo;
-    cmdPoolInfo.queueFamilyIndex = context.graphicsQueueIndex;
+    cmdPoolInfo.queueFamilyIndex = context.queueIndices.graphics;
     cmdPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
     commandPool = context.device.createCommandPool(cmdPoolInfo);
-
-    vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
-    cmdBufAllocateInfo.commandBufferCount = (uint32_t)createInfo.framebuffers.size();
-    cmdBuffers = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
 
     // Descriptor pool
     vk::DescriptorPoolSize poolSize;
     poolSize.type = vk::DescriptorType::eCombinedImageSampler;
     poolSize.descriptorCount = 1;
-    vk::DescriptorPoolCreateInfo descriptorPoolInfo;
-    descriptorPoolInfo.maxSets = 2;
-    descriptorPoolInfo.poolSizeCount = 1;
-    descriptorPoolInfo.pPoolSizes = &poolSize;
-    descriptorPool = context.device.createDescriptorPool(descriptorPoolInfo);
+    descriptorPool = context.device.createDescriptorPool({ {}, 2, 1, &poolSize });
 
     // Descriptor set layout
-    vk::DescriptorSetLayoutBinding setLayoutBinding;
-    setLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-    setLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eFragment;
-    vk::DescriptorSetLayoutCreateInfo descriptorLayout;
-    descriptorLayout.bindingCount = 1;
-    descriptorLayout.pBindings = &setLayoutBinding;
-    descriptorSetLayout = context.device.createDescriptorSetLayout(descriptorLayout);
+    vk::DescriptorSetLayoutBinding setLayoutBinding{
+        0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment
+    };
+
+    descriptorSetLayout = context.device.createDescriptorSetLayout(
+        { {}, 1, &setLayoutBinding }
+    );
 
     // Descriptor set
     vk::DescriptorSetAllocateInfo allocInfo;
@@ -237,8 +233,8 @@ void UIOverlay::preparePipeline() {
     vk::VertexInputBindingDescription vertexInputBindings{ 0, sizeof(ImDrawVert), vk::VertexInputRate::eVertex };
     std::vector<vk::VertexInputAttributeDescription> vertexInputAttributes = {
         vk::VertexInputAttributeDescription{ 0, 0, vk::Format::eR32G32Sfloat, offsetof(ImDrawVert, pos) }, // Location 0: Position
-        vk::VertexInputAttributeDescription{ 0, 1, vk::Format::eR32G32Sfloat, offsetof(ImDrawVert, uv) }, // Location 1: UV
-        vk::VertexInputAttributeDescription{ 0, 2, vk::Format::eR8G8B8Unorm, offsetof(ImDrawVert, col) }, // Location 0: Color
+        vk::VertexInputAttributeDescription{ 1, 0, vk::Format::eR32G32Sfloat, offsetof(ImDrawVert, uv) }, // Location 1: UV
+        vk::VertexInputAttributeDescription{ 2, 0, vk::Format::eR8G8B8Unorm, offsetof(ImDrawVert, col) }, // Location 0: Color
     };
     vk::PipelineVertexInputStateCreateInfo vertexInputState;
     vertexInputState.vertexBindingDescriptionCount = 1;
@@ -309,12 +305,11 @@ void UIOverlay::prepareRenderPass()
 
 /** Update the command buffers to reflect UI changes */
 void UIOverlay::updateCommandBuffers() {
-    vk::CommandBufferBeginInfo cmdBufInfo;
+    vk::CommandBufferBeginInfo cmdBufInfo{ vk::CommandBufferUsageFlagBits::eSimultaneousUse };
 
     vk::RenderPassBeginInfo renderPassBeginInfo;
     renderPassBeginInfo.renderPass = renderPass;
-    renderPassBeginInfo.renderArea.extent.width = createInfo.size.x;
-    renderPassBeginInfo.renderArea.extent.height = createInfo.size.y;
+    renderPassBeginInfo.renderArea.extent = createInfo.size;
     renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(createInfo.clearValues.size());
     renderPassBeginInfo.pClearValues = createInfo.clearValues.data();
 
@@ -325,6 +320,18 @@ void UIOverlay::updateCommandBuffers() {
     // UI scale and translate via push constants
     pushConstBlock.scale = glm::vec2(2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y);
     pushConstBlock.translate = glm::vec2(-1.0f);
+
+    if (cmdBuffers.size()) {
+        context.trash<vk::CommandBuffer>(cmdBuffers, [&](const std::vector<vk::CommandBuffer>& buffers) {
+            context.device.freeCommandBuffers(commandPool, buffers);
+        });
+        cmdBuffers.clear();
+    }
+
+    cmdBuffers = context.device.allocateCommandBuffers(
+        { commandPool, vk::CommandBufferLevel::ePrimary, (uint32_t)createInfo.framebuffers.size() }
+    );
+
     for (size_t i = 0; i < cmdBuffers.size(); ++i) {
         renderPassBeginInfo.framebuffer = createInfo.framebuffers[i];
 
@@ -386,8 +393,7 @@ void UIOverlay::updateCommandBuffers() {
 }
 
 /** Update vertex and index buffer containing the imGui elements when required */
-void UIOverlay::update()
-{
+void UIOverlay::update() {
     ImDrawData* imDrawData = ImGui::GetDrawData();
     bool updateCmdBuffers = false;
 
@@ -404,10 +410,10 @@ void UIOverlay::update()
         vertexCount = imDrawData->TotalVtxCount;
         if (vertexBuffer) {
             vertexBuffer.unmap();
-            vertexBuffer.destroy();
+            context.trash<vks::Buffer>(vertexBuffer);
+            vertexBuffer = vks::Buffer();
         }
         vertexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eHostVisible, vertexBufferSize);
-        vertexBuffer.unmap();
         vertexBuffer.map();
         updateCmdBuffers = true;
     }
@@ -446,9 +452,9 @@ void UIOverlay::update()
     }
 }
 
-void UIOverlay::resize(const uvec2& size, const std::vector<vk::Framebuffer>& framebuffers) {
+void UIOverlay::resize(const vk::Extent2D& size, const std::vector<vk::Framebuffer>& framebuffers) {
     ImGuiIO& io = ImGui::GetIO();
-    io.DisplaySize = ImVec2((float)(size.x), (float)(size.y));
+    io.DisplaySize = ImVec2((float)(size.width), (float)(size.height));
     createInfo.size = size;
     createInfo.framebuffers = framebuffers;
     updateCommandBuffers();

@@ -1,12 +1,12 @@
 #pragma once
 
-#include "vulkanContext.hpp"
-#include "vulkanFramebuffer.hpp"
+#include "context.hpp"
+#include "framebuffer.hpp"
 
 namespace vkx {
 
     struct OffscreenRenderer {
-        const vkx::Context& context;
+        const vks::Context& context;
         const vk::Device& device;
         const vk::Queue& queue;
         vk::CommandPool cmdPool;
@@ -20,7 +20,7 @@ namespace vkx {
             vk::Semaphore renderStart;
             vk::Semaphore renderComplete;
         } semaphores;
-        vkx::Framebuffer framebuffer;
+        vks::Framebuffer framebuffer;
         // Typically the offscreen render results will either be used for a blit operation or a shader read operation
         // so the final color layout is usually either TransferSrcOptimal or ShaderReadOptimal
         vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eTransferSrcOptimal };
@@ -29,7 +29,7 @@ namespace vkx {
         vk::ImageUsageFlags attachmentUsage{ vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eInputAttachment };
         vk::DescriptorPool descriptorPool;
 
-        OffscreenRenderer(const vkx::Context& context) : context(context), device(context.device), queue(context.queue), colorFormats({ vk::Format::eB8G8R8A8Unorm })  {}
+        OffscreenRenderer(const vks::Context& context) : context(context), device(context.device), queue(context.queue), colorFormats({ vk::Format::eB8G8R8A8Unorm })  {}
 
         void destroy() {
             queue.waitIdle();
@@ -51,7 +51,7 @@ namespace vkx {
 
         void prepareFramebuffer() {
             assert(framebufferSize != glm::uvec2());
-            depthFormat = vkx::getSupportedDepthFormat(context.physicalDevice);
+            depthFormat = context.getSupportedDepthFormat();
             framebuffer.create(context, 
                 framebufferSize, 
                 colorFormats, 

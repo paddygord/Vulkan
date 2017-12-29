@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <list>
 #include <string>
 
 #include <vulkan/vulkan.hpp>
@@ -10,7 +11,7 @@
 namespace vks {
     namespace debug {
         // Default validation layers
-        extern std::vector<const char*> validationLayerNames;
+        extern std::list<std::string> validationLayerNames;
 
         struct Message {
             vk::DebugReportFlagsEXT flags;

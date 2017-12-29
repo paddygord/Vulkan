@@ -146,7 +146,7 @@ public:
     Scene scene, sceneGlow;
 
     struct {
-        vkx::UniformData vsScene;
+        vks::Buffer vsScene;
     } uniformData;
 
     struct UboVS {
@@ -408,10 +408,10 @@ public:
         // Start a new debug marker region
         DebugMarker::beginRegion(offscreenCmdBuffer, "Off-screen scene rendering", glm::vec4(1.0f, 0.78f, 0.05f, 1.0f));
 
-        vk::Viewport viewport = vkx::viewport((float)offscreenFrameBuf.width, (float)offscreenFrameBuf.height, 0.0f, 1.0f);
+        vk::Viewport viewport = vks::util::viewport((float)offscreenFrameBuf.width, (float)offscreenFrameBuf.height, 0.0f, 1.0f);
         offscreenCmdBuffer.setViewport(0, viewport);
 
-        vk::Rect2D scissor = vkx::rect2D(offscreenFrameBuf.width, offscreenFrameBuf.height, 0, 0);
+        vk::Rect2D scissor = vks::util::rect2D(offscreenFrameBuf.width, offscreenFrameBuf.height, 0, 0);
         offscreenCmdBuffer.setScissor(0, scissor);
 
         offscreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
@@ -570,9 +570,9 @@ public:
         // Start a new debug marker region
         DebugMarker::beginRegion(cmdBuffer, "Render scene", glm::vec4(0.5f, 0.76f, 0.34f, 1.0f));
 
-        cmdBuffer.setViewport(0, vkx::viewport(size));
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
 
-        vk::Rect2D scissor = vkx::rect2D(wireframe ? size.width / 2 : size.width, size.height, 0, 0);
+        vk::Rect2D scissor = vks::util::rect2D(wireframe ? size.width / 2 : size.width, size.height, 0, 0);
         cmdBuffer.setScissor(0, scissor);
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.scene, nullptr);
