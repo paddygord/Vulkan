@@ -8,7 +8,6 @@
 
 #include "vulkanExampleBase.h"
 
-
 #define PARTICLE_COUNT 512
 #define PARTICLE_SIZE 10.0f
 
@@ -18,46 +17,45 @@
 #define PARTICLE_TYPE_SMOKE 1
 
 struct Particle {
-    glm::vec4 pos;
-    glm::vec4 color;
+    glm::vec3 pos;
+    glm::vec3 color;
     float alpha;
     float size;
     float rotation;
     uint32_t type;
     // Attributes not used in shader
-    glm::vec4 vel;
+    glm::vec3 vel;
     float rotationSpeed;
 };
 
 // Vertex layout for this example
-vks::model::VertexLayout vertexLayout =
-{
-    vks::model::Component::VERTEX_COMPONENT_POSITION,
-    vks::model::Component::VERTEX_COMPONENT_UV,
-    vks::model::Component::VERTEX_COMPONENT_NORMAL,
-    vks::model::Component::VERTEX_COMPONENT_TANGENT,
-    vks::model::Component::VERTEX_COMPONENT_BITANGENT
-};
-
 class VulkanExample : public vkx::ExampleBase {
 public:
     struct {
         struct {
-            vkx::Texture smoke;
-            vkx::Texture fire;
+            vks::texture::Texture2D smoke;
+            vks::texture::Texture2D fire;
             // We use a custom sampler to change some sampler
             // attributes required for rotation the uv coordinates
             // inside the shader for alpha blended textures
             vk::Sampler sampler;
         } particles;
         struct {
-            vkx::Texture colorMap;
-            vkx::Texture normalMap;
+            vks::texture::Texture2D colorMap;
+            vks::texture::Texture2D normalMap;
         } floor;
     } textures;
 
     struct {
-        vkx::Mesh environment;
+        vks::model::Model environment;
+        vk::DescriptorSet descriptorSet;
+        vks::model::VertexLayout vertexLayout{ {
+            vks::model::VERTEX_COMPONENT_POSITION,
+            vks::model::VERTEX_COMPONENT_UV,
+            vks::model::VERTEX_COMPONENT_NORMAL,
+            vks::model::VERTEX_COMPONENT_TANGENT,
+            vks::model::VERTEX_COMPONENT_BITANGENT,
+        } };
     } meshes;
 
     glm::vec3 emitterPos = glm::vec3(0.0f, -FLAME_RADIUS + 2.0f, 0.0f);
@@ -65,10 +63,16 @@ public:
     glm::vec3 maxVel = glm::vec3(3.0f, 7.0f, 3.0f);
 
     struct {
-        CreateBufferResult buffer;
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
+        vks::Buffer buffer;
+        vks::model::VertexLayout vertexLayout{ {
+            vks::model::VERTEX_COMPONENT_POSITION,
+            vks::model::VERTEX_COMPONENT_COLOR,
+            vks::model::VERTEX_COMPONENT_DUMMY_FLOAT,  // alpha
+            vks::model::VERTEX_COMPONENT_DUMMY_FLOAT,  // size
+            vks::model::VERTEX_COMPONENT_DUMMY_FLOAT,  // rotaton
+            vks::model::VERTEX_COMPONENT_DUMMY_INT,    // type
+            vks::model::VERTEX_COMPONENT_DUMMY_VEC4,
+        } };
     } particles;
 
     struct {
@@ -108,11 +112,11 @@ public:
         title = "Vulkan Example - Particle system";
         zoomSpeed *= 1.5f;
         timerSpeed *= 8.0f;
-        srand(time(NULL));
+        srand((uint32_t)time(NULL));
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
 
         textures.particles.smoke.destroy();
@@ -130,7 +134,7 @@ public:
         uniformData.fire.destroy();
         uniformData.environment.destroy();
 
-        meshes.environment.buffers.destroy();
+        meshes.environment.destroy();
         device.destroySampler(textures.particles.sampler);
     }
 
@@ -138,7 +142,12 @@ public:
         cmdBuffer.setViewport(0, vks::util::viewport(size));
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         // Environment
-        meshes.environment.drawIndexed(cmdBuffer);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.environment);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, meshes.descriptorSet, nullptr);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.environment.vertices.buffer, vk::DeviceSize());
+        cmdBuffer.bindIndexBuffer(meshes.environment.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(meshes.environment.indexCount, 1, 0, 0, 0);
+
         // Particle system
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.particles);
@@ -146,12 +155,9 @@ public:
         cmdBuffer.draw(PARTICLE_COUNT, 1, 0, 0);
     }
 
+    float rnd(float range) { return range * (rand() / float(RAND_MAX)); }
 
-    float rnd(float range) {
-        return range * (rand() / double(RAND_MAX));
-    }
-
-    void initParticle(Particle *particle, glm::vec3 emitterPos) {
+    void initParticle(Particle* particle, glm::vec3 emitterPos) {
         particle->vel = glm::vec4(0.0f, minVel.y + rnd(maxVel.y - minVel.y), 0.0f, 0.0f);
         particle->alpha = rnd(0.75f);
         particle->size = 1.0f + rnd(0.5f);
@@ -169,30 +175,30 @@ public:
         particle->pos.y = r * sin(phi);
         particle->pos.z = r * sin(theta) * cos(phi);
 
-        particle->pos += glm::vec4(emitterPos, 0.0f);
+        particle->pos += emitterPos;
     }
 
-    void transitionParticle(Particle *particle) {
+    void transitionParticle(Particle* particle) {
         switch (particle->type) {
-        case PARTICLE_TYPE_FLAME:
-            // Flame particles have a chance of turning into smoke
-            if (rnd(1.0f) < 0.05f) {
-                particle->alpha = 0.0f;
-                particle->color = glm::vec4(0.25f + rnd(0.25f));
-                particle->pos.x *= 0.5f;
-                particle->pos.z *= 0.5f;
-                particle->vel = glm::vec4(rnd(1.0f) - rnd(1.0f), (minVel.y * 2) + rnd(maxVel.y - minVel.y), rnd(1.0f) - rnd(1.0f), 0.0f);
-                particle->size = 1.0f + rnd(0.5f);
-                particle->rotationSpeed = rnd(1.0f) - rnd(1.0f);
-                particle->type = PARTICLE_TYPE_SMOKE;
-            } else {
+            case PARTICLE_TYPE_FLAME:
+                // Flame particles have a chance of turning into smoke
+                if (rnd(1.0f) < 0.05f) {
+                    particle->alpha = 0.0f;
+                    particle->color = glm::vec4(0.25f + rnd(0.25f));
+                    particle->pos.x *= 0.5f;
+                    particle->pos.z *= 0.5f;
+                    particle->vel = glm::vec4(rnd(1.0f) - rnd(1.0f), (minVel.y * 2) + rnd(maxVel.y - minVel.y), rnd(1.0f) - rnd(1.0f), 0.0f);
+                    particle->size = 1.0f + rnd(0.5f);
+                    particle->rotationSpeed = rnd(1.0f) - rnd(1.0f);
+                    particle->type = PARTICLE_TYPE_SMOKE;
+                } else {
+                    initParticle(particle, emitterPos);
+                }
+                break;
+            case PARTICLE_TYPE_SMOKE:
+                // Respawn at end of life
                 initParticle(particle, emitterPos);
-            }
-            break;
-        case PARTICLE_TYPE_SMOKE:
-            // Respawn at end of life
-            initParticle(particle, emitterPos);
-            break;
+                break;
         }
     }
 
@@ -203,7 +209,7 @@ public:
             particle.alpha = 1.0f - (abs(particle.pos.y) / (FLAME_RADIUS * 2.0f));
         }
 
-        particles.buffer= context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, particleBuffer);
+        particles.buffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, particleBuffer);
         particles.buffer.map();
     }
 
@@ -211,17 +217,17 @@ public:
         float particleTimer = frameTimer * 0.45f;
         for (auto& particle : particleBuffer) {
             switch (particle.type) {
-            case PARTICLE_TYPE_FLAME:
-                particle.pos.y -= particle.vel.y * particleTimer * 3.5f;
-                particle.alpha += particleTimer * 2.5f;
-                particle.size -= particleTimer * 0.5f;
-                break;
-            case PARTICLE_TYPE_SMOKE:
-                particle.pos -= particle.vel * frameTimer * 1.0f;
-                particle.alpha += particleTimer * 1.25f;
-                particle.size += particleTimer * 0.125f;
-                particle.color -= particleTimer * 0.05f;
-                break;
+                case PARTICLE_TYPE_FLAME:
+                    particle.pos.y -= particle.vel.y * particleTimer * 3.5f;
+                    particle.alpha += particleTimer * 2.5f;
+                    particle.size -= particleTimer * 0.5f;
+                    break;
+                case PARTICLE_TYPE_SMOKE:
+                    particle.pos -= particle.vel * frameTimer * 1.0f;
+                    particle.alpha += particleTimer * 1.25f;
+                    particle.size += particleTimer * 0.125f;
+                    particle.color -= particleTimer * 0.05f;
+                    break;
             }
             particle.rotation += particleTimer * particle.rotationSpeed;
             // Transition particle state
@@ -233,22 +239,16 @@ public:
         particles.buffer.copy(particleBuffer);
     }
 
-    void loadTextures() {
-        // Particles
-        textures.particles.smoke = textureLoader->loadTexture(
-            getAssetPath() + "textures/particle_smoke.ktx",
-            vk::Format::eBc3UnormBlock);
-        textures.particles.fire = textureLoader->loadTexture(
-            getAssetPath() + "textures/particle_fire.ktx",
-            vk::Format::eBc3UnormBlock);
+    void loadAssets() override {
+        meshes.environment.loadFromFile(context, getAssetPath() + "models/fireplace.obj", meshes.vertexLayout, 10.0f);
 
         // Floor
-        textures.floor.colorMap = textureLoader->loadTexture(
-            getAssetPath() + "textures/fireplace_colormap_bc3.ktx",
-            vk::Format::eBc3UnormBlock);
-        textures.floor.normalMap = textureLoader->loadTexture(
-            getAssetPath() + "textures/fireplace_normalmap_bc3.ktx",
-            vk::Format::eBc3UnormBlock);
+        textures.floor.colorMap.loadFromFile(context, getAssetPath() + "textures/fireplace_colormap_bc3_unorm.ktx", vk::Format::eBc3UnormBlock);
+        textures.floor.normalMap.loadFromFile(context, getAssetPath() + "textures/fireplace_normalmap_bc3_unorm.ktx", vk::Format::eBc3UnormBlock);
+
+        // Particles
+        textures.particles.smoke.loadFromFile(context, getAssetPath() + "textures/particle_smoke.ktx", vk::Format::eB8G8R8A8Unorm);
+        textures.particles.fire.loadFromFile(context, getAssetPath() + "textures/particle_fire.ktx", vk::Format::eB8G8R8A8Unorm);
 
         // Create a custom sampler to be used with the particle textures
         // Create sampler
@@ -264,236 +264,81 @@ public:
         samplerCreateInfo.compareOp = vk::CompareOp::eNever;
         samplerCreateInfo.minLod = 0.0f;
         // Both particle textures have the same number of mip maps
-        samplerCreateInfo.maxLod = textures.particles.fire.mipLevels;
+        samplerCreateInfo.maxLod = (float)textures.particles.fire.mipLevels;
         // Enable anisotropic filtering
         samplerCreateInfo.maxAnisotropy = 8;
         samplerCreateInfo.anisotropyEnable = VK_TRUE;
         // Use a different border color (than the normal texture loader) for additive blending
         samplerCreateInfo.borderColor = vk::BorderColor::eFloatTransparentBlack;
         textures.particles.sampler = device.createSampler(samplerCreateInfo);
-
-    }
-
-    void loadMeshes() {
-        meshes.environment.buffers = loadMesh(getAssetPath() + "models/fireplace.obj", vertexLayout, 10.0f);
-        meshes.environment.setupVertexInputState(vertexLayout);
-    }
-
-    void setupVertexDescriptions() {
-        // Binding description
-        particles.bindingDescriptions.resize(1);
-        particles.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, sizeof(Particle), vk::VertexInputRate::eVertex);
-
-        // Attribute descriptions
-        // Describes memory layout and shader positions
-        // Location 0 : Position
-        particles.attributeDescriptions.push_back(
-            vkx::vertexInputAttributeDescription(
-                VERTEX_BUFFER_BIND_ID,
-                0,
-                vk::Format::eR32G32B32A32Sfloat,
-                0));
-        // Location 1 : Color
-        particles.attributeDescriptions.push_back(
-            vkx::vertexInputAttributeDescription(
-                VERTEX_BUFFER_BIND_ID,
-                1,
-                vk::Format::eR32G32B32A32Sfloat,
-                sizeof(float) * 4));
-        // Location 2 : Alpha
-        particles.attributeDescriptions.push_back(
-            vkx::vertexInputAttributeDescription(
-                VERTEX_BUFFER_BIND_ID,
-                2,
-                vk::Format::eR32Sfloat,
-                sizeof(float) * 8));
-        // Location 3 : Size
-        particles.attributeDescriptions.push_back(
-            vkx::vertexInputAttributeDescription(
-                VERTEX_BUFFER_BIND_ID,
-                3,
-                vk::Format::eR32Sfloat,
-                sizeof(float) * 9));
-        // Location 4 : Rotation
-        particles.attributeDescriptions.push_back(
-            vkx::vertexInputAttributeDescription(
-                VERTEX_BUFFER_BIND_ID,
-                4,
-                vk::Format::eR32Sfloat,
-                sizeof(float) * 10));
-        // Location 5 : Type
-        particles.attributeDescriptions.push_back(
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID,
-                5,
-                vk::Format::eR32Sint,
-                sizeof(float) * 11));
-
-        particles.inputState = vk::PipelineVertexInputStateCreateInfo();
-        particles.inputState.vertexBindingDescriptionCount = particles.bindingDescriptions.size();
-        particles.inputState.pVertexBindingDescriptions = particles.bindingDescriptions.data();
-        particles.inputState.vertexAttributeDescriptionCount = particles.attributeDescriptions.size();
-        particles.inputState.pVertexAttributeDescriptions = particles.attributeDescriptions.data();
     }
 
     void setupDescriptorPool() {
         // Example uses one ubo and one image sampler
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
-            vkx::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 4)
-        };
+        std::vector<vk::DescriptorPoolSize> poolSizes = { vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
+                                                          vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 4) };
 
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::descriptorSetLayoutBinding(
-            vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex,
-                0),
+            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Fragment shader image sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                1),
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
             // Binding 1 : Fragment shader image sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                2)
+            { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
-
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSets() {
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-
+        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &descriptorSetLayout };
         descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
 
         // vk::Image descriptor for the color map texture
-        vk::DescriptorImageInfo texDescriptorSmoke =
-            vkx::descriptorImageInfo(textures.particles.sampler, textures.particles.smoke.view, vk::ImageLayout::eGeneral);
-        vk::DescriptorImageInfo texDescriptorFire =
-            vkx::descriptorImageInfo(textures.particles.sampler, textures.particles.fire.view, vk::ImageLayout::eGeneral);
+        vk::DescriptorImageInfo texDescriptorSmoke{ textures.particles.sampler, textures.particles.smoke.view, vk::ImageLayout::eGeneral };
+        vk::DescriptorImageInfo texDescriptorFire{ textures.particles.sampler, textures.particles.fire.view, vk::ImageLayout::eGeneral };
 
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-            descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.fire.descriptor),
+            vk::WriteDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fire.descriptor },
             // Binding 1 : Smoke texture
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eCombinedImageSampler,
-                1,
-                &texDescriptorSmoke),
+            vk::WriteDescriptorSet{ descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorSmoke },
             // Binding 1 : Fire texture array
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eCombinedImageSampler,
-                2,
-                &texDescriptorFire)
+            vk::WriteDescriptorSet{ descriptorSet, 2, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorFire },
         };
 
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
 
         // Environment
-        meshes.environment.descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
+        meshes.descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
 
-        vk::DescriptorImageInfo texDescriptorColorMap =
-            vkx::descriptorImageInfo(textures.floor.colorMap.sampler, textures.floor.colorMap.view, vk::ImageLayout::eGeneral);
-        vk::DescriptorImageInfo texDescriptorNormalMap =
-            vkx::descriptorImageInfo(textures.floor.normalMap.sampler, textures.floor.normalMap.view, vk::ImageLayout::eGeneral);
+        vk::DescriptorImageInfo texDescriptorColorMap{ textures.floor.colorMap.sampler, textures.floor.colorMap.view, vk::ImageLayout::eGeneral };
+        vk::DescriptorImageInfo texDescriptorNormalMap{ textures.floor.normalMap.sampler, textures.floor.normalMap.view, vk::ImageLayout::eGeneral };
 
-        writeDescriptorSets.clear();
+        writeDescriptorSets = {
+            // Binding 0 : Vertex shader uniform buffer
+            vk::WriteDescriptorSet{ meshes.descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.environment.descriptor },
+            // Binding 1 : Color map
+            vk::WriteDescriptorSet{ meshes.descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorColorMap },
+            // Binding 2 : Normal map
+            vk::WriteDescriptorSet{ meshes.descriptorSet, 2, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorNormalMap },
+        };
 
-        // Binding 0 : Vertex shader uniform buffer
-        writeDescriptorSets.push_back(
-            vkx::writeDescriptorSet(meshes.environment.descriptorSet, vk::DescriptorType::eUniformBuffer, 0, &uniformData.environment.descriptor));
-        // Binding 1 : Color map
-        writeDescriptorSets.push_back(
-            vkx::writeDescriptorSet(meshes.environment.descriptorSet, vk::DescriptorType::eCombinedImageSampler, 1, &texDescriptorColorMap));
-        // Binding 2 : Normal map
-        writeDescriptorSets.push_back(
-            vkx::writeDescriptorSet(meshes.environment.descriptorSet, vk::DescriptorType::eCombinedImageSampler, 2, &texDescriptorNormalMap));
-
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::ePointList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
-
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise);
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState =
-            vkx::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor
-        };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
-
-        // Load shaders
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/particlefire/particle.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/particlefire/particle.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
-
-        pipelineCreateInfo.pVertexInputState = &particles.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-
-        depthStencilState.depthWriteEnable = VK_FALSE;
-
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
+        pipelineBuilder.inputAssemblyState.topology = vk::PrimitiveTopology::ePointList;
+        pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        pipelineBuilder.depthStencilState = { false };
         // Premulitplied alpha
+        auto& blendAttachmentState = pipelineBuilder.colorBlendState.blendAttachmentStates[0];
         blendAttachmentState.blendEnable = VK_TRUE;
         blendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eOne;
         blendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
@@ -501,39 +346,40 @@ public:
         blendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eOne;
         blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eZero;
         blendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
-        blendAttachmentState.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
 
-        pipelines.particles = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
+        // Load shaders
+        pipelineBuilder.vertexInputState.appendVertexLayout(particles.vertexLayout);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/particle.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/particle.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.particles = pipelineBuilder.create(context.pipelineCache);
 
         // Environment rendering pipeline (normal mapped)
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/particlefire/normalmap.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/particlefire/normalmap.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        pipelineCreateInfo.pVertexInputState = &meshes.environment.vertexInputState;
         blendAttachmentState.blendEnable = VK_FALSE;
-        depthStencilState.depthWriteEnable = VK_TRUE;
-        inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleList;
-        pipelines.environment = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
-        meshes.environment.pipeline = pipelines.environment;
-        meshes.environment.pipelineLayout = pipelineLayout;
+        pipelineBuilder.inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleList;
+        pipelineBuilder.depthStencilState = { false };
+        pipelineBuilder.destroyShaderModules();
+        pipelineBuilder.vertexInputState = {};
+        pipelineBuilder.vertexInputState.appendVertexLayout(meshes.vertexLayout);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/normalmap.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/normalmap.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.environment = pipelineBuilder.create(context.pipelineCache);
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
-        uniformData.fire= context.createUniformBuffer(uboVS);
+        uniformData.fire = context.createUniformBuffer(uboVS);
         // Vertex shader uniform buffer block
-        uniformData.environment= context.createUniformBuffer(uboEnv);
+        uniformData.environment = context.createUniformBuffer(uboEnv);
 
         updateUniformBuffers();
     }
 
     void updateUniformBufferLight() {
         // Environment
-        uboEnv.lightPos.x = sin(timer * 2 * M_PI) * 1.5f;
+        uboEnv.lightPos.x = sin(timer * 2 * (float)M_PI) * 1.5f;
         uboEnv.lightPos.y = 0.0f;
-        uboEnv.lightPos.z = cos(timer * 2 * M_PI) * 1.5f;
+        uboEnv.lightPos.z = cos(timer * 2 * (float)M_PI) * 1.5f;
         uniformData.environment.copy(uboEnv);
     }
 
@@ -555,16 +401,13 @@ public:
 
     void prepare() {
         ExampleBase::prepare();
-        loadTextures();
         prepareParticles();
-        setupVertexDescriptions();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
-        loadMeshes();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSets();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 
@@ -578,10 +421,7 @@ public:
         }
     }
 
-    virtual void viewChanged() {
-        updateUniformBuffers();
-    }
+    virtual void viewChanged() { updateUniformBuffers(); }
 };
-
 
 RUN_EXAMPLE(VulkanExample)

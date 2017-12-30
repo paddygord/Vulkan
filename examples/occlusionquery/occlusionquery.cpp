@@ -11,21 +11,14 @@
 
 // Vertex layout used in this example
 // Vertex layout for this example
-vks::model::VertexLayout vertexLayout =
-{
+vks::model::VertexLayout vertexLayout{ {
     vks::model::Component::VERTEX_COMPONENT_POSITION,
     vks::model::Component::VERTEX_COMPONENT_NORMAL,
     vks::model::Component::VERTEX_COMPONENT_COLOR,
-};
+} };
 
 class VulkanExample : public vkx::ExampleBase {
 public:
-    struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
-
     struct {
         vks::model::Model teapot;
         vks::model::Model plane;
@@ -62,16 +55,13 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     // Stores occlusion query results
-    struct {
-        vk::Buffer buffer;
-        vk::DeviceMemory memory;
-    } queryResult;
+    vks::Buffer queryResult;
 
     // Pool that stores all occlusion queries
     vk::QueryPool queryPool;
 
     // Passed query samples
-    uint64_t passedSamples[2];
+    std::array<uint64_t, 2> passedSamples{ 1, 1 };
 
     VulkanExample() {
         passedSamples[0] = passedSamples[1] = 1;
@@ -80,7 +70,6 @@ public:
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ 0.0, -123.75, 0.0 });
-        enableTextOverlay = true;
         title = "Vulkan Example - Occlusion queries";
     }
 
@@ -112,50 +101,27 @@ public:
     // Setup a query pool
     void setupQueryResultBuffer() {
         uint32_t bufSize = 2 * sizeof(uint64_t);
-
-        vk::MemoryRequirements memReqs;
-        vk::MemoryAllocateInfo memAlloc;
-        vk::BufferCreateInfo bufferCreateInfo =
-            vkx::bufferCreateInfo(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst, bufSize);
-
         // Results are saved in a host visible buffer for easy access by the application
-        queryResult.buffer = device.createBuffer(bufferCreateInfo);
-        memReqs = device.getBufferMemoryRequirements(queryResult.buffer);
-        memAlloc.allocationSize = memReqs.size;
-        memAlloc.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
-        queryResult.memory = device.allocateMemory(memAlloc);
-        device.bindBufferMemory(queryResult.buffer, queryResult.memory, 0);
-
-        // Create query pool
-        vk::QueryPoolCreateInfo queryPoolInfo;
+        queryResult = context.createBuffer(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostVisible, bufSize);
         // Query pool will be created for occlusion queries
-        queryPoolInfo.queryType = vk::QueryType::eOcclusion;
-        queryPoolInfo.queryCount = 2;
-
-        queryPool = device.createQueryPool(queryPoolInfo, nullptr);
+        queryPool = device.createQueryPool({ {}, vk::QueryType::eOcclusion, 2 });
     }
 
     // Retrieves the results of the occlusion queries submitted to the command buffer
     void getQueryResults() {
         queue.waitIdle();
         device.waitIdle();
+        // Store results a 64 bit values and wait until the results have been finished
+        // If you don't want to wait, you can use VK_QUERY_RESULT_WITH_AVAILABILITY_BIT
+        // which also returns the state of the result (ready) in the result
+        static const auto queryResultFlags = vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait;
         // We use vkGetQueryResults to copy the results into a host visible buffer
         // you can use vk::QueryResultFlagBits::eWithAvailability
-            // which also returns the state of the result (ready) in the result
-        device.getQueryPoolResults(
-            queryPool,
-            0,
-            2,
-            sizeof(passedSamples),
-            passedSamples,
-            sizeof(uint64_t),
-            // Store results a 64 bit values and wait until the results have been finished
-            // If you don't want to wait, you can use VK_QUERY_RESULT_WITH_AVAILABILITY_BIT
-            // which also returns the state of the result (ready) in the result
-            vk::QueryResultFlagBits::e64 | vk::QueryResultFlagBits::eWait);
+        // which also returns the state of the result (ready) in the result
+        device.getQueryPoolResults(queryPool, 0, 2, vk::ArrayProxy<uint64_t> { passedSamples }, sizeof(uint64_t), queryResultFlags);
     }
 
-    void updatePrimaryCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
+    void updateCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         // Reset query pool
         // Must be done outside of render pass
         cmdBuffer.resetQueryPool(queryPool, 0, 2);
@@ -244,173 +210,86 @@ public:
     }
 
     void loadMeshes() {
-        meshes.plane = loadMesh(getAssetPath() + "models/plane_z.3ds", vertexLayout, 0.4f);
-        meshes.teapot = loadMesh(getAssetPath() + "models/teapot.3ds", vertexLayout, 0.3f);
-        meshes.sphere = loadMesh(getAssetPath() + "models/sphere.3ds", vertexLayout, 0.3f);
-    }
-
-    void setupVertexDescriptions() {
-        // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
-
-        // Attribute descriptions
-        // Describes memory layout and shader positions
-        vertices.attributeDescriptions.resize(3);
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
-        // Location 1 : Normal
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
-        // Location 3 : Color
-        vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 6);
-
-        vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
+        meshes.plane.loadFromFile(context, getAssetPath() + "models/plane_z.3ds", vertexLayout, 0.4f);
+        meshes.teapot.loadFromFile(context, getAssetPath() + "models/teapot.3ds", vertexLayout, 0.3f);
+        meshes.sphere.loadFromFile(context, getAssetPath() + "models/sphere.3ds", vertexLayout, 0.3f);
     }
 
     void setupDescriptorPool() {
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
+        std::vector<vk::DescriptorPoolSize> poolSizes {
             // One uniform buffer block for each mesh
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 3)
+            vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 3)
         };
-
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 3);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool(vk::DescriptorPoolCreateInfo{ {}, 3,  (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings {
             // Binding 0 : Vertex shader uniform buffer
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex,
-                0)
+            vk::DescriptorSetLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex }
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1,  &descriptorSetLayout });
     }
 
     void setupDescriptorSets() {
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
+        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &descriptorSetLayout };
 
         // Occluder (plane)
         descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
 
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.vsScene.descriptor)
+            vk::WriteDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsScene.descriptor },
         };
 
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
 
         // Teapot
         descriptorSets.teapot = device.allocateDescriptorSets(allocInfo)[0];
         writeDescriptorSets[0].dstSet = descriptorSets.teapot;
         writeDescriptorSets[0].pBufferInfo = &uniformData.teapot.descriptor;
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
 
         // Sphere
         descriptorSets.sphere = device.allocateDescriptorSets(allocInfo)[0];
         writeDescriptorSets[0].dstSet = descriptorSets.sphere;
         writeDescriptorSets[0].pBufferInfo = &uniformData.sphere.descriptor;
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
-
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise);
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState =
-            vkx::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor
-        };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
 
         // Solid rendering pipeline
-        // Load shaders
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/occlusionquery/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/occlusionquery/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
-
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-
-        pipelines.solid = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState{ {}, vk::PrimitiveTopology::eTriangleList };
+        pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/occlusionquery/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/occlusionquery/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        // Solid rendering pipeline
+        pipelines.solid = pipelineBuilder.create(context.pipelineCache);
+        pipelineBuilder.destroyShaderModules();
 
         // Basic pipeline for coloring occluded objects
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/occlusionquery/simple.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/occlusionquery/simple.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/occlusionquery/simple.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/occlusionquery/simple.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
+        pipelines.simple = pipelineBuilder.create(context.pipelineCache);
+        pipelineBuilder.destroyShaderModules();
 
-        pipelines.simple = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
 
         // Visual pipeline for the occluder
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/occlusionquery/occluder.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/occlusionquery/occluder.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/occlusionquery/occluder.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/occlusionquery/occluder.frag.spv", vk::ShaderStageFlagBits::eFragment);
         // Enable blending
+        auto& blendAttachmentState = pipelineBuilder.colorBlendState.blendAttachmentStates[0];
         blendAttachmentState.blendEnable = VK_TRUE;
         blendAttachmentState.colorBlendOp = vk::BlendOp::eAdd;
         blendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eSrcColor;
         blendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcColor;
-
-        pipelines.occluder = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.occluder = pipelineBuilder.create(context.pipelineCache);
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
@@ -450,13 +329,12 @@ public:
         ExampleBase::prepare();
         loadMeshes();
         setupQueryResultBuffer();
-        setupVertexDescriptions();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSets();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 
@@ -468,13 +346,6 @@ public:
 
     void viewChanged() override {
         updateUniformBuffers();
-        ExampleBase::updateTextOverlay();
-    }
-
-    void getOverlayText(vkx::TextOverlay *textOverlay) override {
-        textOverlay->addText("Occlusion queries:", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-        textOverlay->addText("Teapot: " + std::to_string(passedSamples[0]) + " samples passed", 5.0f, 105.0f, vkx::TextOverlay::alignLeft);
-        textOverlay->addText("Sphere: " + std::to_string(passedSamples[1]) + " samples passed", 5.0f, 125.0f, vkx::TextOverlay::alignLeft);
     }
 };
 

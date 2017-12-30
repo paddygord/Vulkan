@@ -28,7 +28,7 @@ namespace vkx {
             vk::ImageUsageFlags attachmentUsage{ vk::ImageUsageFlagBits::eSampled };
             vk::ImageUsageFlags depthAttachmentUsage;
             vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eShaderReadOnlyOptimal };
-            vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eUndefined };
+            vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eDepthStencilAttachmentOptimal };
 
             Offscreen(const vks::Context& context) : context(context) {}
 
@@ -102,7 +102,7 @@ namespace vkx {
                 for (uint32_t i = 0; i < attachments.size(); ++i) {
                     attachments[i].format = colorFormats[i];
                     attachments[i].loadOp = vk::AttachmentLoadOp::eClear;
-                    attachments[i].storeOp = colorFinalLayout == vk::ImageLayout::eUndefined ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
+                    attachments[i].storeOp = colorFinalLayout == vk::ImageLayout::eColorAttachmentOptimal ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
                     attachments[i].initialLayout = vk::ImageLayout::eUndefined;
                     attachments[i].finalLayout = colorFinalLayout;
 
@@ -121,7 +121,7 @@ namespace vkx {
                     depthAttachment.format = depthFormat;
                     depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
                     // We might be using the depth attacment for something, so preserve it if it's final layout is not undefined
-                    depthAttachment.storeOp = depthFinalLayout == vk::ImageLayout::eUndefined ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
+                    depthAttachment.storeOp = depthFinalLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
                     depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
                     depthAttachment.finalLayout = depthFinalLayout;
                     attachments.push_back(depthAttachment);
@@ -181,7 +181,7 @@ namespace vkx {
             if (offscreen.active) {
                 context.submit(offscreen.cmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
             }
-            drawCurrentCommandBuffer(offscreen.active ? offscreen.renderComplete : vk::Semaphore());
+            drawCurrentCommandBuffer(offscreen.active ? offscreen.renderComplete : semaphores.acquireComplete);
             submitFrame();
         }
 

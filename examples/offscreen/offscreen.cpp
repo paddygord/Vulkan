@@ -9,30 +9,19 @@
 #include "vulkanOffscreenExampleBase.hpp"
 
 // Vertex layout for this example
-vks::model::VertexLayout vertexLayout =
-{
-    vks::model::Component::VERTEX_COMPONENT_POSITION,
-    vks::model::Component::VERTEX_COMPONENT_UV,
-    vks::model::Component::VERTEX_COMPONENT_COLOR,
-    vks::model::Component::VERTEX_COMPONENT_NORMAL
-};
+vks::model::VertexLayout vertexLayout{ { vks::model::Component::VERTEX_COMPONENT_POSITION, vks::model::Component::VERTEX_COMPONENT_UV,
+                                         vks::model::Component::VERTEX_COMPONENT_COLOR, vks::model::Component::VERTEX_COMPONENT_NORMAL } };
 
 class VulkanExample : public vkx::OffscreenExampleBase {
 public:
     struct {
-        vkx::Texture colorMap;
+        vks::texture::Texture2D colorMap;
     } textures;
 
     struct {
         vks::model::Model example;
         vks::model::Model plane;
     } meshes;
-
-    struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
 
     struct {
         vks::Buffer vsShared;
@@ -78,23 +67,16 @@ public:
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
 
         // Textures
         //textureTarget.destroy();
         textures.colorMap.destroy();
 
-#if OFFSCREEN
-        // Frame buffer
-        offscreenFramebuffer.destroy();
-        device.freeCommandBuffers(cmdPool, offscreen.cmdBuffer);
+        device.destroyPipeline(pipelines.shaded);
         device.destroyPipeline(pipelines.mirror);
         device.destroyPipelineLayout(pipelineLayouts.offscreen);
-#endif
-
-
-        device.destroyPipeline(pipelines.shaded);
         device.destroyPipelineLayout(pipelineLayouts.quad);
 
         device.destroyDescriptorSetLayout(descriptorSetLayout);
@@ -109,15 +91,13 @@ public:
         uniformData.vsOffScreen.destroy();
     }
 
-
-    // The command buffer to copy for rendering 
+    // The command buffer to copy for rendering
     // the offscreen scene and blitting it into
     // the texture target is only build once
-    // and gets resubmitted 
+    // and gets resubmitted
     void buildOffscreenCommandBuffer() override {
-
         vk::ClearValue clearValues[2];
-        clearValues[0].color = vkx::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
+        clearValues[0].color = vks::util::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
         clearValues[1].depthStencil = vk::ClearDepthStencilValue{ 1.0f, 0 };
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -163,241 +143,115 @@ public:
         cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
     }
 
-    void loadMeshes() {
-        meshes.plane = loadMesh(getAssetPath() + "models/plane.obj", vertexLayout, 0.4f);
-        meshes.example = loadMesh(getAssetPath() + "models/chinesedragon.dae", vertexLayout, 0.3f);
-    }
-
-    void loadTextures() {
+    void loadAssets() {
+        meshes.plane.loadFromFile(context, getAssetPath() + "models/plane.obj", vertexLayout, 0.4f);
+        meshes.example.loadFromFile(context, getAssetPath() + "models/chinesedragon.dae", vertexLayout, 0.3f);
+        std::string filename;
+        vk::Format format;
         if (context.deviceFeatures.textureCompressionBC) {
-            textures.colorMap = textureLoader->loadTexture(
-                getAssetPath() + "textures/darkmetal_bc3_unorm.ktx",
-                vk::Format::eBc3UnormBlock);
+            filename = "textures/darkmetal_bc3_unorm.ktx";
+            format = vk::Format::eBc3UnormBlock;
         } else if (context.deviceFeatures.textureCompressionASTC_LDR) {
-            textures.colorMap = textureLoader->loadTexture(
-                getAssetPath() + "textures/darkmetal_astc_8x8_unorm.ktx",
-                vk::Format::eAstc8x8UnormBlock);
+            filename = "textures/darkmetal_astc_8x8_unorm.ktx";
+            format = vk::Format::eAstc8x8UnormBlock;
         } else if (context.deviceFeatures.textureCompressionETC2) {
-            textures.colorMap = textureLoader->loadTexture(
-                getAssetPath() + "textures/darkmetal_etc2_unorm.ktx",
-                vk::Format::eEtc2R8G8B8UnormBlock);
+            filename = "textures/darkmetal_etc2_unorm.ktx";
+            format = vk::Format::eEtc2R8G8B8UnormBlock;
         } else {
             throw std::runtime_error("Device does not support any compressed texture format!");
         }
-    }
-
-    void setupVertexDescriptions() {
-        // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
-
-        // Attribute descriptions
-        vertices.attributeDescriptions.resize(4);
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
-        // Location 1 : Texture coordinates
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32Sfloat, sizeof(float) * 3);
-        // Location 2 : Color
-        vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5);
-        // Location 3 : Normal
-        vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
-
-        vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
+        textures.colorMap.loadFromFile(context, getAssetPath() + filename, format);
     }
 
     void setupDescriptorPool() {
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 6),
-            vkx::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 8)
+        std::vector<vk::DescriptorPoolSize> poolSizes{
+            { vk::DescriptorType::eUniformBuffer, 6 },
+            { vk::DescriptorType::eCombinedImageSampler, 8 },
         };
-
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 5);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool({ {}, 5, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
         // Textured quad pipeline layout
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex,
-                0),
+            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Fragment shader image sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                1),
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
             // Binding 2 : Fragment shader image sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                2)
+            { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayouts.quad = device.createPipelineLayout(pPipelineLayoutCreateInfo);
-
-
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayouts.quad = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
         // Offscreen pipeline layout
-        pipelineLayouts.offscreen = device.createPipelineLayout(pPipelineLayoutCreateInfo);
+        pipelineLayouts.offscreen = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
         // Mirror plane descriptor set
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-
+        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &descriptorSetLayout };
         descriptorSets.mirror = device.allocateDescriptorSets(allocInfo)[0];
-        
+
         // vk::Image descriptor for the offscreen mirror texture
-        vk::DescriptorImageInfo texDescriptorMirror =
-            vkx::descriptorImageInfo(offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal);
+        vk::DescriptorImageInfo texDescriptorMirror{ offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view,
+                                                     vk::ImageLayout::eShaderReadOnlyOptimal };
         // vk::Image descriptor for the color map
-        vk::DescriptorImageInfo texDescriptorColorMap =
-            vkx::descriptorImageInfo(textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral);
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
+        vk::DescriptorImageInfo texDescriptorColorMap{ textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral };
+
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-                descriptorSets.mirror,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.vsMirror.descriptor),
+            { descriptorSets.mirror, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsMirror.descriptor },
             // Binding 1 : Fragment shader texture sampler
-            vkx::writeDescriptorSet(
-                descriptorSets.mirror,
-                vk::DescriptorType::eCombinedImageSampler,
-                1,
-                &texDescriptorMirror),
+            { descriptorSets.mirror, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorMirror },
             // Binding 2 : Fragment shader texture sampler
-            vkx::writeDescriptorSet(
-                descriptorSets.mirror,
-                vk::DescriptorType::eCombinedImageSampler,
-                2,
-                &texDescriptorColorMap)
+            { descriptorSets.mirror, 2, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorColorMap },
         };
         device.updateDescriptorSets(writeDescriptorSets, {});
 
         // Model
         // No texture
         descriptorSets.model = device.allocateDescriptorSets(allocInfo)[0];
-        std::vector<vk::WriteDescriptorSet> modelWriteDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> modelWriteDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-                descriptorSets.model,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.vsShared.descriptor)
+            { descriptorSets.model, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsShared.descriptor },
         };
         device.updateDescriptorSets(modelWriteDescriptorSets, {});
 
         // Offscreen
         descriptorSets.offscreen = device.allocateDescriptorSets(allocInfo)[0];
-        std::vector<vk::WriteDescriptorSet> offscreenWriteDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> offscreenWriteDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-                descriptorSets.offscreen,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.vsOffScreen.descriptor)
+            { descriptorSets.offscreen, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsOffScreen.descriptor },
         };
         device.updateDescriptorSets(offscreenWriteDescriptorSets, {});
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
-
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eNone, vk::FrontFace::eClockwise);
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState =
-            vkx::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor
-        };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
-
         // Solid rendering pipeline
-        // Load shaders
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/offscreen/quad.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/offscreen/quad.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayouts.quad, renderPass);
-
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-
-        // Mirror
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/offscreen/mirror.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/offscreen/mirror.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        pipelines.mirror = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayouts.quad, renderPass };
+        pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/offscreen/mirror.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/offscreen/mirror.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.mirror = pipelineBuilder.create(context.pipelineCache);
+        pipelineBuilder.destroyShaderModules();
 
         // Solid shading pipeline
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/offscreen/offscreen.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/offscreen/offscreen.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        pipelineCreateInfo.layout = pipelineLayouts.offscreen;
-        pipelines.shaded = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/offscreen/offscreen.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/offscreen/offscreen.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelineBuilder.layout = pipelineLayouts.offscreen;
+        pipelines.shaded = pipelineBuilder.create(context.pipelineCache);
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Mesh vertex shader uniform buffer block
-        uniformData.vsShared= context.createUniformBuffer(ubos.vsShared);
+        uniformData.vsShared = context.createUniformBuffer(ubos.vsShared);
         // Mirror plane vertex shader uniform buffer block
-        uniformData.vsMirror= context.createUniformBuffer(ubos.vsShared);
+        uniformData.vsMirror = context.createUniformBuffer(ubos.vsShared);
         // Offscreen vertex shader uniform buffer block
-        uniformData.vsOffScreen= context.createUniformBuffer(ubos.vsShared);
+        uniformData.vsOffScreen = context.createUniformBuffer(ubos.vsShared);
 
         updateUniformBuffers();
         updateUniformBufferOffscreen();
@@ -425,16 +279,13 @@ public:
     void prepare() override {
         offscreen.size = glm::uvec2(512);
         OffscreenExampleBase::prepare();
-        loadTextures();
-        loadMeshes();
-        setupVertexDescriptions();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
         buildOffscreenCommandBuffer();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 

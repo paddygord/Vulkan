@@ -9,7 +9,6 @@
 */
 
 #include <vulkanExampleBase.h>
-#include <vks/texture.hpp>
 
 #if defined(__ANDROID__)
 // Lower particle count on Android for performance reasons
@@ -30,14 +29,8 @@ public:
     } textures;
 
     struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
-
-    struct {
         vk::Pipeline postCompute;
-        // Compute pipelines are separated from 
+        // Compute pipelines are separated from
         // graphics pipelines in Vulkan
         vk::Pipeline compute;
     } pipelines;
@@ -73,12 +66,10 @@ public:
     vk::DescriptorSet descriptorSetPostCompute;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    VulkanExample() {
-        title = "Vulkan Example - Compute shader particle system";
-    }
+    VulkanExample() { title = "Vulkan Example - Compute shader particle system"; }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
 
         device.destroyPipeline(pipelines.postCompute);
@@ -99,11 +90,11 @@ public:
     }
 
     void loadTextures() {
-        textures.particle.loadFromFile(context, getAssetPath() + "textures/particle01_rgba.ktx",  vk::Format::eR8G8B8A8Unorm);
-        textures.gradient.loadFromFile(context, getAssetPath() + "textures/particle_gradient_rgba.ktx",  vk::Format::eR8G8B8A8Unorm);
+        textures.particle.loadFromFile(context, getAssetPath() + "textures/particle01_rgba.ktx", vk::Format::eR8G8B8A8Unorm);
+        textures.gradient.loadFromFile(context, getAssetPath() + "textures/particle_gradient_rgba.ktx", vk::Format::eR8G8B8A8Unorm);
     }
 
-    void updatePrimaryCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
+    void updateCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         // Compute particle movement
         // Add memory barrier to ensure that the (rendering) vertex shader operations have finished
         // Required as the compute shader will overwrite the vertex buffer data
@@ -116,7 +107,8 @@ public:
         bufferBarrier.size = computeStorageBuffer.descriptor.range;
         bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eVertexInput, vk::PipelineStageFlagBits::eComputeShader, vk::DependencyFlags(), nullptr, bufferBarrier, nullptr);
+        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eVertexInput, vk::PipelineStageFlagBits::eComputeShader, vk::DependencyFlags(), nullptr,
+                                  bufferBarrier, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipelines.compute);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, computePipelineLayout, 0, computeDescriptorSet, nullptr);
         // Dispatch the compute job
@@ -133,7 +125,8 @@ public:
         bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
-        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eVertexInput, vk::DependencyFlags(), nullptr, bufferBarrier, nullptr);
+        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eVertexInput, vk::DependencyFlags(), nullptr,
+                                  bufferBarrier, nullptr);
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
@@ -149,7 +142,6 @@ public:
     // Setup and fill the compute shader storage buffers for
     // vertex positions and velocities
     void prepareStorageBuffers() {
-
         std::mt19937 rGenerator;
         std::uniform_real_distribution<float> rDistribution(-1.0f, 1.0f);
 
@@ -164,41 +156,19 @@ public:
         uint32_t storageBufferSize = (uint32_t)(particleBuffer.size() * sizeof(Particle));
 
         // Staging
-        // SSBO is static, copy to device local memory 
+        // SSBO is static, copy to device local memory
         // This results in better performance
         computeStorageBuffer = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eStorageBuffer, particleBuffer);
-
-        // Binding description
-        vertices.bindingDescriptions = {
-            vk::VertexInputBindingDescription{ VERTEX_BUFFER_BIND_ID, sizeof(Particle), vk::VertexInputRate::eVertex }
-        };
-
-        // Attribute descriptions
-        // Describes memory layout and shader positions
-        vertices.attributeDescriptions = {
-            // Location 0 : Position
-            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, offsetof(Particle, pos) },
-            // Location 1 : Gradient position
-            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, gradientPos) },
-        };
-
-        // Assign to vertex buffer
-        vertices.inputState.vertexBindingDescriptionCount = (uint32_t)vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = (uint32_t)vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
     }
 
     void setupDescriptorPool() {
         std::vector<vk::DescriptorPoolSize> poolSizes = {
             vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, 1 },
-            vk::DescriptorPoolSize{ vk::DescriptorType::eStorageBuffer, 1},
-            vk::DescriptorPoolSize{ vk::DescriptorType::eCombinedImageSampler, 2},
+            vk::DescriptorPoolSize{ vk::DescriptorType::eStorageBuffer, 1 },
+            vk::DescriptorPoolSize{ vk::DescriptorType::eCombinedImageSampler, 2 },
         };
 
-        descriptorPool = device.createDescriptorPool(
-            vk::DescriptorPoolCreateInfo{ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() }
-        );
+        descriptorPool = device.createDescriptorPool(vk::DescriptorPoolCreateInfo{ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
@@ -230,43 +200,13 @@ public:
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
-        vk::PipelineRasterizationStateCreateInfo rasterizationState;
-        rasterizationState.lineWidth = 1.0f;
-        vk::PipelineColorBlendAttachmentState blendAttachmentState;
-        vk::PipelineColorBlendStateCreateInfo colorBlendState;
-        colorBlendState.attachmentCount = 1;
-        colorBlendState.pAttachments = &blendAttachmentState;
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState;
-        vk::PipelineViewportStateCreateInfo viewportState{ {}, 1, nullptr, 1, nullptr };
-        vk::PipelineMultisampleStateCreateInfo multisampleState;
-        std::vector<vk::DynamicState> dynamicStateEnables { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
-        vk::PipelineDynamicStateCreateInfo dynamicState{ {}, (uint32_t)dynamicStateEnables.size(), dynamicStateEnables.data() };
-
-        // Rendering pipeline
-        // Load shaders
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages = {
-            loadShader(getAssetPath() + "shaders/computeparticles/particle.vert.spv", vk::ShaderStageFlagBits::eVertex),
-            loadShader(getAssetPath() + "shaders/computeparticles/particle.frag.spv", vk::ShaderStageFlagBits::eFragment),
-        };
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo;
-        pipelineCreateInfo.layout = pipelineLayout;
-        pipelineCreateInfo.renderPass = renderPass;
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = (uint32_t)shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-        pipelineCreateInfo.renderPass = renderPass;
-
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
+        pipelineBuilder.inputAssemblyState.topology = vk::PrimitiveTopology::ePointList;
+        pipelineBuilder.depthStencilState = { false };
+        auto& blendAttachmentState = pipelineBuilder.colorBlendState.blendAttachmentStates[0];
         // Additive blending
-        blendAttachmentState.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+        blendAttachmentState.colorWriteMask =
+            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
         blendAttachmentState.blendEnable = VK_TRUE;
         blendAttachmentState.colorBlendOp = vk::BlendOp::eAdd;
         blendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eOne;
@@ -275,11 +215,24 @@ public:
         blendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eSrcAlpha;
         blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eDstAlpha;
 
-        pipelines.postCompute = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        // Binding description
+        pipelineBuilder.vertexInputState.bindingDescriptions = { vk::VertexInputBindingDescription{ VERTEX_BUFFER_BIND_ID, sizeof(Particle),
+                                                                                                    vk::VertexInputRate::eVertex } };
 
-        for (const auto& shaderStage : shaderStages) {
-            device.destroyShaderModule(shaderStage.module);
-        }
+        // Attribute descriptions
+        // Describes memory layout and shader positions
+        pipelineBuilder.vertexInputState.attributeDescriptions = {
+            // Location 0 : Position
+            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, offsetof(Particle, pos) },
+            // Location 1 : Gradient position
+            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, gradientPos) },
+        };
+
+        // Rendering pipeline
+        // Load shaders
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/computeparticles/particle.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/computeparticles/particle.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.postCompute = pipelineBuilder.create(context.pipelineCache);
     }
 
     void prepareCompute() {
@@ -299,7 +252,7 @@ public:
 
         computeDescriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &computeDescriptorSetLayout })[0];
 
-        std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets {
+        std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets{
             // Binding 0 : Particle position storage buffer
             { computeDescriptorSet, 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &computeStorageBuffer.descriptor },
             // Binding 1 : Uniform buffer
@@ -308,10 +261,11 @@ public:
 
         device.updateDescriptorSets(computeWriteDescriptorSets, {});
 
-        // Create pipeline        
+        // Create pipeline
         vk::ComputePipelineCreateInfo computePipelineCreateInfo;
         computePipelineCreateInfo.layout = computePipelineLayout;
-        computePipelineCreateInfo.stage = loadShader(getAssetPath() + "shaders/computeparticles/particle.comp.spv", vk::ShaderStageFlagBits::eCompute);
+        computePipelineCreateInfo.stage =
+            vks::shaders::loadShader(device, getAssetPath() + "shaders/computeparticles/particle.comp.spv", vk::ShaderStageFlagBits::eCompute);
 
         pipelines.compute = device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo)[0];
 
@@ -321,14 +275,14 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Compute shader uniform buffer block
-        uniformData.computeShader.ubo= context.createUniformBuffer(computeUbo);
+        uniformData.computeShader.ubo = context.createUniformBuffer(computeUbo);
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
         computeUbo.deltaT = frameTimer * 2.5f;
         if (animate) {
-            computeUbo.destX = sinf(glm::radians(timer*360.0f)) * 0.75f;
+            computeUbo.destX = sinf(glm::radians(timer * 360.0f)) * 0.75f;
             computeUbo.destY = 0.f;
         } else {
             float normalizedMx = (mousePos.x - static_cast<float>(size.width / 2)) / static_cast<float>(size.width / 2);
@@ -345,7 +299,6 @@ public:
         uint32_t queueIndex = 0;
         std::vector<vk::QueueFamilyProperties> queueProps = context.physicalDevice.getQueueFamilyProperties();
         uint32_t queueCount = (uint32_t)queueProps.size();
-
 
         for (queueIndex = 0; queueIndex < queueCount; queueIndex++) {
             if (queueProps[queueIndex].queueFlags & vk::QueueFlagBits::eCompute)
@@ -370,7 +323,7 @@ public:
         setupDescriptorPool();
         setupDescriptorSet();
         prepareCompute();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 
@@ -392,15 +345,13 @@ public:
         updateUniformBuffers();
     }
 
-    void toggleAnimation() {
-        animate = !animate;
-    }
+    void toggleAnimation() { animate = !animate; }
 
     void keyPressed(uint32_t key) override {
         switch (key) {
-        case GLFW_KEY_A:
-            toggleAnimation();
-            break;
+            case GLFW_KEY_A:
+                toggleAnimation();
+                break;
         }
     }
 
@@ -411,4 +362,4 @@ public:
     }
 };
 
-RUN_EXAMPLE(VulkanExample)
+VULKAN_EXAMPLE_MAIN()

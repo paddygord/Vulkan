@@ -150,3 +150,5 @@ extern android_app* global_android_app;
         example->run(); \
         delete(example); \
     ENTRY_POINT_END
+
+#define VULKAN_EXAMPLE_MAIN() RUN_EXAMPLE(VulkanExample)

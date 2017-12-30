@@ -30,6 +30,42 @@ namespace vks {
     using LayerVector = std::vector<const char*>;
     using MipData = ::std::pair<vk::Extent3D, vk::DeviceSize>;
 
+    namespace queues {
+
+        struct DeviceCreateInfo : public vk::DeviceCreateInfo {
+            std::vector<vk::DeviceQueueCreateInfo> deviceQueues;
+            std::vector<std::vector<float>> deviceQueuesPriorities;
+
+            void addQueueFamily(uint32_t queueFamilyIndex, vk::ArrayProxy<float> priorities) {
+                deviceQueues.push_back({ {}, queueFamilyIndex });
+                std::vector<float> prioritiesVector;
+                prioritiesVector.resize(priorities.size());
+                memcpy(prioritiesVector.data(), priorities.data(), sizeof(float) * priorities.size());
+                deviceQueuesPriorities.push_back(prioritiesVector);
+            }
+            void addQueueFamily(uint32_t queueFamilyIndex, size_t count = 1) {
+                std::vector<float> priorities;
+                priorities.resize(count);
+                std::fill(priorities.begin(), priorities.end(), 0.0f);
+                addQueueFamily(queueFamilyIndex, priorities);
+            }
+
+            void update() {
+                assert(deviceQueuesPriorities.size() == deviceQueues.size());
+                auto size = deviceQueues.size();
+                for (auto i = 0; i < size; ++i) {
+                    auto& deviceQueue = deviceQueues[i];
+                    auto& deviceQueuePriorities = deviceQueuesPriorities[i];
+                    deviceQueue.queueCount = (uint32_t)deviceQueuePriorities.size();
+                    deviceQueue.pQueuePriorities = deviceQueuePriorities.data();
+                }
+
+                this->queueCreateInfoCount = (uint32_t)deviceQueues.size();
+                this->pQueueCreateInfos = deviceQueues.data();
+            }
+
+        };
+    }
     ///////////////////////////////////////////////////////////////////////
     //
     // Object destruction support
@@ -207,9 +243,6 @@ namespace vks {
             pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
             // Find a queue that supports graphics operations
 
-            queueIndices.graphics = findQueue(vk::QueueFlagBits::eGraphics);
-            queueIndices.compute = findQueue(vk::QueueFlagBits::eCompute);
-            queueIndices.transfer = findQueue(vk::QueueFlagBits::eTransfer);
 
             // Get the graphics queue
             queue = device.getQueue(queueIndices.graphics, 0);
@@ -292,6 +325,8 @@ namespace vks {
             dumpster.push_back([=] {
                 destructor(values);
             });
+            // Clear the buffer
+            values.swap(std::vector<T>());
         }
 
         //
@@ -307,10 +342,10 @@ namespace vks {
             trash<vk::CommandBuffer>(cmdBuffer, [this](vk::CommandBuffer& cmdBuffer) { device.freeCommandBuffers(getCommandPool(), cmdBuffer); });
         }
 
-        void trashCommandBuffers(std::vector<vk::CommandBuffer>& cmdBuffers) const {
+        void trashCommandBuffers(const vk::CommandPool& commandPool, std::vector<vk::CommandBuffer>& cmdBuffers) const {
             std::function<void(const std::vector<vk::CommandBuffer>& t)> destructor =
-                [this](const std::vector<vk::CommandBuffer>& cmdBuffers) {
-                device.freeCommandBuffers(getCommandPool(), cmdBuffers);
+                [=](const std::vector<vk::CommandBuffer>& cmdBuffers) {
+                device.freeCommandBuffers(commandPool, cmdBuffers);
             };
             trash(cmdBuffers, destructor);
         }
@@ -429,20 +464,23 @@ namespace vks {
             deviceFeatures = physicalDevice.getFeatures();
             // Gather physical device memory properties
             deviceMemoryProperties = physicalDevice.getMemoryProperties();
+            queueIndices.graphics = findQueue(vk::QueueFlagBits::eGraphics);
+            queueIndices.compute = findQueue(vk::QueueFlagBits::eCompute);
+            queueIndices.transfer = findQueue(vk::QueueFlagBits::eTransfer);
         }
 
         void buildDevice() {
             // Vulkan device
-            // Find a queue that supports graphics operations
-            uint32_t graphicsQueueIndex = findQueue(vk::QueueFlagBits::eGraphics);
-            std::array<float, 1> queuePriorities = { 0.0f };
-            vk::DeviceQueueCreateInfo queueCreateInfo;
-            queueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
-            queueCreateInfo.queueCount = 1;
-            queueCreateInfo.pQueuePriorities = queuePriorities.data();
-            vk::DeviceCreateInfo deviceCreateInfo;
-            deviceCreateInfo.queueCreateInfoCount = 1;
-            deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+            vks::queues::DeviceCreateInfo deviceCreateInfo;
+            deviceCreateInfo.addQueueFamily(queueIndices.graphics, queueFamilyProperties[queueIndices.graphics].queueCount);
+            if (queueIndices.compute != queueIndices.graphics) {
+                deviceCreateInfo.addQueueFamily(queueIndices.compute, queueFamilyProperties[queueIndices.compute].queueCount);
+            }
+            if (queueIndices.transfer != queueIndices.graphics && queueIndices.transfer != queueIndices.compute) {
+                deviceCreateInfo.addQueueFamily(queueIndices.transfer, queueFamilyProperties[queueIndices.transfer].queueCount);
+            }
+            deviceCreateInfo.update();
+
             deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
             std::set<std::string> allDeviceExtensions = deviceExtensionsPicker(physicalDevice);
@@ -482,6 +520,8 @@ namespace vks {
         vk::PhysicalDeviceProperties deviceProperties;
         // Stores phyiscal device features (for e.g. checking if a feature is available)
         vk::PhysicalDeviceFeatures deviceFeatures;
+
+        vk::PhysicalDeviceFeatures enabledFeatures;
         // Stores all available memory (type) properties for the physical device
         vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
         // Logical device, application's view of the physical device (GPU)

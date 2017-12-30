@@ -6,10 +6,17 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
+#include <vulkanExampleBase.h>
 
-#include "vulkanExampleBase.h"
+#include <map>
+#include <assimp/matrix4x4.h>
+#include <assimp/anim.h>
+#include <assimp/mesh.h>
+#include <assimp/scene.h>
 #include <glm/gtc/type_ptr.hpp>
-
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 // Vertex layout used in this example
 struct Vertex {
@@ -22,15 +29,14 @@ struct Vertex {
     uint32_t boneIDs[4];
 };
 
-vks::model::VertexLayout vertexLayout =
-{
+vks::model::VertexLayout vertexLayout{ {
     vks::model::Component::VERTEX_COMPONENT_POSITION,
     vks::model::Component::VERTEX_COMPONENT_NORMAL,
     vks::model::Component::VERTEX_COMPONENT_UV,
     vks::model::Component::VERTEX_COMPONENT_COLOR,
     vks::model::Component::VERTEX_COMPONENT_DUMMY_VEC4,
-    vks::model::Component::VERTEX_COMPONENT_DUMMY_VEC4
-};
+    vks::model::Component::VERTEX_COMPONENT_DUMMY_UINT4,
+} };
 
 // Maximum number of bones per mesh
 // Must not be higher than same const in skinning shader
@@ -68,7 +74,7 @@ struct BoneInfo {
     };
 };
 
-class SkinnedMesh {
+class SkinnedMesh : public vks::model::Model {
 public:
     // Bone related stuff
     // Maps bone name with index
@@ -84,21 +90,77 @@ public:
     // Bone transformations
     std::vector<aiMatrix4x4> boneTransforms;
 
-    // Modifier for the animation 
+    // Modifier for the animation
     float animationSpeed = 0.75f;
     // Currently active animation
-    aiAnimation* pAnimation;
+    const aiScene* pScene{ nullptr };
+    aiAnimation* pAnimation{ nullptr };
+    uint32_t numAnimations{ 0 };
 
     // Vulkan buffers
     vks::model::Model meshBuffer;
     // Reference to assimp mesh
     // Required for animation
-    vkx::MeshLoader* meshLoader;
+
+    void onLoad(const vks::Context& context, Assimp::Importer& importer, const aiScene* pScene) override {
+        this->pScene = importer.GetOrphanedScene();
+        // Setup bones
+        // One vertex bone info structure per vertex
+        bones.resize(vertexCount);
+        numAnimations = pScene->mNumAnimations;
+        // Store global inverse transform matrix of root node
+        globalInverseTransform = pScene->mRootNode->mTransformation;
+        globalInverseTransform.Inverse();
+        // Load bones (weights and IDs)
+        for (uint32_t m = 0; m < pScene->mNumMeshes; m++) {
+            aiMesh* paiMesh = pScene->mMeshes[m];
+            if (paiMesh->mNumBones > 0) {
+                loadBones(m, paiMesh, bones);
+            }
+        }
+    }
+
+    void appendVertex(std::vector<uint8_t>& outputBuffer, const aiScene* pScene, uint32_t meshIndex, uint32_t vertexIndex) {
+        const auto& part = parts[meshIndex];
+        const auto& bone = bones[part.vertexBase + vertexIndex];
+        const aiVector3D Zero3D(0.0f, 0.0f, 0.0f);
+        const aiMesh* paiMesh = pScene->mMeshes[meshIndex];
+        const aiVector3D* pPos = &(paiMesh->mVertices[vertexIndex]);
+        const aiVector3D* pNormal = &(paiMesh->mNormals[vertexIndex]);
+        const aiVector3D* pTexCoord = (paiMesh->HasTextureCoords(0)) ? &(paiMesh->mTextureCoords[0][vertexIndex]) : &Zero3D;
+        const aiVector3D* pTangent = (paiMesh->HasTangentsAndBitangents()) ? &(paiMesh->mTangents[vertexIndex]) : &Zero3D;
+        const aiVector3D* pBiTangent = (paiMesh->HasTangentsAndBitangents()) ? &(paiMesh->mBitangents[vertexIndex]) : &Zero3D;
+
+        aiColor3D pColor(0.f, 0.f, 0.f);
+        pScene->mMaterials[paiMesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE, pColor);
+
+        Vertex vertex;
+        vertex.pos = { pPos->x, -pPos->y, pPos->z };
+        vertex.pos *= scale;
+        vertex.pos += center;
+        vertex.normal = { pNormal->x, -pNormal->y, pNormal->z };
+        vertex.uv = { pTexCoord->x, pTexCoord->y };
+        vertex.uv *= uvscale;
+        vertex.color = { pColor.r, pColor.g, pColor.b };
+
+
+        // Fetch bone weights and IDs
+        for (uint32_t boneIndex = 0; boneIndex < MAX_BONES_PER_VERTEX; boneIndex++) {
+            vertex.boneWeights[boneIndex] = bone.weights[boneIndex];
+            vertex.boneIDs[boneIndex] = bone.IDs[boneIndex];
+        }
+
+        dim.max = glm::max(vertex.pos, dim.max);
+        dim.min = glm::min(vertex.pos, dim.min);
+
+        appendOutput(outputBuffer, vertex);
+    }
+
 
     // Set active animation by index
     void setAnimation(uint32_t animationIndex) {
-        assert(animationIndex < meshLoader->pScene->mNumAnimations);
-        pAnimation = meshLoader->pScene->mAnimations[animationIndex];
+        assert(animationIndex < numAnimations);
+        pAnimation = pScene->mAnimations[animationIndex];
     }
 
     // Load bone information from ASSIMP mesh
@@ -123,7 +185,7 @@ public:
             }
 
             for (uint32_t j = 0; j < pMesh->mBones[i]->mNumWeights; j++) {
-                uint32_t vertexID = meshLoader->m_Entries[meshIndex].vertexBase + pMesh->mBones[i]->mWeights[j].mVertexId;
+                uint32_t vertexID = parts[meshIndex].vertexBase + pMesh->mBones[i]->mWeights[j].mVertexId;
                 Bones[vertexID].add(index, pMesh->mBones[i]->mWeights[j].mWeight);
             }
         }
@@ -132,12 +194,12 @@ public:
 
     // Recursive bone transformation for given animation time
     void update(float time) {
-        float TicksPerSecond = (float)(meshLoader->pScene->mAnimations[0]->mTicksPerSecond != 0 ? meshLoader->pScene->mAnimations[0]->mTicksPerSecond : 25.0f);
+        float TicksPerSecond = (float)(pScene->mAnimations[0]->mTicksPerSecond != 0 ? pScene->mAnimations[0]->mTicksPerSecond : 25.0f);
         float TimeInTicks = time * TicksPerSecond;
-        float AnimationTime = fmod(TimeInTicks, (float)meshLoader->pScene->mAnimations[0]->mDuration);
+        float AnimationTime = fmod(TimeInTicks, (float)pScene->mAnimations[0]->mDuration);
 
         aiMatrix4x4 identity = aiMatrix4x4();
-        readNodeHierarchy(AnimationTime, meshLoader->pScene->mRootNode, identity);
+        readNodeHierarchy(AnimationTime, pScene->mRootNode, identity);
 
         for (uint32_t i = 0; i < boneTransforms.size(); i++) {
             boneTransforms[i] = boneInfo[i].finalTransformation;
@@ -218,7 +280,6 @@ private:
         return mat;
     }
 
-
     // Returns a 4x4 matrix with interpolated scaling between current and next frame
     aiMatrix4x4 interpolateScale(float time, const aiNodeAnim* pNodeAnim) {
         aiVector3D scale;
@@ -283,17 +344,11 @@ private:
 class VulkanExample : public vkx::ExampleBase {
 public:
     struct {
-        vkx::Texture colorMap;
-        vkx::Texture floor;
+        vks::texture::Texture2D colorMap;
+        vks::texture::Texture2D floor;
     } textures;
 
-    struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
-
-    SkinnedMesh *skinnedMesh;
+    SkinnedMesh skinnedMesh;
 
     struct {
         vks::Buffer vsScene;
@@ -346,22 +401,19 @@ public:
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
         device.destroyPipeline(pipelines.skinning);
 
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
 
-
         textures.colorMap.destroy();
 
         uniformData.vsScene.destroy();
 
-        // Destroy and free mesh resources 
-        skinnedMesh->meshBuffer.destroy();
-        delete(skinnedMesh->meshLoader);
-        delete(skinnedMesh);
+        // Destroy and free mesh resources
+        skinnedMesh.destroy();
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
@@ -371,9 +423,9 @@ public:
         // Skinned mesh
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skinning);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, skinnedMesh->meshBuffer.vertices.buffer, { 0 });
-        cmdBuffer.bindIndexBuffer(skinnedMesh->meshBuffer.indices.buffer, 0, vk::IndexType::eUint32);
-        cmdBuffer.drawIndexed(skinnedMesh->meshBuffer.indexCount, 1, 0, 0, 0);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, skinnedMesh.vertices.buffer, { 0 });
+        cmdBuffer.bindIndexBuffer(skinnedMesh.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(skinnedMesh.indexCount, 1, 0, 0, 0);
 
         // Floor
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.floor, nullptr);
@@ -383,264 +435,86 @@ public:
         cmdBuffer.drawIndexed(meshes.floor.indexCount, 1, 0, 0, 0);
     }
 
-    // Load a mesh based on data read via assimp 
-    // The other example will use the VulkanMesh loader which has some additional functionality for loading meshes
-    void loadMesh() {
-        skinnedMesh = new SkinnedMesh();
-        skinnedMesh->meshLoader = new vkx::MeshLoader();
-        skinnedMesh->meshLoader->load(getAssetPath() + "models/goblin.dae", 0);
-        skinnedMesh->setAnimation(0);
-
-        // Setup bones
-        // One vertex bone info structure per vertex
-        skinnedMesh->bones.resize(skinnedMesh->meshLoader->numVertices);
-        // Store global inverse transform matrix of root node 
-        skinnedMesh->globalInverseTransform = skinnedMesh->meshLoader->pScene->mRootNode->mTransformation;
-        skinnedMesh->globalInverseTransform.Inverse();
-        // Load bones (weights and IDs)
-        for (uint32_t m = 0; m < skinnedMesh->meshLoader->m_Entries.size(); m++) {
-            aiMesh *paiMesh = skinnedMesh->meshLoader->pScene->mMeshes[m];
-            if (paiMesh->mNumBones > 0) {
-                skinnedMesh->loadBones(m, paiMesh, skinnedMesh->bones);
-            }
-        }
-
-        // Generate vertex buffer
-        std::vector<Vertex> vertexBuffer;
-        // Iterate through all meshes in the file
-        // and extract the vertex information used in this demo
-        for (uint32_t m = 0; m < skinnedMesh->meshLoader->m_Entries.size(); m++) {
-            for (uint32_t i = 0; i < skinnedMesh->meshLoader->m_Entries[m].Vertices.size(); i++) {
-                Vertex vertex;
-
-                vertex.pos = skinnedMesh->meshLoader->m_Entries[m].Vertices[i].m_pos;
-                vertex.pos.y = -vertex.pos.y;
-                vertex.normal = skinnedMesh->meshLoader->m_Entries[m].Vertices[i].m_normal;
-                vertex.uv = skinnedMesh->meshLoader->m_Entries[m].Vertices[i].m_tex;
-                vertex.color = skinnedMesh->meshLoader->m_Entries[m].Vertices[i].m_color;
-
-                // Fetch bone weights and IDs
-                for (uint32_t j = 0; j < MAX_BONES_PER_VERTEX; j++) {
-                    vertex.boneWeights[j] = skinnedMesh->bones[skinnedMesh->meshLoader->m_Entries[m].vertexBase + i].weights[j];
-                    vertex.boneIDs[j] = skinnedMesh->bones[skinnedMesh->meshLoader->m_Entries[m].vertexBase + i].IDs[j];
-                }
-
-                vertexBuffer.push_back(vertex);
-            }
-        }
-        uint32_t vertexBufferSize = vertexBuffer.size() * sizeof(Vertex);
-
-        // Generate index buffer from loaded mesh file
-        std::vector<uint32_t> indexBuffer;
-        for (uint32_t m = 0; m < skinnedMesh->meshLoader->m_Entries.size(); m++) {
-            uint32_t indexBase = indexBuffer.size();
-            for (uint32_t i = 0; i < skinnedMesh->meshLoader->m_Entries[m].Indices.size(); i++) {
-                indexBuffer.push_back(skinnedMesh->meshLoader->m_Entries[m].Indices[i] + indexBase);
-            }
-        }
-        uint32_t indexBufferSize = indexBuffer.size() * sizeof(uint32_t);
-        skinnedMesh->meshBuffer.indexCount = indexBuffer.size();
-        skinnedMesh->meshBuffer.vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
-        skinnedMesh->meshBuffer.indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, indexBuffer);
-    }
-
-    void loadTextures() {
-        textures.colorMap = textureLoader->loadTexture(
-            getAssetPath() + "textures/goblin_bc3.ktx",
-            vk::Format::eBc3UnormBlock);
-
-        textures.floor = textureLoader->loadTexture(
-            getAssetPath() + "textures/pattern_35_bc3.ktx",
-            vk::Format::eBc3UnormBlock);
-    }
-
-    void loadMeshes() {
-        meshes.floor = ExampleBase::loadMesh(getAssetPath() + "models/plane_z.obj", vertexLayout, 512.0f);
-    }
-
-    void setupVertexDescriptions() {
-        // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex);
-
-        // Attribute descriptions
-        // Describes memory layout and shader positions
-        vertices.attributeDescriptions.resize(6);
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
-        // Location 1 : Normal
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
-        // Location 2 : Texture coordinates
-        vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
-        // Location 3 : Color
-        vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
-        // Location 4 : Bone weights
-        vertices.attributeDescriptions[4] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 4, vk::Format::eR32G32B32A32Sfloat, sizeof(float) * 11);
-        // Location 5 : Bone IDs
-        vertices.attributeDescriptions[5] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 5, vk::Format::eR32G32B32A32Sint, sizeof(float) * 15);
-
-        vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
+    void loadAssets() {
+        textures.colorMap.loadFromFile(context, getAssetPath() + "textures/goblin_bc3.ktx", vk::Format::eBc3UnormBlock);
+        textures.floor.loadFromFile(context, getAssetPath() + "textures/pattern_35_bc3.ktx", vk::Format::eBc3UnormBlock);
+        meshes.floor.loadFromFile(context, getAssetPath() + "models/plane_z.obj", vertexLayout, 512.0f);
+        // Load a mesh based on data read via assimp
+        skinnedMesh.loadFromFile(context, getAssetPath() + "models/goblin.dae", vertexLayout, 1.0f, aiProcess_FlipWindingOrder | aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals);
+        skinnedMesh.setAnimation(0);
     }
 
     void setupDescriptorPool() {
         // Example uses one ubo and one combined image sampler
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
-            vkx::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 2),
+        std::vector<vk::DescriptorPoolSize> poolSizes = {
+            vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
+            vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 2),
         };
 
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings = {
             // Binding 0 : Vertex shader uniform buffer
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex,
-                0),
+            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Fragment shader combined sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                1),
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
+        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &descriptorSetLayout };
 
         descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
 
-        vk::DescriptorImageInfo texDescriptor =
-            vkx::descriptorImageInfo(textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral);
+        vk::DescriptorImageInfo texDescriptor{ textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral };
 
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.vsScene.descriptor),
-            // Binding 1 : Color map 
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eCombinedImageSampler,
-                1,
-                &texDescriptor)
+            { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsScene.descriptor },
+            // Binding 1 : Color map
+            { descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
         };
-
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
 
         // Floor
         descriptorSets.floor = device.allocateDescriptorSets(allocInfo)[0];
-
         texDescriptor.imageView = textures.floor.view;
         texDescriptor.sampler = textures.floor.sampler;
-
-        writeDescriptorSets.clear();
-
-        // Binding 0 : Vertex shader uniform buffer
-        writeDescriptorSets.push_back(
-            vkx::writeDescriptorSet(descriptorSets.floor, vk::DescriptorType::eUniformBuffer, 0, &uniformData.floor.descriptor));
-        // Binding 1 : Color map 
-        writeDescriptorSets.push_back(
-            vkx::writeDescriptorSet(descriptorSets.floor, vk::DescriptorType::eCombinedImageSampler, 1, &texDescriptor));
-
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        writeDescriptorSets = {
+            // Binding 0 : Vertex shader uniform buffer
+            { descriptorSets.floor, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.floor.descriptor },
+            // Binding 1 : Color map
+            { descriptorSets.floor, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
+        };
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
-
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise);
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState =
-            vkx::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor
-        };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
-
         // Skinned rendering pipeline
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/skeletalanimation/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/skeletalanimation/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
-
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-
-        pipelines.skinning = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/skeletalanimation/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/skeletalanimation/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        pipelines.texture = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        vks::pipelines::GraphicsPipelineBuilder pipelineCreator{ device, pipelineLayout, renderPass };
+        pipelineCreator.vertexInputState.appendVertexLayout(vertexLayout);
+        pipelineCreator.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        pipelineCreator.loadShader(getAssetPath() + "shaders/skeletalanimation/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineCreator.loadShader(getAssetPath() + "shaders/skeletalanimation/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.skinning = pipelineCreator.create(context.pipelineCache);
+        pipelineCreator.destroyShaderModules();
+        pipelineCreator.loadShader(getAssetPath() + "shaders/skeletalanimation/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineCreator.loadShader(getAssetPath() + "shaders/skeletalanimation/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.texture = pipelineCreator.create(context.pipelineCache);
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
-        uniformData.vsScene= context.createUniformBuffer(uboVS);
+        uniformData.vsScene = context.createUniformBuffer(uboVS);
 
         // Floor
-        uniformData.floor= context.createUniformBuffer(uboFloor);
+        uniformData.floor = context.createUniformBuffer(uboFloor);
 
         updateUniformBuffers(true);
     }
@@ -654,30 +528,26 @@ public:
         }
 
         // Update bones
-        skinnedMesh->update(runningTime);
-        for (uint32_t i = 0; i < skinnedMesh->boneTransforms.size(); i++) {
-            uboVS.bones[i] = glm::transpose(glm::make_mat4(&skinnedMesh->boneTransforms[i].a1));
+        skinnedMesh.update(runningTime);
+        for (uint32_t i = 0; i < skinnedMesh.boneTransforms.size(); i++) {
+            uboVS.bones[i] = glm::transpose(glm::make_mat4(&skinnedMesh.boneTransforms[i].a1));
         }
 
         uniformData.vsScene.copy(uboVS);
 
         // Update floor animation
-        uboFloor.uvOffset.t -= 0.5f * skinnedMesh->animationSpeed * frameTimer;
+        uboFloor.uvOffset.t -= 0.5f * skinnedMesh.animationSpeed * frameTimer;
         uniformData.floor.copy(uboFloor);
     }
 
     void prepare() override {
         ExampleBase::prepare();
-        loadTextures();
-        loadMesh();
-        loadMeshes();
-        setupVertexDescriptions();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 
@@ -686,26 +556,24 @@ public:
             return;
         draw();
         if (!paused) {
-            runningTime += frameTimer * skinnedMesh->animationSpeed;
+            runningTime += frameTimer * skinnedMesh.animationSpeed;
             updateUniformBuffers(false);
         }
     }
 
-    void viewChanged() override {
-        updateUniformBuffers(true);
-    }
+    void viewChanged() override { updateUniformBuffers(true); }
 
     void changeAnimationSpeed(float delta) {
-        skinnedMesh->animationSpeed += delta;
-        std::cout << "Animation speed = " << skinnedMesh->animationSpeed << std::endl;
+        skinnedMesh.animationSpeed += delta;
+        std::cout << "Animation speed = " << skinnedMesh.animationSpeed << std::endl;
     }
 
     void keyPressed(uint32_t key) override {
         switch (key) {
-        case GLFW_KEY_KP_ADD:
-        case GLFW_KEY_KP_SUBTRACT:
-            changeAnimationSpeed((key == GLFW_KEY_KP_ADD) ? 0.1f : -0.1f);
-            break;
+            case GLFW_KEY_KP_ADD:
+            case GLFW_KEY_KP_SUBTRACT:
+                changeAnimationSpeed((key == GLFW_KEY_KP_ADD) ? 0.1f : -0.1f);
+                break;
         }
     }
 };

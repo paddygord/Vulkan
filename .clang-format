@@ -1,7 +1,7 @@
 Language: Cpp
 Standard: Cpp11
 BasedOnStyle: "Chromium" 
-ColumnLimit: 128
+ColumnLimit: 160
 IndentWidth: 4
 UseTab: Never
 

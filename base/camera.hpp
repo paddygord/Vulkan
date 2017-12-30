@@ -21,7 +21,7 @@ private:
             yawPitch.y = std::max(std::min(yawPitch.y, MAX_PITCH), -MAX_PITCH);
         }
         while (abs(yawPitch.x) > M_PI) {
-            yawPitch.x += 2.0f * (float)((yawPitch.x > 0) ? -M_PI : M_PI);
+            yawPitch.x += (float)((yawPitch.x > 0) ? -M_PI : M_PI);
         }
 
         if (type == CameraType::firstperson) {

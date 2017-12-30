@@ -6,8 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
-
+#include <vulkanExampleBase.h>
 
 #define TEX_DIM 2048
 
@@ -17,16 +16,16 @@ struct Vertex {
     float uv[2];
 };
 
+vks::model::VertexLayout vertexLayout{ {
+    vks::model::VERTEX_COMPONENT_POSITION,
+    vks::model::VERTEX_COMPONENT_UV,
+} };
+
 class VulkanExample : public vkx::ExampleBase {
 private:
-    vkx::Texture textureComputeTarget;
-public:
-    struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
+    vks::Image textureComputeTarget;
 
+public:
     struct {
         vks::model::Model quad;
     } meshes;
@@ -57,7 +56,7 @@ public:
     vk::PipelineLayout computePipelineLayout;
     vk::DescriptorSet computeDescriptorSet;
     vk::DescriptorSetLayout computeDescriptorSetLayout;
-    
+
     vk::PipelineLayout pipelineLayout;
     vk::DescriptorSet descriptorSetPostCompute;
     vk::DescriptorSetLayout descriptorSetLayout;
@@ -71,7 +70,7 @@ public:
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
 
         device.destroyPipeline(pipelines.display);
@@ -91,13 +90,13 @@ public:
     }
 
     // Prepare a texture target that is used to store compute shader calculations
-    void prepareTextureTarget(vkx::Texture& tex, uint32_t width, uint32_t height, vk::Format format) {
-       context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
+    void prepareTextureTarget(vks::Image& tex, uint32_t width, uint32_t height, vk::Format format) {
+        context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
             // Get device properties for the requested texture format
             vk::FormatProperties formatProperties;
             formatProperties = physicalDevice.getFormatProperties(format);
             // Check if requested image format supports image storage operations
-            assert(formatProperties.optimalTilingFeatures &  vk::FormatFeatureFlagBits::eStorageImage);
+            assert(formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eStorageImage);
 
             // Prepare blit target texture
             tex.extent.width = width;
@@ -113,18 +112,9 @@ public:
             imageCreateInfo.tiling = vk::ImageTiling::eOptimal;
             imageCreateInfo.initialLayout = vk::ImageLayout::ePreinitialized;
             // vk::Image will be sampled in the fragment shader and used as storage target in the compute shader
-            imageCreateInfo.usage =
-                vk::ImageUsageFlagBits::eSampled |
-                vk::ImageUsageFlagBits::eStorage;
-
-            tex= context.createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
-
-            tex.imageLayout = vk::ImageLayout::eGeneral;
-            vkx::setImageLayout(
-                setupCmdBuffer, tex.image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::ePreinitialized,
-                tex.imageLayout);
+            imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage;
+            tex = context.createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+            context.setImageLayout(setupCmdBuffer, tex.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::ePreinitialized, vk::ImageLayout::eGeneral);
 
             // Create sampler
             vk::SamplerCreateInfo sampler;
@@ -153,7 +143,6 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
-
         // vk::Image memory barrier to make sure that compute
         // shader writes are finished before sampling
         // from the texture
@@ -164,7 +153,8 @@ public:
         imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
         imageMemoryBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
         imageMemoryBarrier.dstAccessMask = vk::AccessFlagBits::eInputAttachmentRead;
-        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe, vk::DependencyFlags(), nullptr, nullptr, imageMemoryBarrier);
+        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe, vk::DependencyFlags(), nullptr, nullptr,
+                                  imageMemoryBarrier);
         cmdBuffer.setViewport(0, vks::util::viewport(size));
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, { 0 });
@@ -196,240 +186,103 @@ public:
     // Setup vertices for a single uv-mapped quad
     void generateQuad() {
 #define dim 1.0f
-        std::vector<Vertex> vertexBuffer =
-        {
-            { {  dim,  dim, 0.0f }, { 1.0f, 1.0f } },
-            { { -dim,  dim, 0.0f }, { 0.0f, 1.0f } },
-            { { -dim, -dim, 0.0f }, { 0.0f, 0.0f } },
-            { {  dim, -dim, 0.0f }, { 1.0f, 0.0f } }
-        };
+        std::vector<Vertex> vertexBuffer = { { { dim, dim, 0.0f }, { 1.0f, 1.0f } },
+                                             { { -dim, dim, 0.0f }, { 0.0f, 1.0f } },
+                                             { { -dim, -dim, 0.0f }, { 0.0f, 0.0f } },
+                                             { { dim, -dim, 0.0f }, { 1.0f, 0.0f } } };
 #undef dim
 
         meshes.quad.vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
-        std::vector<uint32_t> indexBuffer = { 0,1,2, 2,3,0 };
-        meshes.quad.indexCount = indexBuffer.size();
+        std::vector<uint32_t> indexBuffer = { 0, 1, 2, 2, 3, 0 };
+        meshes.quad.indexCount = (uint32_t)indexBuffer.size();
         meshes.quad.indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
     }
 
-    void setupVertexDescriptions() {
-        // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex);
-
-        // Attribute descriptions
-        // Describes memory layout and shader positions
-        vertices.attributeDescriptions.resize(2);
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
-        // Location 1 : Texture coordinates
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32Sfloat, sizeof(float) * 3);
-
-        // Assign to vertex buffer
-        vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
-    }
-
     void setupDescriptorPool() {
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
+        std::vector<vk::DescriptorPoolSize> poolSizes = {
+            { vk::DescriptorType::eUniformBuffer, 2 },
             // Graphics pipeline uses image samplers for display
-            vkx::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 4),
+            { vk::DescriptorType::eCombinedImageSampler, 4 },
             // Compute pipeline uses storage images image loads and stores
-            vkx::descriptorPoolSize(vk::DescriptorType::eStorageImage, 1),
+            { vk::DescriptorType::eStorageImage, 1 },
         };
 
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 3);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool({ {}, 3, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Fragment shader image sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                0)
+            { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
-
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-
-        descriptorSetPostCompute = device.allocateDescriptorSets(allocInfo)[0];
+        descriptorSetPostCompute = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
 
         // vk::Image descriptor for the color map texture
-        vk::DescriptorImageInfo texDescriptor =
-            vkx::descriptorImageInfo(textureComputeTarget.sampler, textureComputeTarget.view, vk::ImageLayout::eGeneral);
+        vk::DescriptorImageInfo texDescriptor{ textureComputeTarget.sampler, textureComputeTarget.view, vk::ImageLayout::eGeneral };
 
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets = {
             // Binding 0 : Fragment shader texture sampler
-            vkx::writeDescriptorSet(
-                descriptorSetPostCompute,
-                vk::DescriptorType::eCombinedImageSampler,
-                0,
-                &texDescriptor)
+            { descriptorSetPostCompute, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
         };
 
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
     // Create a separate command buffer for compute commands
-    void createComputeCommandBuffer() {
-        vk::CommandBufferAllocateInfo cmdBufAllocateInfo =
-            vkx::commandBufferAllocateInfo(cmdPool, vk::CommandBufferLevel::ePrimary, 1);
-        computeCmdBuffer = device.allocateCommandBuffers(cmdBufAllocateInfo)[0];
-    }
+    void createComputeCommandBuffer() { computeCmdBuffer = device.allocateCommandBuffers({ cmdPool, vk::CommandBufferLevel::ePrimary, 1 })[0]; }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
-
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eNone, vk::FrontFace::eCounterClockwise);
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState =
-            vkx::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor
-        };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
-
         // Display pipeline
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/raytracing/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/raytracing/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
-
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-        pipelineCreateInfo.renderPass = renderPass;
-
-        pipelines.display = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
+        vks::pipelines::GraphicsPipelineBuilder pipelineCreator{ device, pipelineLayout, renderPass };
+        pipelineCreator.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
+        pipelineCreator.vertexInputState.appendVertexLayout(vertexLayout);
+        pipelineCreator.loadShader(getAssetPath() + "shaders/raytracing/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineCreator.loadShader(getAssetPath() + "shaders/raytracing/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.display = pipelineCreator.create(context.pipelineCache);
     }
 
     // Prepare the compute pipeline that generates the ray traced image
     void prepareCompute() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings = {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Sampled image (write)
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eStorageImage,
-                vk::ShaderStageFlagBits::eCompute,
-                0),
+            { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
             // Binding 1 : Uniform buffer block
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eCompute,
-                1)
+            { 1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eCompute },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
+        computeDescriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        computePipelineLayout = device.createPipelineLayout({ {}, 1, &computeDescriptorSetLayout });
 
-        computeDescriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
+        computeDescriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &computeDescriptorSetLayout })[0];
 
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&computeDescriptorSetLayout, 1);
-
-        computePipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
-
-
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &computeDescriptorSetLayout, 1);
-
-        computeDescriptorSet = device.allocateDescriptorSets(allocInfo)[0];
-
-
-        std::vector<vk::DescriptorImageInfo> computeTexDescriptors =
-        {
-            vkx::descriptorImageInfo(
-                nullptr,
-                textureComputeTarget.view,
-                vk::ImageLayout::eGeneral)
+        std::vector<vk::DescriptorImageInfo> computeTexDescriptors{
+            { nullptr, textureComputeTarget.view, vk::ImageLayout::eGeneral },
         };
-
-        std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets{
             // Binding 0 : Output storage image
-            vkx::writeDescriptorSet(
-                computeDescriptorSet,
-                vk::DescriptorType::eStorageImage,
-                0,
-                &computeTexDescriptors[0]),
+            { computeDescriptorSet, 0, 0, 1, vk::DescriptorType::eStorageImage, &computeTexDescriptors[0] },
             // Binding 1 : Uniform buffer block
-            vkx::writeDescriptorSet(
-                computeDescriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                1,
-                &uniformDataCompute.descriptor)
+            { computeDescriptorSet, 1, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataCompute.descriptor },
         };
-
-        device.updateDescriptorSets(computeWriteDescriptorSets.size(), computeWriteDescriptorSets.data(), 0, NULL);
-
+        device.updateDescriptorSets(computeWriteDescriptorSets, nullptr);
 
         // Create compute shader pipelines
-        vk::ComputePipelineCreateInfo computePipelineCreateInfo =
-            vkx::computePipelineCreateInfo(computePipelineLayout);
-
-        computePipelineCreateInfo.stage = context.loadShader(getAssetPath() + "shaders/raytracing/raytracing.comp.spv", vk::ShaderStageFlagBits::eCompute);
-        pipelines.compute = device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo, nullptr)[0];
+        vk::ComputePipelineCreateInfo computePipelineCreateInfo;
+        computePipelineCreateInfo.layout = computePipelineLayout;
+        computePipelineCreateInfo.stage = vks::shaders::loadShader(device, getAssetPath() + "shaders/raytracing/raytracing.comp.spv", vk::ShaderStageFlagBits::eCompute);
+        pipelines.compute = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo);
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
-        uniformDataCompute= context.createUniformBuffer(uboCompute);
+        uniformDataCompute = context.createUniformBuffer(uboCompute);
         updateUniformBuffers();
     }
 
@@ -446,7 +299,7 @@ public:
         uint32_t queueIndex = 0;
 
         std::vector<vk::QueueFamilyProperties> queueProps = physicalDevice.getQueueFamilyProperties();
-        uint32_t queueCount = queueProps.size();
+        uint32_t queueCount = (uint32_t)queueProps.size();
 
         for (queueIndex = 0; queueIndex < queueCount; queueIndex++) {
             if (queueProps[queueIndex].queueFlags & vk::QueueFlagBits::eCompute)
@@ -465,19 +318,14 @@ public:
         generateQuad();
         getComputeQueue();
         createComputeCommandBuffer();
-        setupVertexDescriptions();
         prepareUniformBuffers();
-        prepareTextureTarget(
-            textureComputeTarget,
-            TEX_DIM,
-            TEX_DIM,
-            vk::Format::eR8G8B8A8Unorm);
+        prepareTextureTarget(textureComputeTarget, TEX_DIM, TEX_DIM, vk::Format::eR8G8B8A8Unorm);
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
         prepareCompute();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         buildComputeCommandBuffer();
         prepared = true;
     }
@@ -492,9 +340,7 @@ public:
         }
     }
 
-    virtual void viewChanged() {
-        updateUniformBuffers();
-    }
+    virtual void viewChanged() { updateUniformBuffers(); }
 };
 
 RUN_EXAMPLE(VulkanExample)

@@ -30,10 +30,6 @@ public:
     } textures;
 
     struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-    } vertices;
-
-    struct {
         vks::model::Model example;
     } meshes;
 
@@ -66,8 +62,7 @@ public:
     }
 
     // UI overlay configuration needs to be adjusted for this example (renderpass setup, attachment count, etc.)
-    void OnSetupUIOverlay(vks::ui::UIOverlayCreateInfo &createInfo) override
-    {
+    void OnSetupUIOverlay(vkx::ui::UIOverlayCreateInfo& createInfo) override {
         createInfo.renderPass = uiRenderPass;
         createInfo.framebuffers = framebuffers;
         createInfo.rasterizationSamples = SAMPLE_COUNT;
@@ -78,6 +73,7 @@ public:
             vk::ClearValue { vk::ClearDepthStencilValue{ 1.0f, 0  } },
         };
     }
+
     ~VulkanExample() {
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
@@ -310,7 +306,7 @@ public:
 
         vk::FramebufferCreateInfo framebufferCreateInfo;
         framebufferCreateInfo.renderPass = renderPass;
-        framebufferCreateInfo.attachmentCount = attachments.size();
+        framebufferCreateInfo.attachmentCount = (uint32_t)attachments.size();
         framebufferCreateInfo.pAttachments = attachments.data();
         framebufferCreateInfo.width = size.width;
         framebufferCreateInfo.height = size.height;
@@ -352,17 +348,11 @@ public:
         renderPassBeginInfo = vk::RenderPassBeginInfo{ renderPass, {}, { {}, size }, (uint32_t)clearValues.size(), clearValues.data() };
     }
 
-    void loadTextures() {
+    void loadAssets() {
         textures.colorMap.loadFromFile(context, getAssetPath() + "models/voyager/voyager.ktx", vk::Format::eBc3UnormBlock);
-    }
-
-    void loadMeshes() {
         meshes.example.loadFromFile(context, getAssetPath() + "models/voyager/voyager.dae", vertexLayout);
     }
 
-    void setupVertexDescriptions() {
-        vertices.inputState = vertexLayout.vertexInputState();
-    }
 
     void setupDescriptorPool() {
         // Example uses one ubo and one combined image sampler
@@ -394,56 +384,19 @@ public:
             { descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
         };
 
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState{ {}, vk::PrimitiveTopology::eTriangleList };
-        vk::PipelineRasterizationStateCreateInfo rasterizationState;
-        rasterizationState.lineWidth = 1.0f;
-        rasterizationState.cullMode = vk::CullModeFlagBits::eBack;
-        rasterizationState.frontFace = vk::FrontFace::eClockwise;
-        vk::PipelineColorBlendAttachmentState blendAttachmentState;
-        blendAttachmentState.colorWriteMask = vks::util::fullColorWriteMask();
-        vk::PipelineColorBlendStateCreateInfo colorBlendState;
-        colorBlendState.attachmentCount = 1;
-        colorBlendState.pAttachments = &blendAttachmentState;
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState{ {}, VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual };
-
-        vk::PipelineViewportStateCreateInfo viewportState{ {}, 1, nullptr, 1, nullptr };
-        vk::PipelineMultisampleStateCreateInfo multisampleState{ {}, SAMPLE_COUNT };
-        std::vector<vk::DynamicState> dynamicStateEnables {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor
-        };
-        vk::PipelineDynamicStateCreateInfo dynamicState{ {}, (uint32_t)dynamicStateEnables.size(), dynamicStateEnables.data() };
-
         // Solid rendering pipeline
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
+        pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        pipelineBuilder.multisampleState.rasterizationSamples = SAMPLE_COUNT;
+        pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
         // Load shaders
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/mesh/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/mesh/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo;
-        pipelineCreateInfo.layout = pipelineLayout;
-        pipelineCreateInfo.renderPass = renderPass;
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-
-        pipelines.solid = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
-        for (const auto shaderStage : shaderStages) {
-            context.device.destroyShaderModule(shaderStage.module);
-        }
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/mesh/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/mesh/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.solid = pipelineBuilder.create(context.pipelineCache);
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
@@ -462,26 +415,16 @@ public:
 
     void prepare() {
         ExampleBase::prepare();
-        loadTextures();
-        loadMeshes();
-        setupVertexDescriptions();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 
-    virtual void render() {
-        if (!prepared)
-            return;
-        draw();
-        updateUniformBuffers();
-    }
-
-    virtual void viewChanged() {
+    void viewChanged() override {
         updateUniformBuffers();
     }
 };

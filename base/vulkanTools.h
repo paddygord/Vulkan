@@ -9,7 +9,6 @@
 #pragma once
 
 #include "common.hpp"
-#include "vulkanVersion.hpp"
 
 // Default fence timeout in nanoseconds
 #define DEFAULT_FENCE_TIMEOUT 100000000000

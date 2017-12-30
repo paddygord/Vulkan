@@ -19,12 +19,6 @@ vks::model::VertexLayout vertexLayout{ {
 class VulkanExample : public vkx::ExampleBase {
 public:
     struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
-
-    struct {
         vks::model::Model object;
     } meshes;
 
@@ -88,32 +82,8 @@ public:
         cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
     }
 
-    void loadMeshes() {
+    void loadAssets() override {
         meshes.object.loadFromFile(context, getAssetPath() + "models/suzanne.obj", vertexLayout, 0.25f);
-    }
-
-    void setupVertexDescriptions() {
-        // Binding description
-        vertices.bindingDescriptions = {
-            vk::VertexInputBindingDescription{ VERTEX_BUFFER_BIND_ID, vertexLayout.stride(), vk::VertexInputRate::eVertex }
-        };
-
-        // Attribute descriptions
-        // Describes memory layout and shader positions
-        vertices.attributeDescriptions = {
-            // Location 0 : Position
-            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(0) },
-            // Location 1 : Normals
-            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(1) },
-            // Location 2 : Color
-            vk::VertexInputAttributeDescription{ 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(2) },
-        };
-
-        // Assign to vertex buffer
-        vertices.inputState.vertexBindingDescriptionCount = (uint32_t)vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = (uint32_t)vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
     }
 
     void setupDescriptorPool() {
@@ -158,71 +128,27 @@ public:
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState{ {}, vk::PrimitiveTopology::eTriangleList };
-        vk::PipelineRasterizationStateCreateInfo rasterizationState;
-        rasterizationState.lineWidth = 1.0f;
-        rasterizationState.cullMode = vk::CullModeFlagBits::eBack;
-        rasterizationState.frontFace = vk::FrontFace::eClockwise;
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState;
-        blendAttachmentState.colorWriteMask = vks::util::fullColorWriteMask();
-        vk::PipelineColorBlendStateCreateInfo colorBlendState;
-        colorBlendState.attachmentCount = 1;
-        colorBlendState.pAttachments = &blendAttachmentState;
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState{ {}, VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual };
-        vk::PipelineViewportStateCreateInfo viewportState{ {}, 1, nullptr, 1, nullptr };
-        vk::PipelineMultisampleStateCreateInfo multisampleState;
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
+        pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        pipelineBuilder.dynamicState.dynamicStateEnables = {
             vk::DynamicState::eViewport,
             vk::DynamicState::eScissor,
             vk::DynamicState::eLineWidth
         };
-        vk::PipelineDynamicStateCreateInfo dynamicState{ {}, (uint32_t)dynamicStateEnables.size(), dynamicStateEnables.data() };
-
-        // Tessellation pipeline
-        // Load shaders
-        std::vector<vk::PipelineShaderStageCreateInfo> shaderStages{
-            loadShader(getAssetPath() + "shaders/geometryshader/base.vert.spv", vk::ShaderStageFlagBits::eVertex),
-            loadShader(getAssetPath() + "shaders/geometryshader/base.frag.spv", vk::ShaderStageFlagBits::eFragment),
-            loadShader(getAssetPath() + "shaders/geometryshader/normaldebug.geom.spv", vk::ShaderStageFlagBits::eGeometry),
-        };
-
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo;
-        pipelineCreateInfo.layout = pipelineLayout;
-        pipelineCreateInfo.renderPass = renderPass;
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = (uint32_t)shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-        pipelineCreateInfo.renderPass = renderPass;
 
         // Normal debugging pipeline
-        pipelines.normals = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo)[0];
-        for (const auto shaderStage : shaderStages) {
-            context.device.destroyShaderModule(shaderStage.module);
-        }
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/geometryshader/base.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/geometryshader/base.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/geometryshader/normaldebug.geom.spv", vk::ShaderStageFlagBits::eGeometry);
+        pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
+        pipelines.normals = pipelineBuilder.create(context.pipelineCache);
+        pipelineBuilder.destroyShaderModules();
+
 
         // Solid rendering pipeline
-        // Shader
-        shaderStages = {
-            loadShader(getAssetPath() + "shaders/geometryshader/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex),
-            loadShader(getAssetPath() + "shaders/geometryshader/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment),
-        };
-        pipelineCreateInfo.stageCount = 2;
-        pipelines.solid = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo)[0];
-
-        for (const auto shaderStage : shaderStages) {
-            context.device.destroyShaderModule(shaderStage.module);
-        }
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/geometryshader/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/geometryshader/mesh.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.solid = pipelineBuilder.create(context.pipelineCache);
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
@@ -248,14 +174,12 @@ public:
 
     void prepare() override {
         ExampleBase::prepare();
-        loadMeshes();
-        setupVertexDescriptions();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 

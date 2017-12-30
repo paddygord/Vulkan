@@ -13,21 +13,20 @@
 
 #include "vulkanExampleBase.h"
 
-
 class VulkanExample : public vkx::ExampleBase {
     using Parent = vkx::ExampleBase;
+
 public:
     // As before
-    CreateBufferResult vertices;
-    CreateBufferResult indices;
-    CreateBufferResult uniformDataVS;
+    vks::Buffer vertices;
+    vks::Buffer indices;
+    vks::Buffer uniformDataVS;
     uint32_t indexCount{ 0 };
 
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
     vk::Pipeline pipeline;
     vk::PipelineLayout pipelineLayout;
-    vk::PipelineVertexInputStateCreateInfo inputState;
     std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
     std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
 
@@ -67,7 +66,7 @@ public:
         uboVS.viewMatrix = glm::translate(glm::mat4(), camera.position);
         camera.yawPitch.x += frameTimer * 1.0f;
         uboVS.modelMatrix = glm::mat4_cast(camera.orientation);
-        pendingUpdates.push_back(UpdateOperation(uniformDataVS.buffer, uboVS));
+        memcpy(uniformDataVS.mapped, &uboVS, sizeof(uboVS));
     }
 
     ////////////////////////////////////////
@@ -82,7 +81,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 
@@ -96,50 +95,27 @@ public:
         cmdBuffer.drawIndexed(indexCount, 1, 0, 0, 1);
     }
 
-    void prepareVertices() {
-        struct Vertex {
-            float pos[3];
-            float col[3];
-        };
+    struct Vertex {
+        float pos[3];
+        float col[3];
+    };
 
+    vks::model::VertexLayout vertexLayout{ {
+        vks::model::VERTEX_COMPONENT_POSITION,
+        vks::model::VERTEX_COMPONENT_COLOR,
+    } };
+
+    void prepareVertices() {
         // Setup vertices
-        std::vector<Vertex> vertexBuffer = {
-            { { 1.0f,  1.0f, 0.0f },{ 1.0f, 0.0f, 0.0f } },
-            { { -1.0f,  1.0f, 0.0f },{ 0.0f, 1.0f, 0.0f } },
-            { { 0.0f, -1.0f, 0.0f },{ 0.0f, 0.0f, 1.0f } }
-        };
+        std::vector<Vertex> vertexBuffer = { { { 1.0f, 1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+                                             { { -1.0f, 1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+                                             { { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } } };
         vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
 
         // Setup indices
         std::vector<uint32_t> indexBuffer = { 0, 1, 2 };
         indexCount = (uint32_t)indexBuffer.size();
         indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
-
-        // Binding description
-        bindingDescriptions.resize(1);
-        bindingDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
-        bindingDescriptions[0].stride = sizeof(Vertex);
-        bindingDescriptions[0].inputRate = vk::VertexInputRate::eVertex;
-
-        // Attribute descriptions
-        // Describes memory layout and shader attribute locations
-        attributeDescriptions.resize(2);
-        // Location 0 : Position
-        attributeDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = vk::Format::eR32G32B32Sfloat;
-        attributeDescriptions[0].offset = 0;
-        // Location 1 : Color
-        attributeDescriptions[1].binding = VERTEX_BUFFER_BIND_ID;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = vk::Format::eR32G32B32Sfloat;
-        attributeDescriptions[1].offset = sizeof(float) * 3;
-
-        // Assign to vertex input state
-        inputState.vertexBindingDescriptionCount = bindingDescriptions.size();
-        inputState.pVertexBindingDescriptions = bindingDescriptions.data();
-        inputState.vertexAttributeDescriptionCount = attributeDescriptions.size();
-        inputState.pVertexAttributeDescriptions = attributeDescriptions.data();
     }
 
     void setupDescriptorPool() {
@@ -222,112 +198,25 @@ public:
     }
 
     void preparePipelines() {
-        // Create our rendering pipeline used in this example
-        // Vulkan uses the concept of rendering pipelines to encapsulate
-        // fixed states
-        // This replaces OpenGL's huge (and cumbersome) state machine
-        // A pipeline is then stored and hashed on the GPU making
-        // pipeline changes much faster than having to set dozens of 
-        // states
-        // In a real world application you'd have dozens of pipelines
-        // for every shader set used in a scene
-        // Note that there are a few states that are not stored with
-        // the pipeline. These are called dynamic states and the 
-        // pipeline only stores that they are used with this pipeline,
-        // but not their states
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo;
-        // The layout used for this pipeline
-        pipelineCreateInfo.layout = pipelineLayout;
-        // Renderpass this pipeline is attached to
-        pipelineCreateInfo.renderPass = renderPass;
-
-        // Vertex input state
-        // Describes the topoloy used with this pipeline
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
-        // This pipeline renders vertex data as triangle lists
-        inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleList;
-
-        // Rasterization state
-        vk::PipelineRasterizationStateCreateInfo rasterizationState;
-        // Solid polygon mode
-        rasterizationState.polygonMode = vk::PolygonMode::eFill;
-        // No culling
-        rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
-        rasterizationState.frontFace = vk::FrontFace::eCounterClockwise;
-        rasterizationState.depthClampEnable = VK_FALSE;
-        rasterizationState.rasterizerDiscardEnable = VK_FALSE;
-        rasterizationState.depthBiasEnable = VK_FALSE;
-        rasterizationState.lineWidth = 1.0f;
-
-        // Color blend state
-        // Describes blend modes and color masks
-        vk::PipelineColorBlendStateCreateInfo colorBlendState;
-        // One blend attachment state
-        // Blending is not used in this example
-        vk::PipelineColorBlendAttachmentState blendAttachmentState[1] = {};
-        blendAttachmentState[0].colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-        blendAttachmentState[0].blendEnable = VK_FALSE;
-        colorBlendState.attachmentCount = 1;
-        colorBlendState.pAttachments = blendAttachmentState;
-
-        // vk::Viewport state
-        vk::PipelineViewportStateCreateInfo viewportState;
-        // One viewport
-        viewportState.viewportCount = 1;
-        // One scissor rectangle
-        viewportState.scissorCount = 1;
-
-        // Enable dynamic states
-        // Describes the dynamic states to be used with this pipeline
-        // Dynamic states can be set even after the pipeline has been created
-        // So there is no need to create new pipelines just for changing
-        // a viewport's dimensions or a scissor box
-        vk::PipelineDynamicStateCreateInfo dynamicState;
-        // The dynamic state properties themselves are stored in the command buffer
-        std::vector<vk::DynamicState> dynamicStateEnables;
-        dynamicStateEnables.push_back(vk::DynamicState::eViewport);
-        dynamicStateEnables.push_back(vk::DynamicState::eScissor);
-        dynamicState.pDynamicStates = dynamicStateEnables.data();
-        dynamicState.dynamicStateCount = dynamicStateEnables.size();
-
-        // Depth and stencil state
-        // No depth testing used in this example
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState;
-
-        // Multi sampling state
-        // No multi sampling used in this example
-        vk::PipelineMultisampleStateCreateInfo multisampleState;
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
+        pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
+        pipelineBuilder.depthStencilState = { false };
 
         // Load shaders
         // Shaders are loaded from the SPIR-V format, which can be generated from glsl
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/triangle/triangle.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/triangle/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        // Assign states
-        // Assign pipeline state create information
-        pipelineCreateInfo.stageCount = shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-        pipelineCreateInfo.pVertexInputState = &inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.renderPass = renderPass;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/triangle/triangle.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/triangle/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
         // Create rendering pipeline
-        pipeline = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipeline = pipelineBuilder.create(context.pipelineCache);
     }
 
     void prepareUniformBuffers() {
         uboVS.projectionMatrix = getProjection();
         uboVS.viewMatrix = glm::translate(glm::mat4(), camera.position);
         uboVS.modelMatrix = glm::mat4_cast(camera.orientation);
-        uniformDataVS= context.createUniformBuffer(uboVS);
+        uniformDataVS = context.createUniformBuffer(uboVS);
     }
 };
 

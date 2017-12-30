@@ -5,30 +5,18 @@
 *
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
-
-
-
-
 #include "vulkanExampleBase.h"
 
-
 // Vertex layout for this example
-vks::model::VertexLayout vertexLayout =
-{
-    vks::model::Component::VERTEX_COMPONENT_POSITION,
-    vks::model::Component::VERTEX_COMPONENT_NORMAL,
-    vks::model::Component::VERTEX_COMPONENT_UV
-};
+vks::model::VertexLayout vertexLayout{ { 
+        vks::model::Component::VERTEX_COMPONENT_POSITION, 
+        vks::model::Component::VERTEX_COMPONENT_NORMAL,
+        vks::model::Component::VERTEX_COMPONENT_UV 
+} };
 
 class VulkanExample : public vkx::ExampleBase {
 public:
-    vkx::Texture cubeMap;
-
-    struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
+    vks::texture::TextureCubeMap cubeMap;
 
     struct {
         vks::model::Model skybox, object;
@@ -65,7 +53,7 @@ public:
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
 
         // Clean up texture resources
@@ -83,7 +71,6 @@ public:
         uniformData.objectVS.destroy();
         uniformData.skyboxVS.destroy();
     }
-
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
         cmdBuffer.setViewport(0, vks::util::viewport(size, 0.0f, 1.0f));
@@ -104,191 +91,78 @@ public:
         cmdBuffer.bindIndexBuffer(meshes.object.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.reflect);
         cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
-
     }
 
     void loadMeshes() {
-        meshes.object = loadMesh(getAssetPath() + "models/sphere.obj", vertexLayout, 0.05f);
-        meshes.skybox = loadMesh(getAssetPath() + "models/cube.obj", vertexLayout, 0.05f);
-    }
-
-    void setupVertexDescriptions() {
-        // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
-
-        // Attribute descriptions
-        // Describes memory layout and shader positions
-        vertices.attributeDescriptions.resize(3);
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
-        // Location 1 : Normal
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
-        // Location 2 : Texture coordinates
-        vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 5);
-
-        vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
+        meshes.object.loadFromFile(context, getAssetPath() + "models/sphere.obj", vertexLayout, 0.05f);
+        meshes.skybox.loadFromFile(context, getAssetPath() + "models/cube.obj", vertexLayout, 0.05f);
     }
 
     void setupDescriptorPool() {
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
-            vkx::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 2)
+        std::vector<vk::DescriptorPoolSize> poolSizes{
+            { vk::DescriptorType::eUniformBuffer, 2 },
+            { vk::DescriptorType::eCombinedImageSampler, 2 },
         };
-
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex,
-                0),
+            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Fragment shader image sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                1)
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSets() {
         // vk::Image descriptor for the cube map texture
-        vk::DescriptorImageInfo cubeMapDescriptor =
-            vkx::descriptorImageInfo(cubeMap.sampler, cubeMap.view, vk::ImageLayout::eGeneral);
-
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
+        vk::DescriptorImageInfo cubeMapDescriptor{ cubeMap.sampler, cubeMap.view, vk::ImageLayout::eGeneral };
+        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &descriptorSetLayout };
 
         // 3D object descriptor set
         descriptorSets.object = device.allocateDescriptorSets(allocInfo)[0];
-
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
-            // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-                descriptorSets.object,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.objectVS.descriptor),
-            // Binding 1 : Fragment shader cubemap sampler
-            vkx::writeDescriptorSet(
-                descriptorSets.object,
-                vk::DescriptorType::eCombinedImageSampler,
-                1,
-                &cubeMapDescriptor)
-        };
-        device.updateDescriptorSets(writeDescriptorSets, nullptr);
+        device.updateDescriptorSets(
+            {
+                { descriptorSets.object, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.objectVS.descriptor },
+                { descriptorSets.object, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &cubeMapDescriptor },
+            },
+            nullptr);
 
         // Sky box descriptor set
         descriptorSets.skybox = device.allocateDescriptorSets(allocInfo)[0];
-
-        writeDescriptorSets =
-        {
-            // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-                descriptorSets.skybox,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.skyboxVS.descriptor),
-            // Binding 1 : Fragment shader cubemap sampler
-            vkx::writeDescriptorSet(
-                descriptorSets.skybox,
-                vk::DescriptorType::eCombinedImageSampler,
-                1,
-                &cubeMapDescriptor)
-        };
-        device.updateDescriptorSets(writeDescriptorSets, nullptr);
+        device.updateDescriptorSets(
+            {
+                { descriptorSets.skybox, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.skyboxVS.descriptor },
+                { descriptorSets.skybox, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &cubeMapDescriptor },
+            },
+            nullptr);
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList);
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
+        pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
+        pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/texturecubemap/reflect.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/texturecubemap/reflect.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.reflect = pipelineBuilder.create(context.pipelineCache);
+        pipelineBuilder.destroyShaderModules();
 
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eNone, vk::FrontFace::eCounterClockwise);
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_FALSE, vk::CompareOp::eLessOrEqual);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState;
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor
-        };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
-
-        // Skybox pipeline (background cube)
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/texturecubemap/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/texturecubemap/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
-
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-
-        pipelines.skybox = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
-        // Cube map reflect pipeline
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/texturecubemap/reflect.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/texturecubemap/reflect.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        depthStencilState.depthWriteEnable = VK_TRUE;
-        pipelines.reflect = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/texturecubemap/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/texturecubemap/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelineBuilder.depthStencilState.depthWriteEnable = VK_FALSE;
+        pipelines.skybox = pipelineBuilder.create(context.pipelineCache);
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // 3D objact
-        uniformData.objectVS= context.createUniformBuffer(uboVS);
+        uniformData.objectVS = context.createUniformBuffer(uboVS);
         // Skybox
-        uniformData.skyboxVS= context.createUniformBuffer(uboVS);
+        uniformData.skyboxVS = context.createUniformBuffer(uboVS);
     }
 
     void updateUniformBuffers() {
@@ -321,20 +195,19 @@ public:
             throw std::runtime_error("Device does not support any compressed texture format!");
         }
 
-        cubeMap = textureLoader->loadCubemap(getAssetPath() + "textures/" + filename, format);
+        cubeMap.loadFromFile(context, getAssetPath() + "textures/" + filename, format);
     }
 
     void prepare() {
         ExampleBase::prepare();
         loadMeshes();
-        setupVertexDescriptions();
         prepareUniformBuffers();
         loadTextures();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSets();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 
@@ -345,9 +218,7 @@ public:
         updateUniformBuffers();
     }
 
-    virtual void viewChanged() {
-        updateUniformBuffers();
-    }
+    virtual void viewChanged() { updateUniformBuffers(); }
 };
 
 RUN_EXAMPLE(VulkanExample)

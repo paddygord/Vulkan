@@ -1,12 +1,9 @@
-/*
-* Vulkan Example - Multi pass offscreen rendering (bloom)
-*
-* Copyright (C) 2016 by Sascha Willems - www.saschawillems.de
-*
-* This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
-*/
-
-#include <vulkanVersion.hpp>
+#include <common.hpp>
+#include <vulkan/vulkan.hpp>
+#include <vks/version.hpp>
+#include <vector>
+#include <strstream>
+#include <iostream>
 
 namespace vkx {
     // A trimmed down version of our context class.
@@ -33,8 +30,8 @@ namespace vkx {
         // Stores all available memory (type) properties for the physical device
         vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
 
-        Version version;
-        Version driverVersion;
+        vks::Version version;
+        vks::Version driverVersion;
 
         void createContext() {
             {

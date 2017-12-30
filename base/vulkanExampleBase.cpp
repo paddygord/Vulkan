@@ -7,14 +7,43 @@
 */
 #include "vulkanExampleBase.h"
 
-#include "vks/ui.hpp"
+#include "ui.hpp"
 #include "../external/imgui/imgui.h"
+#include <assimp/DefaultLogger.hpp>
 
 using namespace vkx;
+
+
+class AssimpLogger : public Assimp::Logger {
+private:
+    void onMessage(const char* message) {
+        OutputDebugStringA(message);
+        OutputDebugStringA("\n");
+    }
+    void OnDebug(const char* message) override { onMessage(message); }
+    void OnInfo(const char* message) override { onMessage(message); }
+    void OnWarn(const char* message) override { onMessage(message); }
+    void OnError(const char* message) override { onMessage(message); }
+    bool attachStream(Assimp::LogStream *pStream, unsigned int severity = Debugging | Err | Warn | Info) {
+        int i = 0;
+        return false;
+    }
+
+    virtual bool detatchStream(Assimp::LogStream *pStream, unsigned int severity = Debugging | Err | Warn | Info) {
+        int i = 0;
+        return false;
+
+    }
+
+
+};
+
+AssimpLogger logger;
 
 // Avoid doing work in the ctor as it can't make use of overridden virtual functions
 // Instead, use the `run` method
 ExampleBase::ExampleBase() {
+    Assimp::DefaultLogger::set(&logger);
 #if defined(__ANDROID__)
     global_android_app->userData = this;
     global_android_app->onInputEvent = ExampleBase::handle_input_event;
@@ -23,19 +52,17 @@ ExampleBase::ExampleBase() {
 }
 
 ExampleBase::~ExampleBase() {
+    context.queue.waitIdle();
+    context.device.waitIdle();
     // Clean up Vulkan resources
     swapChain.destroy();
     // FIXME destroy surface
     if (descriptorPool) {
         device.destroyDescriptorPool(descriptorPool);
     }
-    if (!primaryCmdBuffers.empty()) {
-        device.freeCommandBuffers(cmdPool, primaryCmdBuffers);
-        primaryCmdBuffers.clear();
-    }
-    if (!drawCmdBuffers.empty()) {
-        device.freeCommandBuffers(cmdPool, drawCmdBuffers);
-        drawCmdBuffers.clear();
+    if (!commandBuffers.empty()) {
+        device.freeCommandBuffers(cmdPool, commandBuffers);
+        commandBuffers.clear();
     }
     device.destroyRenderPass(renderPass);
     for (uint32_t i = 0; i < framebuffers.size(); i++) {
@@ -217,7 +244,7 @@ void ExampleBase::setupUi() {
         return;
     }
 
-    struct vks::ui::UIOverlayCreateInfo overlayCreateInfo;
+    struct vkx::ui::UIOverlayCreateInfo overlayCreateInfo;
     // Setup default overlay creation info
     overlayCreateInfo.copyQueue = queue;
     overlayCreateInfo.framebuffers = framebuffers;
@@ -227,14 +254,6 @@ void ExampleBase::setupUi() {
 
     // Virtual function call for example to customize overlay creation
     OnSetupUIOverlay(overlayCreateInfo);
-
-    // Load default shaders if not specified by example
-    if (overlayCreateInfo.shaders.size() == 0) {
-        overlayCreateInfo.shaders = {
-            loadShader(getAssetPath() + "shaders/base/uioverlay.vert.spv", vk::ShaderStageFlagBits::eVertex),
-            loadShader(getAssetPath() + "shaders/base/uioverlay.frag.spv", vk::ShaderStageFlagBits::eFragment),
-        };
-    }
     ui.create(overlayCreateInfo);
 
     for (auto& shader : overlayCreateInfo.shaders) {
@@ -253,7 +272,61 @@ void ExampleBase::prepare() {
     setupRenderPassBeginInfo();
     setupFrameBuffer();
     setupUi();
-    prepared = true;
+    loadAssets();
+}
+
+void ExampleBase::setupRenderPassBeginInfo() {
+    clearValues.clear();
+    clearValues.push_back(vks::util::clearColor(glm::vec4(0.1, 0.1, 0.1, 1.0)));
+    clearValues.push_back(vk::ClearDepthStencilValue{ 1.0f, 0 });
+
+    renderPassBeginInfo = vk::RenderPassBeginInfo();
+    renderPassBeginInfo.renderPass = renderPass;
+    renderPassBeginInfo.renderArea.extent = size;
+    renderPassBeginInfo.clearValueCount = (uint32_t)clearValues.size();
+    renderPassBeginInfo.pClearValues = clearValues.data();
+}
+
+void ExampleBase::allocateCommandBuffers() {
+    clearCommandBuffers();
+    // Create one command buffer per image in the swap chain
+
+    // Command buffers store a reference to the
+    // frame buffer inside their render pass info
+    // so for static usage without having to rebuild
+    // them each frame, we use one per frame buffer
+    commandBuffers = device.allocateCommandBuffers({ cmdPool, vk::CommandBufferLevel::ePrimary, swapChain.imageCount });
+}
+
+void ExampleBase::clearCommandBuffers() {
+    if (!commandBuffers.empty()) {
+        context.trashCommandBuffers(cmdPool, commandBuffers);
+        // FIXME find a better way to ensure that the draw and text buffers are no longer in use before
+        // executing them within this command buffer.
+        context.queue.waitIdle();
+        context.device.waitIdle();
+        context.recycle();
+    }
+}
+
+void ExampleBase::buildCommandBuffers() {
+    // Destroy and recreate command buffers if already present
+    allocateCommandBuffers();
+
+
+    vk::CommandBufferBeginInfo cmdBufInfo{ vk::CommandBufferUsageFlagBits::eSimultaneousUse };
+    for (size_t i = 0; i < swapChain.imageCount; ++i) {
+        const auto& cmdBuffer = commandBuffers[i];
+        cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
+        cmdBuffer.begin(cmdBufInfo);
+        updateCommandBuffer(cmdBuffer);
+        // Let child classes execute operations outside the renderpass, like buffer barriers or query pool operations
+        renderPassBeginInfo.framebuffer = framebuffers[i];
+        cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        updateDrawCommandBuffer(cmdBuffer);
+        cmdBuffer.endRenderPass();
+        cmdBuffer.end();
+    }
 }
 
 vk::SubmitInfo ExampleBase::prepareSubmitInfo(
@@ -271,11 +344,15 @@ vk::SubmitInfo ExampleBase::prepareSubmitInfo(
 }
 
 void ExampleBase::prepareFrame() {
-    if (primaryCmdBuffersDirty) {
-        buildCommandBuffers();
-    }
     // Acquire the next image from the swap chaing
-    currentBuffer = swapChain.acquireNextImage(semaphores.acquireComplete);
+    auto resultValue = swapChain.acquireNextImage(semaphores.acquireComplete);
+    if (resultValue.result == vk::Result::eSuboptimalKHR) {
+        ivec2 newSize;
+        glfwGetWindowSize(window, &newSize.x, &newSize.y);
+        windowResize(newSize);
+        resultValue = swapChain.acquireNextImage(semaphores.acquireComplete);
+    }
+    currentBuffer = resultValue.value;
 }
 
 void ExampleBase::submitFrame() {
@@ -427,6 +504,35 @@ void ExampleBase::setupRenderPass() {
     renderPass = device.createRenderPass(renderPassInfo);
 }
 
+void ExampleBase::drawCurrentCommandBuffer(const vk::Semaphore& semaphore) {
+    vk::Fence fence = swapChain.getSubmitFence();
+    {
+        uint32_t fenceIndex = currentBuffer;
+        context.dumpster.push_back([fenceIndex, this] { swapChain.clearSubmitFence(fenceIndex); });
+    }
+
+    // Command buffer(s) to be sumitted to the queue
+    std::vector<vk::Semaphore> waitSemaphores{ { semaphore ? semaphore : semaphores.acquireComplete } };
+    std::vector<vk::PipelineStageFlags> waitStages{ submitPipelineStages };
+    context.emptyDumpster(fence);
+
+    {
+        std::vector<vk::Semaphore> signalSemaphores{ { semaphores.renderComplete } };
+        vk::SubmitInfo submitInfo;
+        submitInfo.waitSemaphoreCount = (uint32_t)waitSemaphores.size();
+        submitInfo.pWaitSemaphores = waitSemaphores.data();
+        submitInfo.pWaitDstStageMask = waitStages.data();
+        submitInfo.signalSemaphoreCount = (uint32_t)signalSemaphores.size();
+        submitInfo.pSignalSemaphores = signalSemaphores.data();
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = commandBuffers.data() + currentBuffer;
+        // Submit to queue
+        context.queue.submit(submitInfo, fence);
+    }
+
+    context.recycle();
+}
+
 void ExampleBase::windowResize(const glm::uvec2& newSize) {
     if (!prepared) {
         return;
@@ -446,14 +552,17 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
     setupFrameBuffer();
     setupRenderPassBeginInfo();
 
+    if (settings.overlay) {
+        ui.resize(size, framebuffers);
+    }
+
     // Notify derived class
     windowResized();
 
-    // Can be overriden in derived class
-    updateDrawCommandBuffers();
-
     // Command buffers need to be recreated as they may store
     // references to the recreated frame buffer
+    clearCommandBuffers();
+    allocateCommandBuffers();
     buildCommandBuffers();
 
     viewChanged();
@@ -461,26 +570,6 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
     prepared = true;
 }
 
-void ExampleBase::windowResized() {}
-
-const std::string& ExampleBase::getAssetPath() {
-#if defined(__ANDROID__)
-    static const std::string NOTHING;
-    return NOTHING;
-#else
-    static std::string path;
-    static std::once_flag once;
-
-    std::call_once(once, [] {
-        std::string file(__FILE__);
-        std::replace(file.begin(), file.end(), '\\', '/');
-        std::string::size_type lastSlash = file.rfind("/");
-        file = file.substr(0, lastSlash);
-        path = file + "/../data/";
-    });
-    return path;
-#endif
-}
 
 void ExampleBase::updateOverlay() {
     if (!settings.overlay)
@@ -526,6 +615,43 @@ void ExampleBase::updateOverlay() {
         mouseButtons.left = false;
     }
 #endif
+}
+
+void ExampleBase::mouseAction(int button, int action, int mods) {
+    switch (button) {
+    case GLFW_MOUSE_BUTTON_LEFT:
+        mouseButtons.left = action == GLFW_PRESS;
+        break;
+    case GLFW_MOUSE_BUTTON_RIGHT:
+        mouseButtons.right = action == GLFW_PRESS;
+        break;
+    }
+}
+
+void ExampleBase::mouseMoved(const glm::vec2& newPos) {
+    auto imgui = ImGui::GetIO();
+    if (imgui.WantCaptureMouse) {
+        mousePos = newPos;
+        return;
+    }
+
+    glm::vec2 deltaPos = mousePos - newPos;
+    if (deltaPos.x == 0 && deltaPos.y == 0) {
+        return;
+    }
+    if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT)) {
+        camera.dolly((deltaPos.y) * .005f * zoomSpeed);
+        viewChanged();
+    }
+    if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)) {
+        camera.rotate(vec2(deltaPos.x, -deltaPos.y) * 0.02f * rotationSpeed);
+        viewChanged();
+    }
+    if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE)) {
+        camera.translate(deltaPos * -0.01f);
+        viewChanged();
+    }
+    mousePos = newPos;
 }
 
 #if defined(__ANDROID__)
@@ -628,10 +754,7 @@ void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int
 
 void ExampleBase::MouseHandler(GLFWwindow* window, int button, int action, int mods) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    if (action == GLFW_PRESS) {
-        glm::dvec2 mousePos; glfwGetCursorPos(window, &mousePos.x, &mousePos.y);
-        example->mousePos = mousePos;
-    }
+    example->mouseAction(button, action, mods);
 }
 
 void ExampleBase::MouseMoveHandler(GLFWwindow* window, double posx, double posy) {

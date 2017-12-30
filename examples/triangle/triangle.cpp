@@ -11,35 +11,31 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanContext.hpp"
-#include "vulkanSwapChain.hpp"
-#include <vulkan/vulkan.hpp>
+#include <common.hpp>
+#include <vks/context.hpp>
+#include <vks/swapchain.hpp>
+#include <vks/shaders.hpp>
+#include <utils.hpp>
 
 #define VERTEX_BUFFER_BIND_ID 0
 
-class TriangleExample {
-
+class TriangleExample : public glfw::Window {
 #if !defined(__ANDROID__)
 public:
-    GLFWwindow* window{ nullptr };
     float zoom{ -2.5f };
     std::string title{ "Vulkan Example - Basic indexed triangle" };
     vk::Extent2D size{ 1280, 720 };
-    vkx::Context context;
+    vks::Context context;
     const vk::Device& device{ context.device };
     const vk::Queue& queue{ context.queue };
-    vkx::SwapChain swapChain{ context };
+    vks::SwapChain swapChain;
     uint32_t currentBuffer;
     vk::CommandPool cmdPool;
     vk::DescriptorPool descriptorPool;
     vk::RenderPass renderPass;
-    // List of shader modules created (stored for cleanup)
-    std::vector<vk::ShaderModule> shaderModules;
     // List of available frame buffers (same as number of swap chain images)
     std::vector<vk::Framebuffer> framebuffers;
-    std::vector<vk::CommandBuffer> cmdBuffers;
-    std::vector<vk::Fence> submitFences;
-    bool prepared{ false };
+    std::vector<vk::CommandBuffer> commandBuffers;
     // Synchronization semaphores
     struct {
         vk::Semaphore presentComplete;
@@ -77,18 +73,59 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    TriangleExample() {
-#if !defined(__ANDROID__)
-        glfwInit();
-#endif
-        context.setValidationEnabled(true);
-        context.createContext();
-        createWindow();
+    void windowResized(const glm::uvec2& newSize) override {
+        queue.waitIdle();
+        device.waitIdle();
+        size.width = newSize.x;
+        size.height = newSize.y;
+        swapChain.create(size);
+        setupFrameBuffer();
+        buildDrawCommandBuffers();
     }
 
-    ~TriangleExample() {
+    void run() {
+        prepare();
+        while (!glfwWindowShouldClose(window)) {
+            glfwPollEvents();
+            draw();
+        }
+        queue.waitIdle();
+        device.waitIdle();
+        destroy();
+    }
+
+    void prepare() {
+        // We don't want OpenGL
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
+        createWindow({ size.width, size.height }, { 100, 100 });
+
+        context.setValidationEnabled(true);
+        context.requireExtensions(glfw::getRequiredInstanceExtensions());
+        context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
+        context.create();
+
+        cmdPool = context.getCommandPool();
+
+        swapChain.setup(context.physicalDevice, context.device, context.queue, context.queueIndices.graphics);
+        swapChain.setSurface(glfw::createWindowSurface(context.instance, window));
+        swapChain.create(size);
+
+        setupRenderPass();
+        setupFrameBuffer();
+
+        prepareSemaphore();
+        prepareVertices();
+        prepareUniformBuffers();
+        setupDescriptorSetLayout();
+        preparePipelines();
+        setupDescriptorPool();
+        setupDescriptorSet();
+        buildDrawCommandBuffers();
+    }
+
+    void destroy() {
         // Clean up used Vulkan resources 
-        // Note : Inherited destructor cleans up resources stored in base class
         device.destroyPipeline(pipeline);
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
@@ -104,52 +141,20 @@ public:
 
         device.destroyBuffer(uniformDataVS.buffer);
         device.freeMemory(uniformDataVS.memory);
-    }
 
-    void createWindow() {
-        glfwInit();
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        window = glfwCreateWindow(size.width, size.height, "Window Title", NULL, NULL);
-        // Disable window resize
-        glfwSetWindowSizeLimits(window, size.width, size.height, size.width, size.height);
-        glfwSetWindowUserPointer(window, this);
-        glfwSetWindowPos(window, 100, 100);
-        glfwShowWindow(window);
-    }
+        device.destroyRenderPass(renderPass);
+        device.destroyDescriptorPool(descriptorPool);
 
-    void run() {
-        prepare();
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
-            draw();
+        for (const auto& framebuffer : framebuffers) {
+            device.destroyFramebuffer(framebuffer);
         }
-        queue.waitIdle();
-        device.waitIdle();
-    }
-
-    void prepare() {
-        if (context.enableValidation) {
-            vkx::debug::setupDebugging(context.instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning | vk::DebugReportFlagBitsEXT::ePerformanceWarning);
+        for (const auto& image : swapChain.images) {
+            if (image.fence) {
+                device.destroyFence(image.fence);
+            }
         }
-        if (context.enableDebugMarkers) {
-            vkx::debug::marker::setup(device);
-        }
-        cmdPool = context.getCommandPool();
-        swapChain.createSurface(window);
-        swapChain.create(size);
-
-        setupRenderPass();
-        setupFrameBuffer();
-
-        prepareSemaphore();
-        prepareVertices();
-        prepareUniformBuffers();
-        setupDescriptorSetLayout();
-        preparePipelines();
-        setupDescriptorPool();
-        setupDescriptorSet();
-        buildDrawCommandBuffers();
-        prepared = true;
+        swapChain.destroy();
+        context.destroyContext();
     }
 
     void setupRenderPass() {
@@ -202,11 +207,17 @@ public:
     }
 
     void setupFrameBuffer() {
-        std::array<vk::ImageView, 1> attachments;
+        if (!framebuffers.empty()) {
+            for (const auto& framebuffer : framebuffers) {
+                device.destroyFramebuffer(framebuffer);
+            }
+            framebuffers.clear();
+        }
 
+        std::array<vk::ImageView, 1> attachments;
         vk::FramebufferCreateInfo framebufferCreateInfo;
         framebufferCreateInfo.renderPass = renderPass;
-        framebufferCreateInfo.attachmentCount = attachments.size();
+        framebufferCreateInfo.attachmentCount = (uint32_t)attachments.size();
         framebufferCreateInfo.pAttachments = attachments.data();
         framebufferCreateInfo.width = size.width;
         framebufferCreateInfo.height = size.height;
@@ -586,23 +597,16 @@ public:
         std::vector<vk::DynamicState> dynamicStateEnables;
         dynamicStateEnables.push_back(vk::DynamicState::eViewport);
         dynamicStateEnables.push_back(vk::DynamicState::eScissor);
+        dynamicState.dynamicStateCount = (uint32_t)dynamicStateEnables.size();
         dynamicState.pDynamicStates = dynamicStateEnables.data();
-        dynamicState.dynamicStateCount = dynamicStateEnables.size();
 
         // Depth and stencil state
         // Describes depth and stenctil test and compare ops
         vk::PipelineDepthStencilStateCreateInfo depthStencilState;
-        // Basic depth compare setup with depth writes and depth test enabled
-        // No stencil used 
-        depthStencilState.depthTestEnable = VK_TRUE;
-        depthStencilState.depthWriteEnable = VK_TRUE;
-        depthStencilState.depthCompareOp = vk::CompareOp::eLessOrEqual;
-        depthStencilState.depthBoundsTestEnable = VK_FALSE;
-        depthStencilState.back.failOp = vk::StencilOp::eKeep;
-        depthStencilState.back.passOp = vk::StencilOp::eKeep;
-        depthStencilState.back.compareOp = vk::CompareOp::eAlways;
+        // No depth or stencil testing enabled 
+        depthStencilState.depthTestEnable = VK_FALSE;
+        depthStencilState.depthWriteEnable = VK_FALSE;
         depthStencilState.stencilTestEnable = VK_FALSE;
-        depthStencilState.front = depthStencilState.back;
 
         // Multi sampling state
         vk::PipelineMultisampleStateCreateInfo multisampleState;
@@ -613,12 +617,12 @@ public:
         // Load shaders
         // Shaders are loaded from the SPIR-V format, which can be generated from glsl
         std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-        shaderStages[0] = loadShader(vkx::getAssetPath() + "shaders/triangle/triangle.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(vkx::getAssetPath() + "shaders/triangle/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        shaderStages[0] = vks::shaders::loadShader(device, vkx::getAssetPath() + "shaders/triangle/triangle.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = vks::shaders::loadShader(device, vkx::getAssetPath() + "shaders/triangle/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         // Assign states
         // Assign pipeline state create information
-        pipelineCreateInfo.stageCount = shaderStages.size();
+        pipelineCreateInfo.stageCount = (uint32_t)shaderStages.size();
         pipelineCreateInfo.pStages = shaderStages.data();
         pipelineCreateInfo.pVertexInputState = &inputState;
         pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -632,22 +636,12 @@ public:
 
         // Create rendering pipeline
         pipeline = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+
+        for (const auto& shaderStage : shaderStages) {
+            device.destroyShaderModule(shaderStage.module);
+        }
     }
 
-
-    vk::PipelineShaderStageCreateInfo loadShader(const std::string& fileName, vk::ShaderStageFlagBits stage) {
-        vk::PipelineShaderStageCreateInfo shaderStage;
-        shaderStage.stage = stage;
-#if defined(__ANDROID__)
-        shaderStage.module = context.loadShader(androidApp->activity->assetManager, fileName.c_str(), device, stage);
-#else
-        shaderStage.module = vkx::loadShader(fileName.c_str(), device, stage);
-#endif
-        shaderStage.pName = "main"; // todo : make param
-        assert(shaderStage.module);
-        shaderModules.push_back(shaderStage.module);
-        return shaderStage;
-    }
 
     void buildDrawCommandBuffers() {
         // Create one command buffer per image in the swap chain
@@ -659,11 +653,11 @@ public:
         vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
         cmdBufAllocateInfo.commandPool = cmdPool;
         cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
-        cmdBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
+        commandBuffers = device.allocateCommandBuffers(cmdBufAllocateInfo);
 
         vk::CommandBufferBeginInfo cmdBufInfo;
         vk::ClearValue clearValues[2];
-        clearValues[0].color = vkx::clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));;
+        clearValues[0].color = vks::util::clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));;
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = renderPass;
@@ -677,7 +671,7 @@ public:
         vk::Rect2D scissor = vk::Rect2D{ vk::Offset2D(), size };
         vk::DeviceSize offsets = 0;
         for (size_t i = 0; i < swapChain.imageCount; ++i) {
-            const auto& cmdBuffer = cmdBuffers[i];
+            const auto& cmdBuffer = commandBuffers[i];
             cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
             cmdBuffer.begin(cmdBufInfo);
             renderPassBeginInfo.framebuffer = framebuffers[i];
@@ -703,7 +697,7 @@ public:
 
     void draw() {
         // Get next image in the swap chain (back/front buffer)
-        currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete);
+        currentBuffer = swapChain.acquireNextImage(semaphores.presentComplete).value;
 
         // The submit infor strcuture contains a list of
         // command buffers and semaphores to be submitted to a queue
@@ -717,7 +711,7 @@ public:
         submitInfo.pWaitSemaphores = &semaphores.presentComplete;
         // Submit the currently active command buffer
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &cmdBuffers[currentBuffer];
+        submitInfo.pCommandBuffers = &commandBuffers[currentBuffer];
         // The signal semaphore is used during queue presentation
         // to ensure that the image is not rendered before all
         // commands have been submitted
@@ -726,7 +720,7 @@ public:
 
         // Submit to the graphics queue
         // TODO explain submit fence
-        queue.submit(submitInfo, swapChain.getSubmitFence());
+        queue.submit(submitInfo, swapChain.getSubmitFence(true));
 
         // Present the current buffer to the swap chain
         // We pass the signal semaphore from the submit info

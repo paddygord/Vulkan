@@ -10,30 +10,23 @@
 
 
 // Vertex layout for this example
-vks::model::VertexLayout vertexLayout =
-{
+vks::model::VertexLayout vertexLayout{ {
     vks::model::Component::VERTEX_COMPONENT_POSITION,
     vks::model::Component::VERTEX_COMPONENT_UV,
     vks::model::Component::VERTEX_COMPONENT_NORMAL,
     vks::model::Component::VERTEX_COMPONENT_TANGENT,
     vks::model::Component::VERTEX_COMPONENT_BITANGENT
-};
+} };
 
 class VulkanExample : public vkx::ExampleBase {
 public:
     bool splitScreen = true;
 
     struct {
-        vkx::Texture colorMap;
+        vks::texture::Texture2D colorMap;
         // Normals and height are combined in one texture (height = alpha channel)
-        vkx::Texture normalHeightMap;
+        vks::texture::Texture2D normalHeightMap;
     } textures;
-
-    struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
 
     struct {
         vks::model::Model quad;
@@ -103,10 +96,10 @@ public:
     }
 
     void loadTextures() {
-        textures.colorMap = textureLoader->loadTexture(
+        textures.colorMap.loadFromFile(context,
             getAssetPath() + "textures/rocks_color_bc3.dds",
             vk::Format::eBc3UnormBlock);
-        textures.normalHeightMap = textureLoader->loadTexture(
+        textures.normalHeightMap.loadFromFile(context,
             getAssetPath() + "textures/rocks_normal_height_rgba.dds",
             vk::Format::eR8G8B8A8Unorm);
     }
@@ -137,194 +130,70 @@ public:
     }
 
     void loadMeshes() {
-        meshes.quad = loadMesh(getAssetPath() + "models/plane_z.obj", vertexLayout, 0.1f);
-    }
-
-    void setupVertexDescriptions() {
-        // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
-
-        // Attribute descriptions
-        // Describes memory layout and shader positions
-        vertices.attributeDescriptions.resize(5);
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
-        // Location 1 : Texture coordinates
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32Sfloat, sizeof(float) * 3);
-        // Location 2 : Normal
-        vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5);
-        // Location 3 : Tangent
-        vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
-        // Location 4 : Bitangent
-        vertices.attributeDescriptions[4] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 4, vk::Format::eR32G32B32Sfloat, sizeof(float) * 11);
-
-        vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
+        meshes.quad.loadFromFile(context, getAssetPath() + "models/plane_z.obj", vertexLayout, 0.1f);
     }
 
     void setupDescriptorPool() {
         // Example uses two ubos and two image sampler
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
-            vkx::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 2)
+        std::vector<vk::DescriptorPoolSize> poolSizes {
+            { vk::DescriptorType::eUniformBuffer, 2 },
+            { vk::DescriptorType::eCombinedImageSampler, 2 }
         };
 
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 4);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool({ {}, 4, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Vertex shader uniform buffer
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex,
-                0),
+            vk::DescriptorSetLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Fragment shader color map image sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                1),
+            vk::DescriptorSetLayoutBinding{ 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
             // Binding 2 : Fragment combined normal and heightmap
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                2),
+            vk::DescriptorSetLayoutBinding{ 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
             // Binding 3 : Fragment shader uniform buffer
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eFragment,
-                3)
+            vk::DescriptorSetLayoutBinding{ 3, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
-
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1,  &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-
-        descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
+        descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
 
         // Color map image descriptor
-        vk::DescriptorImageInfo texDescriptorColorMap =
-            vkx::descriptorImageInfo(textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral);
+        vk::DescriptorImageInfo texDescriptorColorMap{ textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral };
+        vk::DescriptorImageInfo texDescriptorNormalHeightMap{ textures.normalHeightMap.sampler, textures.normalHeightMap.view, vk::ImageLayout::eGeneral };
 
-        vk::DescriptorImageInfo texDescriptorNormalHeightMap =
-            vkx::descriptorImageInfo(textures.normalHeightMap.sampler, textures.normalHeightMap.view, vk::ImageLayout::eGeneral);
-
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets {
             // Binding 0 : Vertex shader uniform buffer
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformData.vertexShader.descriptor),
+            vk::WriteDescriptorSet { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vertexShader.descriptor },
             // Binding 1 : Fragment shader image sampler
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eCombinedImageSampler,
-                1,
-                &texDescriptorColorMap),
+            vk::WriteDescriptorSet{ descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorColorMap },
             // Binding 2 : Combined normal and heightmap
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eCombinedImageSampler,
-                2,
-                &texDescriptorNormalHeightMap),
+            vk::WriteDescriptorSet{ descriptorSet, 2, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorNormalHeightMap },
             // Binding 3 : Fragment shader uniform buffer
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                3,
-                &uniformData.fragmentShader.descriptor)
+            vk::WriteDescriptorSet{ descriptorSet, 3, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fragmentShader.descriptor },
         };
 
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::eTriangleList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
-
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eNone, vk::FrontFace::eCounterClockwise);
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState =
-            vkx::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor
-        };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
-
         // Parallax mapping pipeline
-        // Load shaders
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/parallaxmapping/parallax.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/parallaxmapping/parallax.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
-
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-
-        pipelines.parallaxMapping = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
+        vks::pipelines::GraphicsPipelineBuilder pipelineCreator{ device, pipelineLayout, renderPass };
+        pipelineCreator.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        pipelineCreator.vertexInputState.appendVertexLayout(vertexLayout);
+        pipelineCreator.loadShader(getAssetPath() + "shaders/parallaxmapping/parallax.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineCreator.loadShader(getAssetPath() + "shaders/parallaxmapping/parallax.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.parallaxMapping = pipelineCreator.create(context.pipelineCache);
+        pipelineCreator.destroyShaderModules();
 
         // Normal mapping (no parallax effect)
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/parallaxmapping/normalmap.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/parallaxmapping/normalmap.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        pipelines.normalMapping = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
+        pipelineCreator.loadShader(getAssetPath() + "shaders/parallaxmapping/normalmap.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineCreator.loadShader(getAssetPath() + "shaders/parallaxmapping/normalmap.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.normalMapping = pipelineCreator.create(context.pipelineCache);
     }
 
     void prepareUniformBuffers() {
@@ -343,8 +212,8 @@ public:
         ubos.vertexShader.normal = glm::inverseTranspose(ubos.vertexShader.model);
 
         if (!paused) {
-            ubos.vertexShader.lightPos.x = sin(glm::radians(timer * 360.0f)) * 0.5;
-            ubos.vertexShader.lightPos.y = cos(glm::radians(timer * 360.0f)) * 0.5;
+            ubos.vertexShader.lightPos.x = sinf(glm::radians(timer * 360.0f)) * 0.5f;
+            ubos.vertexShader.lightPos.y = cosf(glm::radians(timer * 360.0f)) * 0.5f;
         }
 
         ubos.vertexShader.cameraPos = glm::vec4(0.0, 0.0, camera.position.z, 0.0);
@@ -358,13 +227,12 @@ public:
         ExampleBase::prepare();
         loadTextures();
         loadMeshes();
-        setupVertexDescriptions();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 
@@ -394,7 +262,7 @@ public:
     void toggleSplitScreen() {
         splitScreen = !splitScreen;
         updateUniformBuffers();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
     }
 
 };

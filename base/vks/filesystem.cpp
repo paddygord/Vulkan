@@ -12,6 +12,10 @@
 namespace vks { namespace util {
 
 void withBinaryFileContexts(const std::string& filename, std::function<void(size_t size, const void* data)> handler) {
+    withBinaryFileContexts(filename, [&](const char* filename, size_t size, const void* data) { handler(size, data); });
+}
+
+void withBinaryFileContexts(const std::string& filename, std::function<void(const char* filename, size_t size, const void* data)> handler) {
 #if defined(__ANDROID__)
     // Load shader from compressed asset
     AAsset* asset = AAssetManager_open(global_android_app->activity->assetManager, filename.c_str(), AASSET_MODE_BUFFER);
@@ -20,7 +24,7 @@ void withBinaryFileContexts(const std::string& filename, std::function<void(size
     assert(size > 0);
     const void* buffer = AAsset_getBuffer(asset);
     if (buffer != NULL) {
-        handler(size, buffer);
+        handler(filename.c_str(), size, buffer);
     } else {
         std::vector<uint8_t> result;
         result.resize(size);
@@ -33,7 +37,7 @@ void withBinaryFileContexts(const std::string& filename, std::function<void(size
     return result;
 #elif (WIN32)
     auto hFile = CreateFileA(filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
-    size_t fileSize; 
+    size_t fileSize;
     {
         DWORD dwFileSizeHigh;
         fileSize = GetFileSize(hFile, &dwFileSizeHigh);
@@ -44,7 +48,7 @@ void withBinaryFileContexts(const std::string& filename, std::function<void(size
         throw std::runtime_error("Failed to map file");
     }
     auto data = MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, 0);
-    handler(fileSize, data);
+    handler(filename.c_str(), fileSize, data);
     UnmapViewOfFile(data);
     CloseHandle(hMapFile);
     CloseHandle(hFile);
@@ -67,9 +71,7 @@ void withBinaryFileContexts(const std::string& filename, std::function<void(size
     vec.reserve(fileSize);
 
     // read the data:
-    vec.insert(vec.begin(),
-        std::istream_iterator<uint8_t>(file),
-        std::istream_iterator<uint8_t>());
+    vec.insert(vec.begin(), std::istream_iterator<uint8_t>(file), std::istream_iterator<uint8_t>());
 
     handler(vec.size(), vec.data());
 #endif
@@ -100,4 +102,4 @@ std::string readTextFile(const std::string& fileName) {
     return fileContent;
 }
 
-} }
+}}  // namespace vks::util

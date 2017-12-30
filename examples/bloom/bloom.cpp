@@ -42,12 +42,6 @@ public:
     } meshes;
 
     struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
-
-    struct {
         vks::Buffer vsScene;
         vks::Buffer vsFullScreen;
         vks::Buffer vsSkyBox;
@@ -254,32 +248,6 @@ public:
         meshes.quad.indices = context.createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
     }
 
-    void setupVertexDescriptions() {
-        // Binding description
-        // Same for all meshes used in this example
-        vertices.bindingDescriptions = {
-            vk::VertexInputBindingDescription{ VERTEX_BUFFER_BIND_ID, vertexLayout.stride(), vk::VertexInputRate::eVertex },
-        };
-
-        // Attribute descriptions
-        vertices.attributeDescriptions = {
-            // Location 0 : Position
-            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, 0 },
-            // Location 1 : Texture coordinates
-            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, sizeof(float) * 3 },
-            // Location 2 : Color
-            vk::VertexInputAttributeDescription{ 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5 },
-            // Location 3 : Normal
-            vk::VertexInputAttributeDescription{ 3, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8 },
-        };
-
-        vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = (uint32_t)vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = (uint32_t)vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
-    }
-
     void setupDescriptorPool() {
         std::vector<vk::DescriptorPoolSize> poolSizes {
             vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, 8 },
@@ -372,71 +340,63 @@ public:
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState{ {}, vk::PrimitiveTopology::eTriangleList };
-        vk::PipelineRasterizationStateCreateInfo rasterizationState;
-        vk::PipelineColorBlendAttachmentState blendAttachmentState;
-        vk::PipelineColorBlendStateCreateInfo colorBlendState;
-        colorBlendState.attachmentCount = 1;
-        colorBlendState.pAttachments = &blendAttachmentState;
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState{ {}, VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual };
-        vk::PipelineViewportStateCreateInfo viewportState{ {}, 1, nullptr, 1, nullptr };
-        vk::PipelineMultisampleStateCreateInfo multisampleState;
+        vks::pipelines::PipelineVertexInputStateCreateInfo vertexInputState;
+        vertexInputState.appendVertexLayout({ {
+            vks::model::VERTEX_COMPONENT_POSITION,
+            vks::model::VERTEX_COMPONENT_COLOR,
+            vks::model::VERTEX_COMPONENT_UV,
+            vks::model::VERTEX_COMPONENT_NORMAL,
+        } });
 
-        std::vector<vk::DynamicState> dynamicStateEnables = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor
-        };
-
-        vk::PipelineDynamicStateCreateInfo dynamicState{ {}, (uint32_t)dynamicStateEnables.size(), dynamicStateEnables.data() };
-        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo;
-        pipelineCreateInfo.layout = pipelineLayouts.radialBlur;
-        pipelineCreateInfo.renderPass = renderPass;
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.stageCount = (uint32_t)shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-
-        // Additive blending
-        blendAttachmentState.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-        blendAttachmentState.blendEnable = VK_TRUE;
-        blendAttachmentState.colorBlendOp = vk::BlendOp::eAdd;
-        blendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eOne;
-        blendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eOne;
-        blendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
-        blendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eSrcAlpha;
-        blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eDstAlpha;
+        {
+            vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayouts.radialBlur, renderPass };
+            pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+            pipelineBuilder.colorBlendState.blendAttachmentStates.resize(1);
+            auto& blendAttachmentState = pipelineBuilder.colorBlendState.blendAttachmentStates[0];
+            // Additive blending
+            blendAttachmentState.blendEnable = VK_TRUE;
+            blendAttachmentState.colorBlendOp = vk::BlendOp::eAdd;
+            blendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eOne;
+            blendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eOne;
+            blendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
+            blendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eSrcAlpha;
+            blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eDstAlpha;
+            pipelineBuilder.vertexInputState = vertexInputState;
+            pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/gaussblur.vert.spv", vk::ShaderStageFlagBits::eVertex);
+            pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/gaussblur.frag.spv", vk::ShaderStageFlagBits::eFragment);
+            pipelines.blur = pipelineBuilder.create(context.pipelineCache);
+        }
 
         // Vertical gauss blur
-        // Load shaders
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/bloom/gaussblur.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/bloom/gaussblur.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        pipelines.blur = context.device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
-        // Phong pass (3D model)
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/bloom/phongpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/bloom/phongpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        pipelineCreateInfo.layout = pipelineLayouts.scene;
-        blendAttachmentState.blendEnable = VK_FALSE;
-        depthStencilState.depthWriteEnable = VK_TRUE;
-        pipelines.phongPass = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        {
+            vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayouts.scene, renderPass };
+            pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+            pipelineBuilder.vertexInputState = vertexInputState;
+            pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/phongpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
+            pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/phongpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
+            pipelines.phongPass = pipelineBuilder.create(context.pipelineCache);
+        }
 
         // Color only pass (offscreen blur base)
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/bloom/colorpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/bloom/colorpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        pipelines.colorPass = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        {
+            vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayouts.scene, renderPass };
+            pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+            pipelineBuilder.vertexInputState = vertexInputState;
+            pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/colorpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
+            pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/colorpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
+            pipelines.colorPass = pipelineBuilder.create(context.pipelineCache);
+        }
 
         // Skybox (cubemap
-        shaderStages[0] = loadShader(getAssetPath() + "shaders/bloom/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = loadShader(getAssetPath() + "shaders/bloom/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        depthStencilState.depthWriteEnable = VK_FALSE;
-        pipelines.skyBox = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        {
+            vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayouts.scene, renderPass };
+            pipelineBuilder.vertexInputState = vertexInputState;
+            pipelineBuilder.depthStencilState = { false };
+            pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex);
+            pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment);
+            pipelines.skyBox = pipelineBuilder.create(context.pipelineCache);
+
+        }
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
@@ -520,16 +480,14 @@ public:
         offscreen.framebuffers.resize(2);
         offscreen.size = glm::uvec2(TEX_DIM);
         Parent::prepare();
-        loadTextures();
         generateQuad();
         loadMeshes();
-        setupVertexDescriptions();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         buildOffscreenCommandBuffer();
         prepared = true;
     }
@@ -583,7 +541,7 @@ public:
 
     void toggleBloom() {
         bloom = !bloom;
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         if (bloom) {
             buildOffscreenCommandBuffer();
         }

@@ -199,16 +199,14 @@ namespace vks {
         }
 
         // Acquires the next image in the swap chain
-        uint32_t acquireNextImage(const vk::Semaphore& presentCompleteSemaphore, const vk::Fence& fence = vk::Fence()) {
+        vk::ResultValue<uint32_t> acquireNextImage(const vk::Semaphore& presentCompleteSemaphore, const vk::Fence& fence = vk::Fence()) {
             auto resultValue = device.acquireNextImageKHR(swapChain, UINT64_MAX, presentCompleteSemaphore, fence);
             vk::Result result = resultValue.result;
-            if (result != vk::Result::eSuccess) {
-                // TODO handle eSuboptimalKHR
+            if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR) {
                 throw std::error_code(result);
-            }
-
+            } 
             currentImage = resultValue.value;
-            return currentImage;
+            return resultValue;
         }
 
         void clearSubmitFence(uint32_t index) {

@@ -69,10 +69,10 @@ namespace vks { namespace texture {
             vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal, 
             bool forceLinear = false)
         {
-
+            this->imageLayout = imageLayout;
             std::shared_ptr<gli::texture2d> tex2Dptr;
             vks::util::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
-                tex2Dptr = std::make_shared<gli::texture2d>( gli::load((const char*)data, size) );
+                tex2Dptr = std::make_shared<gli::texture2d>(gli::load((const char*)data, size));
             });
             const auto& tex2D = *tex2Dptr;
             assert(!tex2D.empty());
@@ -82,7 +82,8 @@ namespace vks { namespace texture {
             extent.height = static_cast<uint32_t>(tex2D[0].extent().y);
             extent.depth = 1;
             mipLevels = static_cast<uint32_t>(tex2D.levels());
-
+            layerCount = 1;
+            
             // Create optimal tiled target image
             vk::ImageCreateInfo imageCreateInfo;
             imageCreateInfo.imageType = vk::ImageType::e2D;
@@ -91,12 +92,59 @@ namespace vks { namespace texture {
             imageCreateInfo.arrayLayers = 1;
             imageCreateInfo.extent = extent;
             imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
-            // Ensure that the TRANSFER_DST bit is set for staging
 
+#if 1
             ((vks::Image&)(*this)) = context.stageToDeviceImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, tex2D);
+            
+#else
+            ((vks::Image&)*this) = context.createImage(imageCreateInfo);
+            auto stagingBuffer = context.createBuffer(vk::BufferUsageFlagBits::eTransferSrc, tex2D);
 
-            // Create a defaultsampler
-            vk::SamplerCreateInfo samplerCreateInfo = {};
+            // Setup buffer copy regions for each layer including all of it's miplevels
+            std::vector<vk::BufferImageCopy> bufferCopyRegions;
+            size_t offset = 0;
+            vk::BufferImageCopy bufferCopyRegion;
+            bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+            bufferCopyRegion.imageSubresource.layerCount = 1;
+            bufferCopyRegion.imageExtent.depth = 1;
+            for (uint32_t level = 0; level < mipLevels; level++) {
+                auto image = tex2D[level];
+                auto imageExtent = image.extent();
+                bufferCopyRegion.imageSubresource.mipLevel = level;
+                bufferCopyRegion.imageSubresource.baseArrayLayer = 1;
+                bufferCopyRegion.imageExtent.width = static_cast<uint32_t>(imageExtent.x);
+                bufferCopyRegion.imageExtent.height = static_cast<uint32_t>(imageExtent.y);
+                bufferCopyRegion.bufferOffset = offset;
+                bufferCopyRegions.push_back(bufferCopyRegion);
+                // Increase offset into staging buffer for next level / face
+                offset += image.size();
+            }
+
+
+
+            vk::ImageSubresourceRange subresourceRange;
+            subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+            subresourceRange.levelCount = mipLevels;
+            subresourceRange.layerCount = layerCount;
+
+            // Use a separate command buffer for texture loading
+            context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& copyCmd) {
+                // Image barrier for optimal image (target)
+                // Set initial layout for all array layers (faces) of the optimal (target) tiled texture
+                context.setImageLayout(copyCmd, image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, subresourceRange);
+                // Copy the layers and mip levels from the staging buffer to the optimal tiled image
+                copyCmd.copyBufferToImage(stagingBuffer.buffer, image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
+                // Change texture image layout to shader read after all faces have been copied
+                context.setImageLayout(copyCmd, image, vk::ImageLayout::eTransferDstOptimal, imageLayout, subresourceRange);
+            });
+
+            // Clean up staging resources
+            stagingBuffer.destroy();
+#endif
+
+
+            // Create sampler
+            vk::SamplerCreateInfo samplerCreateInfo;
             samplerCreateInfo.magFilter = vk::Filter::eLinear;
             samplerCreateInfo.minFilter = vk::Filter::eLinear;
             samplerCreateInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
@@ -109,12 +157,13 @@ namespace vks { namespace texture {
             sampler = device.createSampler(samplerCreateInfo);
 
             // Create image view
-            // Textures are not directly accessed by the shaders and
-            // are abstracted by image views containing additional
-            // information and sub resource ranges
-            view = device.createImageView(vk::ImageViewCreateInfo{
-                {}, image, vk::ImageViewType::e2D, format, {}, { vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1 }
-                });
+            vk::ImageViewCreateInfo viewCreateInfo;
+            viewCreateInfo.viewType = vk::ImageViewType::e2D;
+            viewCreateInfo.image = image;
+            viewCreateInfo.format = format;
+            viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, layerCount };
+            view = context.device.createImageView(viewCreateInfo);
+
             // Update descriptor image info member that can be used for setting up descriptor sets
             updateDescriptor();
         }
@@ -317,6 +366,7 @@ namespace vks { namespace texture {
             vk::Format format,
             vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled,
             vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal) {
+            this->device = device;
 
             std::shared_ptr<gli::texture2d_array> texPtr;
             vks::util::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
@@ -325,7 +375,6 @@ namespace vks { namespace texture {
 
             const gli::texture2d_array& tex2DArray = *texPtr; 
 
-            this->device = device;
             extent.width = static_cast<uint32_t>(tex2DArray.extent().x);
             extent.height = static_cast<uint32_t>(tex2DArray.extent().y);
             extent.depth = 1;
@@ -367,12 +416,13 @@ namespace vks { namespace texture {
             imageCreateInfo.mipLevels = mipLevels;
             ((vks::Image&)*this) = context.createImage(imageCreateInfo);
 
+            vk::ImageSubresourceRange subresourceRange;
+            subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+            subresourceRange.levelCount = mipLevels;
+            subresourceRange.layerCount = layerCount;
+
             // Use a separate command buffer for texture loading
             context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& copyCmd) {
-                vk::ImageSubresourceRange subresourceRange;
-                subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-                subresourceRange.levelCount = mipLevels;
-                subresourceRange.layerCount = layerCount;
                 // Image barrier for optimal image (target)
                 // Set initial layout for all array layers (faces) of the optimal (target) tiled texture
                 context.setImageLayout(copyCmd, image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, subresourceRange);

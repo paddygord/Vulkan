@@ -1,7 +1,7 @@
-#include <common.hpp>
-#include <vulkanContext.hpp>
-#include <vulkanSwapChain.hpp>
-#include <vulkanShapes.hpp>
+#include "../common.hpp"
+#include "../vks/context.hpp"
+#include "../vks/swapchain.hpp"
+#include "../shapes.h"
 
 class VrExample : glfw::Window {
     using Parent = glfw::Window;

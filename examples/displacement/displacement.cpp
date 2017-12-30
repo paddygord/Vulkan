@@ -6,32 +6,25 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
 
 
 // Vertex layout for this example
-vks::model::VertexLayout vertexLayout =
-{
+vks::model::VertexLayout vertexLayout{ {
     vks::model::Component::VERTEX_COMPONENT_POSITION,
     vks::model::Component::VERTEX_COMPONENT_NORMAL,
     vks::model::Component::VERTEX_COMPONENT_UV
-};
+} };
 
 class VulkanExample : public vkx::ExampleBase {
     using Parent = vkx::ExampleBase;
 private:
     struct {
-        vkx::Texture colorMap;
-        vkx::Texture heightMap;
+        vks::texture::Texture2D colorMap;
+        vks::texture::Texture2D heightMap;
     } textures;
 public:
     bool splitScreen = true;
-
-    struct {
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
 
     struct {
         vks::model::Model object;
@@ -102,10 +95,12 @@ public:
     }
 
     void loadTextures() {
-        textures.colorMap = textureLoader->loadTexture(
+        textures.colorMap.loadFromFile(
+            context,
             getAssetPath() + "textures/stonewall_colormap_bc3.dds",
             vk::Format::eBc3UnormBlock);
-        textures.heightMap = textureLoader->loadTexture(
+        textures.heightMap.loadFromFile(
+            context,
             getAssetPath() + "textures/stonewall_heightmap_rgba.dds",
             vk::Format::eR8G8B8A8Unorm);
     }
@@ -132,212 +127,103 @@ public:
     }
 
     void loadMeshes() {
-        meshes.object = loadMesh(getAssetPath() + "models/torus.obj", vertexLayout, 0.25f);
+        meshes.object.loadFromFile(context, getAssetPath() + "models/torus.obj", vertexLayout, 0.25f);
     }
 
     void setupVertexDescriptions() {
-        // Binding description
-        vertices.bindingDescriptions.resize(1);
-        vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
-
-        // Attribute descriptions
-        // Describes memory layout and shader positions
-        vertices.attributeDescriptions.resize(3);
-
-        // Location 0 : Position
-        vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
-
-        // Location 1 : Normals
-        vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
-
-        // Location 2 : Texture coordinates
-        vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
-
-        vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
-        vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();
-        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-        vertices.inputState.vertexAttributeDescriptionCount = vertices.attributeDescriptions.size();
-        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
     }
 
     void setupDescriptorPool() {
         // Example uses two ubos and two image samplers
         std::vector<vk::DescriptorPoolSize> poolSizes =
         {
-            vkx::descriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
-            vkx::descriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 2)
+            vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
+            vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 2)
         };
 
-        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
-            vkx::descriptorPoolCreateInfo(poolSizes.size(), poolSizes.data(), 2);
-
-        descriptorPool = device.createDescriptorPool(descriptorPoolInfo);
+        descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings =
-        {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings {
             // Binding 0 : Tessellation control shader ubo
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eTessellationControl,
-                0),
+            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eTessellationControl },
             // Binding 1 : Tessellation evaluation shader ubo
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eTessellationEvaluation,
-                1),
+            { 1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eTessellationEvaluation },
             // Binding 2 : Tessellation evaluation shader displacement map image sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eTessellationEvaluation,
-                2),
+            { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eTessellationEvaluation },
             // Binding 3 : Fragment shader color map image sampler
-            vkx::descriptorSetLayoutBinding(
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
-                3),
+            { 3, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
 
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
-            vkx::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), setLayoutBindings.size());
-
-        descriptorSetLayout = device.createDescriptorSetLayout(descriptorLayout);
-
-
-        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-            vkx::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-
-        pipelineLayout = device.createPipelineLayout(pPipelineLayoutCreateInfo);
-
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
-        vk::DescriptorSetAllocateInfo allocInfo =
-            vkx::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-
-        descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
-
+        descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1,  &descriptorSetLayout })[0];
         // Displacement map image descriptor
-        vk::DescriptorImageInfo texDescriptorDisplacementMap =
-            vkx::descriptorImageInfo(textures.heightMap.sampler, textures.heightMap.view, vk::ImageLayout::eGeneral);
-
+        vk::DescriptorImageInfo texDescriptorDisplacementMap{ textures.heightMap.sampler, textures.heightMap.view, vk::ImageLayout::eGeneral };
         // Color map image descriptor
-        vk::DescriptorImageInfo texDescriptorColorMap =
-            vkx::descriptorImageInfo(textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral);
+        vk::DescriptorImageInfo texDescriptorColorMap{ textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral };
 
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets =
-        {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets {
             // Binding 0 : Tessellation control shader ubo
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                0,
-                &uniformDataTC.descriptor),
+            { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataTC.descriptor },
             // Binding 1 : Tessellation evaluation shader ubo
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eUniformBuffer,
-                1,
-                &uniformDataTE.descriptor),
+            { descriptorSet, 1, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataTE.descriptor },
             // Binding 2 : Displacement map
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eCombinedImageSampler,
-                2,
-                &texDescriptorDisplacementMap),
+            { descriptorSet, 2, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorDisplacementMap },
             // Binding 3 : Color map
-            vkx::writeDescriptorSet(
-                descriptorSet,
-                vk::DescriptorType::eCombinedImageSampler,
-                3,
-                &texDescriptorColorMap),
+            { descriptorSet, 3, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorColorMap },
         };
 
-        device.updateDescriptorSets(writeDescriptorSets.size(), writeDescriptorSets.data(), 0, NULL);
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
     void preparePipelines() {
-        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
-            vkx::pipelineInputAssemblyStateCreateInfo(vk::PrimitiveTopology::ePatchList, vk::PipelineInputAssemblyStateCreateFlags(), VK_FALSE);
-
-        vk::PipelineRasterizationStateCreateInfo rasterizationState =
-            vkx::pipelineRasterizationStateCreateInfo(vk::PolygonMode::eFill, vk::CullModeFlagBits::eNone, vk::FrontFace::eCounterClockwise);
-
-        vk::PipelineColorBlendAttachmentState blendAttachmentState =
-            vkx::pipelineColorBlendAttachmentState();
-
-        vk::PipelineColorBlendStateCreateInfo colorBlendState =
-            vkx::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
-            vkx::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, vk::CompareOp::eLessOrEqual);
-
-        vk::PipelineViewportStateCreateInfo viewportState =
-            vkx::pipelineViewportStateCreateInfo(1, 1);
-
-        vk::PipelineMultisampleStateCreateInfo multisampleState =
-            vkx::pipelineMultisampleStateCreateInfo(vk::SampleCountFlagBits::e1);
-
-        std::vector<vk::DynamicState> dynamicStateEnables = {
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
+        pipelineBuilder.inputAssemblyState.topology = vk::PrimitiveTopology::ePatchList;
+        pipelineBuilder.depthStencilState = { true };
+        pipelineBuilder.dynamicState.dynamicStateEnables = {
             vk::DynamicState::eViewport,
             vk::DynamicState::eScissor,
             vk::DynamicState::eLineWidth
         };
-        vk::PipelineDynamicStateCreateInfo dynamicState =
-            vkx::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), dynamicStateEnables.size());
 
-        vk::PipelineTessellationStateCreateInfo tessellationState =
-            vkx::pipelineTessellationStateCreateInfo(3);
+        vk::PipelineTessellationStateCreateInfo tessellationState{ {}, 3 };
+        pipelineBuilder.pipelineCreateInfo.pTessellationState = &tessellationState;
 
         // Tessellation pipeline
         // Load shaders
-        std::array<vk::PipelineShaderStageCreateInfo, 4> shaderStages;
-        shaderStages[0] = context.loadShader(getAssetPath() + "shaders/displacement/base.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        shaderStages[1] = context.loadShader(getAssetPath() + "shaders/displacement/base.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        shaderStages[2] = context.loadShader(getAssetPath() + "shaders/displacement/displacement.tesc.spv", vk::ShaderStageFlagBits::eTessellationControl);
-        shaderStages[3] = context.loadShader(getAssetPath() + "shaders/displacement/displacement.tese.spv", vk::ShaderStageFlagBits::eTessellationEvaluation);
-
-        vk::GraphicsPipelineCreateInfo pipelineCreateInfo =
-            vkx::pipelineCreateInfo(pipelineLayout, renderPass);
-
-        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-        pipelineCreateInfo.pRasterizationState = &rasterizationState;
-        pipelineCreateInfo.pColorBlendState = &colorBlendState;
-        pipelineCreateInfo.pMultisampleState = &multisampleState;
-        pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-        pipelineCreateInfo.pDynamicState = &dynamicState;
-        pipelineCreateInfo.pTessellationState = &tessellationState;
-        pipelineCreateInfo.stageCount = shaderStages.size();
-        pipelineCreateInfo.pStages = shaderStages.data();
-        pipelineCreateInfo.renderPass = renderPass;
-
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/displacement/base.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/displacement/base.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/displacement/displacement.tesc.spv", vk::ShaderStageFlagBits::eTessellationControl);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/displacement/displacement.tese.spv", vk::ShaderStageFlagBits::eTessellationEvaluation);
+        pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
         // Solid pipeline
-        pipelines.solid = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelines.solid = pipelineBuilder.create(context.pipelineCache);
 
         // Wireframe pipeline
-        rasterizationState.polygonMode = vk::PolygonMode::eLine;
-        pipelines.wire = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelineBuilder.rasterizationState.polygonMode = vk::PolygonMode::eLine;
+        pipelines.wire = pipelineBuilder.create(context.pipelineCache);
 
 
         // Pass through pipelines
         // Load pass through tessellation shaders (Vert and frag are reused)
-        shaderStages[2] = context.loadShader(getAssetPath() + "shaders/displacement/passthrough.tesc.spv", vk::ShaderStageFlagBits::eTessellationControl);
-        shaderStages[3] = context.loadShader(getAssetPath() + "shaders/displacement/passthrough.tese.spv", vk::ShaderStageFlagBits::eTessellationEvaluation);
+        context.device.destroyShaderModule(pipelineBuilder.shaderStages[2].module);
+        context.device.destroyShaderModule(pipelineBuilder.shaderStages[3].module);
+        pipelineBuilder.shaderStages.resize(2);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/displacement/passthrough.tesc.spv", vk::ShaderStageFlagBits::eTessellationControl);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/displacement/passthrough.tese.spv", vk::ShaderStageFlagBits::eTessellationEvaluation);
+
         // Solid
-        rasterizationState.polygonMode = vk::PolygonMode::eFill;
-        pipelines.solidPassThrough = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipelineBuilder.rasterizationState.polygonMode = vk::PolygonMode::eFill;
+        pipelines.solidPassThrough = pipelineBuilder.create(context.pipelineCache);
 
         // Wireframe
-        rasterizationState.polygonMode = vk::PolygonMode::eLine;
-        pipelines.wirePassThrough = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
-
+        pipelineBuilder.rasterizationState.polygonMode = vk::PolygonMode::eLine;
+        pipelines.wirePassThrough = pipelineBuilder.create(context.pipelineCache);
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
@@ -372,7 +258,7 @@ public:
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         prepared = true;
     }
 
@@ -389,11 +275,13 @@ public:
     void changeTessellationLevel(float delta) {
         uboTC.tessLevel += delta;
         // Clamp
-        uboTC.tessLevel = fmax(1.0, fmin(uboTC.tessLevel, 32.0));
+        uboTC.tessLevel = fmax(1.0f, fmin(uboTC.tessLevel, 32.0f));
         updateUniformBuffers();
     }
 
     void togglePipelines() {
+        context.queue.waitIdle();
+        context.device.waitIdle();
         if (pipelineRight == &pipelines.solid) {
             pipelineRight = &pipelines.wire;
             pipelineLeft = &pipelines.wirePassThrough;
@@ -401,12 +289,12 @@ public:
             pipelineRight = &pipelines.solid;
             pipelineLeft = &pipelines.solidPassThrough;
         }
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
     }
 
     void toggleSplitScreen() {
         splitScreen = !splitScreen;
-        updateDrawCommandBuffers();
+        buildCommandBuffers();
         updateUniformBuffers();
     }
 
