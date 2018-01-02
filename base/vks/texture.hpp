@@ -32,6 +32,12 @@ namespace vks { namespace texture {
         uint32_t layerCount{ 1 };
         vk::DescriptorImageInfo descriptor;
 
+        Texture& operator=(const vks::Image& image) {
+            destroy();
+            (vks::Image&)*this = image;
+            return *this;
+        }
+
         /** @brief Update image descriptor from current sampler, view and image layout */
         void updateDescriptor() {
             descriptor.sampler = sampler;
