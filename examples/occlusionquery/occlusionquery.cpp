@@ -121,15 +121,15 @@ public:
         device.getQueryPoolResults(queryPool, 0, 2, vk::ArrayProxy<uint64_t> { passedSamples }, sizeof(uint64_t), queryResultFlags);
     }
 
-    void updateCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
+    void updateCommandBufferPreDraw(const vk::CommandBuffer& cmdBuffer) override {
         // Reset query pool
         // Must be done outside of render pass
         cmdBuffer.resetQueryPool(queryPool, 0, 2);
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-        cmdBuffer.setViewport(0, vks::util::viewport(size));
-        cmdBuffer.setScissor(0, vks::util::rect2D(size));
+        cmdBuffer.setViewport(0, viewport());
+        cmdBuffer.setScissor(0, scissor());
 
         // Occlusion pass
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.simple);
