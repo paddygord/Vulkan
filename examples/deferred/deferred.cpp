@@ -77,9 +77,13 @@ public:
     vk::CommandBuffer offscreenCmdBuffer;
 
     VulkanExample() {
-        camera.setZoom(-8.0f);
-        size.width = 1024;
-        size.height = 1024;
+        camera.movementSpeed = 5.0f;
+#ifndef __ANDROID__
+        camera.rotationSpeed = 0.25f;
+#endif
+        camera.position = { 2.15f, 0.3f, -8.0f };
+        camera.setRotation(glm::vec3(-0.75f, 12.5f, 0.0f));
+        camera.setPerspective(60.0f, size, 0.1f, 256.0f);
         title = "Vulkan Example - Deferred shading";
     }
 
@@ -445,7 +449,7 @@ public:
     void keyPressed(uint32_t key) override {
         Parent::keyPressed(key);
         switch (key) {
-            case GLFW_KEY_D:
+            case KEY_D:
                 toggleDebugDisplay();
                 break;
         }

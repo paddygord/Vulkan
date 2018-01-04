@@ -3,7 +3,7 @@
 
 vk::ShaderModule vks::shaders::loadShaderModule(const vk::Device& device, const std::string& filename) {
     vk::ShaderModule result;
-    vks::util::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
+    vks::file::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
         result = device.createShaderModule(
             vk::ShaderModuleCreateInfo{ {}, size, (const uint32_t*)data }
         );

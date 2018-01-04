@@ -17,6 +17,13 @@
 #include <vks/shaders.hpp>
 #include <utils.hpp>
 
+#if defined(__ANDROID__)
+class TriangleExample {
+public:
+    void run() {}
+};
+
+#else
 #define VERTEX_BUFFER_BIND_ID 0
 
 class TriangleExample : public glfw::Window {
@@ -733,5 +740,6 @@ public:
     void run() {}
 #endif
 };
+#endif
 
 RUN_EXAMPLE(TriangleExample)

@@ -10,7 +10,8 @@
 
 #pragma once
 
-#include "vulkanExampleBase.h"
+#include <glm/glm.hpp>
+#include "vks/context.hpp"
 
 struct Vertex
 {
@@ -74,6 +75,7 @@ public:
 
     void draw(vk::CommandBuffer cmdbuffer, vk::PipelineLayout pipelineLayout);
     void updateUniformBuffer(const glm::mat4& perspective, const glm::mat4& view, float timer);
+    void updateUniformBuffer(const glm::mat4& perspective, glm::vec3 rotation, float zoom, float timer);
 
     void setupDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout descriptorSetLayout);
 

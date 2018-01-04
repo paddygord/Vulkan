@@ -29,9 +29,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        camera.setTranslation({ 0, 0, -16.0f });
-        camera.setRotation({ -23.75, 41.25, 21.0 });
         timerSpeed *= 0.25f;
+        camera.translate(glm::vec3(0.0f, 0.0f, -12.0f * zoomSpeed));
         title = "Vulkan Example - Gears";
     }
 
@@ -131,8 +130,9 @@ public:
     }
 
     void updateUniformBuffers() {
+        glm::mat4 perspective = glm::perspective(glm::radians(60.0f), (float)size.width/ (float)size.height, 0.001f, 256.0f);
         for (auto& gear : gears) {
-            gear->updateUniformBuffer(camera.matrices.perspective, camera.matrices.view, timer * 360.0f);
+            gear->updateUniformBuffer(perspective, camera.matrices.view, timer * 360.0f);
         }
     }
 

@@ -8,7 +8,6 @@
 
 #include <vulkanExampleBase.h>
 #include <vks/texture.hpp>
-#include <vulkanTools.h>
 
 // Vertex layout for this example
 struct Vertex {
@@ -58,8 +57,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     TextureExample() {
-        camera.setZoom(-2.5f);
         camera.setRotation({ 0.0f, 15.0f, 0.0f });
+        camera.dolly(-2.5f);
         title = "Vulkan Example - Texturing";
     }
 
@@ -242,7 +241,7 @@ public:
         uboVS.projection = camera.matrices.perspective;
         glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, camera.position.z));
         uboVS.model = viewMatrix * glm::translate(glm::mat4(), glm::vec3(camera.position.x, camera.position.y, 0));
-        uboVS.model = uboVS.model * glm::mat4_cast(camera.orientation);
+        uboVS.model = uboVS.model * glm::inverse(camera.matrices.skyboxView);
         uboVS.viewPos = glm::vec4(0.0f, 0.0f, -camera.position.z, 0.0f);
         uniformDataVS.copy(uboVS);
     }
@@ -278,10 +277,10 @@ public:
 #if !defined(__ANDROID__)
     void keyPressed(uint32_t keyCode) override {
         switch (keyCode) {
-        case GLFW_KEY_KP_ADD:
+        case KEY_KPADD:
             changeLodBias(0.1f);
             break;
-        case GLFW_KEY_KP_SUBTRACT:
+        case KEY_KPSUB:
             changeLodBias(-0.1f);
             break;
         }

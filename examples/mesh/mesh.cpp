@@ -81,7 +81,7 @@ public:
         uniformData.vsScene.destroy();
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         cmdBuffer.setViewport(0, vks::util::viewport(size));
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
@@ -163,7 +163,7 @@ public:
         uniformData.vsScene.copy(uboVS);
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
@@ -174,17 +174,17 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
+    void render() override {
         if (!prepared)
             return;
         draw();
     }
 
-    virtual void viewChanged() { updateUniformBuffers(); }
+    void viewChanged() override { updateUniformBuffers(); }
 
-    virtual void keyPressed(uint32_t keyCode) {
+    void keyPressed(uint32_t keyCode) override {
         switch (keyCode) {
-            case GLFW_KEY_W:
+            case KEY_W:
             case GAMEPAD_BUTTON_A:
                 wireframe = !wireframe;
                 buildCommandBuffers();

@@ -9,6 +9,8 @@
 */
 
 #include "vulkanGear.h"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 
 int32_t VulkanGear::newVertex(std::vector<Vertex> *vBuffer, float x, float y, float z, const glm::vec3& normal) {
     Vertex v(

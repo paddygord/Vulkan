@@ -510,7 +510,7 @@ public:
     }
 };
 #else
-class SwapchainExample {
+class SwapChainExample {
 public:
 void run() {};
 };

@@ -40,7 +40,6 @@ public:
     VulkanExample() {
         size.width = 1280;
         size.height = 720;
-        camera.setZoom(-2.5f);
         title = "Vulkan Example - Basic indexed triangle";
     }
 
@@ -64,8 +63,7 @@ public:
         // Update matrices
         uboVS.projectionMatrix = getProjection();
         uboVS.viewMatrix = glm::translate(glm::mat4(), camera.position);
-        camera.yawPitch.x += frameTimer * 1.0f;
-        uboVS.modelMatrix = glm::mat4_cast(camera.orientation);
+        uboVS.modelMatrix = glm::mat4_cast(glm::quat_cast(camera.matrices.view));
         memcpy(uniformDataVS.mapped, &uboVS, sizeof(uboVS));
     }
 
@@ -215,7 +213,7 @@ public:
     void prepareUniformBuffers() {
         uboVS.projectionMatrix = getProjection();
         uboVS.viewMatrix = glm::translate(glm::mat4(), camera.position);
-        uboVS.modelMatrix = glm::mat4_cast(camera.orientation);
+        uboVS.modelMatrix = glm::inverse(camera.matrices.skyboxView);
         uniformDataVS = context.createUniformBuffer(uboVS);
     }
 };

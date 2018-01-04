@@ -48,7 +48,7 @@ public:
     } pipelines;
 
     VulkanExample() {
-        camera.setZoom(-10.5f);
+        camera.dolly(-10.5f);
         camera.setRotation({ -25.0f, 15.0f, 0.0f });
         title = "Vulkan Example - vk::Pipeline state objects";
     }
@@ -103,7 +103,7 @@ public:
         }
     }
 
-    void loadAssets() { meshes.cube.loadFromFile(context, getAssetPath() + "models/treasure_smooth.dae", vertexLayout, 1.0f); }
+    void loadAssets() override { meshes.cube.loadFromFile(context, getAssetPath() + "models/treasure_smooth.dae", vertexLayout, 1.0f); }
 
     void setupDescriptorPool() {
         std::vector<vk::DescriptorPoolSize> poolSizes = {

@@ -92,8 +92,8 @@ public:
     VulkanExample() {
         enableVsync = true;
         camera.type = Camera::lookat;
-        camera.setZoom(-10.0f);
         camera.setRotation({ -15.0f, -390.0f, 0.0f });
+        camera.dolly(-10.0f);
         title = "Vulkan Example - Projected shadow mapping";
         timerSpeed *= 0.5f;
     }
@@ -124,7 +124,8 @@ public:
         // Create separate command buffer for offscreen
         // rendering
         if (offscreen.cmdBuffer) {
-            context.trashCommandBuffer(offscreen.cmdBuffer);
+            std::vector<vk::CommandBuffer> buffers{ { offscreen.cmdBuffer } };
+            context.trashCommandBuffers(context.getCommandPool(), buffers);
         }
         offscreen.cmdBuffer = device.allocateCommandBuffers({ cmdPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
 
@@ -180,7 +181,7 @@ public:
         cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
     }
 
-    void loadAssets() { meshes.scene.loadFromFile(context, getAssetPath() + "models/vulkanscene_shadow.dae", vertexLayout, 4.0f); }
+    void loadAssets() override { meshes.scene.loadFromFile(context, getAssetPath() + "models/vulkanscene_shadow.dae", vertexLayout, 4.0f); }
 
     void generateQuad() {
         // Setup vertices for a single uv-mapped quad
@@ -407,10 +408,10 @@ public:
 
     void keyPressed(uint32_t key) override {
         switch (key) {
-            case GLFW_KEY_S:
+            case KEY_S:
                 toggleShadowMapDisplay();
                 break;
-            case GLFW_KEY_L:
+            case KEY_L:
                 toogleLightPOV();
                 break;
         }

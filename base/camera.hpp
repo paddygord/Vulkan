@@ -6,201 +6,152 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "common.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 class Camera {
 private:
-    const float MAX_PITCH{ (float)M_PI_2 * 0.95f };
-    float fov{ 60.0f };
-    float znear{ 0.11f }, zfar{ 512.0f };
-    float aspect{ 1.0f };
+    float fov;
+    float znear, zfar;
 
     void updateViewMatrix() {
-        // Constrain pitch to ~-PI/2 to ~PI/2
-        if (abs(yawPitch.y) > MAX_PITCH) {
-            yawPitch.y = std::max(std::min(yawPitch.y, MAX_PITCH), -MAX_PITCH);
-        }
-        while (abs(yawPitch.x) > M_PI) {
-            yawPitch.x += (float)((yawPitch.x > 0) ? -M_PI : M_PI);
-        }
+        glm::mat4 rotM = glm::mat4(1.0f);
+        glm::mat4 transM;
+
+        rotM = glm::rotate(rotM, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+        rotM = glm::rotate(rotM, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+        rotM = glm::rotate(rotM, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+
+        transM = glm::translate(glm::mat4(1.0f), position);
 
         if (type == CameraType::firstperson) {
-            const_cast<glm::quat&>(orientation) = glm::angleAxis(yawPitch.y, Vectors::RIGHT) * glm::angleAxis(yawPitch.x, Vectors::UP);
-            glm::mat4 rotM = glm::mat4_cast(orientation);
-            glm::mat4 transM = glm::translate(glm::mat4(), position);
             matrices.view = rotM * transM;
         } else {
-            const_cast<glm::quat&>(orientation) = glm::angleAxis(yawPitch.x, Vectors::UP) * glm::angleAxis(yawPitch.y, Vectors::RIGHT);
-            // rotate into the camera xy plane
-            glm::vec3 origin = orientation * glm::vec3(position.x, position.y, 0.0f);
-            glm::vec3 cameraPosition = orientation * glm::vec3(0, 0, -position.z);
-            matrices.view = glm::lookAt(cameraPosition + origin, origin, glm::vec3(0, 1, 0));
+            matrices.view = transM * rotM;
         }
         matrices.skyboxView = matrices.view;
         matrices.skyboxView[3] = glm::vec4(0, 0, 0, 1);
-    }
+    };
 
 public:
-    enum CameraType { lookat, firstperson };
-    CameraType type{ CameraType::lookat };
+    enum CameraType
+    {
+        lookat,
+        firstperson
+    };
+    CameraType type = CameraType::lookat;
 
-    const glm::quat orientation;
-    glm::vec2 yawPitch;
-    glm::vec3 position;
+    glm::vec3 rotation = glm::vec3();
+    glm::vec3 position = glm::vec3();
 
-    float rotationSpeed{ 1.0f };
-    float movementSpeed{ 1.0f };
+    float rotationSpeed = 1.0f;
+    float movementSpeed = 1.0f;
 
-    struct Matrices {
+    struct {
         glm::mat4 perspective;
         glm::mat4 view;
         glm::mat4 skyboxView;
     } matrices;
 
-    struct Keys {
+    struct {
         bool left = false;
         bool right = false;
         bool up = false;
         bool down = false;
     } keys;
 
-    Camera() {
-        matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
-    }
+    bool moving() { return keys.left || keys.right || keys.up || keys.down; }
 
-    bool moving() {
-        return keys.left || keys.right || keys.up || keys.down;
-    }
+    float getNearClip() { return znear; }
 
-    void setFieldOfView(float fov) {
-        this->fov = fov;
-        matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
-    }
+    float getFarClip() { return zfar; }
 
-    void setAspectRatio(const glm::vec2& size) {
-        setAspectRatio(size.x / size.y);
-    }
-
-    void setAspectRatio(const vk::Extent2D& size) {
-        setAspectRatio((float)size.width / (float)size.height);
-    }
-
-    void setAspectRatio(float aspect) {
-        this->aspect = aspect;
-        matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
-    }
-
-    void setNear(float newZnear) {
-        setPerspective(fov, aspect, newZnear, zfar);
-    }
-
-    void setFar(float newZfar) {
-        setPerspective(fov, aspect, znear, newZfar);
-    }
-
-    void setPerspective(float fov, const glm::vec2& size, float znear = 0.1f, float zfar = 512.0f) {
-        setPerspective(fov, size.x / size.y, znear, zfar);
-    }
-
-    void setPerspective(float fov, const vk::Extent2D& size, float znear = 0.1f, float zfar = 512.0f) {
+    void setPerspective(float fov, const vk::Extent2D& size, float znear, float zfar) {
         setPerspective(fov, (float)size.width / (float)size.height, znear, zfar);
     }
 
-    void setPerspective(float fov, float aspect, float znear = 0.1f, float zfar = 512.0f) {
-        this->aspect = aspect;
+    void setPerspective(float fov, float aspect, float znear, float zfar) {
         this->fov = fov;
         this->znear = znear;
         this->zfar = zfar;
         matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
     };
 
-    void setRotation(const glm::vec3& rotation) {
-        yawPitch = glm::radians(glm::vec2(-rotation.y, -rotation.x));
+    void updateAspectRatio(float aspect) { matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar); }
+
+    void setPosition(glm::vec3 position) {
+        this->position = position;
+        updateViewMatrix();
+    }
+
+    void setRotation(glm::vec3 rotation) {
+        this->rotation = rotation;
         updateViewMatrix();
     };
 
-    void setPosition(const glm::vec3& translation) {
-        setTranslation(translation);
-    }
-
-    void setTranslation(const glm::vec3& translation) {
-        position = vec3(-translation.x, - translation.y, translation.z);
+    void rotate(glm::vec3 delta) {
+        this->rotation += delta;
         updateViewMatrix();
     }
 
-    void setZoom(float f) {
-        setTranslation({ 0, 0, f });
-    }
-
-    void rotate(const glm::vec2& delta) {
-        yawPitch += delta;
+    void setTranslation(glm::vec3 translation) {
+        this->position = translation;
         updateViewMatrix();
-    }
+    };
 
-    void rotate(const glm::vec3& delta) {
-        yawPitch += glm::radians(glm::vec2(delta));
-    }
-
-    // Translate in the Z axis of the camera
-    void dolly(float delta) {
-        translate(glm::vec3(0, 0, delta));
-    }
-
-    // Translate in the XY plane of the camera
-    void translate(const glm::vec2& delta) {
-        translate(glm::vec3(delta.x, delta.y, 0));
+    void dolly(float z) {
+        translate(glm::vec3{ 0, 0, z });
     }
 
     void translate(const glm::vec3& delta) {
-        if (type == CameraType::firstperson) {
-            position += glm::inverse(orientation) * delta;
-        } else {
-            position += delta;
-        }
+        glm::vec3 camFront;
+        camFront.x = -cos(glm::radians(rotation.x)) * sin(glm::radians(rotation.y));
+        camFront.y = sin(glm::radians(rotation.x));
+        camFront.z = cos(glm::radians(rotation.x)) * cos(glm::radians(rotation.y));
+        glm::vec3 camUp = glm::vec3(0.0f, 1.0f, 0.0f);
+        glm::vec3 camLeft = glm::cross(camFront, camUp);
+        camUp = glm::cross(camFront, camLeft);
+        glm::vec3 result = camLeft * delta.x + camUp * -delta.y + camFront * delta.z;
+        position += result;
         updateViewMatrix();
-    }
-
-    void keyPressed(uint32_t key, uint32_t mods) {
-    }
-
-    void keyReleased(uint32_t key, uint32_t mods) {
     }
 
     void update(float deltaTime) {
         if (type == CameraType::firstperson) {
             if (moving()) {
-                glm::vec3 camFront = orientation * glm::vec3{ 0, 0, 1 };
-                float moveSpeed = deltaTime * movementSpeed;
-
-                if (keys.up)
-                    position += camFront * moveSpeed;
-                if (keys.down)
-                    position -= camFront * moveSpeed;
-                if (keys.left)
-                    position -= glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f))) * moveSpeed;
-                if (keys.right)
-                    position += glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f))) * moveSpeed;
-
-                updateViewMatrix();
+                glm::vec3 direction;
+                if (keys.up ^ keys.down) {
+                    direction.z = keys.up ? 1.0f : -1.0f;
+                }
+                if (keys.left ^ keys.right) {
+                    direction.x = keys.left ? -1.0f : 1.0f;
+                }
+                translate(direction * deltaTime * movementSpeed);
             }
         }
-    }
+    };
 
     // Update camera passing separate axis data (gamepad)
     // Returns true if view or position has been changed
-    bool updatePad(const glm::vec2& axisLeft, const glm::vec2& axisRight, float deltaTime) {
+    bool updatePad(glm::vec2 axisLeft, glm::vec2 axisRight, float deltaTime) {
         bool retVal = false;
 
         if (type == CameraType::firstperson) {
-            // Use the common console thumbstick layout        
+            // Use the common console thumbstick layout
             // Left = view, right = move
 
             const float deadZone = 0.0015f;
             const float range = 1.0f - deadZone;
-            glm::vec3 camFront = orientation * glm::vec3{ 0, 0, 1 };
+
+            glm::vec3 camFront;
+            camFront.x = -cos(glm::radians(rotation.x)) * sin(glm::radians(rotation.y));
+            camFront.y = sin(glm::radians(rotation.x));
+            camFront.z = cos(glm::radians(rotation.x)) * cos(glm::radians(rotation.y));
+            camFront = glm::normalize(camFront);
 
             float moveSpeed = deltaTime * movementSpeed * 2.0f;
-            float rotSpeed = deltaTime * 50.0f;
+            float rotSpeed = deltaTime * rotationSpeed * 50.0f;
 
             // Move
             if (fabsf(axisLeft.y) > deadZone) {
@@ -217,13 +168,12 @@ public:
             // Rotate
             if (fabsf(axisRight.x) > deadZone) {
                 float pos = (fabsf(axisRight.x) - deadZone) / range;
-                yawPitch.x += glm::radians(pos * ((axisRight.x < 0.0f) ? -1.0f : 1.0f) * rotSpeed);
+                rotation.y += pos * ((axisRight.x < 0.0f) ? -1.0f : 1.0f) * rotSpeed;
                 retVal = true;
             }
-
             if (fabsf(axisRight.y) > deadZone) {
                 float pos = (fabsf(axisRight.y) - deadZone) / range;
-                yawPitch.y *= glm::radians(pos * ((axisRight.x < 0.0f) ? -1.0f : 1.0f) * rotSpeed);
+                rotation.x -= pos * ((axisRight.y < 0.0f) ? -1.0f : 1.0f) * rotSpeed;
                 retVal = true;
             }
         } else {

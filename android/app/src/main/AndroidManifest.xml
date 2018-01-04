@@ -21,7 +21,7 @@
         <activity
             android:name=".MainActivity"
             android:label="@string/app_name"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+            android:theme="@android:style/Theme.DeviceDefault">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -32,24 +32,30 @@
             <meta-data android:name="android.app.lib_name" android:value="bloom" />
         </activity>
         <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-            android:name=".examples.ComputeParticles">
-            <meta-data android:name="android.app.lib_name" android:value="computeparticles" />
+            android:name=".examples.ComputeCloth">
+            <meta-data android:name="android.app.lib_name" android:value="computecloth" />
         </activity>
         <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-            android:name=".examples.ComputeParticlesAsync">
-            <meta-data android:name="android.app.lib_name" android:value="computeparticlesasync" />
+            android:name=".examples.ComputeNBody">
+            <meta-data android:name="android.app.lib_name" android:value="computenbody" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.ComputeParticles">
+            <meta-data android:name="android.app.lib_name" android:value="computeparticles" />
         </activity>
         <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:name=".examples.ComputeShader">
             <meta-data android:name="android.app.lib_name" android:value="computeshader" />
         </activity>
+        <!--
         <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:name=".examples.Context">
             <meta-data android:name="android.app.lib_name" android:value="context" />
         </activity>
+        -->
         <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-            android:name=".examples.DebugMarker">
-            <meta-data android:name="android.app.lib_name" android:value="debugmarker" />
+            android:name=".examples.Deferred">
+            <meta-data android:name="android.app.lib_name" android:value="deferred" />
         </activity>
         <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:name=".examples.Displacement">
@@ -102,6 +108,18 @@
         <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:name=".examples.ParticleFire">
             <meta-data android:name="android.app.lib_name" android:value="particlefire" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.PbrBasic">
+            <meta-data android:name="android.app.lib_name" android:value="pbrbasic" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.PbrIbl">
+            <meta-data android:name="android.app.lib_name" android:value="pbribl" />
+        </activity>
+        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:name=".examples.PbrTexture">
+            <meta-data android:name="android.app.lib_name" android:value="pbrtexture" />
         </activity>
         <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:name=".examples.Pipelines">

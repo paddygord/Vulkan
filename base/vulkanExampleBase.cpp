@@ -7,48 +7,26 @@
 */
 #include "vulkanExampleBase.h"
 
+#include <imgui.h>
+
 #include "ui.hpp"
-#include "../external/imgui/imgui.h"
-#include <assimp/DefaultLogger.hpp>
+#include "android.hpp"
+#include "keycodes.hpp"
+
+#include "vks/filesystem.hpp"
 
 using namespace vkx;
 
-
-class AssimpLogger : public Assimp::Logger {
-private:
-    void onMessage(const char* message) {
-        OutputDebugStringA(message);
-        OutputDebugStringA("\n");
-    }
-    void OnDebug(const char* message) override { onMessage(message); }
-    void OnInfo(const char* message) override { onMessage(message); }
-    void OnWarn(const char* message) override { onMessage(message); }
-    void OnError(const char* message) override { onMessage(message); }
-    bool attachStream(Assimp::LogStream *pStream, unsigned int severity = Debugging | Err | Warn | Info) {
-        int i = 0;
-        return false;
-    }
-
-    virtual bool detatchStream(Assimp::LogStream *pStream, unsigned int severity = Debugging | Err | Warn | Info) {
-        int i = 0;
-        return false;
-
-    }
-
-
-};
-
-AssimpLogger logger;
-
 // Avoid doing work in the ctor as it can't make use of overridden virtual functions
-// Instead, use the `run` method
+// Instead, use the `prepare` and `run` methods
 ExampleBase::ExampleBase() {
-    Assimp::DefaultLogger::set(&logger);
 #if defined(__ANDROID__)
-    global_android_app->userData = this;
-    global_android_app->onInputEvent = ExampleBase::handle_input_event;
-    global_android_app->onAppCmd = ExampleBase::handle_app_cmd;
+    vks::file::setAssetManager(vkx::android::androidApp->activity->assetManager);
+    vkx::android::androidApp->userData = this;
+    vkx::android::androidApp->onInputEvent = ExampleBase::handle_input_event;
+    vkx::android::androidApp->onAppCmd = ExampleBase::handle_app_cmd;
 #endif
+    camera.setPerspective(60.0f, size, 0.1f, 256.0f);
 }
 
 ExampleBase::~ExampleBase() {
@@ -107,7 +85,11 @@ void ExampleBase::initVulkan() {
 #ifndef NDEBUG
     context.setValidationEnabled(true);
 #endif
+#if defined(__ANDROID__)
+    context.requireExtensions({VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME});
+#else
     context.requireExtensions(glfw::getRequiredInstanceExtensions());
+#endif
     context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
     context.create();
 
@@ -146,9 +128,9 @@ bool ExampleBase::platformLoopCondition() {
     struct android_poll_source* source;
     while (!destroy && (ident = ALooper_pollAll(focused ? 0 : -1, NULL, &events, (void**)&source)) >= 0) {
         if (source != NULL) {
-            source->process(global_android_app, source);
+            source->process(vkx::android::androidApp, source);
         }
-        destroy =  global_android_app->destroyRequested != 0
+        destroy =  vkx::android::androidApp->destroyRequested != 0;
     }
 
     // App destruction requested
@@ -319,38 +301,27 @@ void ExampleBase::buildCommandBuffers() {
         const auto& cmdBuffer = commandBuffers[i];
         cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
         cmdBuffer.begin(cmdBufInfo);
-        updateCommandBuffer(cmdBuffer);
+        updateCommandBufferPreDraw(cmdBuffer);
         // Let child classes execute operations outside the renderpass, like buffer barriers or query pool operations
         renderPassBeginInfo.framebuffer = framebuffers[i];
         cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
         updateDrawCommandBuffer(cmdBuffer);
         cmdBuffer.endRenderPass();
+        updateCommandBufferPostDraw(cmdBuffer);
         cmdBuffer.end();
     }
-}
-
-vk::SubmitInfo ExampleBase::prepareSubmitInfo(
-    const std::vector<vk::CommandBuffer>& commandBuffers,
-    vk::PipelineStageFlags *pipelineStages) {
-    vk::SubmitInfo submitInfo;
-    submitInfo.pWaitDstStageMask = pipelineStages;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
-    submitInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
-    submitInfo.pCommandBuffers = commandBuffers.data();
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &semaphores.renderComplete;
-    return submitInfo;
 }
 
 void ExampleBase::prepareFrame() {
     // Acquire the next image from the swap chaing
     auto resultValue = swapChain.acquireNextImage(semaphores.acquireComplete);
     if (resultValue.result == vk::Result::eSuboptimalKHR) {
+#if !defined(__ANDROID__)
         ivec2 newSize;
         glfwGetWindowSize(window, &newSize.x, &newSize.y);
         windowResize(newSize);
         resultValue = swapChain.acquireNextImage(semaphores.acquireComplete);
+#endif
     }
     currentBuffer = resultValue.value;
 }
@@ -533,6 +504,80 @@ void ExampleBase::drawCurrentCommandBuffer(const vk::Semaphore& semaphore) {
     context.recycle();
 }
 
+void ExampleBase::draw() {
+    // Get next image in the swap chain (back/front buffer)
+    prepareFrame();
+    // Execute the compiled command buffer for the current swap chain image
+    drawCurrentCommandBuffer();
+    // Push the rendered frame to the surface
+    submitFrame();
+}
+
+void ExampleBase::render() {
+    if (!prepared) {
+        return;
+    }
+    draw();
+}
+
+void ExampleBase::update(float deltaTime) {
+    frameTimer = deltaTime;
+    ++frameCounter;
+
+    camera.update(deltaTime);
+    if (camera.moving()) {
+        viewUpdated = true;
+    }
+
+    // Convert to clamped timer value
+    if (!paused) {
+        timer += timerSpeed * frameTimer;
+        if (timer > 1.0) {
+            timer -= 1.0f;
+        }
+    }
+    fpsTimer += (float)frameTimer;
+    if (fpsTimer > 1.0f) {
+#if !defined(__ANDROID__)
+        std::string windowTitle = getWindowTitle();
+        glfwSetWindowTitle(window, windowTitle.c_str());
+#endif
+        lastFPS = frameCounter;
+        fpsTimer = 0.0f;
+        frameCounter = 0;
+    }
+
+
+    updateOverlay();
+
+    // Check gamepad state
+    const float deadZone = 0.0015f;
+
+    if (viewUpdated) {
+        viewUpdated = false;
+        viewChanged();
+    }
+
+    // todo : check if gamepad is present
+    // todo : time based and relative axis positions
+    /*
+    // Rotate
+    if (std::abs(gamePadState.axes.x) > deadZone) {
+        camera.yawPitch.x += gamePadState.axes.x * 0.5f * rotationSpeed;
+        updateView = true;
+    }
+    if (std::abs(gamePadState.axes.y) > deadZone) {
+        camera.yawPitch.x += gamePadState.axes.y * 0.5f * rotationSpeed;
+        updateView = true;
+    }
+    // Zoom
+    if (std::abs(gamePadState.axes.rz) > deadZone) {
+        camera.dolly(gamePadState.axes.rz * 0.01f * zoomSpeed);
+        updateView = true;
+    }
+    */
+}
+
 void ExampleBase::windowResize(const glm::uvec2& newSize) {
     if (!prepared) {
         return;
@@ -545,7 +590,6 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
     // Recreate swap chain
     size.width = newSize.x;
     size.height = newSize.y;
-    camera.setAspectRatio(size);
     swapChain.create(size, enableVsync);
 
     setupDepthStencil();
@@ -569,7 +613,6 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
 
     prepared = true;
 }
-
 
 void ExampleBase::updateOverlay() {
     if (!settings.overlay)
@@ -595,7 +638,7 @@ void ExampleBase::updateOverlay() {
     ImGui::Text("%.2f ms/frame (%.1d fps)", (1000.0f / lastFPS), lastFPS);
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 5.0f * UIOverlay->scale));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 5.0f * ui.scale));
 #endif
     ImGui::PushItemWidth(110.0f * ui.scale);
     OnUpdateUIOverlay();
@@ -617,17 +660,6 @@ void ExampleBase::updateOverlay() {
 #endif
 }
 
-void ExampleBase::mouseAction(int button, int action, int mods) {
-    switch (button) {
-    case GLFW_MOUSE_BUTTON_LEFT:
-        mouseButtons.left = action == GLFW_PRESS;
-        break;
-    case GLFW_MOUSE_BUTTON_RIGHT:
-        mouseButtons.right = action == GLFW_PRESS;
-        break;
-    }
-}
-
 void ExampleBase::mouseMoved(const glm::vec2& newPos) {
     auto imgui = ImGui::GetIO();
     if (imgui.WantCaptureMouse) {
@@ -636,25 +668,98 @@ void ExampleBase::mouseMoved(const glm::vec2& newPos) {
     }
 
     glm::vec2 deltaPos = mousePos - newPos;
-    if (deltaPos.x == 0 && deltaPos.y == 0) {
+    if (deltaPos == vec2()) {
         return;
     }
-    if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT)) {
-        camera.dolly((deltaPos.y) * .005f * zoomSpeed);
-        viewChanged();
+
+    const auto& dx = deltaPos.x;
+    const auto& dy = deltaPos.y;
+    bool handled = false;
+    if (settings.overlay) {
+        ImGuiIO& io = ImGui::GetIO();
+        handled = io.WantCaptureMouse;
     }
-    if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)) {
-        camera.rotate(vec2(deltaPos.x, -deltaPos.y) * 0.02f * rotationSpeed);
-        viewChanged();
+
+    if (mouseButtons.left) {
+        camera.rotate(glm::vec3(dy * camera.rotationSpeed, -dx * camera.rotationSpeed, 0.0f));
+        viewUpdated = true;
     }
-    if (GLFW_PRESS == glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE)) {
-        camera.translate(deltaPos * -0.01f);
-        viewChanged();
+    if (mouseButtons.right) {
+        camera.dolly(dy * .005f * zoomSpeed);
+        viewUpdated = true;
+    }
+    if (mouseButtons.middle) {
+        camera.translate(glm::vec3(-dx * 0.01f, -dy * 0.01f, 0.0f));
+        viewUpdated = true;
     }
     mousePos = newPos;
 }
 
+void ExampleBase::mouseScrolled(float delta) {
+    camera.translate(glm::vec3(0.0f, 0.0f, (float)delta * 0.005f * zoomSpeed));
+    viewUpdated = true;
+}
+
+void ExampleBase::keyPressed(uint32_t key) {
+    if (camera.firstperson) {
+        switch (key) {
+        case KEY_W:
+            camera.keys.up = true;
+            break;
+        case KEY_S:
+            camera.keys.down = true;
+            break;
+        case KEY_A:
+            camera.keys.left = true;
+            break;
+        case KEY_D:
+            camera.keys.right = true;
+            break;
+        }
+    }
+
+    switch (key) {
+    case KEY_P:
+        paused = !paused;
+        break;
+
+    case KEY_F1:
+        ui.visible = !ui.visible;
+        break;
+
+    case KEY_ESCAPE:
 #if defined(__ANDROID__)
+#else
+        glfwSetWindowShouldClose(window, 1);
+#endif
+        break;
+
+    default:
+        break;
+    }
+}
+
+void ExampleBase::keyReleased(uint32_t key) {
+    if (camera.firstperson) {
+        switch (key) {
+        case KEY_W:
+            camera.keys.up = false;
+            break;
+        case KEY_S:
+            camera.keys.down = false;
+            break;
+        case KEY_A:
+            camera.keys.left = false;
+            break;
+        case KEY_D:
+            camera.keys.right = false;
+            break;
+        }
+    }
+}
+
+#if defined(__ANDROID__)
+
 int32_t ExampleBase::handle_input_event(android_app* app, AInputEvent *event) {
     ExampleBase *exampleBase = reinterpret_cast<ExampleBase *>(app->userData);
     return exampleBase->onInput(event);
@@ -666,50 +771,73 @@ void ExampleBase::handle_app_cmd(android_app* app, int32_t cmd) {
 }
 
 int32_t ExampleBase::onInput(AInputEvent* event) {
-    auto eventType = AInputEvent_getType(event);
-    switch (eventType) {
-    case AINPUT_EVENT_TYPE_MOTION:
-        if (AInputEvent_getSource(event) == AINPUT_SOURCE_JOYSTICK) {
-            gamePadState.axes.x = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_X, 0);
-            gamePadState.axes.y = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_Y, 0);
-            gamePadState.axes.z = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_Z, 0);
-            gamePadState.axes.rz = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_RZ, 0);
+    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION) {
+        bool handled = false;
+        ivec2 touchPoint;
+        int32_t eventSource = AInputEvent_getSource(event);
+        switch (eventSource) {
+            case AINPUT_SOURCE_TOUCHSCREEN: {
+                int32_t action = AMotionEvent_getAction(event);
+
+                switch (action) {
+                    case AMOTION_EVENT_ACTION_UP:
+                        mouseButtons.left = false;
+                        break;
+
+                    case AMOTION_EVENT_ACTION_DOWN:
+                        // Detect double tap
+                        mouseButtons.left = true;
+                        mousePos.x = AMotionEvent_getX(event, 0);
+                        mousePos.y = AMotionEvent_getY(event, 0);
+                        break;
+
+                    case AMOTION_EVENT_ACTION_MOVE:
+                        touchPoint.x = AMotionEvent_getX(event, 0);
+                        touchPoint.y = AMotionEvent_getY(event, 0);
+                        mouseMoved(vec2{touchPoint});
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+            return 1;
         }
-        else {
-            // todo : touch input
-        }
-        return 1;
-    case AINPUT_EVENT_TYPE_KEY: {
-        int32_t keyCode = AKeyEvent_getKeyCode((const AInputEvent *)event);
-        int32_t action = AKeyEvent_getAction((const AInputEvent *)event);
+    }
+
+    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY)
+    {
+        int32_t keyCode = AKeyEvent_getKeyCode((const AInputEvent*)event);
+        int32_t action = AKeyEvent_getAction((const AInputEvent*)event);
         int32_t button = 0;
+
         if (action == AKEY_EVENT_ACTION_UP)
             return 0;
 
-        switch (keyCode) {
-        case AKEYCODE_BUTTON_A:
-            keyPressed(GAMEPAD_BUTTON_A);
-            break;
-        case AKEYCODE_BUTTON_B:
-            keyPressed(GAMEPAD_BUTTON_B);
-            break;
-        case AKEYCODE_BUTTON_X:
-            keyPressed(GAMEPAD_BUTTON_X);
-            break;
-        case AKEYCODE_BUTTON_Y:
-            keyPressed(GAMEPAD_BUTTON_Y);
-            break;
-        case AKEYCODE_BUTTON_L1:
-            keyPressed(GAMEPAD_BUTTON_L1);
-            break;
-        case AKEYCODE_BUTTON_R1:
-            keyPressed(GAMEPAD_BUTTON_R1);
-            break;
-        case AKEYCODE_BUTTON_START:
-            keyPressed(GAMEPAD_BUTTON_START);
-            break;
+        switch (keyCode)
+        {
+            case AKEYCODE_BUTTON_A:
+                keyPressed(GAMEPAD_BUTTON_A);
+                break;
+            case AKEYCODE_BUTTON_B:
+                keyPressed(GAMEPAD_BUTTON_B);
+                break;
+            case AKEYCODE_BUTTON_X:
+                keyPressed(GAMEPAD_BUTTON_X);
+                break;
+            case AKEYCODE_BUTTON_Y:
+                keyPressed(GAMEPAD_BUTTON_Y);
+                break;
+            case AKEYCODE_BUTTON_L1:
+                keyPressed(GAMEPAD_BUTTON_L1);
+                break;
+            case AKEYCODE_BUTTON_R1:
+                keyPressed(GAMEPAD_BUTTON_R1);
+                break;
+            case AKEYCODE_BUTTON_START:
+                paused = !paused;
+                break;
         };
-    }
     }
     return 0;
 }
@@ -718,7 +846,7 @@ int32_t ExampleBase::onInput(AInputEvent* event) {
 void ExampleBase::onAppCmd(int32_t cmd) {
     switch (cmd) {
     case APP_CMD_INIT_WINDOW:
-        if (global_android_app->window != nullptr) {
+        if (vkx::android::androidApp->window != nullptr) {
             initVulkan();
             setupWindow();
             prepare();
@@ -736,19 +864,42 @@ void ExampleBase::onAppCmd(int32_t cmd) {
 }
 
 void ExampleBase::setupWindow() {
-    auto window = global_android_app->window;
+    auto window = vkx::android::androidApp->window;
     size.width = ANativeWindow_getWidth(window);
     size.height = ANativeWindow_getHeight(window);
     camera.setAspectRatio(size);
-    swapChain.createSurface(window);
+    swapChain.setSurface(context.instance.createAndroidSurfaceKHR({ {}, window }));
 }
 
 #else
 
+void ExampleBase::mouseAction(int button, int action, int mods) {
+    switch (button) {
+    case GLFW_MOUSE_BUTTON_LEFT:
+        mouseButtons.left = action == GLFW_PRESS;
+        break;
+    case GLFW_MOUSE_BUTTON_RIGHT:
+        mouseButtons.right = action == GLFW_PRESS;
+        break;
+    case GLFW_MOUSE_BUTTON_MIDDLE:
+        mouseButtons.middle = action == GLFW_PRESS;
+        break;
+    }
+}
+
 void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    if (action == GLFW_PRESS) {
+    switch (action) {
+    case GLFW_PRESS:
         example->keyPressed(key);
+        break;
+
+    case GLFW_RELEASE:
+        example->keyReleased(key);
+        break;
+
+    default:
+        break;
     }
 }
 
@@ -816,7 +967,6 @@ void ExampleBase::setupWindow() {
         throw std::runtime_error("Could not create window");
     }
     swapChain.setSurface(glfw::createWindowSurface(context.instance, window));
-    camera.setAspectRatio(size);
 }
 
 #endif

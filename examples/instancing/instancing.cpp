@@ -56,8 +56,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        camera.setZoom(-12.0f);
         rotationSpeed = 0.25f;
+        camera.dolly(-12.0f);
         title = "Vulkan Example - Instanced mesh rendering";
         srand((uint32_t)time(NULL));
     }

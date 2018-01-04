@@ -56,7 +56,6 @@ public:
     VulkanExample() {
         size.width = 1280;
         size.height = 720;
-        camera.setZoom(-3.75f);
         rotationSpeed = 0.5f;
         camera.setRotation({ 15.0f, 0.f, 0.0f });
         title = "Vulkan Demo Scene - � 2016 by Sascha Willems";
@@ -224,7 +223,8 @@ public:
     void updateUniformBuffers() {
         uboVS.projection = getProjection();
         uboVS.view = glm::translate(glm::mat4(), glm::vec3(0, 0, camera.position.z));
-        uboVS.model = camera.matrices.skyboxView;
+        uboVS.model = camera.matrices.view;
+        uboVS.model[3] = vec4{0, 0, 0, 1};
         uboVS.normal = glm::inverseTranspose(uboVS.view * uboVS.model);
         uboVS.lightPos = lightPos;
         uniformData.meshVS.copy(uboVS);

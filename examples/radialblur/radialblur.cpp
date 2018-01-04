@@ -75,7 +75,7 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        camera.setZoom(-12.0f);
+        camera.dolly(-12.0f);
         camera.setRotation({ -16.25f, -28.75f, 0.0f });
         timerSpeed *= 0.5f;
         title = "Vulkan Example - Radial blur";
@@ -352,11 +352,11 @@ public:
 
     void keyPressed(uint32_t keyCode) override {
         switch (keyCode) {
-            case GLFW_KEY_B:
+            case KEY_B:
             case GAMEPAD_BUTTON_A:
                 toggleBlur();
                 break;
-            case GLFW_KEY_T:
+            case KEY_T:
             case GAMEPAD_BUTTON_X:
                 toggleTextureDisplay();
                 break;

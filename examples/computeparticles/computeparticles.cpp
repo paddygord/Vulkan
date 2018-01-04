@@ -94,7 +94,7 @@ public:
         textures.gradient.loadFromFile(context, getAssetPath() + "textures/particle_gradient_rgba.ktx", vk::Format::eR8G8B8A8Unorm);
     }
 
-    void updateCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
+    void updateCommandBufferPreDraw(const vk::CommandBuffer& cmdBuffer) override {
         // Compute particle movement
         // Add memory barrier to ensure that the (rendering) vertex shader operations have finished
         // Required as the compute shader will overwrite the vertex buffer data
@@ -349,7 +349,7 @@ public:
 
     void keyPressed(uint32_t key) override {
         switch (key) {
-            case GLFW_KEY_A:
+            case KEY_A:
                 toggleAnimation();
                 break;
         }

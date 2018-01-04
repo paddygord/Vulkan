@@ -77,7 +77,7 @@ namespace vks { namespace texture {
         {
             this->imageLayout = imageLayout;
             std::shared_ptr<gli::texture2d> tex2Dptr;
-            vks::util::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
+            vks::file::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
                 tex2Dptr = std::make_shared<gli::texture2d>(gli::load((const char*)data, size));
             });
             const auto& tex2D = *tex2Dptr;
@@ -375,7 +375,7 @@ namespace vks { namespace texture {
             this->device = device;
 
             std::shared_ptr<gli::texture2d_array> texPtr;
-            vks::util::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
+            vks::file::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
                 texPtr = std::make_shared<gli::texture2d_array>(gli::load((const char*)data, size));
             });
 
@@ -490,7 +490,7 @@ namespace vks { namespace texture {
             device = context.device;
 
             std::shared_ptr<const gli::texture_cube> texPtr; 
-            vks::util::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
+            vks::file::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
                 texPtr = std::make_shared<const gli::texture_cube>(gli::load((const char*)data, size));
             });
             const auto& texCube = *texPtr;

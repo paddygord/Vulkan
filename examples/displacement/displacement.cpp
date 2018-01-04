@@ -58,9 +58,9 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        camera.setZoom(-35);
-        camera.setRotation({ -35.0, 0.0, 0 });
-        title = "Vulkan Example - Tessellation shader displacement mapping";
+        camera.dolly(-50.25f);
+        camera.setRotation(glm::vec3(-20.0f, 45.0f, 0.0f));
+        title = "Tessellation shader displacement";
     }
 
     void initVulkan() override {
@@ -301,16 +301,16 @@ public:
 
     void keyPressed(uint32_t key) override {
         switch (key) {
-        case GLFW_KEY_KP_ADD:
+        case KEY_KPADD:
             changeTessellationLevel(0.25);
             break;
-        case GLFW_KEY_KP_SUBTRACT:
+        case KEY_KPSUB:
             changeTessellationLevel(-0.25);
             break;
-        case GLFW_KEY_W:
+        case KEY_W:
             togglePipelines();
             break;
-        case GLFW_KEY_S:
+        case KEY_S:
             toggleSplitScreen();
             break;
         }

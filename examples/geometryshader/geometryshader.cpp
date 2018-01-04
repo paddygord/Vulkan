@@ -45,10 +45,11 @@ public:
     vk::PipelineLayout pipelineLayout;
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
+    bool displayNormals = true;
 
     VulkanExample() {
-        camera.setZoom(-8.0f);
         camera.setRotation({ 0.0f, -25.0f, 0.0f });
+        camera.translate({ 0.0f, 0.0f, -9.0f });
         title = "Vulkan Example - Geometry shader";
     }
 
@@ -78,8 +79,10 @@ public:
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
         cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
         // Normal debugging
-        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.normals);
-        cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
+        if (displayNormals) {
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.normals);
+            cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
+        }
     }
 
     void loadAssets() override {
@@ -192,6 +195,16 @@ public:
     void viewChanged() override {
         updateUniformBuffers();
     }
+
+
+    virtual void OnUpdateUIOverlay() {
+        if (ui.header("Settings")) {
+            if (ui.checkBox("Display normals", &displayNormals)) {
+                buildCommandBuffers();
+            }
+        }
+    }
+
 };
 
 RUN_EXAMPLE(VulkanExample)

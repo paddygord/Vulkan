@@ -6,8 +6,6 @@
 * This code is licensed under the MIT license(MIT) (http://opensource.org/licenses/MIT)
 */
 
-#pragma once
-
 #include "model.hpp"
 #include "filesystem.hpp"
 
@@ -26,14 +24,12 @@ const int Model::defaultFlags =
 bool Model::loadFromFile(const Context& context,
                          const std::string& filename,
                          const VertexLayout& layout,
-                         vk::Optional<ModelCreateInfo> createInfo,
+                         const ModelCreateInfo& createInfo,
                          const int flags) {
     this->layout = layout;
-    if (createInfo.operator bool()) {
-        scale = createInfo->scale;
-        uvscale = createInfo->uvscale;
-        center = createInfo->center;
-    }
+    scale = createInfo.scale;
+    uvscale = createInfo.uvscale;
+    center = createInfo.center;
     destroy();
     device = context.device;
 
@@ -41,7 +37,7 @@ bool Model::loadFromFile(const Context& context,
     const aiScene* pScene;
 
     // Load file
-    vks::util::withBinaryFileContexts(filename, [&](const char* filename, size_t size, const void* data) { 
+    vks::file::withBinaryFileContexts(filename, [&](const char* filename, size_t size, const void* data) {
         pScene = importer.ReadFileFromMemory(data, size, flags, filename);
     });
 
@@ -148,10 +144,13 @@ void Model::appendVertex(std::vector<uint8_t>& outputBuffer, const aiScene* pSce
                 vertexBuffer.push_back(pBiTangent->y);
                 vertexBuffer.push_back(pBiTangent->z);
                 break;
-                // Dummy components for padding
+            // Dummy components for padding
+            case VERTEX_COMPONENT_DUMMY_INT:
             case VERTEX_COMPONENT_DUMMY_FLOAT:
                 vertexBuffer.push_back(0.0f);
                 break;
+            case VERTEX_COMPONENT_DUMMY_INT4:
+            case VERTEX_COMPONENT_DUMMY_UINT4:
             case VERTEX_COMPONENT_DUMMY_VEC4:
                 vertexBuffer.push_back(0.0f);
                 vertexBuffer.push_back(0.0f);

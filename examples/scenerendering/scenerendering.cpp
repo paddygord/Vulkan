@@ -284,7 +284,7 @@ public:
 
     void load(const std::string& filename, vk::CommandBuffer copyCmd) {
         Assimp::Importer Importer;
-        vks::util::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
+        vks::file::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
             int flags = aiProcess_PreTransformVertices | aiProcess_Triangulate | aiProcess_GenNormals;
             aScene = Importer.ReadFileFromMemory(data, size, flags);
         });
@@ -350,7 +350,7 @@ public:
         rotationSpeed = 0.5f;
         camera.type = Camera::CameraType::firstperson;
         camera.movementSpeed = 7.5f;
-        camera.setTranslation({ -15.0f, 13.5f, 0.0f });
+        camera.position = { 15.0f, -13.5f, 0.0f };
         camera.setRotation(glm::vec3(5.0f, 90.0f, 0.0f));
         camera.setPerspective(60.0f, size, 0.1f, 256.0f);
         title = "Vulkan Example - Scene rendering";
@@ -429,24 +429,24 @@ public:
     void keyPressed(uint32_t keyCode) override {
         Parent::keyPressed(keyCode);
         switch (keyCode) {
-            case GLFW_KEY_W:
+            case KEY_W:
             case GAMEPAD_BUTTON_A:
                 wireframe = !wireframe;
                 buildCommandBuffers();
                 break;
-            case GLFW_KEY_P:
+            case KEY_P:
                 scene->renderSingleScenePart = !scene->renderSingleScenePart;
                 buildCommandBuffers();
                 break;
-            case GLFW_KEY_KP_ADD:
+            case KEY_KPADD:
                 scene->scenePartIndex = (scene->scenePartIndex < static_cast<uint32_t>(scene->meshes.size())) ? scene->scenePartIndex + 1 : 0;
                 buildCommandBuffers();
                 break;
-            case GLFW_KEY_KP_SUBTRACT:
+            case KEY_KPSUB:
                 scene->scenePartIndex = (scene->scenePartIndex > 0) ? scene->scenePartIndex - 1 : static_cast<uint32_t>(scene->meshes.size()) - 1;
                 buildCommandBuffers();
                 break;
-            case GLFW_KEY_L:
+            case KEY_L:
                 attachLight = !attachLight;
                 updateUniformBuffers();
                 break;

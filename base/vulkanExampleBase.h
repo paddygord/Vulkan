@@ -89,15 +89,12 @@ protected:
     std::vector<vk::CommandBuffer> commandBuffers;
     std::vector<vk::ClearValue> clearValues;
     vk::RenderPassBeginInfo renderPassBeginInfo;
-
     vk::Viewport viewport() { return vks::util::viewport(size); }
-
     vk::Rect2D scissor() { return vks::util::rect2D(size); }
 
     virtual void clearCommandBuffers() final;
     virtual void allocateCommandBuffers() final;
     virtual void setupRenderPassBeginInfo();
-
     virtual void buildCommandBuffers();
 
 protected:
@@ -199,6 +196,7 @@ protected:
 
     Camera camera;
     glm::vec2 mousePos;
+    bool viewUpdated{ false };
 
     std::string title = "Vulkan Example";
     std::string name = "vulkanExample";
@@ -215,17 +213,6 @@ protected:
         } axes;
     } gamePadState;
 
-    // OS specific
-#if defined(__ANDROID__)
-    // true if application has focused, false if moved to background
-    bool focused = false;
-    static int32_t handle_input_event(android_app* app, AInputEvent* event);
-    int32_t onInput(AInputEvent* event);
-    static void handle_app_cmd(android_app* app, int32_t cmd);
-    void onAppCmd(int32_t cmd);
-#else
-    GLFWwindow* window;
-#endif
     void updateOverlay();
 
     virtual void OnUpdateUIOverlay() {}
@@ -236,68 +223,10 @@ protected:
     virtual void setupWindow();
     virtual void getEnabledFeatures() {}
     // A default draw implementation
-    virtual void draw() {
-        // Get next image in the swap chain (back/front buffer)
-        prepareFrame();
-        // Execute the compiled command buffer for the current swap chain image
-        drawCurrentCommandBuffer();
-        // Push the rendered frame to the surface
-        submitFrame();
-    }
-    // Pure virtual render function (override in derived class)
-    virtual void render() {
-        if (!prepared) {
-            return;
-        }
-        draw();
-    }
-    virtual void update(float deltaTime) {
-        frameTimer = deltaTime;
-        ++frameCounter;
-        // Convert to clamped timer value
-        if (!paused) {
-            timer += timerSpeed * frameTimer;
-            if (timer > 1.0) {
-                timer -= 1.0f;
-            }
-        }
-        fpsTimer += (float)frameTimer;
-        if (fpsTimer > 1.0f) {
-#if !defined(__ANDROID__)
-            std::string windowTitle = getWindowTitle();
-            glfwSetWindowTitle(window, windowTitle.c_str());
-#endif
-            lastFPS = frameCounter;
-            fpsTimer = 0.0f;
-            frameCounter = 0;
-        }
-
-        updateOverlay();
-
-        // Check gamepad state
-        const float deadZone = 0.0015f;
-        // todo : check if gamepad is present
-        // todo : time based and relative axis positions
-        bool updateView = false;
-        // Rotate
-        if (std::abs(gamePadState.axes.x) > deadZone) {
-            camera.yawPitch.x += gamePadState.axes.x * 0.5f * rotationSpeed;
-            updateView = true;
-        }
-        if (std::abs(gamePadState.axes.y) > deadZone) {
-            camera.yawPitch.x += gamePadState.axes.y * 0.5f * rotationSpeed;
-            updateView = true;
-        }
-        // Zoom
-        if (std::abs(gamePadState.axes.rz) > deadZone) {
-            camera.dolly(gamePadState.axes.rz * 0.01f * zoomSpeed);
-            updateView = true;
-        }
-        if (updateView) {
-            viewChanged();
-        }
-    }
-
+    virtual void draw();
+    // Basic render function
+    virtual void render();
+    virtual void update(float deltaTime);
     // Called when view change occurs
     // Can be overriden in derived class to e.g. update uniform buffers
     // Containing view dependant matrices
@@ -319,8 +248,9 @@ protected:
 
     void setupUi();
 
-    // 
-    virtual void updateCommandBuffer(const vk::CommandBuffer& commandBuffer) {}
+    virtual void updateCommandBufferPreDraw(const vk::CommandBuffer& commandBuffer) {}
+
+    virtual void updateCommandBufferPostDraw(const vk::CommandBuffer& commandBuffer) {}
 
     // Pure virtual function to be overriden by the dervice class
     // Called in case of an event where e.g. the framebuffer has to be rebuild and thus
@@ -339,10 +269,6 @@ protected:
     // Start the main render loop
     void renderLoop();
 
-    // Prepare a submit info structure containing
-    // semaphores and submit buffer info for vkQueueSubmit
-    vk::SubmitInfo prepareSubmitInfo(const std::vector<vk::CommandBuffer>& commandBuffers, vk::PipelineStageFlags* pipelineStages);
-
     // Prepare the frame for workload submission
     // - Acquires the next image from the swap chain
     // - Submits a post present barrier
@@ -360,39 +286,25 @@ protected:
 
     // Called if a key is pressed
     // Can be overriden in derived class to do custom key handling
-    virtual void keyPressed(uint32_t key) {
-        switch (key) {
-            case GLFW_KEY_P:
-                paused = !paused;
-                break;
+    virtual void keyPressed(uint32_t key);
+    virtual void keyReleased(uint32_t key);
 
-            case GLFW_KEY_F1:
-                ui.visible = !ui.visible;
-                break;
-
-            case GLFW_KEY_ESCAPE:
-#if defined(__ANDROID__)
-#else
-                glfwSetWindowShouldClose(window, 1);
-#endif
-                break;
-
-            default:
-                break;
-        }
-    }
-
-#if defined(__ANDROID__)
-#else
-    // Keyboard movement handler
     virtual void mouseMoved(const glm::vec2& newPos);
+    virtual void mouseScrolled(float delta);
+
+private:
+    // OS specific
+#if defined(__ANDROID__)
+    // true if application has focused, false if moved to background
+    bool focused = false;
+    static int32_t handle_input_event(android_app* app, AInputEvent* event);
+    int32_t onInput(AInputEvent* event);
+    static void handle_app_cmd(android_app* app, int32_t cmd);
+    void onAppCmd(int32_t cmd);
+#else
+    GLFWwindow * window{ nullptr };
+    // Keyboard movement handler
     virtual void mouseAction(int buttons, int action, int mods);
-
-    virtual void mouseScrolled(float delta) {
-        camera.dolly((float)delta * 0.1f * zoomSpeed);
-        viewChanged();
-    }
-
     static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);
     static void MouseHandler(GLFWwindow* window, int button, int action, int mods);
     static void MouseMoveHandler(GLFWwindow* window, double posx, double posy);

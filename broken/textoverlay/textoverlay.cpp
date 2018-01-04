@@ -57,7 +57,7 @@ public:
 
 
     VulkanExample() {
-        camera.setZoom(-4.5f);
+        zoom = -4.5f;
         zoomSpeed = 2.5f;
         camera.setRotation({ -25.0f, 0.0f, 0.0f });
         title = "Vulkan Example - Text overlay";

@@ -107,6 +107,34 @@ public:
         textures.gradient.loadFromFile(context, getAssetPath() + "textures/particle_gradient_rgba.ktx", vF::eR8G8B8A8Unorm);
     }
 
+    void updateCommandBufferPreDraw(const vk::CommandBuffer& cmdBuffer) override {
+        // Add memory barrier to ensure that the (graphics) vertex shader has fetched attributes before compute starts to write to the buffer
+        vk::BufferMemoryBarrier bufferBarrier{
+            vk::AccessFlagBits::eShaderRead,           // source access mask
+            vk::AccessFlagBits::eVertexAttributeRead,  // dest access mask
+            context.queueIndices.compute,              // source queue family
+            context.queueIndices.graphics,             // dest queue family
+            compute.storageBuffer.buffer,              // buffer handle
+            0,                                         // buffer offset
+            VK_WHOLE_SIZE                              // buffer size
+        };
+        cmdBuffer.pipelineBarrier(vPS::eComputeShader, vPS::eVertexInput, {}, nullptr, bufferBarrier, nullptr);
+    }
+
+    void updateCommandBufferPostDraw(const vk::CommandBuffer& cmdBuffer) override {
+        // Add memory barrier to ensure that the (graphics) vertex shader has fetched attributes before compute starts to write to the buffer
+        vk::BufferMemoryBarrier bufferBarrier{
+            vk::AccessFlagBits::eVertexAttributeRead,  // source access mask
+            vk::AccessFlagBits::eShaderWrite,          // dest access mask
+            context.queueIndices.graphics,             // source queue family
+            context.queueIndices.compute,              // dest queue family
+            compute.storageBuffer.buffer,              // buffer handle
+            0,                                         // buffer offset
+            VK_WHOLE_SIZE                              // buffer size
+        };
+        cmdBuffer.pipelineBarrier(vPS::eVertexInput, vPS::eComputeShader, {}, nullptr, bufferBarrier, nullptr);
+    }
+
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
         cmdBuffer.setViewport(0, viewport());
         cmdBuffer.setScissor(0, scissor());
@@ -119,18 +147,6 @@ public:
     void buildComputeCommandBuffer() {
         // Compute particle movement
         compute.commandBuffer.begin(vk::CommandBufferBeginInfo{});
-        // Add memory barrier to ensure that the (graphics) vertex shader has fetched attributes before compute starts to write to the buffer
-        vk::BufferMemoryBarrier bufferBarrier;
-        bufferBarrier.buffer = compute.storageBuffer.buffer;
-        bufferBarrier.size = compute.storageBuffer.descriptor.range;
-        // Vertex shader invocations have finished reading from the buffer
-        bufferBarrier.srcAccessMask = vAF::eVertexAttributeRead;
-        // Compute shader wants to write to the buffer
-        bufferBarrier.dstAccessMask = vAF::eShaderWrite;
-        // Transfer ownership if compute and graphics queue familiy indices differ
-        bufferBarrier.srcQueueFamilyIndex = context.queueIndices.graphics;
-        bufferBarrier.dstQueueFamilyIndex = context.queueIndices.compute;
-        compute.commandBuffer.pipelineBarrier(vPS::eVertexShader, vPS::eComputeShader, {}, nullptr, bufferBarrier, nullptr);
 
         // First pass: Calculate particle movement
         // -------------------------------------------------------------------------------------------------------
@@ -139,31 +155,19 @@ public:
         compute.commandBuffer.dispatch(numParticles / 256, 1, 1);
 
         // Add memory barrier to ensure that compute shader has finished writing to the buffer
-        bufferBarrier.srcAccessMask = vAF::eShaderWrite;  // Compute shader has finished writes to the buffer
-        bufferBarrier.dstAccessMask = vAF::eShaderRead;
-        bufferBarrier.buffer = compute.storageBuffer.buffer;
-        bufferBarrier.size = compute.storageBuffer.descriptor.range;
-        // No ownership transfer necessary
-        bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        vk::BufferMemoryBarrier bufferBarrier{ vAF::eShaderWrite,
+                                               vAF::eShaderRead,
+                                               VK_QUEUE_FAMILY_IGNORED,
+                                               VK_QUEUE_FAMILY_IGNORED,
+                                               compute.storageBuffer.buffer,
+                                               0,
+                                               VK_WHOLE_SIZE };  
 
         // Second pass: Integrate particles
         // -------------------------------------------------------------------------------------------------------
         compute.commandBuffer.pipelineBarrier(vPS::eComputeShader, vPS::eComputeShader, {}, nullptr, bufferBarrier, nullptr);
         compute.commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, compute.pipelineIntegrate);
         compute.commandBuffer.dispatch(numParticles / 256, 1, 1);
-
-        // Add memory barrier to ensure that compute shader has finished writing to the buffer
-        // Without this the (rendering) vertex shader may display incomplete results (partial data from last frame)
-        bufferBarrier.srcAccessMask = vAF::eShaderWrite;          // Compute shader has finished writes to the buffer
-        bufferBarrier.dstAccessMask = vAF::eVertexAttributeRead;  // Vertex shader invocations want to read from the buffer
-        bufferBarrier.buffer = compute.storageBuffer.buffer;
-        bufferBarrier.size = compute.storageBuffer.descriptor.range;
-        // Transfer ownership if compute and graphics queue familiy indices differ
-        bufferBarrier.srcQueueFamilyIndex = context.queueIndices.compute;
-        bufferBarrier.dstQueueFamilyIndex = context.queueIndices.graphics;
-
-        compute.commandBuffer.pipelineBarrier(vPS::eComputeShader, vPS::eVertexShader, {}, nullptr, bufferBarrier, nullptr);
         compute.commandBuffer.end();
     }
 
@@ -348,7 +352,8 @@ public:
         specializationData.power = 0.75f;
         specializationData.soften = 0.05f;
 
-        vk::SpecializationInfo specializationInfo{ static_cast<uint32_t>(specializationMapEntries.size()), specializationMapEntries.data(), sizeof(specializationData), &specializationData };
+        vk::SpecializationInfo specializationInfo{ static_cast<uint32_t>(specializationMapEntries.size()), specializationMapEntries.data(),
+                                                   sizeof(specializationData), &specializationData };
         computePipelineCreateInfo.stage.pSpecializationInfo = &specializationInfo;
         compute.pipelineCalculate = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo);
         device.destroyShaderModule(computePipelineCreateInfo.stage.module);
@@ -374,7 +379,7 @@ public:
     void prepareUniformBuffers() {
         // Compute shader uniform buffer block
         compute.uniformBuffer = context.createUniformBuffer(compute.ubo);
-        
+
         // Vertex shader uniform buffer block
         graphics.uniformBuffer = context.createUniformBuffer(graphics.ubo);
 

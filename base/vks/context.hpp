@@ -95,6 +95,7 @@ namespace vks {
             for (const auto& string : values) {
                 result.push_back(string.c_str());
             }
+            return result;
         }
 
         static CStringVector toCStrings(const vk::ArrayProxy<const std::string>& values) {
@@ -103,6 +104,7 @@ namespace vks {
             for (const auto& string : values) {
                 result.push_back(string.c_str());
             }
+            return result;
         }
 
         static CStringVector filterLayers(const StringList& desiredLayers) {
@@ -144,7 +146,7 @@ namespace vks {
         }
 
         static std::vector<vk::ExtensionProperties> getDeviceExtensions(const vk::PhysicalDevice& physicalDevice) {
-            physicalDevice.enumerateDeviceExtensionProperties();
+            return physicalDevice.enumerateDeviceExtensionProperties();
         }
 
         static std::set<std::string> getDeviceExtensionNames(const vk::PhysicalDevice& physicalDevice) {
@@ -292,10 +294,6 @@ namespace vks {
                 }
             }
 
-            if (bestMatch == VK_QUEUE_FAMILY_IGNORED) {
-                throw std::runtime_error("No queue matches the flags " + vk::to_string(desiredFlags));
-            }
-
             return bestMatch;
         }
 
@@ -308,17 +306,7 @@ namespace vks {
         }
 
         template<typename T>
-        void trash(std::vector<T>& values, std::function<void(T t)> destructor) const {
-            if (values.empty()) {
-                return;
-            }
-            for (const T& value : trashedValues) {
-                trash<T>(value, destructor);
-            }
-        }
-
-        template<typename T>
-        void trash(std::vector<T>& values, std::function<void(const std::vector<T>& t)> destructor) const {
+        void trashAll(std::vector<T>& values, std::function<void(const std::vector<T>& t)> destructor) const {
             if (values.empty()) {
                 return;
             }
@@ -326,7 +314,7 @@ namespace vks {
                 destructor(values);
             });
             // Clear the buffer
-            values.swap(std::vector<T>());
+            values.clear();
         }
 
         //
@@ -335,11 +323,7 @@ namespace vks {
         //
 
         void trashPipeline(vk::Pipeline& pipeline) const {
-            trash<vk::Pipeline>(pipeline, [this](vk::Pipeline& pipeline) { device.destroyPipeline(pipeline); });
-        }
-
-        void trashCommandBuffer(vk::CommandBuffer& cmdBuffer) const {
-            trash<vk::CommandBuffer>(cmdBuffer, [this](vk::CommandBuffer& cmdBuffer) { device.freeCommandBuffers(getCommandPool(), cmdBuffer); });
+            trash<vk::Pipeline>(pipeline, [this](vk::Pipeline pipeline) { device.destroyPipeline(pipeline); });
         }
 
         void trashCommandBuffers(const vk::CommandPool& commandPool, std::vector<vk::CommandBuffer>& cmdBuffers) const {
@@ -347,7 +331,7 @@ namespace vks {
                 [=](const std::vector<vk::CommandBuffer>& cmdBuffers) {
                 device.freeCommandBuffers(commandPool, cmdBuffers);
             };
-            trash(cmdBuffers, destructor);
+            trashAll(cmdBuffers, destructor);
         }
 
         // Should be called from time to time by the application to migrate zombie resources
@@ -357,7 +341,7 @@ namespace vks {
             VoidLambdaList newDumpster;
             newDumpster.swap(dumpster);
             recycler.push(FencedLambda{ fence, [fence, newDumpster, this] {
-                for (const auto & f : newDumpster) { f(); }
+                for (const auto& f : newDumpster) { f(); }
             } });
         }
 
@@ -473,10 +457,10 @@ namespace vks {
             // Vulkan device
             vks::queues::DeviceCreateInfo deviceCreateInfo;
             deviceCreateInfo.addQueueFamily(queueIndices.graphics, queueFamilyProperties[queueIndices.graphics].queueCount);
-            if (queueIndices.compute != queueIndices.graphics) {
+            if (queueIndices.compute != VK_QUEUE_FAMILY_IGNORED && queueIndices.compute != queueIndices.graphics) {
                 deviceCreateInfo.addQueueFamily(queueIndices.compute, queueFamilyProperties[queueIndices.compute].queueCount);
             }
-            if (queueIndices.transfer != queueIndices.graphics && queueIndices.transfer != queueIndices.compute) {
+            if (queueIndices.transfer != VK_QUEUE_FAMILY_IGNORED && queueIndices.transfer != queueIndices.graphics && queueIndices.transfer != queueIndices.compute) {
                 deviceCreateInfo.addQueueFamily(queueIndices.transfer, queueFamilyProperties[queueIndices.transfer].queueCount);
             }
             deviceCreateInfo.update();

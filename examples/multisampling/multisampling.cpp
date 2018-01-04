@@ -53,7 +53,6 @@ public:
     vk::RenderPass uiRenderPass;
 
     VulkanExample() {
-        camera.setZoom(-7.5f);
         zoomSpeed = 2.5f;
         camera.setRotation({ 0.0f, -90.0f, 0.0f });
         camera.setTranslation({ 2.5f, 2.5f, -7.5 });
@@ -197,7 +196,7 @@ public:
     // Setup a render pass for using a multi sampled attachment 
     // and a resolve attachment that the msaa image is resolved 
     // to at the end of the render pass
-    void setupRenderPass() {
+    void setupRenderPass() override {
         // Overrides the virtual function of the base class
 
         std::array<vk::AttachmentDescription, 4> attachments = {};
@@ -293,7 +292,7 @@ public:
     // Frame buffer attachments must match with render pass setup, 
     // so we need to adjust frame buffer creation to cover our 
     // multisample target
-    void setupFrameBuffer() {
+    void setupFrameBuffer() override {
         // Overrides the virtual function of the base class
         std::array<vk::ImageView, 4> attachments;
 
@@ -320,7 +319,7 @@ public:
         }
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         //vk::CommandBufferBeginInfo cmdBufInfo;
 
         //vk::ClearValue clearValues[3];
@@ -340,7 +339,7 @@ public:
         cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
     }
 
-    virtual void setupRenderPassBeginInfo() {
+    void setupRenderPassBeginInfo() override {
         clearValues.clear();
         clearValues.push_back(vks::util::clearColor(glm::vec4(1)));
         clearValues.push_back(vks::util::clearColor(glm::vec4(1)));
@@ -348,7 +347,7 @@ public:
         renderPassBeginInfo = vk::RenderPassBeginInfo{ renderPass, {}, { {}, size }, (uint32_t)clearValues.size(), clearValues.data() };
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         textures.colorMap.loadFromFile(context, getAssetPath() + "models/voyager/voyager.ktx", vk::Format::eBc3UnormBlock);
         meshes.example.loadFromFile(context, getAssetPath() + "models/voyager/voyager.dae", vertexLayout);
     }
@@ -413,7 +412,7 @@ public:
         uniformData.vsScene.copy(uboVS);
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         prepareUniformBuffers();
         setupDescriptorSetLayout();

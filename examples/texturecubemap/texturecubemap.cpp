@@ -46,7 +46,7 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        camera.setZoom(-4.0f);
+        camera.dolly(-4.0f);
         camera.setRotation({ -2.25f, -35.0f, 0.0f });
         rotationSpeed = 0.25f;
         title = "Vulkan Example - Cube map";

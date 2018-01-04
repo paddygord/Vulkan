@@ -99,27 +99,9 @@ public:
     static const vec3 ZERO4;
 };
 
+#include "keycodes.hpp"
 #if defined(__ANDROID__)
-#include <android/keycodes.h>
-
-extern android_app* global_android_app;
-#define GLFW_KEY_F1 AKEYCODE_F1
-#define GLFW_KEY_ESCAPE AKEYCODE_ESCAPE
-#define GLFW_KEY_KP_ADD AKEYCODE_NUMPAD_ADD
-#define GLFW_KEY_KP_SUBTRACT AKEYCODE_NUMPAD_SUBTRACT
-#define GLFW_KEY_SPACE AKEYCODE_SPACE
-#define GLFW_KEY_A AKEYCODE_A
-#define GLFW_KEY_B AKEYCODE_B
-#define GLFW_KEY_D AKEYCODE_D
-#define GLFW_KEY_F AKEYCODE_F
-#define GLFW_KEY_G AKEYCODE_G
-#define GLFW_KEY_L AKEYCODE_L
-#define GLFW_KEY_O AKEYCODE_O
-#define GLFW_KEY_P AKEYCODE_P
-#define GLFW_KEY_R AKEYCODE_R
-#define GLFW_KEY_S AKEYCODE_S
-#define GLFW_KEY_T AKEYCODE_T
-#define GLFW_KEY_W AKEYCODE_W
+#include "android.hpp"
 
 
 #else
@@ -131,7 +113,7 @@ extern android_app* global_android_app;
 #if defined(__ANDROID__)
 #define ENTRY_POINT_START \
         void android_main(android_app* state) { \
-            global_android_app = state;
+            vkx::android::androidApp = state;
 
 #define ENTRY_POINT_END \
         }

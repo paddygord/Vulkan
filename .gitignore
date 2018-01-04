@@ -206,3 +206,13 @@ vulkanCapsViewer/vulkanreport.json
 !bin/*.dll
 bin_debug
 /external/
+
+# Android Studio
+.idea
+*.iml
+gradlew
+gradlew.bat
+*.hprof
+local.properties
+android/gradle
+android/app/src/main/jniLibs

@@ -25,18 +25,12 @@ namespace vks {
             PipelineColorBlendAttachmentState() {
                 colorWriteMask = vks::util::fullColorWriteMask();
             }
-            operator const vk::PipelineColorBlendAttachmentState&() const { return *this; };
         };
 
         struct PipelineColorBlendStateCreateInfo : public vk::PipelineColorBlendStateCreateInfo {
             // Default to a single color attachment state with no blending
             std::vector<PipelineColorBlendAttachmentState> blendAttachmentStates{ PipelineColorBlendAttachmentState() };
             
-            operator const vk::PipelineColorBlendStateCreateInfo&() {
-                update();
-                return *this;
-            };
-
             void update() {
                 this->attachmentCount = (uint32_t)blendAttachmentStates.size();
                 this->pAttachments = blendAttachmentStates.data();

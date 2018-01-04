@@ -89,7 +89,7 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        camera.setZoom(-1.5f);
+        camera.dolly(-2.0f);
         title = "Vulkan Example - Distance field fonts";
     }
 
@@ -130,7 +130,7 @@ public:
     void parsebmFont() {
         std::string fileName = getAssetPath() + "font.fnt";
 
-        vks::util::withBinaryFileContexts(fileName, [&](size_t size, const void* data) {
+        vks::file::withBinaryFileContexts(fileName, [&](size_t size, const void* data) {
             imemstream istream((const char*)data, size);
             assert(istream.good());
             while (!istream.eof()) {
@@ -359,8 +359,15 @@ public:
 
     void updateUniformBuffers() {
         // Vertex shader
-        uboVS.projection = glm::perspective(glm::radians(splitScreen ? 45.0f : 45.0f), (float)size.width / (float)(size.height * ((splitScreen) ? 0.5f : 1.0f)), 0.001f, 256.0f);
-        uboVS.model = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, splitScreen ? camera.position.z : camera.position.z - 2.0f)) * glm::mat4_cast(camera.orientation);
+
+        uboVS.projection = glm::perspective(glm::radians(splitScreen ? 30.0f : 45.0f), (float)size.width / (float)(size.height * ((splitScreen) ? 0.5f : 1.0f)), 0.001f, 256.0f);
+
+        glm::mat4 viewMatrix = glm::mat4(1.0f);
+        viewMatrix = glm::translate(viewMatrix, glm::vec3(0.0f, 0.0f, splitScreen ? zoom : zoom - 2.0f));
+        uboVS.model = viewMatrix * glm::translate(glm::mat4(), cameraPos);
+        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+        uboVS.model = glm::rotate(uboVS.model, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
         uniformData.vs.copy(uboVS);
     }
 
@@ -407,10 +414,10 @@ public:
 
     void keyPressed(uint32_t key) override {
         switch (key) {
-        case GLFW_KEY_S:
+        case KEY_S:
             toggleSplitScreen();
             break;
-        case GLFW_KEY_O:
+        case KEY_O:
             toggleFontOutline();
             break;
         }

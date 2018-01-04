@@ -49,10 +49,10 @@ public:
     VulkanExample() {
         size.width = 1280;
         size.height = 720;
-        camera.setZoom(-30.0);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         timerSpeed *= 0.5f;
+        camera.dolly(-30.0f);
         camera.setRotation({ -32.5, 45.0, 0.0 });
         title = "Vulkan Example - Push constants";
     }
@@ -116,7 +116,7 @@ public:
         cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
     }
 
-    void loadAssets() { meshes.scene.loadFromFile(context, getAssetPath() + "models/samplescene.dae", vertexLayout, 0.35f); }
+    void loadAssets() override { meshes.scene.loadFromFile(context, getAssetPath() + "models/samplescene.dae", vertexLayout, 0.35f); }
 
     void setupDescriptorPool() {
         // Example uses one ubo

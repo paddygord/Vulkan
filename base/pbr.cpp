@@ -36,7 +36,6 @@ void vkx::pbr::generateBRDFLUT(const vks::Context& context, vks::texture::Textur
         vk::ImageViewCreateInfo viewCI;
         viewCI.viewType = vk::ImageViewType::e2D;
         viewCI.format = format;
-        viewCI.subresourceRange = {};
         viewCI.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
         viewCI.subresourceRange.levelCount = 1;
         viewCI.subresourceRange.layerCount = 1;
@@ -390,7 +389,7 @@ void vkx::pbr::generateIrradianceCube(const vks::Context& context,
                 cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
                 cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelinelayout, 0, descriptorset, nullptr);
 
-                std::vector<vk::DeviceSize> offsets{ { 0 } };
+                std::vector<vk::DeviceSize> offsets{ 0 };
 
                 cmdBuf.bindVertexBuffers(0, skybox.vertices.buffer, offsets);
                 cmdBuf.bindIndexBuffer(skybox.indices.buffer, 0, vk::IndexType::eUint32);
@@ -407,12 +406,12 @@ void vkx::pbr::generateIrradianceCube(const vks::Context& context,
                 copyRegion.srcSubresource.baseArrayLayer = 0;
                 copyRegion.srcSubresource.mipLevel = 0;
                 copyRegion.srcSubresource.layerCount = 1;
-                copyRegion.srcOffset = { 0, 0, 0 };
+                copyRegion.srcOffset = vk::Offset3D{};
                 copyRegion.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
                 copyRegion.dstSubresource.baseArrayLayer = f;
                 copyRegion.dstSubresource.mipLevel = m;
                 copyRegion.dstSubresource.layerCount = 1;
-                copyRegion.dstOffset = { 0, 0, 0 };
+                copyRegion.dstOffset = vk::Offset3D{};
                 copyRegion.extent.width = static_cast<uint32_t>(viewport.width);
                 copyRegion.extent.height = static_cast<uint32_t>(viewport.height);
                 copyRegion.extent.depth = 1;
@@ -657,7 +656,7 @@ void vkx::pbr::generatePrefilteredCube(const vks::Context& context,
                 cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
                 cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelinelayout, 0, descriptorset, nullptr);
 
-                std::vector<vk::DeviceSize> offsets{ { 0 } };
+                std::vector<vk::DeviceSize> offsets{ 0 };
                 cmdBuf.bindVertexBuffers(0, skybox.vertices.buffer, offsets);
                 cmdBuf.bindIndexBuffer(skybox.indices.buffer, 0, vk::IndexType::eUint32);
                 cmdBuf.drawIndexed(skybox.indexCount, 1, 0, 0, 0);
@@ -673,13 +672,13 @@ void vkx::pbr::generatePrefilteredCube(const vks::Context& context,
                 copyRegion.srcSubresource.baseArrayLayer = 0;
                 copyRegion.srcSubresource.mipLevel = 0;
                 copyRegion.srcSubresource.layerCount = 1;
-                copyRegion.srcOffset = { 0, 0, 0 };
+                copyRegion.srcOffset = vk::Offset3D{};
 
                 copyRegion.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
                 copyRegion.dstSubresource.baseArrayLayer = f;
                 copyRegion.dstSubresource.mipLevel = m;
                 copyRegion.dstSubresource.layerCount = 1;
-                copyRegion.dstOffset = { 0, 0, 0 };
+                copyRegion.dstOffset = vk::Offset3D{};
 
                 copyRegion.extent.width = static_cast<uint32_t>(viewport.width);
                 copyRegion.extent.height = static_cast<uint32_t>(viewport.height);

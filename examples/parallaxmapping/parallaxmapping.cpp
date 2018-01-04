@@ -70,8 +70,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        camera.setZoom(-1.25f);
         camera.setRotation({ 40.0, -33.0, 0.0 });
+        camera.dolly(-2.25f);
         rotationSpeed = 0.25f;
         paused = true;
         title = "Vulkan Example - Parallax Mapping";

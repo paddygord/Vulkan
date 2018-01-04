@@ -108,9 +108,9 @@ public:
 
 /** @brief Used to parametrize model loading */
 struct ModelCreateInfo {
-    glm::vec3 center;
-    glm::vec3 scale;
-    glm::vec2 uvscale;
+    glm::vec3 center { 0 };
+    glm::vec3 scale { 1 };
+    glm::vec2 uvscale { 1 };
 
     ModelCreateInfo(){};
 
@@ -171,7 +171,7 @@ struct Model {
     bool loadFromFile(const Context& context,
                       const std::string& filename,
                       const VertexLayout& layout,
-                      vk::Optional<ModelCreateInfo> createInfo,
+                      const ModelCreateInfo& createInfo,
                       const int flags = defaultFlags);
 
     /**

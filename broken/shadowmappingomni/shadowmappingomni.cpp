@@ -103,7 +103,7 @@ public:
     //vk::CommandBuffer offscreen.cmdBuffer;
 
     VulkanExample() {
-        camera.setZoom(-175.0f);
+        zoom = -175.0f;
         zoomSpeed = 10.0f;
         timerSpeed *= 0.25f;
         camera.setRotation({ -20.5f, -673.0f, 0.0f });

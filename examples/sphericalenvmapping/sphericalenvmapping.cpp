@@ -46,9 +46,9 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        camera.setZoom(-0.9f);
         rotationSpeed = 0.75f;
         zoomSpeed = 0.25f;
+        camera.dolly(-0.9f);
         camera.setRotation({ -25.0f, 23.75f, 0.0f });
         title = "Vulkan Example - Spherical Environment Mapping";
     }
@@ -166,12 +166,12 @@ public:
 
     void keyPressed(uint32_t keyCode) override {
         switch (keyCode) {
-            case GLFW_KEY_KP_ADD:
-            case GLFW_KEY_SPACE:
+            case KEY_KPADD:
+            case KEY_SPACE:
             case GAMEPAD_BUTTON_A:
                 changeMatCapIndex(1);
                 break;
-            case GLFW_KEY_KP_SUBTRACT:
+            case KEY_KPSUB:
             case GAMEPAD_BUTTON_X:
                 changeMatCapIndex(-1);
                 break;

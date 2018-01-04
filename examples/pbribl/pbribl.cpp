@@ -155,7 +155,7 @@ public:
         textures.lutBrdf.destroy();
     }
 
-    virtual void getEnabledFeatures() {
+    void getEnabledFeatures() override {
         if (context.deviceFeatures.samplerAnisotropy) {
             context.enabledFeatures.samplerAnisotropy = VK_TRUE;
         }
@@ -208,7 +208,7 @@ public:
 #endif
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         textures.environmentCube.loadFromFile(context, getAssetPath() + "textures/hdr/pisa_cube.ktx", vF::eR16G16B16A16Sfloat);
         // Skybox
         models.skybox.loadFromFile(context, getAssetPath() + "models/cube.obj", vertexLayout, 1.0f);
@@ -344,7 +344,7 @@ public:
 
     void viewChanged() override { updateUniformBuffers(); }
 
-    virtual void OnUpdateUIOverlay() {
+    void OnUpdateUIOverlay() override{
         if (ui.header("Settings")) {
             if (ui.comboBox("Material", &materialIndex, materialNames)) {
                 buildCommandBuffers();

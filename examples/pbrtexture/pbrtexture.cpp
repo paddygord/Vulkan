@@ -120,11 +120,11 @@ public:
         }
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuf) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuf) override {
         cmdBuf.setViewport(0, viewport());
         cmdBuf.setScissor(0, scissor());
 
-        std::vector<vk::DeviceSize> offsets{ { 0 } };
+        std::vector<vk::DeviceSize> offsets{ 0 };
 
         // Skybox
         if (displaySkybox) {
@@ -144,7 +144,7 @@ public:
         cmdBuf.drawIndexed(models.object.indexCount, 1, 0, 0, 0);
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         textures.environmentCube.loadFromFile(context, getAssetPath() + "textures/hdr/gcanyon_cube.ktx", vF::eR16G16B16A16Sfloat);
         models.skybox.loadFromFile(context, getAssetPath() + "models/cube.obj", vertexLayout, 1.0f);
         // PBR model
@@ -261,7 +261,7 @@ public:
         memcpy(uniformBuffers.params.mapped, &uboParams, sizeof(uboParams));
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         vkx::pbr::generateBRDFLUT(context, textures.lutBrdf);
         vkx::pbr::generateIrradianceCube(context, textures.irradianceCube, models.skybox, vertexLayout, textures.environmentCube.descriptor);
@@ -273,9 +273,9 @@ public:
         prepared = true;
     }
 
-    virtual void viewChanged() { updateUniformBuffers(); }
+    void viewChanged() override{ updateUniformBuffers(); }
 
-    virtual void OnUpdateUIOverlay() {
+    void OnUpdateUIOverlay() override{
         if (ui.header("Settings")) {
             if (ui.inputFloat("Exposure", &uboParams.exposure, 0.1f, 2)) {
                 updateParams();

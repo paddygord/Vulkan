@@ -8,25 +8,32 @@
 
 #include "ui.hpp"
 
+#include <imgui.h>
+
 #include "vks/helpers.hpp"
 #include "vks/pipelines.hpp"
 
-#include "../external/imgui/imgui.h"
 #include "utils.hpp"
+#include "android.hpp"
+
 
 using namespace vkx;
 using namespace vkx::ui;
 
 void UIOverlay::create(const UIOverlayCreateInfo& createInfo) {
     this->createInfo = createInfo;
-#if defined(__ANDROID__)        
-    if (android::screenDensity >= ACONFIGURATION_DENSITY_XXHIGH) {
+#if defined(__ANDROID__)
+    // Screen density
+    if (vkx::android::screenDensity >= ACONFIGURATION_DENSITY_XXXHIGH) {
+        scale = 4.5f;
+    } else if (vkx::android::screenDensity >= ACONFIGURATION_DENSITY_XXHIGH) {
         scale = 3.5f;
-    } else if (android::screenDensity >= ACONFIGURATION_DENSITY_XHIGH) {
+    } else if (vkx::android::screenDensity >= ACONFIGURATION_DENSITY_XHIGH) {
         scale = 2.5f;
-    } else if (android::screenDensity >= ACONFIGURATION_DENSITY_HIGH) {
+    } else if (vkx::android::screenDensity >= ACONFIGURATION_DENSITY_HIGH) {
         scale = 2.0f;
     };
+    vkx::logMessage(vkx::LogLevel::LOG_DEBUG, "Android UI scale %f", scale);
 #endif
 
     // Init ImGui
@@ -289,7 +296,7 @@ void UIOverlay::updateCommandBuffers() {
     pushConstBlock.translate = glm::vec2(-1.0f);
 
     if (cmdBuffers.size()) {
-        context.trash<vk::CommandBuffer>(cmdBuffers, [&](const std::vector<vk::CommandBuffer>& buffers) {
+        context.trashAll<vk::CommandBuffer>(cmdBuffers, [&](const std::vector<vk::CommandBuffer>& buffers) {
             context.device.freeCommandBuffers(commandPool, buffers);
         });
         cmdBuffers.clear();

@@ -60,8 +60,8 @@ public:
     glm::vec3 meshPos = glm::vec3(0.0f, -1.5f, 0.0f);
 
     VulkanExample() {
-        camera.setZoom(-6.5f);
         camera.setRotation({ -11.25f, 45.0f, 0.0f });
+        camera.dolly(-6.5f);
         timerSpeed *= 0.25f;
         title = "Vulkan Example - Offscreen rendering";
     }
@@ -143,7 +143,7 @@ public:
         cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         meshes.plane.loadFromFile(context, getAssetPath() + "models/plane.obj", vertexLayout, 0.4f);
         meshes.example.loadFromFile(context, getAssetPath() + "models/chinesedragon.dae", vertexLayout, 0.3f);
         std::string filename;

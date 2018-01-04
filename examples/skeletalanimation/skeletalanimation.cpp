@@ -120,7 +120,7 @@ public:
         }
     }
 
-    void appendVertex(std::vector<uint8_t>& outputBuffer, const aiScene* pScene, uint32_t meshIndex, uint32_t vertexIndex) {
+    void appendVertex(std::vector<uint8_t>& outputBuffer, const aiScene* pScene, uint32_t meshIndex, uint32_t vertexIndex) override {
         const auto& part = parts[meshIndex];
         const auto& bone = bones[part.vertexBase + vertexIndex];
         const aiVector3D Zero3D(0.0f, 0.0f, 0.0f);
@@ -393,9 +393,9 @@ public:
 
     VulkanExample() {
         camera.type = camera.lookat;
-        camera.setZoom(-150.0f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
+        camera.dolly(-150.0f);
         camera.setRotation({ -25.5f, 128.5f, 180.0f });
         title = "Vulkan Example - Skeletal animation";
     }
@@ -435,7 +435,7 @@ public:
         cmdBuffer.drawIndexed(meshes.floor.indexCount, 1, 0, 0, 0);
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         textures.colorMap.loadFromFile(context, getAssetPath() + "textures/goblin_bc3.ktx", vk::Format::eBc3UnormBlock);
         textures.floor.loadFromFile(context, getAssetPath() + "textures/pattern_35_bc3.ktx", vk::Format::eBc3UnormBlock);
         meshes.floor.loadFromFile(context, getAssetPath() + "models/plane_z.obj", vertexLayout, 512.0f);
@@ -570,9 +570,9 @@ public:
 
     void keyPressed(uint32_t key) override {
         switch (key) {
-            case GLFW_KEY_KP_ADD:
-            case GLFW_KEY_KP_SUBTRACT:
-                changeAnimationSpeed((key == GLFW_KEY_KP_ADD) ? 0.1f : -0.1f);
+            case KEY_KPADD:
+            case KEY_KPSUB:
+                changeAnimationSpeed((key == KEY_KPADD) ? 0.1f : -0.1f);
                 break;
         }
     }

@@ -53,7 +53,7 @@ public:
     const std::vector<std::string> shaderNames { "sharpen", "edgedetect", "emboss" };
 
     VulkanExample() {
-        camera.setZoom(-2.0f);
+        camera.dolly(-2.0f);
         title = "Vulkan Example - Compute shader image processing";
     }
 
@@ -388,11 +388,11 @@ public:
 
     void keyPressed(uint32_t keyCode) override {
         switch (keyCode) {
-            case GLFW_KEY_KP_ADD:
+            case KEY_KPADD:
             case GAMEPAD_BUTTON_R1:
                 switchComputePipeline(1);
                 break;
-            case GLFW_KEY_KP_SUBTRACT:
+            case KEY_KPSUB:
             case GAMEPAD_BUTTON_L1:
                 switchComputePipeline(-1);
                 break;
@@ -410,7 +410,7 @@ public:
         }
     }
 
-    void OnUpdateUIOverlay() {
+    void OnUpdateUIOverlay() override {
         if (ui.header("Settings")) {
             if (ui.comboBox("Shader", &compute.pipelineIndex, shaderNames)) {
                 buildComputeCommandBuffer();

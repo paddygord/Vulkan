@@ -55,11 +55,11 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        camera.setZoom(-15.0f);
         rotationSpeed = 0.25f;
         camera.setRotation({ -15.0f, 35.0f, 0.0f });
+        camera.dolly(-15.0f);
         title = "Vulkan Example - Texture arrays";
-        srand(time(NULL));
+        srand((uint32_t)time(NULL));
     }
 
     ~VulkanExample() {
@@ -121,7 +121,7 @@ public:
 
         // Setup indices
         std::vector<uint32_t> indexBuffer = { 0, 1, 2, 2, 3, 0 };
-        meshes.quad.indexCount = indexBuffer.size();
+        meshes.quad.indexCount = (uint32_t)indexBuffer.size();
         meshes.quad.indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, indexBuffer);
     }
 
@@ -185,7 +185,7 @@ public:
             uboVS.instance[i].model = glm::translate(glm::mat4(), glm::vec3(0.0f, i * offset - center, 0.0f)) *
                                       glm::mat4_cast(glm::angleAxis(glm::radians(60.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
             // Instance texture array index
-            uboVS.instance[i].arrayIndex.x = i;
+            uboVS.instance[i].arrayIndex.x = (float)i;
         }
         // Update instanced part of the uniform buffer
         uniformData.vertexShader.copy(uboVS);

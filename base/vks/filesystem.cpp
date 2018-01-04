@@ -5,11 +5,19 @@
 #include <iterator>
 #include <functional>
 
-#ifdef WIN32
+#if defined(WIN32)
 #include <Windows.h>
 #endif
 
-namespace vks { namespace util {
+
+namespace vks { namespace file {
+
+#if defined(__ANDROID__)
+AAssetManager* assetManager = nullptr;
+void setAssetManager(AAssetManager* assetManager) {
+    vks::file::assetManager = assetManager;
+}
+#endif
 
 void withBinaryFileContexts(const std::string& filename, std::function<void(size_t size, const void* data)> handler) {
     withBinaryFileContexts(filename, [&](const char* filename, size_t size, const void* data) { handler(size, data); });
@@ -18,7 +26,7 @@ void withBinaryFileContexts(const std::string& filename, std::function<void(size
 void withBinaryFileContexts(const std::string& filename, std::function<void(const char* filename, size_t size, const void* data)> handler) {
 #if defined(__ANDROID__)
     // Load shader from compressed asset
-    AAsset* asset = AAssetManager_open(global_android_app->activity->assetManager, filename.c_str(), AASSET_MODE_BUFFER);
+    AAsset* asset = AAssetManager_open(assetManager, filename.c_str(), AASSET_MODE_BUFFER);
     assert(asset);
     size_t size = AAsset_getLength(asset);
     assert(size > 0);
@@ -29,14 +37,14 @@ void withBinaryFileContexts(const std::string& filename, std::function<void(cons
         std::vector<uint8_t> result;
         result.resize(size);
         AAsset_read(asset, result.data(), size);
+        handler(filename.c_str(), size, result.data());
     }
     AAsset_close(asset);
-    result.resize(size);
-    AAsset_read(asset, result.data(), size);
-    AAsset_close(asset);
-    return result;
 #elif (WIN32)
     auto hFile = CreateFileA(filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        throw std::runtime_error("Failed to open file");
+    }
     size_t fileSize;
     {
         DWORD dwFileSizeHigh;
@@ -53,7 +61,7 @@ void withBinaryFileContexts(const std::string& filename, std::function<void(cons
     CloseHandle(hMapFile);
     CloseHandle(hFile);
 #else
-    // FIXME move to memory mapped files
+    // FIXME move to posix memory mapped files
     // open the file:
     std::ifstream file(filename, std::ios::binary);
     // Stop eating new lines in binary mode!!!

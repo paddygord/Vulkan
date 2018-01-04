@@ -107,8 +107,8 @@ public:
     std::vector<Particle> particleBuffer;
 
     VulkanExample() {
-        camera.setZoom(-90.0f);
         camera.setRotation({ -15.0f, 45.0f, 0.0f });
+        camera.dolly(-90.0f);
         title = "Vulkan Example - Particle system";
         zoomSpeed *= 1.5f;
         timerSpeed *= 8.0f;
@@ -138,7 +138,7 @@ public:
         device.destroySampler(textures.particles.sampler);
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override{
         cmdBuffer.setViewport(0, vks::util::viewport(size));
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         // Environment
@@ -333,11 +333,20 @@ public:
     }
 
     void preparePipelines() {
+        // Environment rendering pipeline (normal mapped)
         vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
-        pipelineBuilder.inputAssemblyState.topology = vk::PrimitiveTopology::ePointList;
         pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
-        pipelineBuilder.depthStencilState = { false };
+        pipelineBuilder.vertexInputState.appendVertexLayout(meshes.vertexLayout);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/normalmap.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/normalmap.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.environment = pipelineBuilder.create(context.pipelineCache);
+        pipelineBuilder.destroyShaderModules();
+
+
+        // Particle pipeline, read depth, but do not write it.
         // Premulitplied alpha
+        pipelineBuilder.inputAssemblyState.topology = vk::PrimitiveTopology::ePointList;
+        pipelineBuilder.depthStencilState.depthWriteEnable = VK_FALSE;
         auto& blendAttachmentState = pipelineBuilder.colorBlendState.blendAttachmentStates[0];
         blendAttachmentState.blendEnable = VK_TRUE;
         blendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eOne;
@@ -346,23 +355,13 @@ public:
         blendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eOne;
         blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eZero;
         blendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
-
-        // Load shaders
+        // Reset the vertex input state
+        pipelineBuilder.vertexInputState = {};
         pipelineBuilder.vertexInputState.appendVertexLayout(particles.vertexLayout);
+        // Load shaders
         pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/particle.vert.spv", vk::ShaderStageFlagBits::eVertex);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/particle.frag.spv", vk::ShaderStageFlagBits::eFragment);
         pipelines.particles = pipelineBuilder.create(context.pipelineCache);
-
-        // Environment rendering pipeline (normal mapped)
-        blendAttachmentState.blendEnable = VK_FALSE;
-        pipelineBuilder.inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleList;
-        pipelineBuilder.depthStencilState = { false };
-        pipelineBuilder.destroyShaderModules();
-        pipelineBuilder.vertexInputState = {};
-        pipelineBuilder.vertexInputState.appendVertexLayout(meshes.vertexLayout);
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/normalmap.vert.spv", vk::ShaderStageFlagBits::eVertex);
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/normalmap.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        pipelines.environment = pipelineBuilder.create(context.pipelineCache);
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
@@ -399,7 +398,7 @@ public:
         uniformData.environment.copy(uboEnv);
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         prepareParticles();
         prepareUniformBuffers();
@@ -411,7 +410,7 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
+    void render() override {
         if (!prepared)
             return;
         draw();
@@ -421,7 +420,7 @@ public:
         }
     }
 
-    virtual void viewChanged() { updateUniformBuffers(); }
+    void viewChanged() override { updateUniformBuffers(); }
 };
 
 RUN_EXAMPLE(VulkanExample)

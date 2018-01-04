@@ -32,7 +32,7 @@ namespace vks {
         vk::ColorSpaceKHR colorSpace;
         uint32_t imageCount{ 0 };
         uint32_t currentImage{ 0 };
-        uint32_t graphicsQueueIndex{ ~0UL };
+        uint32_t graphicsQueueIndex{ VK_QUEUE_FAMILY_IGNORED };
 
         SwapChain() {
             presentInfo.swapchainCount = 1;

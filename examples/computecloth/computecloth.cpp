@@ -130,12 +130,12 @@ public:
         }
     };
 
-    void loadAssets() {
+    void loadAssets() override {
         textureCloth.loadFromFile(context, getAssetPath() + "textures/vulkan_cloth_rgba.ktx", vF::eR8G8B8A8Unorm);
         modelSphere.loadFromFile(context, getAssetPath() + "models/geosphere.obj", vertexLayout, compute.ubo.sphereRadius * 0.05f);
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& commandBuffer) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& commandBuffer) override {
         commandBuffer.setViewport(0, viewport());
         commandBuffer.setScissor(0, scissor());
 
@@ -474,7 +474,7 @@ public:
         memcpy(graphics.uniformBuffer.mapped, &graphics.ubo, sizeof(graphics.ubo));
     }
 
-    void draw() {
+    void draw() override {
         // Submit graphics commands
         ExampleBase::draw();
 
@@ -487,7 +487,7 @@ public:
         compute.queue.submit(computeSubmitInfo, compute.fence);
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         prepareStorageBuffers();
         prepareUniformBuffers();
@@ -499,7 +499,7 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
+    void render() override {
         if (!prepared)
             return;
         draw();
@@ -507,7 +507,7 @@ public:
         updateComputeUBO();
     }
 
-    virtual void viewChanged() { updateGraphicsUBO(); }
+    void viewChanged() override { updateGraphicsUBO(); }
 
     void OnUpdateUIOverlay() override {
         if (ui.header("Settings")) {

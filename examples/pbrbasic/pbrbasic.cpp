@@ -44,14 +44,12 @@ public:
     } };
 
     struct Meshes {
-        vks::model::Model skybox;
         std::vector<vks::model::Model> objects;
         int32_t objectIndex = 0;
     } models;
 
     struct {
         vks::Buffer object;
-        vks::Buffer skybox;
         vks::Buffer params;
     } uniformBuffers;
 
@@ -121,18 +119,16 @@ public:
         for (auto& model : models.objects) {
             model.destroy();
         }
-        models.skybox.destroy();
 
         uniformBuffers.object.destroy();
-        uniformBuffers.skybox.destroy();
         uniformBuffers.params.destroy();
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override{
         cmdBuffer.setViewport(0, viewport());
         cmdBuffer.setScissor(0, scissor());
 
-        std::vector<vk::DeviceSize> offsets{ { 0 } };
+        std::vector<vk::DeviceSize> offsets{ 0 };
 
         // Objects
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
@@ -197,9 +193,7 @@ public:
         }
     }
 #endif
-    void loadAssets() {
-        // Skybox
-        models.skybox.loadFromFile(context, getAssetPath() + "models/cube.obj", vertexLayout, 1.0f);
+    void loadAssets() override{
         // Objects
         std::vector<std::string> filenames = { "geosphere.obj", "teapot.dae", "torusknot.obj", "venus.fbx" };
         auto modelCount = filenames.size();
@@ -260,8 +254,6 @@ public:
     void prepareUniformBuffers() {
         // Objact vertex shader uniform buffer
         uniformBuffers.object = context.createUniformBuffer(uboMatrices);
-        // Skybox vertex shader uniform buffer
-        uniformBuffers.skybox = context.createUniformBuffer(uboMatrices);
         // Shared parameter uniform buffer
         uniformBuffers.params = context.createUniformBuffer(uboParams);
         updateUniformBuffers();
@@ -275,10 +267,6 @@ public:
         uboMatrices.model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f + (models.objectIndex == 1 ? 45.0f : 0.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
         uboMatrices.camPos = camera.position * -1.0f;
         memcpy(uniformBuffers.object.mapped, &uboMatrices, sizeof(uboMatrices));
-
-        // Skybox
-        uboMatrices.model = glm::mat4(glm::mat3(camera.matrices.view));
-        memcpy(uniformBuffers.skybox.mapped, &uboMatrices, sizeof(uboMatrices));
     }
 
     void updateLights() {
@@ -305,7 +293,6 @@ public:
         preparePipelines();
         setupDescriptorSets();
         buildCommandBuffers();
-        //buildCommandBuffers();
         prepared = true;
     }
 

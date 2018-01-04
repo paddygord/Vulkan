@@ -446,7 +446,7 @@ public:
         offscreen.cmdBuffer.end();
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         // Models
         models.skybox.loadFromFile(context, getAssetPath() + "models/cube.obj", models.vertexLayout, 0.05f);
         std::vector<std::string> filenames = { "geosphere.obj", "teapot.dae", "torusknot.obj", "venus.fbx" };
@@ -630,7 +630,7 @@ public:
         memcpy(uniformBuffers.params.mapped, &uboParams, sizeof(uboParams));
     }
 
-    void draw() {
+    void draw() override {
         prepareFrame();
 
         submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
@@ -647,7 +647,7 @@ public:
         submitFrame();
     }
 
-    void prepare() {
+    void prepare() override {
         vkx::ExampleBase::prepare();
         loadAssets();
         prepareUniformBuffers();
@@ -665,7 +665,7 @@ public:
         updateUniformBuffers();
     }
 
-    virtual void OnUpdateUIOverlay() {
+    void OnUpdateUIOverlay() override {
         if (ui.header("Settings")) {
             if (ui.comboBox("Object type", &models.objectIndex, objectNames)) {
                 updateUniformBuffers();

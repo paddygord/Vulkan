@@ -9,6 +9,9 @@
 #pragma once
 
 #include "vks/context.hpp"
+#ifdef __ANDROID__
+#include <android/native_activity.h>
+#endif
 
 namespace vkx { namespace ui {
 

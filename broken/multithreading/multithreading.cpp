@@ -97,7 +97,7 @@ public:
     vkTools::Frustum frustum;
 
     VulkanExample() {
-        camera.setZoom(-32.5f);
+        zoom = -32.5f;
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ 0.0f, 37.5f, 0.0f });

@@ -66,10 +66,10 @@ public:
     VulkanExample() {
         passedSamples[0] = passedSamples[1] = 1;
         size = vk::Extent2D { 1280, 720 };
-        camera.setZoom(-35.0f);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ 0.0, -123.75, 0.0 });
+        camera.dolly(-35.0f);
         title = "Vulkan Example - Occlusion queries";
     }
 

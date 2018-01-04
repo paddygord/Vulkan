@@ -91,8 +91,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() : vkx::OffscreenExampleBase() {
-        camera.setZoom(-10.25f);
-        camera.setRotation({ 7.5f, -343.0f, 0.0f });
+        camera.setPosition(glm::vec3(0.0f, 0.0f, -10.25f));
+        camera.setRotation(glm::vec3(7.5f, -343.0f, 0.0f));
         timerSpeed *= 0.5f;
         title = "Vulkan Example - Bloom";
     }
@@ -421,7 +421,6 @@ public:
     // Update uniform buffers for rendering the 3D scene
     void updateUniformBuffersScene() {
         // UFO
-        camera.setFieldOfView(45);
         ubos.fullscreen.projection = camera.matrices.perspective;
         ubos.fullscreen.model = camera.matrices.view * glm::translate(glm::mat4(), glm::vec3(sin(glm::radians(timer * 360.0f)) * 0.25f, 0.0f, cos(glm::radians(timer * 360.0f)) * 0.25f));
         auto rotation = glm::angleAxis(-sinf(glm::radians(timer * 360.0f)) * 0.15f, glm::vec3(1.0f, 0.0f, 0.0f)) *
@@ -506,15 +505,15 @@ public:
 
     void keyPressed(uint32_t keyCode) override {
         switch (keyCode) {
-        case GLFW_KEY_KP_ADD:
+        case KEY_KPADD:
         case GAMEPAD_BUTTON_R1:
             changeBlurScale(0.25f);
             break;
-        case GLFW_KEY_KP_SUBTRACT:
+        case KEY_KPSUB:
         case GAMEPAD_BUTTON_L1:
             changeBlurScale(-0.25f);
             break;
-        case GLFW_KEY_B:
+        case KEY_B:
         case GAMEPAD_BUTTON_A:
             toggleBloom();
             break;

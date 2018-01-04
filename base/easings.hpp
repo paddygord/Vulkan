@@ -65,7 +65,8 @@ template<typename T = float>
 T inOutQuint(float t, float d = 1, T b = T(0), T c = T(1)) {
     if ((t /= d / 2) < 1)
         return c / 2 * t * t * t * t * t + b;
-    return c / 2 * ((t -= 2) * t * t * t * t + 2) + b;
+    t -= 2;
+    return c / 2 * (t * t * t * t * t + 2) + b;
 }
 template<typename T = float>
 T inSine(float t, float d = 1, T b = T(0), T c = T(1)) {
