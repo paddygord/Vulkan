@@ -12,15 +12,170 @@
 
 #define ENABLE_VALIDATION false
 
+struct Cloth {
+    glm::uvec2 gridsize = glm::uvec2(60, 60);
+    glm::vec2 size = glm::vec2(2.5f, 2.5f);
+} cloth;
+
+// Resources for the compute part of the example
+struct Compute : public vkx::Compute {
+    using Parent = vkx::Compute;
+    Compute(const vks::Context& context)
+        : vkx::Compute(context) {}
+
+    uint32_t readSet = 0;
+    struct StorageBuffers {
+        vks::Buffer input;
+        vks::Buffer output;
+    } storageBuffers;
+
+    vks::Buffer uniformBuffer;
+    std::vector<vk::CommandBuffer> commandBuffers;
+    vk::DescriptorPool descriptorPool;
+    vk::DescriptorSetLayout descriptorSetLayout;
+    std::array<vk::DescriptorSet, 2> descriptorSets;
+    vk::PipelineLayout pipelineLayout;
+    vk::Pipeline pipeline;
+
+    struct UBO {
+        float deltaT = 0.0f;
+        float particleMass = 0.1f;
+        float springStiffness = 2000.0f;
+        float damping = 0.25f;
+        float restDistH{ 0 };
+        float restDistV{ 0 };
+        float restDistD{ 0 };
+        float sphereRadius = 0.5f;
+        glm::vec4 spherePos = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+        glm::vec4 gravity = glm::vec4(0.0f, 9.8f, 0.0f, 0.0f);
+        glm::ivec2 particleCount;
+    } ubo;
+
+    void prepare() override {
+        Parent::prepare();
+        // Create a command buffer for compute operations
+        commandBuffers = device.allocateCommandBuffers(vk::CommandBufferAllocateInfo{ commandPool, vk::CommandBufferLevel::ePrimary, 2 });
+        prepareDescriptors();
+        preparePipeline();
+        buildCommandBuffer();
+    }
+
+    void destroy() override {
+        storageBuffers.input.destroy();
+        storageBuffers.output.destroy();
+        uniformBuffer.destroy();
+        context.device.destroyPipelineLayout(pipelineLayout, nullptr);
+        context.device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+        context.device.destroyPipeline(pipeline);
+        context.device.destroyDescriptorPool(descriptorPool);
+        context.device.freeCommandBuffers(commandPool, commandBuffers);
+        Parent::destroy();
+    }
+
+    void prepareDescriptors() {
+        // Create compute pipeline
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
+            { 0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute },
+            { 1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute },
+            { 2, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eCompute },
+        };
+
+        std::vector<vk::DescriptorPoolSize> poolSizes = {
+            { vk::DescriptorType::eUniformBuffer, 2 },
+            { vk::DescriptorType::eStorageBuffer, 4 },
+        };
+        descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
+
+        descriptorSetLayout =
+            context.device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+
+        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &descriptorSetLayout };
+
+        // Create two descriptor sets with input and output buffers switched
+        descriptorSets[0] = device.allocateDescriptorSets(allocInfo)[0];
+        descriptorSets[1] = device.allocateDescriptorSets(allocInfo)[0];
+
+        std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets{
+            { descriptorSets[0], 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &storageBuffers.input.descriptor },
+            { descriptorSets[0], 1, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &storageBuffers.output.descriptor },
+            { descriptorSets[0], 2, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffer.descriptor },
+
+            { descriptorSets[1], 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &storageBuffers.output.descriptor },
+            { descriptorSets[1], 1, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &storageBuffers.input.descriptor },
+            { descriptorSets[1], 2, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffer.descriptor },
+        };
+
+        device.updateDescriptorSets(computeWriteDescriptorSets, nullptr);
+    }
+
+    void preparePipeline() {
+        // Push constants used to pass some parameters
+        vk::PushConstantRange pushConstantRange{ vk::ShaderStageFlagBits::eCompute, 0, sizeof(uint32_t) };
+        pipelineLayout = context.device.createPipelineLayout({ {}, 1, &descriptorSetLayout, 1, &pushConstantRange });
+
+        // Create pipeline
+        vk::ComputePipelineCreateInfo computePipelineCreateInfo;
+        computePipelineCreateInfo.layout = pipelineLayout;
+        computePipelineCreateInfo.stage =
+            vks::shaders::loadShader(context.device, vkx::getAssetPath() + "shaders/computecloth/cloth.comp.spv", vk::ShaderStageFlagBits::eCompute);
+        pipeline = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo);
+        device.destroyShaderModule(computePipelineCreateInfo.stage.module);
+    }
+
+    void buildCommandBuffer() {
+        for (const auto& cmdBuf : commandBuffers) {
+            cmdBuf.begin({ vk::CommandBufferUsageFlagBits::eSimultaneousUse });
+
+            std::vector<vk::BufferMemoryBarrier> bufferBarriers;
+            {
+                vk::BufferMemoryBarrier bufferBarrier;
+                bufferBarrier.srcAccessMask = vk::AccessFlagBits::eShaderRead;
+                bufferBarrier.dstAccessMask = vk::AccessFlagBits::eShaderWrite;
+                bufferBarrier.srcQueueFamilyIndex = context.queueIndices.graphics;
+                bufferBarrier.dstQueueFamilyIndex = context.queueIndices.compute;
+                bufferBarrier.size = VK_WHOLE_SIZE;
+
+                bufferBarrier.buffer = storageBuffers.input.buffer;
+                bufferBarriers.push_back(bufferBarrier);
+                bufferBarrier.buffer = storageBuffers.output.buffer;
+                bufferBarriers.push_back(bufferBarrier);
+            }
+            cmdBuf.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, {}, nullptr, bufferBarriers, nullptr);
+            cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
+            uint32_t calculateNormals = 0;
+            cmdBuf.pushConstants<uint32_t>(pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, calculateNormals);
+
+            // Dispatch the compute job
+            const uint32_t iterations = 64;
+            for (uint32_t j = 0; j < iterations; j++) {
+                readSet = 1 - readSet;
+                cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipelineLayout, 0, descriptorSets[readSet], nullptr);
+                if (j == iterations - 1) {
+                    calculateNormals = 1;
+                    cmdBuf.pushConstants<uint32_t>(pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, calculateNormals);
+                }
+                cmdBuf.dispatch(cloth.gridsize.x / 10, cloth.gridsize.y / 10, 1);
+                cmdBuf.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, {}, nullptr, bufferBarriers,
+                                       nullptr);
+            }
+            cmdBuf.end();
+        }
+    }
+
+    void submit() {
+        Parent::submit(commandBuffers[readSet]);
+    }
+};
+
 class VulkanExample : public vkx::ExampleBase {
+    using Parent = vkx::ExampleBase;
+
 public:
     uint32_t sceneSetup = 0;
-    uint32_t readSet = 0;
     uint32_t indexCount;
     bool simulateWind = false;
 
     vks::texture::Texture2D textureCloth;
-
     vks::model::VertexLayout vertexLayout{ {
         vks::model::VERTEX_COMPONENT_POSITION,
         vks::model::VERTEX_COMPONENT_UV,
@@ -46,35 +201,7 @@ public:
         } ubo;
     } graphics;
 
-    // Resources for the compute part of the example
-    struct {
-        struct StorageBuffers {
-            vks::Buffer input;
-            vks::Buffer output;
-        } storageBuffers;
-        vks::Buffer uniformBuffer;
-        vk::Queue queue;
-        vk::CommandPool commandPool;
-        std::vector<vk::CommandBuffer> commandBuffers;
-        vk::Fence fence;
-        vk::DescriptorSetLayout descriptorSetLayout;
-        std::array<vk::DescriptorSet, 2> descriptorSets;
-        vk::PipelineLayout pipelineLayout;
-        vk::Pipeline pipeline;
-        struct computeUBO {
-            float deltaT = 0.0f;
-            float particleMass = 0.1f;
-            float springStiffness = 2000.0f;
-            float damping = 0.25f;
-            float restDistH;
-            float restDistV;
-            float restDistD;
-            float sphereRadius = 0.5f;
-            glm::vec4 spherePos = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
-            glm::vec4 gravity = glm::vec4(0.0f, 9.8f, 0.0f, 0.0f);
-            glm::ivec2 particleCount;
-        } ubo;
-    } compute;
+    Compute compute{ context };
 
     // SSBO cloth grid particle declaration
     struct Particle {
@@ -82,14 +209,9 @@ public:
         glm::vec4 vel;
         glm::vec4 uv;
         glm::vec4 normal;
-        float pinned;
+        float pinned{ 0.0 };
         glm::vec3 _pad0;
     };
-
-    struct Cloth {
-        glm::uvec2 gridsize = glm::uvec2(60, 60);
-        glm::vec2 size = glm::vec2(2.5f, 2.5f);
-    } cloth;
 
     VulkanExample() {
         title = "Compute shader cloth simulation";
@@ -113,14 +235,7 @@ public:
         modelSphere.destroy();
 
         // Compute
-        compute.storageBuffers.input.destroy();
-        compute.storageBuffers.output.destroy();
-        compute.uniformBuffer.destroy();
-        device.destroyPipelineLayout(compute.pipelineLayout, nullptr);
-        device.destroyDescriptorSetLayout(compute.descriptorSetLayout, nullptr);
-        device.destroyPipeline(compute.pipeline, nullptr);
-        device.destroyFence(compute.fence, nullptr);
-        device.destroyCommandPool(compute.commandPool, nullptr);
+        compute.destroy();
     }
 
     // Enable physical device features required for this example
@@ -154,100 +269,6 @@ public:
         commandBuffer.bindIndexBuffer(graphics.indices.buffer, 0, vk::IndexType::eUint32);
         commandBuffer.bindVertexBuffers(0, compute.storageBuffers.output.buffer, { 0 });
         commandBuffer.drawIndexed(indexCount, 1, 0, 0, 0);
-    }
-#if 0
-    void buildCommandBuffers() override {
-
-        if (!drawCmdBuffers.empty()) {
-            context.trashCommandBuffers(drawCmdBuffers);
-        }
-
-        drawCmdBuffers.clear();
-        drawCmdBuffers = device.allocateCommandBuffers({ cmdPool, vk::CommandBufferLevel::ePrimary, swapChain.imageCount });
-
-        vk::CommandBufferBeginInfo cmdBufInfo;
-
-        vk::ClearValue clearValues[2];
-        clearValues[0].color = vks::util::clearColor( glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f } );
-        clearValues[1].depthStencil = { 1.0f, 0 };
-
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent = size;
-        renderPassBeginInfo.clearValueCount = 2;
-        renderPassBeginInfo.pClearValues = clearValues;
-
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = framebuffers[i];
-
-            drawCmdBuffers[i].begin(cmdBufInfo);
-
-            // Draw the particle system using the update vertex buffer
-            drawCmdBuffers[i].beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            updateDrawCommandBuffer(drawCmdBuffers[i]);
-            drawCmdBuffers[i].endRenderPass();
-            drawCmdBuffers[i].end();
-        }
-    }
-#endif
-    // todo: check barriers (validation, separate compute queue)
-    void buildComputeCommandBuffer() {
-        for (uint32_t i = 0; i < 2; i++) {
-            const auto& cmdBuf = compute.commandBuffers[i];
-            cmdBuf.begin({ vk::CommandBufferUsageFlagBits{} });
-
-            std::vector<vk::BufferMemoryBarrier> bufferBarriers;
-            {
-                vk::BufferMemoryBarrier bufferBarrier;
-                bufferBarrier.srcAccessMask = vAF::eShaderRead;
-                bufferBarrier.dstAccessMask = vAF::eShaderWrite;
-                bufferBarrier.srcQueueFamilyIndex = context.queueIndices.graphics;
-                bufferBarrier.dstQueueFamilyIndex = context.queueIndices.compute;
-                bufferBarrier.size = VK_WHOLE_SIZE;
-
-                bufferBarrier.buffer = compute.storageBuffers.input.buffer;
-                bufferBarriers.push_back(bufferBarrier);
-                bufferBarrier.buffer = compute.storageBuffers.output.buffer;
-                bufferBarriers.push_back(bufferBarrier);
-            }
-            cmdBuf.pipelineBarrier(vPS::eComputeShader, vPS::eComputeShader, {}, nullptr, bufferBarriers, nullptr);
-            cmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, compute.pipeline);
-            uint32_t calculateNormals = 0;
-            cmdBuf.pushConstants<uint32_t>(compute.pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, calculateNormals);
-
-            for (auto& barrier : bufferBarriers) {
-                barrier.srcAccessMask = vAF::eShaderWrite;
-                barrier.dstAccessMask = vAF::eShaderRead;
-                barrier.srcQueueFamilyIndex = context.queueIndices.compute;
-                barrier.dstQueueFamilyIndex = context.queueIndices.graphics;
-            }
-
-            // Dispatch the compute job
-            const uint32_t iterations = 64;
-            for (uint32_t j = 0; j < iterations; j++) {
-                readSet = 1 - readSet;
-                cmdBuf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, compute.pipelineLayout, 0, compute.descriptorSets[readSet], nullptr);
-                if (j == iterations - 1) {
-                    calculateNormals = 1;
-                    cmdBuf.pushConstants<uint32_t>(compute.pipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, calculateNormals);
-                }
-                cmdBuf.dispatch(cloth.gridsize.x / 10, cloth.gridsize.y / 10, 1);
-                cmdBuf.pipelineBarrier(vPS::eComputeShader, vPS::eComputeShader, {}, nullptr, bufferBarriers, nullptr);
-            }
-
-            for (auto& barrier : bufferBarriers) {
-                barrier.srcAccessMask = vAF::eShaderWrite;
-                barrier.dstAccessMask = vAF::eShaderRead;
-                barrier.srcQueueFamilyIndex = context.queueIndices.compute;
-                barrier.dstQueueFamilyIndex = context.queueIndices.graphics;
-            }
-
-            cmdBuf.pipelineBarrier(vPS::eComputeShader, vPS::eComputeShader, {}, nullptr, bufferBarriers, nullptr);
-            cmdBuf.end();
-        }
     }
 
     // Setup and fill the compute shader storage buffers containing the particles
@@ -315,9 +336,8 @@ public:
 
     void setupDescriptorPool() {
         std::vector<vk::DescriptorPoolSize> poolSizes = {
-            { vDT::eUniformBuffer, 3 },
-            { vDT::eStorageBuffer, 4 },
-            { vDT::eCombinedImageSampler, 2 },
+            { vk::DescriptorType::eUniformBuffer, 3 },
+            { vk::DescriptorType::eCombinedImageSampler, 2 },
         };
         descriptorPool = device.createDescriptorPool({ {}, 3, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
@@ -325,8 +345,8 @@ public:
     void setupLayoutsAndDescriptors() {
         // Set layout
         std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
-            { 0, vDT::eUniformBuffer, 1, vSS::eVertex },
-            { 1, vDT::eCombinedImageSampler, 1, vSS::eFragment },
+            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
 
         graphics.descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
@@ -335,22 +355,19 @@ public:
         // Set
         graphics.descriptorSet = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &graphics.descriptorSetLayout })[0];
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
-            { graphics.descriptorSet, 0, 0, 1, vDT::eUniformBuffer, nullptr, &graphics.uniformBuffer.descriptor },
-            { graphics.descriptorSet, 1, 0, 1, vDT::eCombinedImageSampler, &textureCloth.descriptor },
+            { graphics.descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &graphics.uniformBuffer.descriptor },
+            { graphics.descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &textureCloth.descriptor },
         };
         device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
     void preparePipelines() {
-
         vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, graphics.pipelineLayout, renderPass };
         pipelineBuilder.inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleStrip;
         pipelineBuilder.inputAssemblyState.primitiveRestartEnable = VK_TRUE;
         pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
         // Binding description
-        pipelineBuilder.vertexInputState.bindingDescriptions = {
-            { 0, sizeof(Particle), vk::VertexInputRate::eVertex }
-        };
+        pipelineBuilder.vertexInputState.bindingDescriptions = { { 0, sizeof(Particle), vk::VertexInputRate::eVertex } };
 
         pipelineBuilder.vertexInputState.attributeDescriptions = {
             { 0, 0, vF::eR32G32B32Sfloat, offsetof(Particle, pos) },
@@ -358,71 +375,18 @@ public:
             { 2, 0, vF::eR32G32B32Sfloat, offsetof(Particle, normal) },
         };
 
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/computecloth/cloth.vert.spv", vSS::eVertex);
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/computecloth/cloth.frag.spv", vSS::eFragment);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/computecloth/cloth.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/computecloth/cloth.frag.spv", vk::ShaderStageFlagBits::eFragment);
         graphics.pipelines.cloth = pipelineBuilder.create(context.pipelineCache);
         pipelineBuilder.destroyShaderModules();
 
         // Sphere rendering pipeline
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/computecloth/sphere.vert.spv", vSS::eVertex);
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/computecloth/sphere.frag.spv", vSS::eFragment);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/computecloth/sphere.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/computecloth/sphere.frag.spv", vk::ShaderStageFlagBits::eFragment);
         pipelineBuilder.vertexInputState = {};
         pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
         pipelineBuilder.inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleList;
         graphics.pipelines.sphere = pipelineBuilder.create(context.pipelineCache);
-    }
-
-    void prepareCompute() {
-        // Create a compute capable device queue
-        compute.queue = device.getQueue(context.queueIndices.compute, 0);
-
-        // Create compute pipeline
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings  {
-            { 0, vDT::eStorageBuffer, 1, vSS::eCompute },
-            { 1, vDT::eStorageBuffer, 1, vSS::eCompute },
-            { 2, vDT::eUniformBuffer, 1, vSS::eCompute },
-        };
-
-        compute.descriptorSetLayout = device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
-        // Push constants used to pass some parameters
-        vk::PushConstantRange pushConstantRange{ vSS::eCompute, 0, sizeof(uint32_t) };
-
-        compute.pipelineLayout = device.createPipelineLayout({ {}, 1, &compute.descriptorSetLayout, 1, &pushConstantRange });
-
-        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &compute.descriptorSetLayout };
-
-        // Create two descriptor sets with input and output buffers switched
-        compute.descriptorSets[0] = device.allocateDescriptorSets(allocInfo)[0];
-        compute.descriptorSets[1] = device.allocateDescriptorSets(allocInfo)[0];
-
-        std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets{
-            { compute.descriptorSets[0], 0, 0, 1, vDT::eStorageBuffer, nullptr, &compute.storageBuffers.input.descriptor },
-            { compute.descriptorSets[0], 1, 0, 1, vDT::eStorageBuffer, nullptr, &compute.storageBuffers.output.descriptor },
-            { compute.descriptorSets[0], 2, 0, 1, vDT::eUniformBuffer, nullptr, &compute.uniformBuffer.descriptor },
-
-            { compute.descriptorSets[1], 0, 0, 1, vDT::eStorageBuffer, nullptr, &compute.storageBuffers.output.descriptor },
-            { compute.descriptorSets[1], 1, 0, 1, vDT::eStorageBuffer, nullptr, &compute.storageBuffers.input.descriptor },
-            { compute.descriptorSets[1], 2, 0, 1, vDT::eUniformBuffer, nullptr, &compute.uniformBuffer.descriptor },
-        };
-
-        device.updateDescriptorSets(computeWriteDescriptorSets, nullptr);
-
-        // Create pipeline
-        vk::ComputePipelineCreateInfo computePipelineCreateInfo;
-        computePipelineCreateInfo.layout = compute.pipelineLayout;
-        computePipelineCreateInfo.stage = vks::shaders::loadShader(device, getAssetPath() + "shaders/computecloth/cloth.comp.spv", vSS::eCompute);
-        compute.pipeline = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo);
-        device.destroyShaderModule(computePipelineCreateInfo.stage.module);
-
-        // Separate command pool as queue family for compute may be different than graphics
-        compute.commandPool = device.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.queueIndices.compute });
-        // Create a command buffer for compute operations
-        compute.commandBuffers = device.allocateCommandBuffers(vk::CommandBufferAllocateInfo{ compute.commandPool, vk::CommandBufferLevel::ePrimary, 2 });
-        // Fence for compute CB sync
-        compute.fence = device.createFence({ vk::FenceCreateFlagBits::eSignaled });
-
-        // Build a single command buffer containing the compute dispatch commands
-        buildComputeCommandBuffer();
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
@@ -478,13 +442,10 @@ public:
         // Submit graphics commands
         ExampleBase::draw();
 
-        device.waitForFences(compute.fence, VK_TRUE, UINT64_MAX);
-        device.resetFences(compute.fence);
+        static std::once_flag once;
+        std::call_once(once, [&] { addRenderWaitSemaphore(compute.semaphores.complete, vk::PipelineStageFlagBits::eComputeShader); });
 
-        vk::SubmitInfo computeSubmitInfo;
-        computeSubmitInfo.commandBufferCount = 1;
-        computeSubmitInfo.pCommandBuffers = &compute.commandBuffers[readSet];
-        compute.queue.submit(computeSubmitInfo, compute.fence);
+        compute.submit();
     }
 
     void prepare() override {
@@ -494,16 +455,15 @@ public:
         setupDescriptorPool();
         setupLayoutsAndDescriptors();
         preparePipelines();
-        prepareCompute();
+        compute.prepare();
+        updateComputeUBO();
+        renderSignalSemaphores.push_back(compute.semaphores.ready);
         buildCommandBuffers();
         prepared = true;
     }
 
-    void render() override {
-        if (!prepared)
-            return;
-        draw();
-
+    void update(float deltaTime) override {
+        Parent::update(deltaTime);
         updateComputeUBO();
     }
 

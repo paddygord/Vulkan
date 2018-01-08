@@ -21,6 +21,7 @@
 #include "ui.hpp"
 #include "utils.hpp"
 #include "camera.hpp"
+#include "compute.hpp"
 
 #define GAMEPAD_BUTTON_A 0x1000
 #define GAMEPAD_BUTTON_B 0x1001
@@ -99,7 +100,7 @@ protected:
 
 protected:
     // Last frame time, measured using a high performance timer (if available)
-    float frameTimer{ 1.0f };
+    float frameTimer{ 0.0015f };
     // Frame counter to display fps
     uint32_t frameCounter{ 0 };
     uint32_t lastFPS{ 0 };
@@ -110,10 +111,6 @@ protected:
     // Depth buffer format...  selected during Vulkan initialization
     vk::Format depthFormat{ vk::Format::eUndefined };
 
-    // vk::Pipeline stage flags for the submit info structure
-    vk::PipelineStageFlags submitPipelineStages = vk::PipelineStageFlagBits::eBottomOfPipe;
-    // Contains command buffers and semaphores to be presented to the queue
-    vk::SubmitInfo submitInfo;
     // Global render pass for frame buffer writes
     vk::RenderPass renderPass;
 
@@ -123,6 +120,14 @@ protected:
     uint32_t currentBuffer = 0;
     // Descriptor set pool
     vk::DescriptorPool descriptorPool;
+
+    void addRenderWaitSemaphore(const vk::Semaphore& semaphore, const vk::PipelineStageFlags& waitStages = vk::PipelineStageFlagBits::eBottomOfPipe);
+
+    std::vector<vk::Semaphore> renderWaitSemaphores;
+    std::vector<vk::PipelineStageFlags> renderWaitStages;
+    std::vector<vk::Semaphore> renderSignalSemaphores;
+
+
 
     vks::Context context;
     const vk::PhysicalDevice& physicalDevice{ context.physicalDevice };
@@ -203,14 +208,10 @@ protected:
     vks::Image depthStencil;
 
     // Gamepad state (only one pad supported)
-
-    struct GamePadState {
-        struct Axes {
-            float x = 0.0f;
-            float y = 0.0f;
-            float z = 0.0f;
-            float rz = 0.0f;
-        } axes;
+    struct {
+        glm::vec2 axisLeft = glm::vec2(0.0f);
+        glm::vec2 axisRight = glm::vec2(0.0f);
+        float rz{ 0.0f };
     } gamePadState;
 
     void updateOverlay();
@@ -257,7 +258,7 @@ protected:
     // all command buffers that may reference this
     virtual void updateDrawCommandBuffer(const vk::CommandBuffer& commandBuffer) = 0;
 
-    void drawCurrentCommandBuffer(const vk::Semaphore& semaphore = vk::Semaphore());
+    void drawCurrentCommandBuffer();
 
     // Prepare commonly used Vulkan functions
     virtual void prepare();

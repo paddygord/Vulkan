@@ -5,6 +5,40 @@
 
 namespace vkx {
 
+
+    class Offscreen {
+    public:
+        Offscreen(const vks::Context& context) : context(context) {
+
+        }
+
+        const vks::Context& context;
+        vk::RenderPass renderPass;
+        vk::CommandBuffer cmdBuffer;
+        vk::Semaphore renderComplete;
+        glm::uvec2 size;
+        std::vector<vk::Format> colorFormats{ vk::Format::eB8G8R8A8Unorm };
+        // This value is chosen as an invalid default that signals that the code should pick a specific depth buffer
+        // Alternative, you can set this to undefined to explicitly declare you want no depth buffer.
+        vk::Format depthFormat = vk::Format::eR8Uscaled;
+        std::vector<vks::Framebuffer> framebuffers{ 1 };
+        vk::ImageUsageFlags attachmentUsage{ vk::ImageUsageFlagBits::eSampled };
+        vk::ImageUsageFlags depthAttachmentUsage;
+        vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eShaderReadOnlyOptimal };
+        vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eDepthStencilAttachmentOptimal };
+
+        void destroy() {
+            for (auto& framebuffer : framebuffers) {
+                framebuffer.destroy();
+            }
+            framebuffers.clear();
+            context.device.freeCommandBuffers(context.getCommandPool(), cmdBuffer);
+            context.device.destroyRenderPass(renderPass);
+            context.device.destroySemaphore(renderComplete);
+        }
+
+    };
+
     class OffscreenExampleBase : public ExampleBase {
     protected:
         OffscreenExampleBase() : offscreen(context) {}
@@ -12,26 +46,10 @@ namespace vkx {
             offscreen.destroy();
         }
 
-        struct Offscreen {
-            const vks::Context& context;
+        struct Offscreen : vkx::Offscreen {
+            Offscreen(const vks::Context& context) : vkx::Offscreen(context) {}
+
             bool active{ true };
-            vk::RenderPass renderPass;
-            vk::CommandBuffer cmdBuffer;
-            vk::Semaphore renderComplete;
-
-            glm::uvec2 size;
-            std::vector<vk::Format> colorFormats{ vk::Format::eB8G8R8A8Unorm };
-            // This value is chosen as an invalid default that signals that the code should pick a specific depth buffer
-            // Alternative, you can set this to undefined to explicitly declare you want no depth buffer.
-            vk::Format depthFormat = vk::Format::eR8Uscaled;
-            std::vector<vks::Framebuffer> framebuffers{ 1 };
-            vk::ImageUsageFlags attachmentUsage{ vk::ImageUsageFlagBits::eSampled };
-            vk::ImageUsageFlags depthAttachmentUsage;
-            vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eShaderReadOnlyOptimal };
-            vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eDepthStencilAttachmentOptimal };
-
-            Offscreen(const vks::Context& context) : context(context) {}
-
             void prepare() {
                 assert(!colorFormats.empty());
                 assert(size != glm::uvec2());
@@ -42,6 +60,7 @@ namespace vkx {
 
                 cmdBuffer = context.allocateCommandBuffers(1)[0];
                 renderComplete = context.device.createSemaphore(vk::SemaphoreCreateInfo());
+                
                 if (!renderPass) {
                     prepareRenderPass();
                 }
@@ -50,16 +69,6 @@ namespace vkx {
                     framebuffer.create(context, size, colorFormats, depthFormat, renderPass, attachmentUsage, depthAttachmentUsage);
                 }
                 prepareSampler();
-            }
-
-            void destroy() {
-                for (auto& framebuffer : framebuffers) {
-                    framebuffer.destroy();
-                }
-                framebuffers.clear();
-                context.device.freeCommandBuffers(context.getCommandPool(), cmdBuffer);
-                context.device.destroyRenderPass(renderPass);
-                context.device.destroySemaphore(renderComplete);
             }
 
         protected:
@@ -180,8 +189,11 @@ namespace vkx {
             prepareFrame();
             if (offscreen.active) {
                 context.submit(offscreen.cmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
+                renderWaitSemaphores = { offscreen.renderComplete };
+            } else {
+                renderWaitSemaphores = { semaphores.acquireComplete };
             }
-            drawCurrentCommandBuffer(offscreen.active ? offscreen.renderComplete : semaphores.acquireComplete);
+            drawCurrentCommandBuffer();
             submitFrame();
         }
 

@@ -32,6 +32,7 @@ ExampleBase::ExampleBase() {
 ExampleBase::~ExampleBase() {
     context.queue.waitIdle();
     context.device.waitIdle();
+
     // Clean up Vulkan resources
     swapChain.destroy();
     // FIXME destroy surface
@@ -109,15 +110,9 @@ void ExampleBase::initVulkan() {
 
     semaphores.overlayComplete = device.createSemaphore({});
 
-    // Set up submit info structure
-    // Semaphores will stay the same during application lifetime
-    // Command buffer submission info is set by each example
-    submitInfo = vk::SubmitInfo();
-    submitInfo.pWaitDstStageMask = &submitPipelineStages;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &semaphores.renderComplete;
+    renderWaitSemaphores.push_back(semaphores.acquireComplete);
+    renderWaitStages.push_back(vk::PipelineStageFlagBits::eBottomOfPipe);
+    renderSignalSemaphores.push_back(semaphores.renderComplete);
 }
 
 bool ExampleBase::platformLoopCondition() {
@@ -148,15 +143,17 @@ bool ExampleBase::platformLoopCondition() {
         int axisCount{ 0 };
         const float* axes = glfwGetJoystickAxes(0, &axisCount);
         if (axisCount >= 2) {
-            gamePadState.axes.x = axes[0] * 0.01f;
-            gamePadState.axes.y = axes[1] * -0.01f;
+            gamePadState.axisLeft.x = axes[0] * 0.01f;
+            gamePadState.axisLeft.y = axes[1] * -0.01f;
         }
         if (axisCount >= 4) {
+            gamePadState.axisRight.x = axes[0] * 0.01f;
+            gamePadState.axisRight.y = axes[1] * -0.01f;
         }
         if (axisCount >= 6) {
             float lt = (axes[4] + 1.0f) / 2.0f;
             float rt = (axes[5] + 1.0f) / 2.0f;
-            gamePadState.axes.rz = (rt - lt);
+            gamePadState.rz = (rt - lt);
         }
         uint32_t newButtons{ 0 };
         static uint32_t oldButtons{ 0 };
@@ -190,7 +187,7 @@ bool ExampleBase::platformLoopCondition() {
         }
         oldButtons = newButtons;
     } else {
-        memset(&gamePadState.axes, 0, sizeof(gamePadState.axes));
+        memset(&gamePadState, 0, sizeof(gamePadState));
     }
     return true;
 #endif
@@ -329,11 +326,10 @@ void ExampleBase::prepareFrame() {
 void ExampleBase::submitFrame() {
     bool submitOverlay = settings.overlay && ui.visible;
     if (submitOverlay) {
+        vk::SubmitInfo submitInfo;
         // Wait for color attachment output to finish before rendering the text overlay
-        vk::PipelineStageFlags stageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        vk::PipelineStageFlags stageFlags = vk::PipelineStageFlagBits::eBottomOfPipe;
         submitInfo.pWaitDstStageMask = &stageFlags;
-
-        // Set semaphores
         // Wait for render complete semaphore
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = &semaphores.renderComplete;
@@ -345,16 +341,6 @@ void ExampleBase::submitFrame() {
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &ui.cmdBuffers[currentBuffer];
         queue.submit({ submitInfo }, {});
-
-        // Reset stage mask
-        submitInfo.pWaitDstStageMask = &submitPipelineStages;
-        // Reset wait and signal semaphores for rendering next frame
-        // Wait for swap chain presentation to finish
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
-        // Signal ready with offscreen semaphore
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = &semaphores.renderComplete;
     }
     swapChain.queuePresent(submitOverlay ? semaphores.overlayComplete : semaphores.renderComplete);
 }
@@ -475,7 +461,12 @@ void ExampleBase::setupRenderPass() {
     renderPass = device.createRenderPass(renderPassInfo);
 }
 
-void ExampleBase::drawCurrentCommandBuffer(const vk::Semaphore& semaphore) {
+void ExampleBase::addRenderWaitSemaphore(const vk::Semaphore& semaphore, const vk::PipelineStageFlags& waitStages) {
+    renderWaitSemaphores.push_back(semaphore);
+    renderWaitStages.push_back(waitStages);
+}
+
+void ExampleBase::drawCurrentCommandBuffer() {
     vk::Fence fence = swapChain.getSubmitFence();
     {
         uint32_t fenceIndex = currentBuffer;
@@ -483,18 +474,15 @@ void ExampleBase::drawCurrentCommandBuffer(const vk::Semaphore& semaphore) {
     }
 
     // Command buffer(s) to be sumitted to the queue
-    std::vector<vk::Semaphore> waitSemaphores{ { semaphore ? semaphore : semaphores.acquireComplete } };
-    std::vector<vk::PipelineStageFlags> waitStages{ submitPipelineStages };
     context.emptyDumpster(fence);
-
     {
-        std::vector<vk::Semaphore> signalSemaphores{ { semaphores.renderComplete } };
         vk::SubmitInfo submitInfo;
-        submitInfo.waitSemaphoreCount = (uint32_t)waitSemaphores.size();
-        submitInfo.pWaitSemaphores = waitSemaphores.data();
-        submitInfo.pWaitDstStageMask = waitStages.data();
-        submitInfo.signalSemaphoreCount = (uint32_t)signalSemaphores.size();
-        submitInfo.pSignalSemaphores = signalSemaphores.data();
+        submitInfo.waitSemaphoreCount = (uint32_t)renderWaitSemaphores.size();
+        submitInfo.pWaitSemaphores = renderWaitSemaphores.data();
+        submitInfo.pWaitDstStageMask = renderWaitStages.data();
+
+        submitInfo.signalSemaphoreCount = (uint32_t)renderSignalSemaphores.size();
+        submitInfo.pSignalSemaphores = renderSignalSemaphores.data();
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = commandBuffers.data() + currentBuffer;
         // Submit to queue
@@ -552,30 +540,31 @@ void ExampleBase::update(float deltaTime) {
 
     // Check gamepad state
     const float deadZone = 0.0015f;
+    // todo : check if gamepad is present
+    // todo : time based and relative axis positions
+    if (camera.type != Camera::CameraType::firstperson) {
+        // Rotate
+        if (std::abs(gamePadState.axisLeft.x) > deadZone) {
+            camera.rotate(glm::vec3(0.0f, gamePadState.axisLeft.x * 0.5f, 0.0f));
+            viewUpdated = true;
+        }
+        if (std::abs(gamePadState.axisLeft.y) > deadZone) {
+            camera.rotate(glm::vec3(gamePadState.axisLeft.y * 0.5f, 0.0f, 0.0f));
+            viewUpdated = true;
+        }
+        // Zoom
+        if (std::abs(gamePadState.axisRight.y) > deadZone) {
+            camera.dolly(gamePadState.axisRight.y * 0.01f * zoomSpeed);
+            viewUpdated = true;
+        }
+    } else {
+        viewUpdated = camera.updatePad(gamePadState.axisLeft, gamePadState.axisRight, frameTimer);
+    }
 
     if (viewUpdated) {
         viewUpdated = false;
         viewChanged();
     }
-
-    // todo : check if gamepad is present
-    // todo : time based and relative axis positions
-    /*
-    // Rotate
-    if (std::abs(gamePadState.axes.x) > deadZone) {
-        camera.yawPitch.x += gamePadState.axes.x * 0.5f * rotationSpeed;
-        updateView = true;
-    }
-    if (std::abs(gamePadState.axes.y) > deadZone) {
-        camera.yawPitch.x += gamePadState.axes.y * 0.5f * rotationSpeed;
-        updateView = true;
-    }
-    // Zoom
-    if (std::abs(gamePadState.axes.rz) > deadZone) {
-        camera.dolly(gamePadState.axes.rz * 0.01f * zoomSpeed);
-        updateView = true;
-    }
-    */
 }
 
 void ExampleBase::windowResize(const glm::uvec2& newSize) {
@@ -873,6 +862,45 @@ void ExampleBase::setupWindow() {
 
 #else
 
+void ExampleBase::setupWindow() {
+    bool fullscreen = false;
+
+#ifdef _WIN32
+    // Check command line arguments
+    for (int32_t i = 0; i < __argc; i++) {
+        if (__argv[i] == std::string("-fullscreen")) {
+            fullscreen = true;
+        }
+    }
+#endif
+
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    auto monitor = glfwGetPrimaryMonitor();
+    auto mode = glfwGetVideoMode(monitor);
+    size.width = mode->width;
+    size.height = mode->height;
+
+    if (fullscreen) {
+        window = glfwCreateWindow(size.width, size.height, "My Title", monitor, NULL);
+    } else {
+        size.width /= 2;
+        size.height /= 2;
+        window = glfwCreateWindow(size.width, size.height, "Window Title", NULL, NULL);
+    }
+
+    glfwSetWindowUserPointer(window, this);
+    glfwSetKeyCallback(window, KeyboardHandler);
+    glfwSetMouseButtonCallback(window, MouseHandler);
+    glfwSetCursorPosCallback(window, MouseMoveHandler);
+    glfwSetWindowCloseCallback(window, CloseHandler);
+    glfwSetFramebufferSizeCallback(window, FramebufferSizeHandler);
+    glfwSetScrollCallback(window, MouseScrollHandler);
+    if (!window) {
+        throw std::runtime_error("Could not create window");
+    }
+    swapChain.setSurface(glfw::createWindowSurface(context.instance, window));
+}
+
 void ExampleBase::mouseAction(int button, int action, int mods) {
     switch (button) {
     case GLFW_MOUSE_BUTTON_LEFT:
@@ -927,46 +955,6 @@ void ExampleBase::CloseHandler(GLFWwindow* window) {
 void ExampleBase::FramebufferSizeHandler(GLFWwindow* window, int width, int height) {
     ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->windowResize(glm::uvec2(width, height));
-}
-
-void ExampleBase::setupWindow() {
-    bool fullscreen = false;
-
-#ifdef _WIN32
-    // Check command line arguments
-    for (int32_t i = 0; i < __argc; i++) {
-        if (__argv[i] == std::string("-fullscreen")) {
-            fullscreen = true;
-        }
-    }
-#endif
-
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    auto monitor = glfwGetPrimaryMonitor();
-    auto mode = glfwGetVideoMode(monitor);
-    size.width = mode->width;
-    size.height = mode->height;
-
-    if (fullscreen) {
-        window = glfwCreateWindow(size.width, size.height, "My Title", monitor, NULL);
-    }
-    else {
-        size.width /= 2;
-        size.height /= 2;
-        window = glfwCreateWindow(size.width, size.height, "Window Title", NULL, NULL);
-    }
-
-    glfwSetWindowUserPointer(window, this);
-    glfwSetKeyCallback(window, KeyboardHandler);
-    glfwSetMouseButtonCallback(window, MouseHandler);
-    glfwSetCursorPosCallback(window, MouseMoveHandler);
-    glfwSetWindowCloseCallback(window, CloseHandler);
-    glfwSetFramebufferSizeCallback(window, FramebufferSizeHandler);
-    glfwSetScrollCallback(window, MouseScrollHandler);
-    if (!window) {
-        throw std::runtime_error("Could not create window");
-    }
-    swapChain.setSurface(glfw::createWindowSurface(context.instance, window));
 }
 
 #endif

@@ -8,82 +8,137 @@
 
 #include <vulkanExampleBase.h>
 
+const std::vector<std::string> shaderNames{ "sharpen", "edgedetect", "emboss" };
+
 // Vertex layout for this example
 struct Vertex {
     float pos[3];
     float uv[2];
 };
 
-class VulkanExample : public vkx::ExampleBase {
-private:
-    vks::texture::Texture2D textureColorMap;
-    vks::Image textureComputeTarget;
+class ComputeImage : public vkx::Compute {
+    using Parent = vkx::Compute;
 
 public:
-    struct {
-        vks::model::Model quad;
-    } meshes;
+    ComputeImage(const vks::Context& context, vks::Image& textureColorMap)
+        : Parent(context)
+        , textureColorMap(textureColorMap) {}
 
-    vks::Buffer uniformDataVS;
+    vks::Image& textureColorMap;
+    vks::Image textureTarget;
+    vk::DescriptorPool descriptorPool;
+    vk::PipelineLayout pipelineLayout;
+    vk::DescriptorSetLayout descriptorSetLayout;
+    vk::DescriptorSet descriptorSet;
+    std::vector<vk::Pipeline> pipelines;
+    std::vector<vk::CommandBuffer> commandBuffers;
+    int32_t pipelineIndex{ 0 };
 
-    struct {
-        glm::mat4 projection;
-        glm::mat4 model;
-    } uboVS;
-
-    struct Graphics {
-        vk::PipelineLayout pipelineLayout;
-        vk::DescriptorSet descriptorSetPreCompute;
-        vk::DescriptorSet descriptorSetPostCompute;
-        vk::Pipeline pipeline;
-        vk::DescriptorSetLayout descriptorSetLayout;
-    } graphics;
-
-    struct Compute {
-        vk::Queue queue;
-        vk::CommandPool commandPool;
-        vk::CommandBuffer commandBuffer;
-        vk::PipelineLayout pipelineLayout;
-        vk::DescriptorSetLayout descriptorSetLayout;
-        vk::DescriptorSet descriptorSet;
-        std::vector<vk::Pipeline> pipelines;
-        int32_t pipelineIndex{ 0 };
-    } compute;
-
-    const std::vector<std::string> shaderNames { "sharpen", "edgedetect", "emboss" };
-
-    VulkanExample() {
-        camera.dolly(-2.0f);
-        title = "Vulkan Example - Compute shader image processing";
-    }
-
-    ~VulkanExample() {
+    void destroy() override {
         queue.waitIdle();
-        if (compute.queue != queue) {
-            compute.queue.waitIdle();
-        }
-
+        textureTarget.destroy();
+        device.freeCommandBuffers(commandPool, commandBuffers);
+        device.destroyDescriptorPool(descriptorPool);
         // Clean up used Vulkan resources
-        // Note : Inherited destructor cleans up resources stored in base class
-        device.destroyPipelineLayout(compute.pipelineLayout);
-        device.destroyDescriptorSetLayout(compute.descriptorSetLayout);
-        device.freeCommandBuffers(cmdPool, compute.commandBuffer);
-        //device.freeDescriptorSets(descriptorPool, computeDescriptorSet);
-
-        device.destroyPipeline(graphics.pipeline);
-        for (auto& pipeline : compute.pipelines) {
+        device.destroyPipelineLayout(pipelineLayout);
+        device.destroyDescriptorSetLayout(descriptorSetLayout);
+        for (auto& pipeline : pipelines) {
             device.destroyPipeline(pipeline);
         }
-
-        device.destroyPipelineLayout(graphics.pipelineLayout);
-        device.destroyDescriptorSetLayout(graphics.descriptorSetLayout);
-        meshes.quad.destroy();
-        uniformDataVS.destroy();
-        textureColorMap.destroy();
-        textureComputeTarget.destroy();
+        Parent::destroy();
     }
 
-    // Prepare a texture target that is used to store compute shader calculations
+    void prepare() {
+        Parent::prepare();
+
+        textureTarget = prepareTextureTarget(vk::ImageLayout::eGeneral, textureColorMap.extent, vk::Format::eR8G8B8A8Unorm);
+
+        prepareDescriptors();
+        preparePipelines();
+    }
+
+    void prepareDescriptors() {
+        std::vector<vk::DescriptorPoolSize> poolSizes{
+            { vk::DescriptorType::eUniformBuffer, 2 },
+            // Graphics pipeline uses image samplers for display
+            { vk::DescriptorType::eCombinedImageSampler, 4 },
+            // Compute pipeline uses a sampled image for reading
+            { vk::DescriptorType::eSampledImage, 1 },
+            // Compute pipelines uses a storage image to write result
+            { vk::DescriptorType::eStorageImage, 1 },
+        };
+        descriptorPool = device.createDescriptorPool({ {}, 3, (uint32_t)poolSizes.size(), poolSizes.data() });
+
+        // Create compute pipeline
+        // Compute pipelines are created separate from graphics pipelines
+        // even if they use the same queue
+
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
+            // Binding 0 : Sampled image (read)
+            { 0, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eCompute },
+            // Binding 1 : Sampled image (write)
+            { 1, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
+        };
+
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+
+        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &descriptorSetLayout };
+
+        descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
+
+        std::vector<vk::DescriptorImageInfo> computeTexDescriptors{
+            { {}, textureColorMap.view, vk::ImageLayout::eGeneral },
+            { {}, textureTarget.view, vk::ImageLayout::eGeneral },
+        };
+
+        std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets{
+            // Binding 0 : Sampled image (read)
+            { descriptorSet, 0, 0, 1, vk::DescriptorType::eSampledImage, &computeTexDescriptors[0] },
+            // Binding 1 : Sampled image (write)
+            { descriptorSet, 1, 0, 1, vk::DescriptorType::eStorageImage, &computeTexDescriptors[1] },
+        };
+
+        device.updateDescriptorSets(computeWriteDescriptorSets, nullptr);
+    }
+
+    void preparePipelines() {
+        // Create compute shader pipelines
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
+        vk::ComputePipelineCreateInfo computePipelineCreateInfo{ {}, {}, pipelineLayout };
+        // One pipeline for each effect
+        for (auto& shaderName : shaderNames) {
+            std::string fileName = vkx::getAssetPath() + "shaders/computeshader/" + shaderName + ".comp.spv";
+            computePipelineCreateInfo.stage = vks::shaders::loadShader(device, fileName.c_str(), vk::ShaderStageFlagBits::eCompute);
+            pipelines.push_back(device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo, nullptr)[0]);
+            device.destroyShaderModule(computePipelineCreateInfo.stage.module);
+        }
+
+        commandBuffers = device.allocateCommandBuffers({ commandPool, vk::CommandBufferLevel::ePrimary, (uint32_t)shaderNames.size() });
+        buildCommandBuffers();
+    }
+
+    void buildCommandBuffers() {
+        for (size_t i = 0; i < pipelines.size(); ++i) {
+            const auto& commandBuffer = commandBuffers[i];
+            const auto& pipeline = pipelines[i];
+            // FIXME find a better way to block on re-using the compute command, or build multiple command buffers
+            commandBuffer.begin({ vk::CommandBufferUsageFlagBits::eSimultaneousUse });
+            commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
+            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipelineLayout, 0, descriptorSet, nullptr);
+            commandBuffer.dispatch(textureTarget.extent.width / 16, textureTarget.extent.height / 16, 1);
+            commandBuffer.end();
+        }
+    }
+
+    void switchPipeline(int32_t dir) {
+        if ((dir < 0) && (pipelineIndex > 0)) {
+            pipelineIndex--;
+        }
+        if ((dir > 0) && (pipelineIndex < pipelines.size() - 1)) {
+            pipelineIndex++;
+        }
+    }
+
     vks::Image prepareTextureTarget(vk::ImageLayout targetLayout, const vk::Extent3D& extent, vk::Format format) {
         vk::FormatProperties formatProperties;
 
@@ -133,7 +188,54 @@ public:
         return result;
     }
 
-    void loadTextures() { textureColorMap.loadFromFile(context, getAssetPath() + "textures/het_kanonschot_rgba8.ktx", vk::Format::eR8G8B8A8Unorm); }
+    void submit() { Parent::submit(commandBuffers[pipelineIndex]); }
+};
+
+class VulkanExample : public vkx::ExampleBase {
+private:
+    vks::texture::Texture2D textureColorMap;
+
+public:
+    struct {
+        vks::model::Model quad;
+    } meshes;
+
+    vks::Buffer uniformDataVS;
+
+    struct {
+        glm::mat4 projection;
+        glm::mat4 model;
+    } uboVS;
+
+    struct Graphics {
+        vk::PipelineLayout pipelineLayout;
+        vk::DescriptorSet descriptorSetPreCompute;
+        vk::DescriptorSet descriptorSetPostCompute;
+        vk::Pipeline pipeline;
+        vk::DescriptorSetLayout descriptorSetLayout;
+    } graphics;
+
+    ComputeImage compute{ context, textureColorMap };
+
+    VulkanExample() {
+        camera.dolly(-2.0f);
+        title = "Vulkan Example - Compute shader image processing";
+    }
+
+    ~VulkanExample() {
+        compute.destroy();
+        queue.waitIdle();
+
+        device.destroyPipeline(graphics.pipeline);
+        device.destroyPipelineLayout(graphics.pipelineLayout);
+        device.destroyDescriptorSetLayout(graphics.descriptorSetLayout);
+
+        meshes.quad.destroy();
+        uniformDataVS.destroy();
+        textureColorMap.destroy();
+    }
+
+    void loadAssets() override { textureColorMap.loadFromFile(context, getAssetPath() + "textures/het_kanonschot_rgba8.ktx", vk::Format::eR8G8B8A8Unorm); }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
@@ -149,21 +251,6 @@ public:
         cmdBuffer.setViewport(0, viewport);
         cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
 
-        // vk::Image memory barrier to make sure that compute
-        // shader writes are finished before sampling
-        // from the texture
-        vk::ImageMemoryBarrier imageMemoryBarrier;
-        imageMemoryBarrier.oldLayout = vk::ImageLayout::eGeneral;
-        imageMemoryBarrier.newLayout = vk::ImageLayout::eGeneral;
-        imageMemoryBarrier.image = textureComputeTarget.image;
-        imageMemoryBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-        imageMemoryBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite;
-        imageMemoryBarrier.dstAccessMask = vk::AccessFlagBits::eInputAttachmentRead;
-
-        // todo : use different pipeline stage bits
-        cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe, vk::DependencyFlags(), nullptr, nullptr,
-                                  imageMemoryBarrier);
-
         // Right (post compute)
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, graphics.pipelineLayout, 0, graphics.descriptorSetPostCompute, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, graphics.pipeline);
@@ -171,18 +258,6 @@ public:
         viewport.x = viewport.width;
         cmdBuffer.setViewport(0, viewport);
         cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
-    }
-
-    void buildComputeCommandBuffer() {
-        // FIXME find a better way to block on re-using the compute command, or build multiple command buffers
-        queue.waitIdle();
-        vk::CommandBufferBeginInfo cmdBufInfo;
-        cmdBufInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
-        compute.commandBuffer.begin(cmdBufInfo);
-        compute.commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, compute.pipelines[compute.pipelineIndex]);
-        compute.commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, compute.pipelineLayout, 0, compute.descriptorSet, nullptr);
-        compute.commandBuffer.dispatch(textureComputeTarget.extent.width / 16, textureComputeTarget.extent.height / 16, 1);
-        compute.commandBuffer.end();
     }
 
     // Setup vertices for a single uv-mapped quad
@@ -231,7 +306,7 @@ public:
         graphics.descriptorSetPostCompute = device.allocateDescriptorSets(allocInfo)[0];
 
         // vk::Image descriptor for the color map texture
-        vk::DescriptorImageInfo texDescriptor{ textureComputeTarget.sampler, textureComputeTarget.view, vk::ImageLayout::eGeneral };
+        vk::DescriptorImageInfo texDescriptor{ compute.textureTarget.sampler, compute.textureTarget.view, vk::ImageLayout::eGeneral };
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
@@ -255,9 +330,6 @@ public:
         };
         device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
-
-    // Create a separate command buffer for compute commands
-    void createComputeCommandBuffer() { compute.commandBuffer = device.allocateCommandBuffers({ cmdPool, vk::CommandBufferLevel::ePrimary, 1 })[0]; }
 
     void preparePipelines() {
         // Rendering pipeline
@@ -283,49 +355,6 @@ public:
         graphics.pipeline = pipelineBuilder.create(context.pipelineCache);
     }
 
-    void prepareCompute() {
-        // Create compute pipeline
-        // Compute pipelines are created separate from graphics pipelines
-        // even if they use the same queue
-
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
-            // Binding 0 : Sampled image (read)
-            { 0, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eCompute },
-            // Binding 1 : Sampled image (write)
-            { 1, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
-        };
-
-        compute.descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
-        compute.pipelineLayout = device.createPipelineLayout({ {}, 1, &compute.descriptorSetLayout });
-
-        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &compute.descriptorSetLayout };
-
-        compute.descriptorSet = device.allocateDescriptorSets(allocInfo)[0];
-
-        std::vector<vk::DescriptorImageInfo> computeTexDescriptors{
-            { {}, textureColorMap.view, vk::ImageLayout::eGeneral },
-            { {}, textureComputeTarget.view, vk::ImageLayout::eGeneral },
-        };
-
-        std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets{
-            // Binding 0 : Sampled image (read)
-            { compute.descriptorSet, 0, 0, 1, vk::DescriptorType::eSampledImage, &computeTexDescriptors[0] },
-            // Binding 1 : Sampled image (write)
-            { compute.descriptorSet, 1, 0, 1, vk::DescriptorType::eStorageImage, &computeTexDescriptors[1] },
-        };
-
-        device.updateDescriptorSets(computeWriteDescriptorSets, nullptr);
-
-        // Create compute shader pipelines
-        vk::ComputePipelineCreateInfo computePipelineCreateInfo{ {}, {}, compute.pipelineLayout };
-        // One pipeline for each effect
-        for (auto& shaderName : shaderNames) {
-            std::string fileName = getAssetPath() + "shaders/computeshader/" + shaderName + ".comp.spv";
-            computePipelineCreateInfo.stage = vks::shaders::loadShader(device, fileName.c_str(), vk::ShaderStageFlagBits::eCompute);
-            compute.pipelines.push_back(device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo, nullptr)[0]);
-        }
-    }
-
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
@@ -342,81 +371,52 @@ public:
         uniformDataVS.copy(uboVS);
     }
 
-    // Find and create a compute capable device queue
-    void getComputeQueue() {
-        uint32_t queueIndex = context.queueIndices.compute;
-        assert(queueIndex != VK_QUEUE_FAMILY_IGNORED);
-
-        vk::DeviceQueueCreateInfo queueCreateInfo;
-        queueCreateInfo.queueFamilyIndex = queueIndex;
-        queueCreateInfo.queueCount = 1;
-        compute.queue = device.getQueue(queueIndex, 0);
-    }
-
     void prepare() override {
         ExampleBase::prepare();
-        loadTextures();
+        compute.prepare();
+
         generateQuad();
-        getComputeQueue();
-        createComputeCommandBuffer();
         prepareUniformBuffers();
-        textureComputeTarget = prepareTextureTarget(vk::ImageLayout::eGeneral, textureColorMap.extent, vk::Format::eR8G8B8A8Unorm);
         setupDescriptorSetLayout();
         preparePipelines();
         setupDescriptorPool();
         setupDescriptorSet();
-        prepareCompute();
+
+        renderSignalSemaphores.push_back(compute.semaphores.ready);
+
         buildCommandBuffers();
-        buildComputeCommandBuffer();
         prepared = true;
     }
 
     void draw() override {
         ExampleBase::draw();
 
-        // Submit compute
-        vk::SubmitInfo computeSubmitInfo = vk::SubmitInfo();
-        computeSubmitInfo.commandBufferCount = 1;
-        computeSubmitInfo.pCommandBuffers = &compute.commandBuffer;
+        static std::once_flag once;
+        std::call_once(once, [&] { addRenderWaitSemaphore(compute.semaphores.complete, vk::PipelineStageFlagBits::eComputeShader); });
 
-        compute.queue.submit(computeSubmitInfo, nullptr);
+        compute.submit();
     }
 
-    void viewChanged() override { 
-        updateUniformBuffers(); 
-    }
+    void viewChanged() override { updateUniformBuffers(); }
 
     void keyPressed(uint32_t keyCode) override {
         switch (keyCode) {
             case KEY_KPADD:
             case GAMEPAD_BUTTON_R1:
-                switchComputePipeline(1);
+                compute.switchPipeline(1);
                 break;
             case KEY_KPSUB:
             case GAMEPAD_BUTTON_L1:
-                switchComputePipeline(-1);
+                compute.switchPipeline(-1);
                 break;
-        }
-    }
-
-    void switchComputePipeline(int32_t dir) {
-        if ((dir < 0) && (compute.pipelineIndex > 0)) {
-            compute.pipelineIndex--;
-            buildComputeCommandBuffer();
-        }
-        if ((dir > 0) && (compute.pipelineIndex < compute.pipelines.size() - 1)) {
-            compute.pipelineIndex++;
-            buildComputeCommandBuffer();
         }
     }
 
     void OnUpdateUIOverlay() override {
         if (ui.header("Settings")) {
-            if (ui.comboBox("Shader", &compute.pipelineIndex, shaderNames)) {
-                buildComputeCommandBuffer();
-            }
+            ui.comboBox("Shader", &compute.pipelineIndex, shaderNames);
         }
     }
 };
 
-RUN_EXAMPLE(VulkanExample)
+VULKAN_EXAMPLE_MAIN()

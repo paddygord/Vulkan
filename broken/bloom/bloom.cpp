@@ -468,10 +468,13 @@ public:
         // Offscreen rendering
         if (bloom) {
             context.submit(offscreen.cmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
-        } 
+            renderWaitSemaphores = { offscreen.renderComplete };
+        } else {
+            renderWaitSemaphores = { semaphores.acquireComplete };
+        }
 
         // Scene rendering
-        drawCurrentCommandBuffer(bloom ? offscreen.renderComplete : semaphores.acquireComplete);
+        drawCurrentCommandBuffer();
         submitFrame();
     }
 

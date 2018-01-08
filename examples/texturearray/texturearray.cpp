@@ -203,7 +203,7 @@ public:
         uniformData.vertexShader.copy(uboVS.matrices);
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         loadTextures();
         generateQuad();
@@ -216,13 +216,7 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
-        if (!prepared)
-            return;
-        draw();
-    }
-
-    virtual void viewChanged() { updateUniformBufferMatrices(); }
+    void viewChanged() override { updateUniformBufferMatrices(); }
 };
 
 RUN_EXAMPLE(VulkanExample)

@@ -633,17 +633,13 @@ public:
     void draw() override {
         prepareFrame();
 
-        submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
-        submitInfo.pSignalSemaphores = &offscreen.semaphore;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &offscreen.cmdBuffer;
-        queue.submit(submitInfo, {});
-
-        submitInfo.pWaitSemaphores = &offscreen.semaphore;
-        submitInfo.pSignalSemaphores = &semaphores.renderComplete;
-        submitInfo.pCommandBuffers = &commandBuffers[currentBuffer];
-        queue.submit(submitInfo, {});
-
+        if (offscreen.active) {
+            context.submit(offscreen.cmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
+            renderWaitSemaphores = { offscreen.renderComplete };
+        } else {
+            renderWaitSemaphores = { semaphores.acquireComplete };
+        }
+        ExampleBase::draw();
         submitFrame();
     }
 

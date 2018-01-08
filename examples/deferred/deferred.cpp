@@ -74,7 +74,6 @@ public:
 
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
-    vk::CommandBuffer offscreenCmdBuffer;
 
     VulkanExample() {
         camera.movementSpeed = 5.0f;
@@ -108,7 +107,6 @@ public:
         uniformData.vsOffscreen.destroy();
         uniformData.vsFullScreen.destroy();
         uniformData.fsLights.destroy();
-        device.freeCommandBuffers(cmdPool, offscreenCmdBuffer);
         textures.colorMap.destroy();
     }
 
@@ -116,8 +114,8 @@ public:
     // and blitting it to the different texture targets
     void buildOffscreenCommandBuffer() override {
         // Create separate command buffer for offscreen rendering
-        if (!offscreenCmdBuffer) {
-            offscreenCmdBuffer = device.allocateCommandBuffers({ cmdPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
+        if (!offscreen.cmdBuffer) {
+            offscreen.cmdBuffer = device.allocateCommandBuffers({ cmdPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
         }
 
         vk::CommandBufferBeginInfo cmdBufInfo;
@@ -138,24 +136,24 @@ public:
         renderPassBeginInfo.clearValueCount = (uint32_t)clearValues.size();
         renderPassBeginInfo.pClearValues = clearValues.data();
 
-        offscreenCmdBuffer.begin(cmdBufInfo);
-        offscreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        offscreen.cmdBuffer.begin(cmdBufInfo);
+        offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
         vk::Viewport viewport = vks::util::viewport(offscreen.size);
-        offscreenCmdBuffer.setViewport(0, viewport);
+        offscreen.cmdBuffer.setViewport(0, viewport);
 
         vk::Rect2D scissor = vks::util::rect2D(offscreen.size);
-        offscreenCmdBuffer.setScissor(0, scissor);
+        offscreen.cmdBuffer.setScissor(0, scissor);
 
-        offscreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
-        offscreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
+        offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
+        offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
 
         vk::DeviceSize offsets = { 0 };
-        offscreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, { 0 });
-        offscreenCmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
-        offscreenCmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
-        offscreenCmdBuffer.endRenderPass();
-        offscreenCmdBuffer.end();
+        offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, { 0 });
+        offscreen.cmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
+        offscreen.cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
+        offscreen.cmdBuffer.endRenderPass();
+        offscreen.cmdBuffer.end();
     }
 
     void loadAssets() override {
@@ -188,18 +186,13 @@ public:
 
     void draw() override {
         prepareFrame();
-        {
-            vk::SubmitInfo submitInfo;
-            submitInfo.pWaitDstStageMask = this->submitInfo.pWaitDstStageMask;
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &offscreenCmdBuffer;
-            submitInfo.waitSemaphoreCount = 1;
-            submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
-            submitInfo.signalSemaphoreCount = 1;
-            submitInfo.pSignalSemaphores = &offscreen.renderComplete;
-            queue.submit(submitInfo, nullptr);
+        if (offscreen.active) {
+            context.submit(offscreen.cmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
+            renderWaitSemaphores = { offscreen.renderComplete };
+        } else {
+            renderWaitSemaphores = { semaphores.acquireComplete };
         }
-        drawCurrentCommandBuffer(offscreen.renderComplete);
+        drawCurrentCommandBuffer();
         submitFrame();
     }
 
