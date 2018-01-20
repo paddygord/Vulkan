@@ -65,10 +65,10 @@ public:
     void destroy() {
         buffers.storage.destroy();
         buffers.uniform.destroy();
-        device.destroyPipelineLayout(pipelineLayout);
-        device.destroyDescriptorSetLayout(descriptorSetLayout);
-        device.destroyPipeline(pipeline);
-        device.destroyDescriptorPool(descriptorPool);
+        device.destroy(pipelineLayout);
+        device.destroy(descriptorSetLayout);
+        device.destroy(pipeline);
+        device.destroy(descriptorPool);
         Parent::destroy();
     }
 

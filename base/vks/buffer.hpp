@@ -75,7 +75,7 @@ namespace vks
         */
         void destroy() {
             if (buffer) {
-                device.destroyBuffer(buffer);
+                device.destroy(buffer);
                 buffer = vk::Buffer{};
             }
             Parent::destroy();

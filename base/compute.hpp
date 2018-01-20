@@ -8,7 +8,7 @@ struct Compute {
         : context(context) {}
 
     const vks::Context& context;
-    const vk::Device& device{ context.device };
+    const vks::Device& device{ context.device };
     vk::Queue queue;
     vk::CommandPool commandPool;
 
@@ -27,9 +27,9 @@ struct Compute {
     }
 
     virtual void destroy() {
-        context.device.destroySemaphore(semaphores.complete);
-        context.device.destroySemaphore(semaphores.ready);
-        context.device.destroyCommandPool(commandPool);
+        context.device.destroy(semaphores.complete);
+        context.device.destroy(semaphores.ready);
+        context.device.destroy(commandPool);
     }
 
     void submit(const vk::ArrayProxy<const vk::CommandBuffer>& commandBuffers) {

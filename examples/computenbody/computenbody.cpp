@@ -62,11 +62,11 @@ public:
     void destroy() {
         storageBuffer.destroy();
         uniformBuffer.destroy();
-        device.destroyPipeline(pipelineCalculate);
-        device.destroyPipeline(pipelineIntegrate);
-        device.destroyPipelineLayout(pipelineLayout);
-        device.destroyDescriptorSetLayout(descriptorSetLayout);
-        device.destroyDescriptorPool(descriptorPool);
+        device.destroy(pipelineCalculate);
+        device.destroy(pipelineIntegrate);
+        device.destroy(pipelineLayout);
+        device.destroy(descriptorSetLayout);
+        device.destroy(descriptorPool);
         Parent::destroy();
     }
 
@@ -142,10 +142,6 @@ public:
 
         // Create a command buffer for compute operations
         commandBuffer = device.allocateCommandBuffers({ commandPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
-
-        // Semaphores for compute CB sync
-        semaphores.complete = device.createSemaphore({});
-        semaphores.ready = device.createSemaphore({});
 
         // Build a single command buffer containing the compute dispatch commands
         buildComputeCommandBuffer();

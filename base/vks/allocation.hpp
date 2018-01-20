@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-
+#include "device.hpp"
 namespace vks {
 
     // A wrapper class for an allocation, either an Image or Buffer.  Not intended to be used used directly
@@ -9,7 +9,7 @@ namespace vks {
     //
     // Provides easy to use mechanisms for mapping, unmapping and copying host data to the device memory
     struct Allocation {
-        vk::Device device;
+        vks::Device device;
         vk::DeviceMemory memory;
         vk::DeviceSize size{ 0 };
         vk::DeviceSize alignment{ 0 };

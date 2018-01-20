@@ -18,8 +18,12 @@
 #include "image.hpp"
 #include "buffer.hpp"
 #include "helpers.hpp"
+#include "device.hpp"
+
 
 namespace vks {
+
+
     using StringList = std::list<std::string>;
     using CStringVector = std::vector<const char*>;
 
@@ -509,7 +513,7 @@ namespace vks {
         // Stores all available memory (type) properties for the physical device
         vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
         // Logical device, application's view of the physical device (GPU)
-        vk::Device device;
+        vks::Device device;
         // vk::Pipeline cache object
         vk::PipelineCache pipelineCache;
 
