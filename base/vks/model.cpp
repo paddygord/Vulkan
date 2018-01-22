@@ -37,7 +37,7 @@ bool Model::loadFromFile(const Context& context,
     const aiScene* pScene;
 
     // Load file
-    vks::file::withBinaryFileContexts(filename, [&](const char* filename, size_t size, const void* data) {
+    vks::file::withBinaryFileContents(filename, [&](const char* filename, size_t size, const void* data) {
         pScene = importer.ReadFileFromMemory(data, size, flags, filename);
     });
 

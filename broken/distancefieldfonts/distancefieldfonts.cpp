@@ -130,7 +130,7 @@ public:
     void parsebmFont() {
         std::string fileName = getAssetPath() + "font.fnt";
 
-        vks::file::withBinaryFileContexts(fileName, [&](size_t size, const void* data) {
+        vks::file::withBinaryFileContents(fileName, [&](size_t size, const void* data) {
             imemstream istream((const char*)data, size);
             assert(istream.good());
             while (!istream.eof()) {

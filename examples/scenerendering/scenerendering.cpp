@@ -284,7 +284,7 @@ public:
 
     void load(const std::string& filename, vk::CommandBuffer copyCmd) {
         Assimp::Importer Importer;
-        vks::file::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
+        vks::file::withBinaryFileContents(filename, [&](size_t size, const void* data) {
             int flags = aiProcess_PreTransformVertices | aiProcess_Triangulate | aiProcess_GenNormals;
             aScene = Importer.ReadFileFromMemory(data, size, flags);
         });
