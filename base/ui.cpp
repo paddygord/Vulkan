@@ -215,8 +215,9 @@ void UIOverlay::preparePipeline() {
     pipelineBuilder.vertexInputState.attributeDescriptions = {
         { 0, 0, vk::Format::eR32G32Sfloat, offsetof(ImDrawVert, pos) }, // Location 0: Position
         { 1, 0, vk::Format::eR32G32Sfloat, offsetof(ImDrawVert, uv) }, // Location 1: UV
-        { 2, 0, vk::Format::eR8G8B8Unorm, offsetof(ImDrawVert, col) }, // Location 0: Color
+        { 2, 0, vk::Format::eR8G8B8A8Unorm, offsetof(ImDrawVert, col) }, // Location 2: Color
     };
+
     pipeline = pipelineBuilder.create(context.pipelineCache);
 }
 

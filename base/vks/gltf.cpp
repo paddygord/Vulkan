@@ -300,7 +300,7 @@ struct GltfImpl : public Gltf {
             std::string key = itr.key();
             size_t index = *itr;
             assert(accessors.size() > index);
-            primitive.attributes.push_back({ key, accessors[index] });
+            primitive.attributes.insert({ key, accessors[index] });
         }
         if (node.count(INDICES)) {
             size_t indicesIndex = node[INDICES];

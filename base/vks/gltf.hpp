@@ -15,26 +15,6 @@
 
 namespace vks { namespace gltf {
 
-namespace glb {
-struct Header {
-    static const uint32_t MAGIC = 0x46546C67;
-    const uint32_t magic{ MAGIC };
-    uint32_t version{ 2 };
-    uint32_t length{ 0 };
-};
-
-struct ChunkHeader {
-    enum class Type
-    {
-        JSON = 0x4E4F534A,
-        BIN = 0x004E4942,
-    };
-    uint32_t length;
-    Type type;
-};
-
-}  // namespace glb
-
 //https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#reference-extras
 using DataBuffer = std::vector<uint8_t>;
 //https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#reference-extension
@@ -359,8 +339,7 @@ struct Primitive {
         TriangleFan = 0x6,
     };
 
-    using Attribute = std::pair<std::string, AccessorPtr>;
-    using Attributes = std::vector<Attribute>;
+    using Attributes = std::unordered_map<std::string, AccessorPtr>;
     Attributes attributes;
     AccessorPtr indices;
     MaterialPtr material;

@@ -24,6 +24,19 @@
 
 namespace fs = std::experimental::filesystem;
 
+// Vertex layout for the models
+vks::model::VertexLayout vertexLayout{ {
+    vks::model::VERTEX_COMPONENT_POSITION,
+    vks::model::VERTEX_COMPONENT_NORMAL,
+    vks::model::VERTEX_COMPONENT_UV,
+} };
+
+inline bool ends_with(const std::string& value, const std::string& ending) {
+    if (ending.size() > value.size())
+        return false;
+    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
+
 // Returns the passed value rounded up to the next 4 byte aligned value, if it's not already 4 byte aligned
 template <typename T>
 inline T evalAlignedSize(T value, T alignment) {
@@ -38,8 +51,16 @@ using GltfPrimitivePtr = std::shared_ptr<GltfPrimitive>;
 struct GltfBridge {
     vks::Buffer buffer;
     std::unordered_map<vks::gltf::BufferViewPtr, vk::DeviceSize> viewOffsets;
+    std::vector<vks::texture::Texture2D> textures;
+    std::unordered_map<vks::gltf::ImagePtr, size_t> textureIndices;
+
     std::vector<GltfPrimitivePtr> primitives;
+
     void parse(const vks::Context& context, const vks::gltf::GltfPtr& gltf);
+
+    void destroy() {
+        buffer.destroy();
+    }
 
     const vk::DeviceSize& bufferViewOffset(const vks::gltf::BufferViewPtr& bufferView) const {
         auto itr = viewOffsets.find(bufferView);
@@ -49,7 +70,8 @@ struct GltfBridge {
         return itr->second;
     }
 
-    void buildPipelines(const vks::pipelines::GraphicsPipelineBuilder& pipelineBuilder);
+    void buildPipelines(vks::pipelines::GraphicsPipelineBuilder& pipelineBuilder);
+
 };
 
 
@@ -68,11 +90,28 @@ struct GltfPrimitive {
         setupIndex(primitive);
     }
 
-    void buildPipeline(vks::pipelines::GraphicsPipelineBuilder pipelineBuilder) {
+    void buildPipeline(vks::pipelines::GraphicsPipelineBuilder& pipelineBuilder) {
         pipeline = pipelineBuilder.create();
     }
 
     void draw(const vk::CommandBuffer& cmdBuffer) {
+        /*
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, 1, &descriptorSets.object, 0, NULL);
+        commandBuffer.bindVertexBuffers(0, 1, &models.objects[models.objectIndex].vertices.buffer, offsets);
+        commandBuffer.bindIndexBuffer(models.objects[models.objectIndex].indices.buffer, 0, vk::IndexType::eUint32);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.pbr);
+
+        Material mat = materials[materialIndex];
+        uint32_t objcount = 10;
+        for (uint32_t x = 0; x < objcount; x++) {
+        glm::vec3 pos = glm::vec3(float(x - (objcount / 2.0f)) * 2.15f, 0.0f, 0.0f);
+        mat.params.roughness = 1.0f - glm::clamp((float)x / (float)objcount, 0.005f, 1.0f);
+        mat.params.metallic = glm::clamp((float)x / (float)objcount, 0.005f, 1.0f);
+        commandBuffer.pushConstants<glm::vec3>(pipelineLayout, vSS::eVertex, 0, pos);
+        commandBuffer.pushConstants<Material::PushBlock>(pipelineLayout, vSS::eFragment, sizeof(glm::vec3), mat.params);
+        commandBuffer.drawIndexed(models.objects[models.objectIndex].indexCount, 1, 0, 0, 0);
+        }
+        */
         cmdBuffer.bindVertexBuffers(0, bufferBindings, bufferBindingOffsets);
         cmdBuffer.bindIndexBuffer(parent.buffer.buffer, indexOffset, indexType);
         cmdBuffer.drawIndexed(indexCount, 1, 0, 0, 0);
@@ -102,7 +141,7 @@ private:
         throw std::runtime_error("Unsupported attribute " + name);
     }
 
-    static vk::Format formatForLocationAndAttribute(vks::model::Component location, const vks::gltf::Accessor& accessor) {
+    static vk::Format formatForComponentAndAttribute(vks::model::Component location, const vks::gltf::Accessor& accessor) {
         using ComponentType = vks::gltf::Accessor::ComponentType;
         using Type = vks::gltf::Accessor::Type;
         using vks::model::Component;
@@ -158,20 +197,42 @@ private:
         throw std::runtime_error("Unable to determine format");
     }
 
+    static std::string nameForComponent(vks::model::Component component) {
+        switch (component) {
+        case vks::model::VERTEX_COMPONENT_POSITION:
+            return "POSITION";
+        case vks::model::VERTEX_COMPONENT_NORMAL:
+            return "NORMAL";
+        case vks::model::VERTEX_COMPONENT_UV:
+            return "TEXCOORD_0";
+        default:
+            break;
+        }
+        throw std::runtime_error("unknown component");
+    }
+
     void setupVertexInputState(const vks::gltf::Primitive& primitive) {
-        uint32_t count = (uint32_t)primitive.attributes.size();
-        for (uint32_t i = 0; i < count; ++i) {
-            const auto& attribute = primitive.attributes[i];
+        uint32_t count = (uint32_t)vertexLayout.components.size();
+        for (uint32_t location = 0; location < count; ++location) {
+            auto vertexComponent = vertexLayout.components[location];
+            auto componentName = nameForComponent(vertexComponent);
+            auto entry = primitive.attributes.find(componentName);
+            if (entry == primitive.attributes.end()) {
+                throw std::runtime_error("bad attribute");
+            }
+            const auto& accessor = *(entry->second);
             // FIXME account for the stride in bufferviews
-            const auto& attributeName = attribute.first;
-            const auto& accessor = *(attribute.second);
             const auto& bufferViewPtr = accessor.bufferView;
             const auto& gpuOffset = parent.bufferViewOffset(bufferViewPtr);
-            auto location = attributeLocationForName(attributeName);
-            vertexInputState.bindingDescriptions.emplace_back(vk::VertexInputBindingDescription{ i, bufferViewPtr->stride });
-            vertexInputState.attributeDescriptions.emplace_back(vk::VertexInputAttributeDescription{ (uint32_t)location, i, formatForLocationAndAttribute(location, accessor), 0 });
-            bufferBindings.push_back(parent.buffer.buffer);
-            bufferBindingOffsets.push_back(gpuOffset);
+            if (bufferBindings.size() < location + 1) {
+                bufferBindings.resize(location + 1);
+                bufferBindingOffsets.resize(location + 1);
+            }
+           
+            vertexInputState.bindingDescriptions.emplace_back(vk::VertexInputBindingDescription{ location, (uint32_t)accessor.elementSize() });
+            vertexInputState.attributeDescriptions.emplace_back(vk::VertexInputAttributeDescription{ location, location, formatForComponentAndAttribute(vertexComponent, accessor), 0 });
+            bufferBindings[location] = parent.buffer.buffer;
+            bufferBindingOffsets[location]  = gpuOffset;
         }
     }
 
@@ -214,6 +275,20 @@ void GltfBridge::parse(const vks::Context& context, const vks::gltf::GltfPtr& gl
         device.destroyBuffer(tempBuffer);
     });
 
+
+    for (const auto& imagePtr : gltf->images) {
+        const auto& image = *imagePtr;
+        auto uri = image.uri;
+        size_t pos = uri.find(".png");
+        uri = uri.substr(0, pos);
+        uri = uri + ".ktx";
+        auto storagePath = fs::path(gltf->baseUri).append(uri).string();
+        uri = gltf->baseUri + "/" + uri;
+        textureIndices.insert({ imagePtr, textures.size() });
+        textures.push_back({});
+        textures.back().loadFromFile(context, storagePath, vk::Format::eR8G8B8A8Unorm);
+    }
+
     // Make the binary data accessible
     const auto& gltfBuffer = *(gltf->buffers[0]);
     auto storagePath = fs::path(gltf->baseUri).append(gltfBuffer.uri).string();
@@ -239,9 +314,10 @@ void GltfBridge::parse(const vks::Context& context, const vks::gltf::GltfPtr& gl
             const auto& bufferViewPtr = gltf->bufferViews[i];
             const auto& bufferView = *(gltf->bufferViews[i]);
             const auto bufferViewOffset = viewOffsets[bufferViewPtr];
-            assert(bufferViewOffset + bufferView.length < buffer.size);
+            assert(bufferViewOffset + bufferView.length <= buffer.size);
             const auto& stagingBuffer = stagingBuffers[i];
-            commandBuffer.copyBuffer(stagingBuffer.buffer, buffer.buffer, { 0, bufferViewOffset, bufferView.length });
+            vk::BufferCopy copy{ 0 , bufferViewOffset, bufferView.length };
+            commandBuffer.copyBuffer(stagingBuffer.buffer, buffer.buffer, copy);
         }
     });
 
@@ -251,16 +327,311 @@ void GltfBridge::parse(const vks::Context& context, const vks::gltf::GltfPtr& gl
 
     for (const auto& mesh : gltf->meshes) {
         for (const auto& primitive : mesh->primitives) {
-            primitives.emplace_back(*this, primitive);
+            primitives.emplace_back(std::make_shared<GltfPrimitive>(*this, primitive));
         }
     }
 }
 
-void GltfBridge::buildPipelines(const vks::pipelines::GraphicsPipelineBuilder& pipelineBuilder) {
+void GltfBridge::buildPipelines(vks::pipelines::GraphicsPipelineBuilder& pipelineBuilder) {
     for (auto& primitive : primitives) {
+        pipelineBuilder.vertexInputState = primitive->vertexInputState;
         primitive->buildPipeline(pipelineBuilder);
     }
 }
+
+
+class VulkanExample : public vkx::ExampleBase {
+public:
+    bool displaySkybox = true;
+
+    struct Textures {
+        vks::texture::TextureCubeMap environmentCube;
+        //// Generated at runtime
+        vks::texture::Texture2D lutBrdf;
+        vks::texture::TextureCubeMap irradianceCube;
+        vks::texture::TextureCubeMap prefilteredCube;
+    } textures;
+
+    struct Meshes {
+        vks::model::Model skybox;
+        vks::gltf::GltfPtr gltf;
+        GltfBridge corset;
+    } models;
+
+    struct {
+        vks::Buffer object;
+        vks::Buffer skybox;
+        vks::Buffer params;
+    } uniformBuffers;
+
+    struct UBOMatrices {
+        glm::mat4 projection;
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::vec3 camPos;
+    } uboMatrices;
+
+    struct UBOParams {
+        glm::vec4 lights[4];
+        float exposure = 4.5f;
+        float gamma = 2.2f;
+    } uboParams;
+
+    struct {
+        vk::Pipeline skybox;
+    } pipelines;
+
+    struct {
+        vk::DescriptorSet object;
+        vk::DescriptorSet skybox;
+    } descriptorSets;
+
+    vk::PipelineLayout pipelineLayout;
+    vk::DescriptorSetLayout descriptorSetLayout;
+
+    VulkanExample() {
+        title = "PBR with image based lighting";
+
+        camera.type = Camera::CameraType::firstperson;
+        camera.movementSpeed = 4.0f;
+        camera.setPerspective(60.0f, (float)size.width / (float)size.height, 0.1f, 256.0f);
+        camera.rotationSpeed = 0.25f;
+
+        camera.setRotation({ -3.75f, 180.0f, 0.0f });
+        camera.setPosition({ 0.55f, 0.85f, 6.0f });
+
+        settings.overlay = true;
+        settings.validation = true;
+    }
+
+    ~VulkanExample() {
+
+        device.destroyPipeline(pipelines.skybox, nullptr);
+
+        device.destroyPipelineLayout(pipelineLayout, nullptr);
+        device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
+
+        models.skybox.destroy();
+        models.corset.destroy();
+
+        uniformBuffers.object.destroy();
+        uniformBuffers.skybox.destroy();
+        uniformBuffers.params.destroy();
+
+        textures.environmentCube.destroy();
+    }
+
+    void loadAssets() override {
+        // Skybox
+        models.skybox.loadFromFile(context, getAssetPath() + "models/cube.obj", vertexLayout, 1.0f);
+
+        textures.environmentCube.loadFromFile(context, getAssetPath() + "textures/hdr/pisa_cube.ktx", vF::eR16G16B16A16Sfloat);
+
+        vkx::pbr::generateBRDFLUT(context, textures.lutBrdf);
+        vkx::pbr::generateIrradianceCube(context, textures.irradianceCube, models.skybox, vertexLayout, textures.environmentCube.descriptor);
+        vkx::pbr::generatePrefilteredCube(context, textures.prefilteredCube, models.skybox, vertexLayout, textures.environmentCube.descriptor);
+
+
+        // Objects
+        {
+            static const std::string corsetFileName = "C:/gltf/Corset/glTF/Corset.gltf";
+            std::string jsonString = vks::file::readTextFile(corsetFileName);
+            models.gltf = vks::gltf::Gltf::parse(jsonString);
+            models.gltf->baseUri = fs::path(corsetFileName).parent_path().string();
+            models.corset.parse(context, models.gltf);
+        }
+    }
+
+    void getEnabledFeatures() override {
+        if (context.deviceFeatures.samplerAnisotropy) {
+            context.enabledFeatures.samplerAnisotropy = VK_TRUE;
+        }
+    }
+
+    void updateDrawCommandBuffer(const vk::CommandBuffer& commandBuffer) override {
+        commandBuffer.setViewport(0, viewport());
+        commandBuffer.setScissor(0, scissor());
+        vk::DeviceSize offsets[1] = { 0 };
+
+        // Skybox
+        if (displaySkybox) {
+            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, 1, &descriptorSets.skybox, 0, NULL);
+            commandBuffer.bindVertexBuffers(0, { models.skybox.vertices.buffer }, { 0 });
+            commandBuffer.bindIndexBuffer(models.skybox.indices.buffer, 0, vk::IndexType::eUint32);
+            commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skybox);
+            commandBuffer.drawIndexed(models.skybox.indexCount, 1, 0, 0, 0);
+        }
+
+        // Objects
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, 1, &descriptorSets.object, 0, NULL);
+        for (const auto& primitive : models.corset.primitives) {
+            commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, primitive->pipeline);
+            primitive->draw(commandBuffer);
+        }
+    }
+
+#define TEXTURE_ARRAY_SIZE 16
+    void setupDescriptors() {
+        // Descriptor Pool
+        std::vector<vk::DescriptorPoolSize> poolSizes{
+            { vDT::eUniformBuffer, 4 },
+            { vDT::eCombinedImageSampler, TEXTURE_ARRAY_SIZE * 4 },
+        };
+
+        descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
+
+        // Descriptor set layout
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
+            // Camera UBO
+            { 0, vDT::eUniformBuffer, 1, vSS::eVertex | vSS::eFragment }, 
+            // Lighting UBO
+            { 1, vDT::eUniformBuffer, 1, vSS::eFragment },
+            // HDR env cube samplers
+            { 2, vDT::eCombinedImageSampler, 1, vSS::eFragment },
+            { 3, vDT::eCombinedImageSampler, 1, vSS::eFragment },
+            { 4, vDT::eCombinedImageSampler, 1, vSS::eFragment },
+            // Texture array 
+            { 5, vDT::eCombinedImageSampler, TEXTURE_ARRAY_SIZE, vSS::eFragment },
+        };
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+
+        // Descriptor sets
+        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &descriptorSetLayout };
+        // Objects
+        descriptorSets.object = device.allocateDescriptorSets(allocInfo)[0];
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
+            { descriptorSets.object, 0, 0, 1, vDT::eUniformBuffer, nullptr, &uniformBuffers.object.descriptor },
+            { descriptorSets.object, 1, 0, 1, vDT::eUniformBuffer, nullptr, &uniformBuffers.params.descriptor },
+            { descriptorSets.object, 2, 0, 1, vDT::eCombinedImageSampler, &textures.irradianceCube.descriptor },
+            { descriptorSets.object, 3, 0, 1, vDT::eCombinedImageSampler, &textures.lutBrdf.descriptor },
+            { descriptorSets.object, 4, 0, 1, vDT::eCombinedImageSampler, &textures.prefilteredCube.descriptor },
+        };
+
+        // WriteDescriptorSet(DescriptorSet dstSet_ = DescriptorSet(), uint32_t dstBinding_ = 0, uint32_t dstArrayElement_ = 0, uint32_t descriptorCount_ = 0, DescriptorType descriptorType_ = DescriptorType::eSampler, const DescriptorImageInfo* pImageInfo_ = nullptr, const DescriptorBufferInfo* pBufferInfo_ = nullptr, const BufferView* pTexelBufferView_ = nullptr)
+        std::vector<vk::DescriptorImageInfo> imageDescriptors;
+        {
+            const auto& textures = models.corset.textures;
+            uint32_t textureCount = textures.size();
+            imageDescriptors.resize(textureCount);
+            for (size_t i = 0; i < textureCount; ++i) {
+                imageDescriptors[i] = textures[i].descriptor;
+            }
+            writeDescriptorSets.push_back({ descriptorSets.object, 5, 0, textureCount, vDT::eCombinedImageSampler, imageDescriptors.data() });
+        }
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
+
+        // Sky box
+        descriptorSets.skybox = device.allocateDescriptorSets(allocInfo)[0];
+        writeDescriptorSets = {
+            { descriptorSets.skybox, 0, 0, 1, vDT::eUniformBuffer, nullptr, &uniformBuffers.skybox.descriptor },
+            { descriptorSets.skybox, 1, 0, 1, vDT::eUniformBuffer, nullptr, &uniformBuffers.params.descriptor },
+            { descriptorSets.skybox, 2, 0, 1, vDT::eCombinedImageSampler, &textures.environmentCube.descriptor },
+        };
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
+    }
+
+    void preparePipelines() {
+        // Push constant ranges
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
+
+        // Pipelines
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
+        pipelineBuilder.pipelineCache = context.pipelineCache;
+        pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
+        pipelineBuilder.depthStencilState = { false };
+        // Vertex bindings and attributes
+        pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
+        // Skybox pipeline (background cube)
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/gltfTest/skybox.vert.spv", vSS::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/gltfTest/skybox.frag.spv", vSS::eFragment);
+        pipelines.skybox = pipelineBuilder.create(context.pipelineCache);
+
+        pipelineBuilder.destroyShaderModules();
+
+        // PBR pipeline
+        // Enable depth test and write
+        pipelineBuilder.depthStencilState = { true };
+        pipelineBuilder.vertexInputState = {};
+        pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eBack;
+        pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/gltfTest/gltf.vert.spv", vSS::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/gltfTest/gltf.frag.spv", vSS::eFragment);
+
+        models.corset.buildPipelines(pipelineBuilder);
+    }
+
+    // Prepare and initialize uniform buffer containing shader uniforms
+    void prepareUniformBuffers() {
+        // Objact vertex shader uniform buffer
+        uniformBuffers.object = context.createUniformBuffer(uboMatrices);
+
+        // Skybox vertex shader uniform buffer
+        uniformBuffers.skybox = context.createUniformBuffer(uboMatrices);
+
+        // Shared parameter uniform buffer
+        uniformBuffers.params = context.createUniformBuffer(uboParams);
+
+        updateUniformBuffers();
+        updateParams();
+    }
+
+    void updateUniformBuffers() {
+        // 3D object
+        uboMatrices.projection = camera.matrices.perspective;
+        uboMatrices.view = camera.matrices.view;
+        uboMatrices.model = glm::scale(glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(50.0f));
+        uboMatrices.camPos = camera.position * -1.0f;
+        memcpy(uniformBuffers.object.mapped, &uboMatrices, sizeof(uboMatrices));
+
+        // Skybox
+        uboMatrices.model = glm::mat4(glm::mat3(camera.matrices.view));
+        memcpy(uniformBuffers.skybox.mapped, &uboMatrices, sizeof(uboMatrices));
+    }
+
+    void updateParams() {
+        const float p = 15.0f;
+        uboParams.lights[0] = glm::vec4(-p, -p * 0.5f, -p, 1.0f);
+        uboParams.lights[1] = glm::vec4(-p, -p * 0.5f, p, 1.0f);
+        uboParams.lights[2] = glm::vec4(p, -p * 0.5f, p, 1.0f);
+        uboParams.lights[3] = glm::vec4(p, -p * 0.5f, -p, 1.0f);
+
+        memcpy(uniformBuffers.params.mapped, &uboParams, sizeof(uboParams));
+    }
+
+    void prepare() override {
+        ExampleBase::prepare();
+        prepareUniformBuffers();
+        setupDescriptors();
+        preparePipelines();
+        buildCommandBuffers();
+        prepared = true;
+    }
+
+    void viewChanged() override { updateUniformBuffers(); }
+
+    void OnUpdateUIOverlay() override {
+        if (ui.header("Settings")) {
+            //if (ui.comboBox("Material", &materialIndex, materialNames)) {
+            //    buildCommandBuffers();
+            //}
+            //if (ui.comboBox("Object type", &models.objectIndex, objectNames)) {
+            //    updateUniformBuffers();
+            //    buildCommandBuffers();
+            //}
+            if (ui.inputFloat("Exposure", &uboParams.exposure, 0.1f, 2)) {
+                updateParams();
+            }
+            if (ui.inputFloat("Gamma", &uboParams.gamma, 0.1f, 2)) {
+                updateParams();
+            }
+            if (ui.checkBox("Skybox", &displaySkybox)) {
+                buildCommandBuffers();
+            }
+        }
+    }
+};
+
+VULKAN_EXAMPLE_MAIN()
 
 
 #if 0
@@ -286,23 +657,9 @@ void resolveLocalStorage(vks::gltf::GltfPtr& gltf, const fs::path& basePath) {
     }
     std::cout << std::endl;
 }
-#endif
-
-inline bool ends_with(const std::string& value, const std::string& ending) {
-    if (ending.size() > value.size())
-        return false;
-    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
-}
-
-#if 0
 struct GltfParserTest {
     vks::Context context;
     const vk::Device& device{ context.device };
-
-    vks::Buffer toVulkanBuffer(const vks::gltf::BufferPtr& buffer) {
-        const vk::BufferUsageFlags bufferFlags{ vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst };
-        return context.stageToDeviceBuffer(bufferFlags, buffer->byteLength, buffer->_storage->data());
-    }
 
     void processGltfString(const std::string& jsonString, const fs::path& baseDir) {
         auto gltf = vks::gltf::parse(jsonString);
@@ -374,345 +731,144 @@ struct GltfParserTest {
         std::cout << "Done" << std::endl;
     }
 };
-#endif
 
-namespace pbr {
-struct Material {
-    // Parameter block used as push constant block
-    struct PushBlock {
-        float roughness = 0.0f;
-        float metallic = 0.0f;
-        float specular = 0.0f;
-        float r, g, b;
-    } params;
-    std::string name;
-    Material(){};
-    Material(std::string n, glm::vec3 c)
-        : name(n) {
-        params.r = c.r;
-        params.g = c.g;
-        params.b = c.b;
-    };
-};
-}  // namespace pbr
+namespace vks {
+    namespace gltf {
 
-// Vertex layout for the models
-vks::model::VertexLayout vertexLayout{ {
-    vks::model::VERTEX_COMPONENT_POSITION,
-    vks::model::VERTEX_COMPONENT_NORMAL,
-    vks::model::VERTEX_COMPONENT_UV,
-} };
+        struct GLB;
+        using GLBPtr = std::shared_ptr<GLB>;
 
-class VulkanExample : public vkx::ExampleBase {
+        struct GLB {
+
+            struct Header {
+                static const uint32_t MAGIC = 0x46546C67;
+                const uint32_t magic{ MAGIC };
+                uint32_t version{ 2 };
+                uint32_t length{ 0 };
+            };
+
+            struct ChunkHeader {
+                enum class Type {
+                    JSON = 0x4E4F534A,
+                    BIN = 0x004E4942,
+                };
+                uint32_t length;
+                Type type;
+            };
+
+            GltfPtr gltf;
+            storage::StoragePointer binary;
+
+            static GLBPtr parse(const storage::StoragePointer& storage) {
+                auto data = storage->data();
+                auto size = storage->size();
+
+                GLBPtr result = std::make_shared<GLB>();
+
+                auto byteData = (const uint8_t*)data;
+                auto end = byteData + size;
+                const auto header = (const Header*)byteData;
+                auto gltfEnd = byteData + header->length;
+                byteData += sizeof(Header);
+                {
+                    const auto chunkPtr = (const ChunkHeader*)byteData;
+                    byteData += sizeof(ChunkHeader);
+                    assert(chunkPtr->type == ChunkHeader::Type::JSON);
+                    std::string jsonString{ (const char*)byteData, chunkPtr->length };
+                    result->gltf = vks::gltf::Gltf::parse(jsonString);
+                    byteData += chunkPtr->length;
+                }
+
+                if (byteData < gltfEnd) {
+                    const auto chunkPtr = (const ChunkHeader*)byteData;
+                    byteData += sizeof(ChunkHeader);
+                    assert(chunkPtr->type == ChunkHeader::Type::BIN);
+                    result->binary = storage->createView(chunkPtr->length, byteData - data);
+                    byteData += chunkPtr->length;
+                }
+                assert(byteData == gltfEnd);
+                return result;
+            }
+
+            static GLBPtr parse(const std::string& file) {
+                return parse(storage::Storage::readFile(file));
+            }
+
+            static GLBPtr parse(const fs::path& file) {
+                return parse(file.string());
+            }
+        };
+
+    }
+}  // namespace vks::gltf
+
+using namespace vks::gltf;
+
+void gltfTranscode(const fs::path& in, const fs::path& out) {
+    //std::string jsonString = vks::file::readTextFile(corsetFileName);
+    //auto gltf = vks::gltf::Gltf::parse(jsonString);
+    //models.gltf->baseUri = fs::path(corsetFileName).parent_path().string();
+    //models.corset.parse(context, models.gltf);
+}
+
+class VulkanExample {
 public:
-    bool displaySkybox = true;
-
-    struct Textures {
-        vks::texture::TextureCubeMap environmentCube;
-        // Generated at runtime
-        vks::texture::Texture2D lutBrdf;
-        vks::texture::TextureCubeMap irradianceCube;
-        vks::texture::TextureCubeMap prefilteredCube;
-    } textures;
-
-    struct Meshes {
-        vks::model::Model skybox;
-        vks::gltf::GltfPtr gltf;
-        GltfBridge corset;
-    } models;
-
-    struct {
-        vks::Buffer object;
-        vks::Buffer skybox;
-        vks::Buffer params;
-    } uniformBuffers;
-
-    struct UBOMatrices {
-        glm::mat4 projection;
-        glm::mat4 model;
-        glm::mat4 view;
-        glm::vec3 camPos;
-    } uboMatrices;
-
-    struct UBOParams {
-        glm::vec4 lights[4];
-        float exposure = 4.5f;
-        float gamma = 2.2f;
-    } uboParams;
-
-    struct {
-        vk::Pipeline skybox;
-    } pipelines;
-
-    struct {
-        vk::DescriptorSet object;
-        vk::DescriptorSet skybox;
-    } descriptorSets;
-
-    vk::PipelineLayout pipelineLayout;
-    vk::DescriptorSetLayout descriptorSetLayout;
-
-    // Default materials to select from
-    std::vector<pbr::Material> materials;
-    int32_t materialIndex = 0;
-
-    std::vector<std::string> materialNames;
-    std::vector<std::string> objectNames;
-
-    VulkanExample() {
-        title = "PBR with image based lighting";
-
-        camera.type = Camera::CameraType::firstperson;
-        camera.movementSpeed = 4.0f;
-        camera.setPerspective(60.0f, (float)size.width / (float)size.height, 0.1f, 256.0f);
-        camera.rotationSpeed = 0.25f;
-
-        camera.setRotation({ -3.75f, 180.0f, 0.0f });
-        camera.setPosition({ 0.55f, 0.85f, 12.0f });
-
-        // Setup some default materials (source: https://seblagarde.wordpress.com/2011/08/17/feeding-a-physical-based-lighting-mode/)
-        materials.push_back(pbr::Material("Gold", glm::vec3(1.0f, 0.765557f, 0.336057f)));
-        materials.push_back(pbr::Material("Copper", glm::vec3(0.955008f, 0.637427f, 0.538163f)));
-        materials.push_back(pbr::Material("Chromium", glm::vec3(0.549585f, 0.556114f, 0.554256f)));
-        materials.push_back(pbr::Material("Nickel", glm::vec3(0.659777f, 0.608679f, 0.525649f)));
-        materials.push_back(pbr::Material("Titanium", glm::vec3(0.541931f, 0.496791f, 0.449419f)));
-        materials.push_back(pbr::Material("Cobalt", glm::vec3(0.662124f, 0.654864f, 0.633732f)));
-        materials.push_back(pbr::Material("Platinum", glm::vec3(0.672411f, 0.637331f, 0.585456f)));
-        // Testing materials
-        materials.push_back(pbr::Material("White", glm::vec3(1.0f)));
-        materials.push_back(pbr::Material("Dark", glm::vec3(0.1f)));
-        materials.push_back(pbr::Material("Black", glm::vec3(0.0f)));
-        materials.push_back(pbr::Material("Red", glm::vec3(1.0f, 0.0f, 0.0f)));
-        materials.push_back(pbr::Material("Blue", glm::vec3(0.0f, 0.0f, 1.0f)));
-
-        settings.overlay = true;
-
-        for (auto material : materials) {
-            materialNames.push_back(material.name);
-        }
-        objectNames = { "Sphere", "Teapot", "Torusknot", "Venus" };
-
-        materialIndex = 9;
-    }
-
-    ~VulkanExample() {
-
-        device.destroyPipeline(pipelines.skybox, nullptr);
-
-        device.destroyPipelineLayout(pipelineLayout, nullptr);
-        device.destroyDescriptorSetLayout(descriptorSetLayout, nullptr);
-
-        models.skybox.destroy();
-        models.corset.destroy();
-
-        uniformBuffers.object.destroy();
-        uniformBuffers.skybox.destroy();
-        uniformBuffers.params.destroy();
-
-        textures.environmentCube.destroy();
-        textures.irradianceCube.destroy();
-        textures.prefilteredCube.destroy();
-        textures.lutBrdf.destroy();
-    }
-
-    void loadAssets() override {
-        textures.environmentCube.loadFromFile(context, getAssetPath() + "textures/hdr/pisa_cube.ktx", vF::eR16G16B16A16Sfloat);
-        // Skybox
-        models.skybox.loadFromFile(context, getAssetPath() + "models/cube.obj", vertexLayout, 1.0f);
-
-        // Objects
-        {
-            static const std::string corsetFileName = "C:/gltf/Corset/glTF/Corset.gltf";
-            std::string jsonString = vks::file::readTextFile(corsetFileName);
-            models.gltf = vks::gltf::Gltf::parse(jsonString);
-            models.gltf->baseUri = fs::path(corsetFileName).parent_path().string();
-            models.corset.parse(context, models.gltf);
-        }
-    }
-
-    void getEnabledFeatures() override {
-        if (context.deviceFeatures.samplerAnisotropy) {
-            context.enabledFeatures.samplerAnisotropy = VK_TRUE;
-        }
-    }
-
-    void updateDrawCommandBuffer(const vk::CommandBuffer& commandBuffer) override {
-        commandBuffer.setViewport(0, viewport());
-        commandBuffer.setScissor(0, scissor());
-        vk::DeviceSize offsets[1] = { 0 };
-
-        // Skybox
-        if (displaySkybox) {
-            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, 1, &descriptorSets.skybox, 0, NULL);
-            commandBuffer.bindVertexBuffers(0, { models.skybox.vertices.buffer }, { 0 });
-            commandBuffer.bindIndexBuffer(models.skybox.indices.buffer, 0, vk::IndexType::eUint32);
-            commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skybox);
-            commandBuffer.drawIndexed(models.skybox.indexCount, 1, 0, 0, 0);
-        }
-
-        // Objects
-        /*
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, 1, &descriptorSets.object, 0, NULL);
-        commandBuffer.bindVertexBuffers(0, 1, &models.objects[models.objectIndex].vertices.buffer, offsets);
-        commandBuffer.bindIndexBuffer(models.objects[models.objectIndex].indices.buffer, 0, vk::IndexType::eUint32);
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.pbr);
-
-        Material mat = materials[materialIndex];
-        uint32_t objcount = 10;
-        for (uint32_t x = 0; x < objcount; x++) {
-            glm::vec3 pos = glm::vec3(float(x - (objcount / 2.0f)) * 2.15f, 0.0f, 0.0f);
-            mat.params.roughness = 1.0f - glm::clamp((float)x / (float)objcount, 0.005f, 1.0f);
-            mat.params.metallic = glm::clamp((float)x / (float)objcount, 0.005f, 1.0f);
-            commandBuffer.pushConstants<glm::vec3>(pipelineLayout, vSS::eVertex, 0, pos);
-            commandBuffer.pushConstants<Material::PushBlock>(pipelineLayout, vSS::eFragment, sizeof(glm::vec3), mat.params);
-            commandBuffer.drawIndexed(models.objects[models.objectIndex].indexCount, 1, 0, 0, 0);
-        }
-        */
-    }
-
-    void setupDescriptors() {
-        // Descriptor Pool
-        std::vector<vk::DescriptorPoolSize> poolSizes{
-            { vDT::eUniformBuffer, 4 },
-            { vDT::eCombinedImageSampler, 6 },
-        };
-
-        descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
-
-        // Descriptor set layout
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
-            { 0, vDT::eUniformBuffer, 1, vSS::eVertex | vSS::eFragment }, { 1, vDT::eUniformBuffer, 1, vSS::eFragment },
-            { 2, vDT::eCombinedImageSampler, 1, vSS::eFragment },         { 3, vDT::eCombinedImageSampler, 1, vSS::eFragment },
-            { 4, vDT::eCombinedImageSampler, 1, vSS::eFragment },
-        };
-        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
-
-        // Descriptor sets
-        vk::DescriptorSetAllocateInfo allocInfo{ descriptorPool, 1, &descriptorSetLayout };
-        // Objects
-        descriptorSets.object = device.allocateDescriptorSets(allocInfo)[0];
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
-            { descriptorSets.object, 0, 0, 1, vDT::eUniformBuffer, nullptr, &uniformBuffers.object.descriptor },
-            { descriptorSets.object, 1, 0, 1, vDT::eUniformBuffer, nullptr, &uniformBuffers.params.descriptor },
-            { descriptorSets.object, 2, 0, 1, vDT::eCombinedImageSampler, &textures.irradianceCube.descriptor },
-            { descriptorSets.object, 3, 0, 1, vDT::eCombinedImageSampler, &textures.lutBrdf.descriptor },
-            { descriptorSets.object, 4, 0, 1, vDT::eCombinedImageSampler, &textures.prefilteredCube.descriptor },
-        };
-        device.updateDescriptorSets(writeDescriptorSets, nullptr);
-
-        // Sky box
-        descriptorSets.skybox = device.allocateDescriptorSets(allocInfo)[0];
-        writeDescriptorSets = {
-            { descriptorSets.skybox, 0, 0, 1, vDT::eUniformBuffer, nullptr, &uniformBuffers.skybox.descriptor },
-            { descriptorSets.skybox, 1, 0, 1, vDT::eUniformBuffer, nullptr, &uniformBuffers.params.descriptor },
-            { descriptorSets.skybox, 2, 0, 1, vDT::eCombinedImageSampler, &textures.environmentCube.descriptor },
-        };
-        device.updateDescriptorSets(writeDescriptorSets, nullptr);
-    }
-
-    void preparePipelines() {
-        // Push constant ranges
-        std::vector<vk::PushConstantRange> pushConstantRanges{
-            { vSS::eVertex, 0, sizeof(glm::vec3) },
-            { vSS::eFragment, sizeof(glm::vec3), sizeof(pbr::Material::PushBlock) },
-        };
-        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout, (uint32_t)pushConstantRanges.size(), pushConstantRanges.data() });
-
-        // Pipelines
-        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
-        pipelineBuilder.pipelineCache = context.pipelineCache;
-        pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
-        pipelineBuilder.depthStencilState = { false };
-        // Vertex bindings and attributes
-        pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
-        // Skybox pipeline (background cube)
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/pbribl/skybox.vert.spv", vSS::eVertex);
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/pbribl/skybox.frag.spv", vSS::eFragment);
-        pipelines.skybox = pipelineBuilder.create(context.pipelineCache);
-
-        pipelineBuilder.destroyShaderModules();
-
-        // PBR pipeline
-        // Enable depth test and write
-        pipelineBuilder.depthStencilState = { true };
-        pipelineBuilder.vertexInputState = {};
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/pbribl/pbribl.vert.spv", vSS::eVertex);
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/pbribl/pbribl.frag.spv", vSS::eFragment);
-        models.corset.buildPipelines(pipelineBuilder);
-    }
-
-    // Prepare and initialize uniform buffer containing shader uniforms
-    void prepareUniformBuffers() {
-        // Objact vertex shader uniform buffer
-        uniformBuffers.object = context.createUniformBuffer(uboMatrices);
-
-        // Skybox vertex shader uniform buffer
-        uniformBuffers.skybox = context.createUniformBuffer(uboMatrices);
-
-        // Shared parameter uniform buffer
-        uniformBuffers.params = context.createUniformBuffer(uboParams);
-
-        updateUniformBuffers();
-        updateParams();
-    }
-
-    void updateUniformBuffers() {
-        // 3D object
-        uboMatrices.projection = camera.matrices.perspective;
-        uboMatrices.view = camera.matrices.view;
-        //uboMatrices.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f + (models.objectIndex == 1 ? 45.0f : 0.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
-        uboMatrices.camPos = camera.position * -1.0f;
-        memcpy(uniformBuffers.object.mapped, &uboMatrices, sizeof(uboMatrices));
-
-        // Skybox
-        uboMatrices.model = glm::mat4(glm::mat3(camera.matrices.view));
-        memcpy(uniformBuffers.skybox.mapped, &uboMatrices, sizeof(uboMatrices));
-    }
-
-    void updateParams() {
-        const float p = 15.0f;
-        uboParams.lights[0] = glm::vec4(-p, -p * 0.5f, -p, 1.0f);
-        uboParams.lights[1] = glm::vec4(-p, -p * 0.5f, p, 1.0f);
-        uboParams.lights[2] = glm::vec4(p, -p * 0.5f, p, 1.0f);
-        uboParams.lights[3] = glm::vec4(p, -p * 0.5f, -p, 1.0f);
-
-        memcpy(uniformBuffers.params.mapped, &uboParams, sizeof(uboParams));
-    }
-
-    void prepare() override {
-        ExampleBase::prepare();
-        vkx::pbr::generateBRDFLUT(context, textures.lutBrdf);
-        vkx::pbr::generateIrradianceCube(context, textures.irradianceCube, models.skybox, vertexLayout, textures.environmentCube.descriptor);
-        vkx::pbr::generatePrefilteredCube(context, textures.prefilteredCube, models.skybox, vertexLayout, textures.environmentCube.descriptor);
-        prepareUniformBuffers();
-        setupDescriptors();
-        preparePipelines();
-        buildCommandBuffers();
-        prepared = true;
-    }
-
-    void viewChanged() override { updateUniformBuffers(); }
-
-    void OnUpdateUIOverlay() override {
-        if (ui.header("Settings")) {
-            if (ui.comboBox("Material", &materialIndex, materialNames)) {
-                buildCommandBuffers();
+    void run() {
+        static const std::string corsetFileName = "C:/gltf/corset.glb";
+        GLBPtr glb = GLB::parse(corsetFileName);
+        for (const auto& primitive : glb->gltf->meshes[0]->primitives) {
+            uint32_t count = 0;
+            std::vector<BufferViewPtr> deprecatedBufferViews;
+            std::vector<glm::vec3> positions;
+            std::vector<glm::vec3> normals;
+            std::vector<glm::vec2> uvs;
+            {
+                const auto& accessor = *primitive.attributes.find("POSITION")->second;
+                count = accessor.count;
+                positions.resize(count);
+                normals.resize(count);
+                uvs.resize(count);
+                const auto& bufferView = accessor.bufferView;
+                deprecatedBufferViews.push_back(bufferView);
+                auto positionStorage = glb->binary->createView(bufferView->length, bufferView->offset);
+                memcpy(positions.data(), positionStorage->data(), accessor.size());
             }
-            //if (ui.comboBox("Object type", &models.objectIndex, objectNames)) {
-            //    updateUniformBuffers();
-            //    buildCommandBuffers();
-            //}
-            if (ui.inputFloat("Exposure", &uboParams.exposure, 0.1f, 2)) {
-                updateParams();
+            {
+                const auto& accessor = *primitive.attributes.find("NORMAL")->second;
+                assert(count == accessor.count);
+                const auto& bufferView = accessor.bufferView;
+                deprecatedBufferViews.push_back(bufferView);
+                auto normalsStorage = glb->binary->createView(bufferView->length, bufferView->offset);
+                memcpy(normals.data(), normalsStorage->data(), accessor.size());
             }
-            if (ui.inputFloat("Gamma", &uboParams.gamma, 0.1f, 2)) {
-                updateParams();
+            {
+                const auto& accessor = *primitive.attributes.find("TEXCOORD_0")->second;
+                assert(count == accessor.count);
+                const auto& bufferView = accessor.bufferView;
+                deprecatedBufferViews.push_back(bufferView);
+                auto uvsStorage = glb->binary->createView(bufferView->length, bufferView->offset);
+                memcpy(uvs.data(), uvsStorage->data(), accessor.size());
             }
-            if (ui.checkBox("Skybox", &displaySkybox)) {
-                buildCommandBuffers();
+
+            struct Vertex {
+                glm::vec3 position;
+                glm::vec3 normal;
+                glm::vec2 uv;
+            };
+
+            std::vector<Vertex> outVertices;
+            outVertices.resize(count);
+            for (uint32_t i = 0; i < count; ++i) {
+                auto& outVertex = outVertices[i];
+                outVertex.position = positions[i];
+                outVertex.normal = normals[i];
+                outVertex.uv = uvs[i];
             }
+            std::cout << std::endl;
+
         }
+
+        std::cout << std::endl;
     }
 };
-
-VULKAN_EXAMPLE_MAIN()
+#endif
