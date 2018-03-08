@@ -1,0 +1,15 @@
+macro(TARGET_GLAD)
+    if (NOT (TARGET glad))
+        set(GLAD_DIR "${PROJECT_SOURCE_DIR}/external/glad")
+        file(GLOB GLAD_SOURCES  ${GLAD_DIR}/src/*.c )
+        add_library(glad STATIC ${GLAD_SOURCES})
+        target_include_directories(glad PUBLIC ${GLAD_DIR}/include)
+        set_target_properties(glad PROPERTIES FOLDER "externals")
+        set(GLAD_ADDED 1)
+    endif()
+
+
+    add_dependencies(${TARGET_NAME} glad)
+    target_link_libraries(${TARGET_NAME} glad)
+    target_include_directories(${TARGET_NAME} PUBLIC ${GLAD_DIR}/include)
+endmacro()

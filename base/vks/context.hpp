@@ -18,7 +18,6 @@
 #include "image.hpp"
 #include "buffer.hpp"
 #include "helpers.hpp"
-#include "device.hpp"
 
 
 namespace vks {
@@ -513,7 +512,7 @@ namespace vks {
         // Stores all available memory (type) properties for the physical device
         vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
         // Logical device, application's view of the physical device (GPU)
-        vks::Device device;
+        vk::Device device;
         // vk::Pipeline cache object
         vk::PipelineCache pipelineCache;
 

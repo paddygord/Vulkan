@@ -11,74 +11,124 @@
 #include <GLFW/glfw3.h>
 
 namespace glfw {
-    std::vector<std::string> getRequiredInstanceExtensions();
-    vk::SurfaceKHR createWindowSurface(const vk::Instance& instance, GLFWwindow* window, const vk::AllocationCallbacks* pAllocator = nullptr);
 
-    class Window {
-    protected:
-        Window();
+class Window {
+public:
+    static bool init();
+    static void terminate();
 
-        virtual void createWindow(const glm::uvec2& size, const glm::ivec2& position = { INT_MIN, INT_MIN });
-        void showWindow(bool show = true);
-        void setSizeLimits(const glm::uvec2& minSize, const glm::uvec2& maxSize = {});
-        virtual void prepareWindow();
-        virtual void destroyWindow();
-        void runWindowLoop(const std::function<void()>& frameHandler);
-        
-        //
-        // Event handlers are called by the GLFW callback mechanism and should not be called directly
-        //
+#if defined(VULKAN_HPP)
+    static std::vector<std::string> getRequiredInstanceExtensions();
+    static vk::SurfaceKHR createWindowSurface(GLFWwindow* window, const vk::Instance& instance, const vk::AllocationCallbacks* pAllocator = nullptr);
+    vk::SurfaceKHR createSurface(const vk::Instance& instance, const vk::AllocationCallbacks* pAllocator = nullptr) {
+        return createWindowSurface(window, instance, pAllocator);
+    }
+#endif
 
-        virtual void windowResized(const glm::uvec2& newSize) { }
-        virtual void windowClosed() { }
+    void createWindow(const glm::uvec2& size, const glm::ivec2& position = { INT_MIN, INT_MIN }) {
+        // Disable window resize
+        window = glfwCreateWindow(size.x, size.y, "Window Title", NULL, NULL);
+        if (position != glm::ivec2{ INT_MIN, INT_MIN }) {
+            glfwSetWindowPos(window, position.x, position.y);
+        }
+        glfwSetWindowUserPointer(window, this);
+        glfwSetKeyCallback(window, KeyboardHandler);
+        glfwSetMouseButtonCallback(window, MouseButtonHandler);
+        glfwSetCursorPosCallback(window, MouseMoveHandler);
+        glfwSetWindowCloseCallback(window, CloseHandler);
+        glfwSetFramebufferSizeCallback(window, FramebufferSizeHandler);
+        glfwSetScrollCallback(window, MouseScrollHandler);
+    }
 
-        // Keyboard handling
-        virtual void keyEvent(int key, int scancode, int action, int mods) { 
-            switch(action) {
+    void destroyWindow() {
+        glfwDestroyWindow(window);
+        window = nullptr;
+    }
+
+    void makeCurrent() const {
+        glfwMakeContextCurrent(window);
+    }
+
+    void present() const {
+        glfwSwapBuffers(window);
+    }
+
+    void showWindow(bool show = true) {
+        if (show) {
+            glfwShowWindow(window);
+        } else {
+            glfwHideWindow(window);
+        }
+    }
+
+    void setSizeLimits(const glm::uvec2& minSize, const glm::uvec2& maxSize = {}) {
+        glfwSetWindowSizeLimits(window, minSize.x, minSize.y, maxSize.x ? maxSize.x : minSize.x, maxSize.y ? maxSize.y : minSize.y);
+    }
+
+    void runWindowLoop(const std::function<void()>& frameHandler) {
+        while (!glfwWindowShouldClose(window)) {
+            glfwPollEvents();
+            frameHandler();
+        }
+    }
+
+    //
+    // Event handlers are called by the GLFW callback mechanism and should not be called directly
+    //
+
+    virtual void onWindowResized(const glm::uvec2& newSize) {}
+    virtual void onWindowClosed() {}
+
+    // Keyboard handling
+    virtual void onKeyEvent(int key, int scancode, int action, int mods) {
+        switch (action) {
             case GLFW_PRESS:
-                keyPressed(key, mods);
+                onKeyPressed(key, mods);
                 break;
 
             case GLFW_RELEASE:
-                keyReleased(key, mods);
+                onKeyReleased(key, mods);
                 break;
 
             default:
                 break;
-            }
         }
-        virtual void keyPressed(int key, int mods) { }
-        virtual void keyReleased(int key, int mods) { }
+    }
 
-        // Mouse handling 
-        virtual void mouseButtonEvent(int button, int action, int mods) { 
-            switch (action) {
+    virtual void onKeyPressed(int key, int mods) {}
+    virtual void onKeyReleased(int key, int mods) {}
+
+    // Mouse handling
+    virtual void onMouseButtonEvent(int button, int action, int mods) {
+        switch (action) {
             case GLFW_PRESS:
-                mousePressed(button, mods);
+                onMousePressed(button, mods);
                 break;
 
             case GLFW_RELEASE:
-                mouseReleased(button, mods);
+                onMouseReleased(button, mods);
                 break;
 
             default:
                 break;
-            }
         }
-        virtual void mousePressed(int button, int mods) { }
-        virtual void mouseReleased(int button, int mods) { }
-        virtual void mouseMoved(const glm::vec2& newPos) { }
-        virtual void mouseScrolled(float delta) { }
+    }
 
-        static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);
-        static void MouseButtonHandler(GLFWwindow* window, int button, int action, int mods);
-        static void MouseMoveHandler(GLFWwindow* window, double posx, double posy);
-        static void MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset);
-        static void CloseHandler(GLFWwindow* window);
-        static void FramebufferSizeHandler(GLFWwindow* window, int width, int height);
+    virtual void onMousePressed(int button, int mods) {}
+    virtual void onMouseReleased(int button, int mods) {}
+    virtual void onMouseMoved(const glm::vec2& newPos) {}
+    virtual void onMouseScrolled(float delta) {}
 
-        GLFWwindow* window { nullptr };
-    };
-}
+private:
+    static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void MouseButtonHandler(GLFWwindow* window, int button, int action, int mods);
+    static void MouseMoveHandler(GLFWwindow* window, double posx, double posy);
+    static void MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset);
+    static void CloseHandler(GLFWwindow* window);
+    static void FramebufferSizeHandler(GLFWwindow* window, int width, int height);
+
+    GLFWwindow* window{ nullptr };
+};
+}  // namespace glfw
 
 #endif
