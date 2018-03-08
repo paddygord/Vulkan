@@ -89,7 +89,7 @@ void ExampleBase::initVulkan() {
 #if defined(__ANDROID__)
     context.requireExtensions({VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME});
 #else
-    context.requireExtensions(glfw::getRequiredInstanceExtensions());
+    context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
 #endif
     context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
     context.create();
@@ -898,7 +898,7 @@ void ExampleBase::setupWindow() {
     if (!window) {
         throw std::runtime_error("Could not create window");
     }
-    swapChain.setSurface(glfw::createWindowSurface(context.instance, window));
+    swapChain.setSurface(glfw::Window::createWindowSurface(window, context.instance));
 }
 
 void ExampleBase::mouseAction(int button, int action, int mods) {

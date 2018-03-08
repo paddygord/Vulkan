@@ -8,16 +8,16 @@ layout (location = 2) in vec2 inUV;
 layout (location = 0) out vec4 outColor;
 
 layout (set = 0, binding = 0) uniform UBO {
-	mat4 projection;
-	mat4 model;
-	mat4 view;
-	vec3 camPos;
+    mat4 projection;
+    mat4 model;
+    mat4 view;
+    vec3 camPos;
 } ubo;
 
 layout (set = 0, binding = 1) uniform UBOParams {
-	vec4 lights[4];
-	float exposure;
-	float gamma;
+    vec4 lights[4];
+    float exposure;
+    float gamma;
 } uboParams;
 
 

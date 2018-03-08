@@ -22,7 +22,7 @@ endforeach()
 add_custom_target(shaders SOURCES ${SHADERS} ${COMPILED_SHADERS})
 set_target_properties(shaders PROPERTIES FOLDER "common")
 
-file(GLOB_RECURSE COMMON_SOURCE *.cpp *.h *.hpp)
+file(GLOB_RECURSE COMMON_SOURCE *.c *.cpp *.h *.hpp)
 add_library(${TARGET_NAME} STATIC ${COMMON_SOURCE})
 set_target_properties(${TARGET_NAME} PROPERTIES FOLDER "common")
 add_dependencies(${TARGET_NAME} shaders)
