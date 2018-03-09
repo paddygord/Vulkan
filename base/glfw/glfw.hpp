@@ -45,6 +45,14 @@ public:
         window = nullptr;
     }
 
+    void makeCurrent() const {
+        glfwMakeContextCurrent(window);
+    }
+
+    void present() const {
+        glfwSwapBuffers(window);
+    }
+
     void showWindow(bool show = true) {
         if (show) {
             glfwShowWindow(window);

@@ -103,8 +103,8 @@ public:
 #if defined(__ANDROID__)
 #include "android.hpp"
 
-
 #else
+#include "gl.hpp"
 // Cross platform window management (except android)
 #include "glfw/glfw.hpp"
 #endif

@@ -34,6 +34,7 @@ target_gli()
 target_vulkan()
 target_assimp()
 target_imgui()
+target_glad()
 
 if (ANDROID)
     add_dependencies(${TARGET_NAME} app-glue)
