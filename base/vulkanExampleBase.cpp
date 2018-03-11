@@ -560,7 +560,7 @@ void ExampleBase::update(float deltaTime) {
             viewUpdated = true;
         }
     } else {
-        viewUpdated = camera.updatePad(gamePadState.axisLeft, gamePadState.axisRight, frameTimer);
+        viewUpdated |= camera.updatePad(gamePadState.axisLeft, gamePadState.axisRight, frameTimer);
     }
 
     if (viewUpdated) {

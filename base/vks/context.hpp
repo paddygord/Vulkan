@@ -599,7 +599,7 @@ namespace vks {
         }
 
         Image stageToDeviceImage(vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData = {}) const {
-            Buffer staging = createBuffer(vk::BufferUsageFlagBits::eTransferSrc, size, data);
+            Buffer staging = createStagingBuffer(size, data);
             imageCreateInfo.usage = imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferDst;
             Image result = createImage(imageCreateInfo, memoryPropertyFlags);
 
@@ -655,7 +655,7 @@ namespace vks {
         }
 
 
-        Buffer createBuffer(const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void * data = nullptr) const {
+        Buffer createBuffer(const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size) const {
             Buffer result;
             result.device = device;
             result.size = size;
@@ -673,35 +673,30 @@ namespace vks {
             result.allocSize = memAlloc.allocationSize = memReqs.size;
             memAlloc.memoryTypeIndex = getMemoryType(memReqs.memoryTypeBits, memoryPropertyFlags);
             result.memory = device.allocateMemory(memAlloc);
-            if (data != nullptr) {
-                copyToMemory(result.memory, data, size);
-            }
             device.bindBufferMemory(result.buffer, result.memory, 0);
             return result;
         }
 
-        Buffer createBuffer(const vk::BufferUsageFlags& usage, vk::DeviceSize size, const void * data = nullptr) const {
-            return createBuffer(usage, vk::MemoryPropertyFlagBits::eHostVisible, size, data);
+        Buffer createStagingBuffer(vk::DeviceSize size, const void * data = nullptr) const {
+            auto result = createBuffer(vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, size);
+            if (data != nullptr) {
+                copyToMemory(result.memory, data, size);
+            }
+            return result;
+        }
+
+        Buffer createDeviceBuffer(const vk::BufferUsageFlags& usageFlags, vk::DeviceSize size) const {
+            return createBuffer(usageFlags, vk::MemoryPropertyFlagBits::eDeviceLocal, size);
         }
 
         template <typename T>
-        Buffer createBuffer(const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& memoryPropertyFlags, const T& data) const {
-            return createBuffer(usage, memoryPropertyFlags, sizeof(T), &data);
+        Buffer createStagingBuffer(const std::vector<T>& data) const {
+            return createBuffer(data.size() * sizeof(T), (void*)data.data());
         }
 
         template <typename T>
-        Buffer createBuffer(const vk::BufferUsageFlags& usage, const T& data) const {
-            return createBuffer(usage, vk::MemoryPropertyFlagBits::eHostVisible, data);
-        }
-
-        template <typename T>
-        Buffer createBuffer(const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& memoryPropertyFlags, const std::vector<T>& data) const {
-            return createBuffer(usage, memoryPropertyFlags, data.size() * sizeof(T), (void*)data.data());
-        }
-
-        template <typename T>
-        Buffer createBuffer(const vk::BufferUsageFlags& usage, const std::vector<T>& data) const {
-            return createBuffer(usage, vk::MemoryPropertyFlagBits::eHostVisible, data);
+        Buffer createStagingBuffer(const T& data) const {
+            return createStagingBuffer(sizeof(T), &data);
         }
 
         template <typename T>
@@ -735,13 +730,12 @@ namespace vks {
         }
 
         Buffer stageToDeviceBuffer(const vk::BufferUsageFlags& usage, size_t size, const void* data) const {
-            Buffer staging = createBuffer(vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, size, data);
-            Buffer result = createBuffer(usage | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eDeviceLocal, size);
+            Buffer staging = createStagingBuffer(size, data);
+            Buffer result = createDeviceBuffer(usage | vk::BufferUsageFlagBits::eTransferDst, size);
             withPrimaryCommandBuffer([&](vk::CommandBuffer copyCmd) {
                 copyCmd.copyBuffer(staging.buffer, result.buffer, vk::BufferCopy(0, 0, size));
             });
-            device.freeMemory(staging.memory);
-            device.destroyBuffer(staging.buffer);
+            staging.destroy();
             return result;
         }
 
@@ -891,28 +885,23 @@ namespace vks {
 
     // Template specialization for texture objects
     template <>
-    inline Buffer Context::createBuffer(const vk::BufferUsageFlags& usage, const gli::texture_cube& texture) const {
-        return createBuffer(usage, (vk::DeviceSize)texture.size(), texture.data());
+    inline Buffer Context::createStagingBuffer(const gli::texture_cube& texture) const {
+        return createStagingBuffer((vk::DeviceSize)texture.size(), texture.data());
     }
 
     template <>
-    inline Buffer Context::createBuffer(const vk::BufferUsageFlags& usage, const gli::texture2d_array& texture) const {
-        return createBuffer(usage, (vk::DeviceSize)texture.size(), texture.data());
+    inline Buffer Context::createStagingBuffer(const gli::texture2d_array& texture) const {
+        return createStagingBuffer((vk::DeviceSize)texture.size(), texture.data());
     }
 
     template <>
-    inline Buffer Context::createBuffer(const vk::BufferUsageFlags& usage, const gli::texture2d& texture) const {
-        return createBuffer(usage, (vk::DeviceSize)texture.size(), texture.data());
+    inline Buffer Context::createStagingBuffer(const gli::texture2d& texture) const {
+        return createStagingBuffer((vk::DeviceSize)texture.size(), texture.data());
     }
 
     template <>
-    inline Buffer Context::createBuffer(const vk::BufferUsageFlags& usage, const gli::texture& texture) const {
-        return createBuffer(usage, (vk::DeviceSize)texture.size(), texture.data());
-    }
-
-    template <>
-    inline Buffer Context::createBuffer(const vk::BufferUsageFlags& usage, const vk::MemoryPropertyFlags& memoryPropertyFlags, const gli::texture& texture) const {
-        return createBuffer(usage, memoryPropertyFlags, (vk::DeviceSize)texture.size(), texture.data());
+    inline Buffer Context::createStagingBuffer(const gli::texture& texture) const {
+        return createStagingBuffer((vk::DeviceSize)texture.size(), texture.data());
     }
 
     template <>

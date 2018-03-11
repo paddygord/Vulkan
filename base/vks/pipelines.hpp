@@ -108,10 +108,8 @@ namespace vks {
             }
         };
         struct GraphicsPipelineBuilder {
-            GraphicsPipelineBuilder(const vk::Device& device, const vk::PipelineLayout layout, const vk::RenderPass& renderPass) :
-                device(device) {
-                pipelineCreateInfo.layout = layout;
-                pipelineCreateInfo.renderPass = renderPass;
+        private:
+            void init() {
                 pipelineCreateInfo.pRasterizationState = &rasterizationState;
                 pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
                 pipelineCreateInfo.pColorBlendState = &colorBlendState;
@@ -121,12 +119,24 @@ namespace vks {
                 pipelineCreateInfo.pDynamicState = &dynamicState;
                 pipelineCreateInfo.pVertexInputState = &vertexInputState;
             }
+        public:
+            GraphicsPipelineBuilder(const vk::Device& device, const vk::PipelineLayout layout, const vk::RenderPass& renderPass) :
+                device(device) {
+                pipelineCreateInfo.layout = layout;
+                pipelineCreateInfo.renderPass = renderPass;
+                init();
+            }
+
+            GraphicsPipelineBuilder(const GraphicsPipelineBuilder& other) : GraphicsPipelineBuilder(other.device, other.layout, other.renderPass) {}
+
+            GraphicsPipelineBuilder& operator=(const GraphicsPipelineBuilder& other) = delete;
 
             ~GraphicsPipelineBuilder() {
                 destroyShaderModules();
             }
 
             const vk::Device& device;
+            vk::PipelineCache pipelineCache;
             vk::RenderPass& renderPass { pipelineCreateInfo.renderPass };
             vk::PipelineLayout& layout { pipelineCreateInfo.layout };
             PipelineInputAssemblyStateCreateInfo inputAssemblyState;
@@ -167,6 +177,10 @@ namespace vks {
             vk::Pipeline create(const vk::PipelineCache& cache) {
                 update();
                 return device.createGraphicsPipeline(cache, pipelineCreateInfo);
+            }
+
+            vk::Pipeline create() {
+                return create(pipelineCache);
             }
         };
     }

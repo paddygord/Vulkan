@@ -77,7 +77,7 @@ namespace vks { namespace texture {
         {
             this->imageLayout = imageLayout;
             std::shared_ptr<gli::texture2d> tex2Dptr;
-            vks::file::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
+            vks::file::withBinaryFileContents(filename, [&](size_t size, const void* data) {
                 tex2Dptr = std::make_shared<gli::texture2d>(gli::load((const char*)data, size));
             });
             const auto& tex2D = *tex2Dptr;
@@ -375,7 +375,7 @@ namespace vks { namespace texture {
             this->device = device;
 
             std::shared_ptr<gli::texture2d_array> texPtr;
-            vks::file::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
+            vks::file::withBinaryFileContents(filename, [&](size_t size, const void* data) {
                 texPtr = std::make_shared<gli::texture2d_array>(gli::load((const char*)data, size));
             });
 
@@ -387,7 +387,7 @@ namespace vks { namespace texture {
             layerCount = static_cast<uint32_t>(tex2DArray.layers());
             mipLevels = static_cast<uint32_t>(tex2DArray.levels());
 
-            auto stagingBuffer = context.createBuffer(vk::BufferUsageFlagBits::eTransferSrc, tex2DArray);
+            auto stagingBuffer = context.createStagingBuffer(tex2DArray);
 
             // Setup buffer copy regions for each layer including all of it's miplevels
             std::vector<vk::BufferImageCopy> bufferCopyRegions;
@@ -490,7 +490,7 @@ namespace vks { namespace texture {
             device = context.device;
 
             std::shared_ptr<const gli::texture_cube> texPtr; 
-            vks::file::withBinaryFileContexts(filename, [&](size_t size, const void* data) {
+            vks::file::withBinaryFileContents(filename, [&](size_t size, const void* data) {
                 texPtr = std::make_shared<const gli::texture_cube>(gli::load((const char*)data, size));
             });
             const auto& texCube = *texPtr;
@@ -501,7 +501,7 @@ namespace vks { namespace texture {
             extent.height = static_cast<uint32_t>(texCube.extent().y);
             extent.depth = 1;
             mipLevels = static_cast<uint32_t>(texCube.levels());
-            auto stagingBuffer = context.createBuffer(vk::BufferUsageFlagBits::eTransferSrc, texCube);
+            auto stagingBuffer = context.createStagingBuffer(texCube);
 
             // Setup buffer copy regions for each face including all of it's miplevels
             std::vector<vk::BufferImageCopy> bufferCopyRegions;
