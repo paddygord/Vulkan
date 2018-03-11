@@ -9,12 +9,11 @@
 
 struct ShareHandles {
     HANDLE memory{ INVALID_HANDLE_VALUE };
-    // FIXME properly use semaphores for GL/VK sync
-    /*
-    HANDLE vkSemaphore{ INVALID_HANDLE_VALUE };
-    HANDLE glSemaphore{ INVALID_HANDLE_VALUE };
-    */
+    HANDLE glReady{ INVALID_HANDLE_VALUE };
+    HANDLE glComplete{ INVALID_HANDLE_VALUE };
 };
+
+static const uint32_t SHARED_TEXTURE_DIMENSION = 512;
 
 class TextureGenerator {
 public:
@@ -29,7 +28,8 @@ public:
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, 1);
 
-        window.createWindow(size);
+        // Window doesn't need to be large, it only exists to give us a GL context
+        window.createWindow(uvec2{ 10 });
         window.makeCurrent();
 
         gl::init();
@@ -40,49 +40,57 @@ public:
         startTime = glfwGetTime();
 
         glDisable(GL_DEPTH_TEST);
-        glClearColor(1, 0, 0, 1);
 
-        // FIXME properly use semaphores for GL/VK sync
-/*
-        glGenSemaphoresEXT(1, &vkSem);
-        glGenSemaphoresEXT(1, &glSem);
-        glImportSemaphoreWin32HandleEXT(vkSem, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.vkSemaphore);
-        glImportSemaphoreWin32HandleEXT(glSem, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glSemaphore);
-*/
+        // Import semaphores
+        glGenSemaphoresEXT(1, &glReady);
+        glImportSemaphoreWin32HandleEXT(glReady, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glReady);
+        glGenSemaphoresEXT(1, &glComplete);
+        glImportSemaphoreWin32HandleEXT(glComplete, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glComplete);
+
+        // Import memory
         glCreateMemoryObjectsEXT(1, &mem);
         glImportMemoryWin32HandleEXT(mem, memorySize, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.memory);
         glCreateTextures(GL_TEXTURE_2D, 1, &color);
-        glTextureStorageMem2DEXT(color, 1, GL_RGBA8, size.x, size.y, mem, 0 );
-
+        glTextureStorageMem2DEXT(color, 1, GL_RGBA8, SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, mem, 0);
         glCreateFramebuffers(1, &fbo);
         glNamedFramebufferTexture(fbo, GL_COLOR_ATTACHMENT0, color, 0);
-
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
         glUseProgram(program);
-        glProgramUniform3f(program, 0, (float)size.x, (float)size.y, 0.0f);
-
-        // Now check for completness
-        auto fboStatus = glCheckNamedFramebufferStatus(fbo, GL_DRAW_FRAMEBUFFER);
+        glProgramUniform3f(program, 0, (float)SHARED_TEXTURE_DIMENSION, (float)SHARED_TEXTURE_DIMENSION, 0.0f);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
-        glViewport(0, 0, 512, 512);
+        glViewport(0, 0, SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION);
+    }
+
+    void destroy() {
+        glFlush();
+        glFinish();
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBindVertexArray(0);
+        glUseProgram(0);
+
+        glDeleteFramebuffers(1, &fbo);
+        glDeleteTextures(1, &color);
+        glDeleteSemaphoresEXT(1, &glReady);
+        glDeleteSemaphoresEXT(1, &glComplete);
+        glDeleteVertexArrays(1, &vao);
+        glDeleteProgram(program);
+
+        window.destroyWindow();
     }
 
     void render() {
         GLenum srcLayout = GL_LAYOUT_COLOR_ATTACHMENT_EXT;
         GLenum dstLayout = GL_LAYOUT_SHADER_READ_ONLY_EXT;
         glProgramUniform1f(program, 1, (float)(glfwGetTime() - startTime));
-        // FIXME properly use semaphores for GL/VK sync
-        //glWaitSemaphoreEXT(vkSem, 0, nullptr, 1, &color, &srcLayout);
+        glWaitSemaphoreEXT(glReady, 0, nullptr, 1, &color, &srcLayout);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-        //glSignalSemaphoreEXT(glSem, 0, nullptr, 1, &color, &dstLayout);
-        glFlush();
-        glFinish();
+        glSignalSemaphoreEXT(glComplete, 0, nullptr, 1, &color, &dstLayout);
     }
 
 private:
-    uvec2 size{ 512, 512 };
-    //GLuint vkSem{ 0 }, glSem{ 0 };
+    GLuint glReady{ 0 }, glComplete{ 0 };
     GLuint color = 0;
     GLuint fbo = 0;
     GLuint vao = 0;
@@ -105,7 +113,6 @@ const vec4 VERTICES[] = vec4[](
 void main() { gl_Position = VERTICES[gl_VertexID]; }
 
 )SHADER";
-
 
 const std::string TextureGenerator::FRAGMENT_SHADER = R"SHADER(
 #version 450 core
@@ -179,18 +186,119 @@ struct Vertex {
 
 class TextureExample : public vkx::ExampleBase {
     using Parent = ExampleBase;
-public:
 
-    ShareHandles sharedHandles;
+public:
 
     struct SharedResources {
         vks::Image texture;
-        vk::Semaphore vkSemaphore;
-        vk::Semaphore glSemaphore;
+        struct {
+            vk::Semaphore glReady;
+            vk::Semaphore glComplete;
+        } semaphores;
+        vk::CommandBuffer transitionCmdBuf;
+        ShareHandles handles;
+        vk::Device device;
+
+        void init(const vks::Context& context) {
+            device = context.device;
+            vk::DispatchLoaderDynamic dynamicLoader{ context.instance, device };
+            {
+                auto handleType = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32;
+                {
+                    vk::SemaphoreCreateInfo sci;
+                    vk::ExportSemaphoreCreateInfo esci;
+                    sci.pNext = &esci;
+                    esci.handleTypes = handleType;
+                    semaphores.glReady = device.createSemaphore(sci);
+                    semaphores.glComplete = device.createSemaphore(sci);
+                }
+                handles.glReady = device.getSemaphoreWin32HandleKHR({ semaphores.glReady, handleType }, dynamicLoader);
+                handles.glComplete = device.getSemaphoreWin32HandleKHR({ semaphores.glComplete, handleType }, dynamicLoader);
+            }
+
+            {
+                vk::ImageCreateInfo imageCreateInfo;
+                imageCreateInfo.imageType = vk::ImageType::e2D;
+                imageCreateInfo.format = vk::Format::eR8G8B8A8Unorm;
+                imageCreateInfo.mipLevels = 1;
+                imageCreateInfo.arrayLayers = 1;
+                imageCreateInfo.extent.depth = 1;
+                imageCreateInfo.extent.width = SHARED_TEXTURE_DIMENSION;
+                imageCreateInfo.extent.height = SHARED_TEXTURE_DIMENSION;
+                imageCreateInfo.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
+                texture.image = device.createImage(imageCreateInfo);
+                texture.device = device;
+                texture.format = imageCreateInfo.format;
+                texture.extent = imageCreateInfo.extent;
+            }
+
+            {
+                vk::MemoryRequirements memReqs = device.getImageMemoryRequirements(texture.image);
+                vk::MemoryAllocateInfo memAllocInfo;
+                vk::ExportMemoryAllocateInfo exportAllocInfo{ vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32 };
+                memAllocInfo.pNext = &exportAllocInfo;
+                memAllocInfo.allocationSize = texture.allocSize = memReqs.size;
+                memAllocInfo.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
+                texture.memory = device.allocateMemory(memAllocInfo);
+                device.bindImageMemory(texture.image, texture.memory, 0);
+                handles.memory = device.getMemoryWin32HandleKHR({ texture.memory, vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32 }, dynamicLoader);
+            }
+
+            {
+                // Create sampler
+                vk::SamplerCreateInfo samplerCreateInfo;
+                samplerCreateInfo.magFilter = vk::Filter::eLinear;
+                samplerCreateInfo.minFilter = vk::Filter::eLinear;
+                samplerCreateInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
+                // Max level-of-detail should match mip level count
+                samplerCreateInfo.maxLod = (float)1;
+                // Only enable anisotropic filtering if enabled on the devicec
+                samplerCreateInfo.maxAnisotropy = context.deviceFeatures.samplerAnisotropy ? context.deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
+                samplerCreateInfo.anisotropyEnable = context.deviceFeatures.samplerAnisotropy;
+                samplerCreateInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
+                texture.sampler = device.createSampler(samplerCreateInfo);
+            }
+
+            {
+                // Create image view
+                vk::ImageViewCreateInfo viewCreateInfo;
+                viewCreateInfo.viewType = vk::ImageViewType::e2D;
+                viewCreateInfo.image = texture.image;
+                viewCreateInfo.format = texture.format;
+                viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+                texture.view = context.device.createImageView(viewCreateInfo);
+            }
+
+            // Setup the command buffers used to transition the image between GL and VK
+            transitionCmdBuf = context.createCommandBuffer();
+            transitionCmdBuf.begin(vk::CommandBufferBeginInfo{});
+            context.setImageLayout(transitionCmdBuf, texture.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eColorAttachmentOptimal);
+            transitionCmdBuf.end();
+        }
+
+        void destroy() {
+            texture.destroy();
+            device.destroy(semaphores.glComplete);
+            device.destroy(semaphores.glReady);
+        }
+
+        void transitionToGl(const vk::Queue& queue, const vk::Semaphore& waitSemaphore) const {
+            vk::SubmitInfo submitInfo;
+            vk::PipelineStageFlags stageFlags = vk::PipelineStageFlagBits::eBottomOfPipe;
+            submitInfo.pWaitDstStageMask = &stageFlags;
+            submitInfo.waitSemaphoreCount = 1;
+            submitInfo.pWaitSemaphores = &waitSemaphore;
+            submitInfo.signalSemaphoreCount = 1;
+            submitInfo.pSignalSemaphores = &semaphores.glReady;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &transitionCmdBuf;
+            queue.submit({ submitInfo }, {});
+        }
+
     } shared;
 
     TextureGenerator texGenerator;
-
 
     struct {
         uint32_t count{ 0 };
@@ -227,29 +335,28 @@ public:
         title = "Vulkan Example - Texturing";
 
         context.requireExtensions({
-            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME
+            VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,    //
+            VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME  //
         });
 
         context.requireDeviceExtensions({
-            VK_KHR_MAINTENANCE1_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME
+            VK_KHR_MAINTENANCE1_EXTENSION_NAME, //
+            VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME, //
+            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,  //
+#if defined(WIN32)
+            VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,    //
+            VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME  //
+#else
+            VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,    //
+            VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME  //
+#endif
         });
     }
 
     ~TextureExample() {
-        // Clean up used Vulkan resources 
-        // Note : Inherited destructor cleans up resources stored in base class
-
-        // Clean up texture resources
-        shared.texture.destroy();
+        shared.destroy();
 
         device.destroyPipeline(pipelines.solid);
-
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
 
@@ -261,87 +368,13 @@ public:
     }
 
     void buildExportableImage() {
-        vk::DispatchLoaderDynamic dynamicLoader{ context.instance, device };
-        // FIXME properly use semaphores for GL/VK sync
-        /*
-        {
-            {
-                vk::SemaphoreCreateInfo sci;
-                vk::ExportSemaphoreCreateInfo esci;
-                sci.pNext = &esci;
-                esci.handleTypes = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32;
-                shared.vkSemaphore = device.createSemaphore(sci);
-                shared.glSemaphore = device.createSemaphore(sci);
-            }
+        shared.init(context);
+        texGenerator.init(shared.handles, shared.texture.allocSize);
+    }
 
-            vk::SemaphoreGetWin32HandleInfoKHR shci;
-            shci.handleType = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32;
-            shci.semaphore = shared.vkSemaphore;
-            shared.handles.vkSemaphore = device.getSemaphoreWin32HandleKHR(shci, dynamicLoader);
-            shci.semaphore = shared.glSemaphore;
-            shared.handles.glSemaphore = device.getSemaphoreWin32HandleKHR(shci, dynamicLoader);
-        }
-        */
-
-        auto& texture = shared.texture;
-        {
-            vk::ImageCreateInfo imageCreateInfo;
-            imageCreateInfo.imageType = vk::ImageType::e2D;
-            imageCreateInfo.format = vk::Format::eR8G8B8A8Unorm;
-            imageCreateInfo.mipLevels = 1;
-            imageCreateInfo.arrayLayers = 1;
-            imageCreateInfo.extent.width = 512;
-            imageCreateInfo.extent.height = 512;
-            imageCreateInfo.extent.depth = 1;
-            imageCreateInfo.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
-            texture.image = device.createImage(imageCreateInfo);
-            texture.device = device;
-            texture.format = imageCreateInfo.format;
-            texture.extent = imageCreateInfo.extent;
-        }
-
-        {
-            vk::MemoryRequirements memReqs = device.getImageMemoryRequirements(texture.image);
-            vk::MemoryAllocateInfo memAllocInfo;
-            vk::ExportMemoryAllocateInfo exportAllocInfo{ vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32 };
-            memAllocInfo.pNext = &exportAllocInfo;
-            memAllocInfo.allocationSize = texture.allocSize = memReqs.size;
-            memAllocInfo.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-            texture.memory = device.allocateMemory(memAllocInfo);
-            device.bindImageMemory(texture.image, texture.memory, 0);
-
-
-            //auto test1 = device.getProcAddr("vkGetMemoryWin32HandleKHR", );
-            //std::cout << test1 << std::endl;
-            sharedHandles.memory = device.getMemoryWin32HandleKHR({ texture.memory, vk::ExternalMemoryHandleTypeFlagBits::eOpaqueWin32 }, dynamicLoader);
-        }
-
-        {
-            // Create sampler
-            vk::SamplerCreateInfo samplerCreateInfo;
-            samplerCreateInfo.magFilter = vk::Filter::eLinear;
-            samplerCreateInfo.minFilter = vk::Filter::eLinear;
-            samplerCreateInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
-            // Max level-of-detail should match mip level count
-            samplerCreateInfo.maxLod = (float)1;
-            // Only enable anisotropic filtering if enabled on the devicec
-            samplerCreateInfo.maxAnisotropy = context.deviceFeatures.samplerAnisotropy ? context.deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
-            samplerCreateInfo.anisotropyEnable = context.deviceFeatures.samplerAnisotropy;
-            samplerCreateInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-            texture.sampler = device.createSampler(samplerCreateInfo);
-        }
-
-        {
-            // Create image view
-            vk::ImageViewCreateInfo viewCreateInfo;
-            viewCreateInfo.viewType = vk::ImageViewType::e2D;
-            viewCreateInfo.image = texture.image;
-            viewCreateInfo.format = texture.format;
-            viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-            texture.view = context.device.createImageView(viewCreateInfo);
-        }
-
-        texGenerator.init(sharedHandles, texture.allocSize);
+    void updateCommandBufferPreDraw(const vk::CommandBuffer& commandBuffer) override {
+        context.setImageLayout(commandBuffer, shared.texture.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eColorAttachmentOptimal,
+                               vk::ImageLayout::eShaderReadOnlyOptimal);
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
@@ -360,28 +393,23 @@ public:
         // Setup vertices for a single uv-mapped quad
 #define DIM 1.0f
 #define NORMAL { 0.0f, 0.0f, 1.0f }
-        std::vector<Vertex> vertexBuffer =
-        {
-            { {  DIM,  DIM, 0.0f }, { 1.0f, 1.0f }, NORMAL },
-            { { -DIM,  DIM, 0.0f }, { 0.0f, 1.0f }, NORMAL },
-            { { -DIM, -DIM, 0.0f }, { 0.0f, 0.0f }, NORMAL },
-            { {  DIM, -DIM, 0.0f }, { 1.0f, 0.0f }, NORMAL }
-        };
+        std::vector<Vertex> vertexBuffer = { { { DIM, DIM, 0.0f }, { 1.0f, 1.0f }, NORMAL },
+                                             { { -DIM, DIM, 0.0f }, { 0.0f, 1.0f }, NORMAL },
+                                             { { -DIM, -DIM, 0.0f }, { 0.0f, 0.0f }, NORMAL },
+                                             { { DIM, -DIM, 0.0f }, { 1.0f, 0.0f }, NORMAL } };
 #undef DIM
 #undef NORMAL
         geometry.vertices = context.stageToDeviceBuffer<Vertex>(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
 
         // Setup indices
-        std::vector<uint32_t> indexBuffer = { 0,1,2, 2,3,0 };
+        std::vector<uint32_t> indexBuffer = { 0, 1, 2, 2, 3, 0 };
         geometry.count = (uint32_t)indexBuffer.size();
         geometry.indices = context.stageToDeviceBuffer<uint32_t>(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
-
     }
 
     void setupDescriptorPool() {
         // Example uses one ubo and one image sampler
-        std::vector<vk::DescriptorPoolSize> poolSizes =
-        {
+        std::vector<vk::DescriptorPoolSize> poolSizes = {
             vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, 1 },
             vk::DescriptorPoolSize{ vk::DescriptorType::eCombinedImageSampler, 1 },
         };
@@ -391,9 +419,9 @@ public:
     void setupDescriptorSetLayout() {
         std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Vertex shader uniform buffer
-            vk::DescriptorSetLayoutBinding{ 0,  vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+            vk::DescriptorSetLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Fragment shader image sampler
-            vk::DescriptorSetLayoutBinding{ 1,  vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
+            vk::DescriptorSetLayoutBinding{ 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
 
         descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
@@ -404,20 +432,20 @@ public:
         descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
         // vk::Image descriptor for the color map texture
         vk::DescriptorImageInfo texDescriptor{ shared.texture.sampler, shared.texture.view, vk::ImageLayout::eShaderReadOnlyOptimal };
-        device.updateDescriptorSets({
-            // Binding 0 : Vertex shader uniform buffer
-            vk::WriteDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataVS.descriptor },
-            // Binding 1 : Fragment shader texture sampler
-            vk::WriteDescriptorSet{ descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
-            }, {});
+        device.updateDescriptorSets(
+            {
+                // Binding 0 : Vertex shader uniform buffer
+                vk::WriteDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataVS.descriptor },
+                // Binding 1 : Fragment shader texture sampler
+                vk::WriteDescriptorSet{ descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
+            },
+            {});
     }
 
     void preparePipelines() {
         vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
         pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
-        pipelineBuilder.vertexInputState.bindingDescriptions = {
-            { VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex }
-        };
+        pipelineBuilder.vertexInputState.bindingDescriptions = { { VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex } };
 
         pipelineBuilder.vertexInputState.attributeDescriptions = {
             { 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, 0 },
@@ -426,10 +454,10 @@ public:
         };
         pipelineBuilder.loadShader(getAssetPath() + "shaders/texture/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/texture/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
-        pipelines.solid = pipelineBuilder.create(context.pipelineCache);;
+        pipelines.solid = pipelineBuilder.create(context.pipelineCache);
+        ;
     }
 
-    // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
         uniformDataVS = context.createUniformBuffer(uboVS);
@@ -459,9 +487,7 @@ public:
         prepared = true;
     }
 
-    void viewChanged() override {
-        updateUniformBuffers();
-    }
+    void viewChanged() override { updateUniformBuffers(); }
 
     void changeLodBias(float delta) {
         uboVS.lodBias += delta;
@@ -474,30 +500,28 @@ public:
         updateUniformBuffers();
     }
 
+
     void draw() override {
         prepareFrame();
-        context.setImageLayout(shared.texture.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
+        shared.transitionToGl(queue, semaphores.acquireComplete);
         texGenerator.render();
-        context.setImageLayout(shared.texture.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+        renderWaitSemaphores = { shared.semaphores.glComplete };
         drawCurrentCommandBuffer();
         submitFrame();
     }
 
-
 #if !defined(__ANDROID__)
     void keyPressed(uint32_t keyCode) override {
         switch (keyCode) {
-        case KEY_KPADD:
-            changeLodBias(0.1f);
-            break;
-        case KEY_KPSUB:
-            changeLodBias(-0.1f);
-            break;
+            case KEY_KPADD:
+                changeLodBias(0.1f);
+                break;
+            case KEY_KPSUB:
+                changeLodBias(-0.1f);
+                break;
         }
     }
 #endif
 };
 
 RUN_EXAMPLE(TextureExample)
-
-
