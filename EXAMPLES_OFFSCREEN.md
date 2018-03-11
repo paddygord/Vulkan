@@ -9,7 +9,7 @@ Uses a separate framebuffer (that is not part of the swap chain) and a texture
 target for offscreen rendering. The texture is then used as a mirror.
 <br><br>
 
-### [Radial blur](examples/offscreen/radialblur.cpp)
+### [Radial blur](examples/radialblur/radialblur.cpp)
 <img src="./documentation/screenshots/radial_blur.png" height="96px" align="right">
 
 Demonstrates basic usage of fullscreen shader effects. The scene is rendered 
@@ -17,7 +17,7 @@ offscreen first, gets blitted to a texture target and for the final draw this
 texture is blended on top of the 3D scene with a radial blur shader applied.
 <br><br>
 
-### [Bloom](examples/offscreen/bloom.cpp)
+### [Bloom](examples/bloom/bloom.cpp)
 <img src="./documentation/screenshots/bloom.png" height="96px" align="right">
 
 Implements a bloom effect to simulate glowing parts of a 3D mesh. A two pass 
@@ -26,7 +26,7 @@ version of the scene only containing the glowing parts of the 3D mesh. This then
 gets blended onto the scene to add the blur effect.
 <br><br>
 
-### [Deferred shading](examples/offscreen/deferred.cpp)
+### [Deferred shading](examples/deferred/deferred.cpp)
 <img src="./documentation/screenshots/deferred_shading.png" height="96px" align="right">
 
 Demonstrates the use of multiple render targets to fill a G-Buffer for deferred 
@@ -38,7 +38,7 @@ lighting calculations based on these in screen space, thus allowing for much mor
 light sources than traditional forward renderers.
 <br><br>
 
-### [Shadowmapping](examples/offscreen/shadowmapping.cpp)
+### [Shadowmapping](examples/shadowmapping/shadowmapping.cpp)
 <img src="./documentation/screenshots/shadowmapping.png" height="96px" align="right">
 
 Shows how to implement directional dynamic shadows with a single shadow map in two passes. Pass one renders the scene from the light's point of view and copies the depth buffer to a depth texture.

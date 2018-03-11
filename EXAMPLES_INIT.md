@@ -1,18 +1,18 @@
 ## Beginner Examples
 
-### [Context](examples/init/context.cpp)
+### [Context](examples/context/context.cpp)
 
 Basic example of creating a Vulkan instance, physical device, queue, command pool, 
 etc.  However, it does not create a rendering window and produces no graphical 
 output, instead printing out some basic information of about the current device.
 
-### [Swap Chain](examples/init/swapchain.cpp)
+### [Swap Chain](examples/swapchain/swapchain.cpp)
 
 Create a window and a Vulkan swap chain connected to it.  Uses an empty command 
 buffer to clear the frame with a different color for each swap chain image.  This is 
 the most basic possible application that colors any pixels on a window surface.
 
-### [Triangle](examples/init/triangle.cpp)
+### [Triangle](examples/triangle/triangle.cpp)
 <img src="./documentation/screenshots/basic_triangle.png" height="96px" align="right">
 
 Most basic example that renders geometry. Renders a colored triangle using an 
@@ -27,7 +27,7 @@ boilerplate that you'd usually encapsulate in helper functions and classes (whic
 what the other examples do).
 <br><br>
 
-### [Triangle Revisited](examples/init/triangleRevisited.cpp)
+### [Triangle Revisited](examples/triangleRevisited/triangleRevisited.cpp)
 <img src="./documentation/screenshots/basic_triangle.png" height="96px" align="right">
 
 A repeat of the triangle example, except this time using the base class that will be 
@@ -37,7 +37,7 @@ been moved into the base class or helper functions.
 This is the first example that allows you to resize the window, demonstrating the 
 ability to create the swap chain and any objects which depend on the swap chain.
 
-### [Triangle Animated](examples/init/triangleAnimated.cpp)
+### [Triangle Animated](examples/triangleAnimated/triangleAnimated.cpp)
 <img src="./documentation/screenshots/basic_triangle.png" height="96px" align="right">
 
 Another repeat of the triangle example, this time showing a mechanism by which we 
