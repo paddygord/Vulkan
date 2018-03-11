@@ -7,6 +7,7 @@
 #include <vulkanExampleBase.h>
 #include <vks/texture.hpp>
 
+// FIXME make work on non-Win32 platforms
 struct ShareHandles {
     HANDLE memory{ INVALID_HANDLE_VALUE };
     HANDLE glReady{ INVALID_HANDLE_VALUE };
@@ -41,17 +42,30 @@ public:
 
         glDisable(GL_DEPTH_TEST);
 
+        // Create the texture for the FBO color attachment.  
+        // This only reserves the ID, it doesn't allocate memory
+        glCreateTextures(GL_TEXTURE_2D, 1, &color);
+
         // Import semaphores
         glGenSemaphoresEXT(1, &glReady);
-        glImportSemaphoreWin32HandleEXT(glReady, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glReady);
         glGenSemaphoresEXT(1, &glComplete);
+
+        // Platform specific import.  On non-Win32 systems use glImportSemaphoreFdEXT instead
+        glImportSemaphoreWin32HandleEXT(glReady, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glReady);
         glImportSemaphoreWin32HandleEXT(glComplete, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glComplete);
+        
 
         // Import memory
         glCreateMemoryObjectsEXT(1, &mem);
+        // Platform specific import.  On non-Win32 systems use glImportMemoryFdEXT instead
         glImportMemoryWin32HandleEXT(mem, memorySize, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.memory);
-        glCreateTextures(GL_TEXTURE_2D, 1, &color);
+
+        // Use the imported memory as backing for the OpenGL texture.  The internalFormat, dimensions
+        // and mip count should match the ones used by Vulkan to create the image and determine it's memory 
+        // allocation.
         glTextureStorageMem2DEXT(color, 1, GL_RGBA8, SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, mem, 0);
+
+        // The remaining initialization code is all standard OpenGL 
         glCreateFramebuffers(1, &fbo);
         glNamedFramebufferTexture(fbo, GL_COLOR_ATTACHMENT0, color, 0);
         glGenVertexArrays(1, &vao);
@@ -63,30 +77,46 @@ public:
     }
 
     void destroy() {
-        glFlush();
-        glFinish();
-
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
         glBindVertexArray(0);
         glUseProgram(0);
-
         glDeleteFramebuffers(1, &fbo);
         glDeleteTextures(1, &color);
         glDeleteSemaphoresEXT(1, &glReady);
         glDeleteSemaphoresEXT(1, &glComplete);
         glDeleteVertexArrays(1, &vao);
         glDeleteProgram(program);
-
+        glFlush();
+        glFinish();
         window.destroyWindow();
     }
 
     void render() {
-        GLenum srcLayout = GL_LAYOUT_COLOR_ATTACHMENT_EXT;
-        GLenum dstLayout = GL_LAYOUT_SHADER_READ_ONLY_EXT;
+        // The GL shader animates the image, so provide the time as input
         glProgramUniform1f(program, 1, (float)(glfwGetTime() - startTime));
+
+        // Wait (on the GPU side) for the Vulkan semaphore to be signaled
+        GLenum srcLayout = GL_LAYOUT_COLOR_ATTACHMENT_EXT;
         glWaitSemaphoreEXT(glReady, 0, nullptr, 1, &color, &srcLayout);
+
+        // Draw to the framebuffer
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+        // Once drawing is complete, signal the Vulkan semaphore indicating 
+        // it can continue with it's render
+        GLenum dstLayout = GL_LAYOUT_SHADER_READ_ONLY_EXT;
         glSignalSemaphoreEXT(glComplete, 0, nullptr, 1, &color, &dstLayout);
+
+        // When using synchronization across multiple GL context, or in this case
+        // across OpenGL and another API, it's critical that an operation on a 
+        // synchronization object that will be waited on in another context or API 
+        // is flushed to the GL server.  
+        // 
+        // Failure to flush the operation can cause the GL driver to sit and wait for
+        // sufficient additional commands in the buffer before it flushes automatically
+        // but depending on how the waits and signals are structured, this may never 
+        // occur.  
+        glFlush();
     }
 
 private:
@@ -184,7 +214,10 @@ struct Vertex {
     float normal[3];
 };
 
-class TextureExample : public vkx::ExampleBase {
+// The bulk of this example is the same as the existing texture example.  
+// However, instead of loading a texture from a file, it relies on an OpenGL 
+// shader to populate the texture.
+class OpenGLInteropExample : public vkx::ExampleBase {
     using Parent = ExampleBase;
 
 public:
@@ -295,22 +328,15 @@ public:
             submitInfo.pCommandBuffers = &transitionCmdBuf;
             queue.submit({ submitInfo }, {});
         }
-
     } shared;
 
     TextureGenerator texGenerator;
 
-    struct {
+    struct Geometry {
         uint32_t count{ 0 };
         vks::Buffer indices;
         vks::Buffer vertices;
     } geometry;
-
-    struct {
-        int count;
-        vk::Buffer buffer;
-        vk::DeviceMemory memory;
-    } indices;
 
     vks::Buffer uniformDataVS;
 
@@ -329,7 +355,7 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    TextureExample() {
+    OpenGLInteropExample() {
         camera.setRotation({ 0.0f, 15.0f, 0.0f });
         camera.dolly(-2.5f);
         title = "Vulkan Example - Texturing";
@@ -353,7 +379,7 @@ public:
         });
     }
 
-    ~TextureExample() {
+    ~OpenGLInteropExample() {
         shared.destroy();
 
         device.destroyPipeline(pipelines.solid);
@@ -446,7 +472,6 @@ public:
         vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
         pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
         pipelineBuilder.vertexInputState.bindingDescriptions = { { VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex } };
-
         pipelineBuilder.vertexInputState.attributeDescriptions = {
             { 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, 0 },
             { 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, sizeof(float) * 3 },
@@ -455,17 +480,14 @@ public:
         pipelineBuilder.loadShader(getAssetPath() + "shaders/texture/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/texture/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
         pipelines.solid = pipelineBuilder.create(context.pipelineCache);
-        ;
     }
 
     void prepareUniformBuffers() {
-        // Vertex shader uniform buffer block
         uniformDataVS = context.createUniformBuffer(uboVS);
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
-        // Vertex shader
         uboVS.projection = camera.matrices.perspective;
         glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, camera.position.z));
         uboVS.model = viewMatrix * glm::translate(glm::mat4(), glm::vec3(camera.position.x, camera.position.y, 0));
@@ -489,18 +511,6 @@ public:
 
     void viewChanged() override { updateUniformBuffers(); }
 
-    void changeLodBias(float delta) {
-        uboVS.lodBias += delta;
-        if (uboVS.lodBias < 0.0f) {
-            uboVS.lodBias = 0.0f;
-        }
-        if (uboVS.lodBias > 8.0f) {
-            uboVS.lodBias = 8.0f;
-        }
-        updateUniformBuffers();
-    }
-
-
     void draw() override {
         prepareFrame();
         shared.transitionToGl(queue, semaphores.acquireComplete);
@@ -509,19 +519,6 @@ public:
         drawCurrentCommandBuffer();
         submitFrame();
     }
-
-#if !defined(__ANDROID__)
-    void keyPressed(uint32_t keyCode) override {
-        switch (keyCode) {
-            case KEY_KPADD:
-                changeLodBias(0.1f);
-                break;
-            case KEY_KPSUB:
-                changeLodBias(-0.1f);
-                break;
-        }
-    }
-#endif
 };
 
-RUN_EXAMPLE(TextureExample)
+RUN_EXAMPLE(OpenGLInteropExample)
