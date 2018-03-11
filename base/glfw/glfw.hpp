@@ -17,13 +17,11 @@ public:
     static bool init();
     static void terminate();
 
-#if defined(VULKAN_HPP)
     static std::vector<std::string> getRequiredInstanceExtensions();
     static vk::SurfaceKHR createWindowSurface(GLFWwindow* window, const vk::Instance& instance, const vk::AllocationCallbacks* pAllocator = nullptr);
     vk::SurfaceKHR createSurface(const vk::Instance& instance, const vk::AllocationCallbacks* pAllocator = nullptr) {
         return createWindowSurface(window, instance, pAllocator);
     }
-#endif
 
     void createWindow(const glm::uvec2& size, const glm::ivec2& position = { INT_MIN, INT_MIN }) {
         // Disable window resize

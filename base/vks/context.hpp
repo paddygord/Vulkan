@@ -384,12 +384,13 @@ namespace vks {
             imageMemoryBarrier.subresourceRange = subresourceRange;
             imageMemoryBarrier.srcAccessMask = vks::util::accessFlagsForLayout(oldImageLayout);
             imageMemoryBarrier.dstAccessMask = vks::util::accessFlagsForLayout(newImageLayout);
-
+            vk::PipelineStageFlags srcStageMask = vks::util::pipelineStageForLayout(oldImageLayout);
+            vk::PipelineStageFlags destStageMask = vks::util::pipelineStageForLayout(newImageLayout);
             // Put barrier on top
             // Put barrier inside setup command buffer
             cmdbuffer.pipelineBarrier(
-                vk::PipelineStageFlagBits::eAllCommands,
-                vk::PipelineStageFlagBits::eAllCommands,
+                srcStageMask,
+                destStageMask,
                 vk::DependencyFlags(),
                 nullptr, nullptr, imageMemoryBarrier);
         }

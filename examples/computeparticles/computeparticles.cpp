@@ -144,7 +144,9 @@ public:
         // Staging
         // SSBO is static, copy to device local memory
         // This results in better performance
-        buffers.storage = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eStorageBuffer, particleBuffer);
+        buffers.storage = context.stageToDeviceBuffer(
+            vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eStorageBuffer, 
+            particleBuffer);
     }
 
     void submit() {

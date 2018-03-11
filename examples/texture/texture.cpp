@@ -26,18 +26,10 @@ public:
     vks::texture::Texture2D texture;
 
     struct {
-        vk::Buffer buffer;
-        vk::DeviceMemory memory;
-        vk::PipelineVertexInputStateCreateInfo inputState;
-        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
-        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
-    } vertices;
-
-    struct {
-        int count;
-        vk::Buffer buffer;
-        vk::DeviceMemory memory;
-    } indices;
+        uint32_t count;
+        vks::Buffer indices;
+        vks::Buffer vertices;
+    } geometry;
 
     vks::Buffer uniformDataVS;
 
@@ -63,25 +55,13 @@ public:
     }
 
     ~TextureExample() {
-        // Clean up used Vulkan resources 
-        // Note : Inherited destructor cleans up resources stored in base class
-
-        // Clean up texture resources
         texture.destroy();
-
         device.destroyPipeline(pipelines.solid);
-
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
-
-        device.destroyBuffer(vertices.buffer);
-        device.freeMemory(vertices.memory);
-
-        device.destroyBuffer(indices.buffer);
-        device.freeMemory(indices.memory);
-
-        device.destroyBuffer(uniformDataVS.buffer);
-        device.freeMemory(uniformDataVS.memory);
+        geometry.vertices.destroy();
+        geometry.indices.destroy();
+        uniformDataVS.destroy();
     }
 
     // Create an image memory barrier for changing the layout of
@@ -147,10 +127,10 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
         vk::DeviceSize offsets = 0;
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
-        cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, geometry.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(geometry.indices.buffer, 0, vk::IndexType::eUint32);
 
-        cmdBuffer.drawIndexed(indices.count, 1, 0, 0, 0);
+        cmdBuffer.drawIndexed(geometry.count, 1, 0, 0, 0);
     }
 
     void generateQuad() {
@@ -166,16 +146,12 @@ public:
         };
 #undef DIM
 #undef NORMAL
-        auto result= context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
-        vertices.buffer = result.buffer;
-        vertices.memory = result.memory;
+        geometry.vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
 
         // Setup indices
         std::vector<uint32_t> indexBuffer = { 0,1,2, 2,3,0 };
-        indices.count = (uint32_t)indexBuffer.size();
-        result= context.createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
-        indices.buffer = result.buffer;
-        indices.memory = result.memory;
+        geometry.indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
+        geometry.count = (uint32_t)indexBuffer.size();
     }
 
     void setupDescriptorPool() {

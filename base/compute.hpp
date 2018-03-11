@@ -8,7 +8,7 @@ struct Compute {
         : context(context) {}
 
     const vks::Context& context;
-    const vks::Device& device{ context.device };
+    const vk::Device& device{ context.device };
     vk::Queue queue;
     vk::CommandPool commandPool;
 

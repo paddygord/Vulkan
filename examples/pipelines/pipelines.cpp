@@ -157,6 +157,7 @@ public:
 
         // Textured pipeline
         pipelines.phong = pipelineCreator.create(context.pipelineCache);
+        pipelineCreator.destroyShaderModules();
 
         // All pipelines created after the base pipeline will be derivatives
         pipelineCreator.pipelineCreateInfo.flags = vk::PipelineCreateFlagBits::eDerivative;
@@ -171,6 +172,7 @@ public:
         pipelineCreator.loadShader(getAssetPath() + "shaders/pipelines/toon.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         pipelines.toon = pipelineCreator.create(context.pipelineCache);
+        pipelineCreator.destroyShaderModules();
 
         // Non solid rendering is not a mandatory Vulkan feature
         if (context.deviceFeatures.fillModeNonSolid) {
@@ -179,6 +181,7 @@ public:
             pipelineCreator.loadShader(getAssetPath() + "shaders/pipelines/wireframe.vert.spv", vk::ShaderStageFlagBits::eVertex);
             pipelineCreator.loadShader(getAssetPath() + "shaders/pipelines/wireframe.frag.spv", vk::ShaderStageFlagBits::eFragment);
             pipelines.wireframe = pipelineCreator.create(context.pipelineCache);
+            pipelineCreator.destroyShaderModules();
         }
     }
 

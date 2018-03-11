@@ -358,9 +358,7 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
-        uniformDataVS = context.createBuffer(vk::BufferUsageFlagBits::eUniformBuffer,
-                                             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, uboVS);
-        uniformDataVS.map();
+        uniformDataVS = context.createUniformBuffer(uboVS);
         updateUniformBuffers();
     }
 

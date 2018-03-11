@@ -209,8 +209,10 @@ public:
             particle.alpha = 1.0f - (abs(particle.pos.y) / (FLAME_RADIUS * 2.0f));
         }
 
-        particles.buffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, particleBuffer);
+        particles.buffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, 
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, sizeof(Particle) * particleBuffer.size());
         particles.buffer.map();
+        particles.buffer.copy(particleBuffer);
     }
 
     void updateParticles() {

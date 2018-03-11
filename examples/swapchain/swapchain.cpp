@@ -32,35 +32,33 @@ public:
         presentInfo.pImageIndices = &currentImage;
     }
 
+    void setWindowSurface(const vk::SurfaceKHR& surface) {
+        this->surface = surface;
+        // Get list of supported surface formats
+        std::vector<vk::SurfaceFormatKHR> surfaceFormats = context.physicalDevice.getSurfaceFormatsKHR(surface);
+        auto formatCount = surfaceFormats.size();
+
+
+        // If the surface format list only includes one entry with  vk::Format::eUndefined,
+        // there is no preferered format, so we assume  vk::Format::eB8G8R8A8Unorm
+        if ((formatCount == 1) && (surfaceFormats[0].format == vk::Format::eUndefined)) {
+            colorFormat = vk::Format::eB8G8R8A8Unorm;
+        } else {
+            // Always select the first available color format
+            // If you need a specific format (e.g. SRGB) you'd need to
+            // iterate over the list of available surface format and
+            // check for it's presence
+            colorFormat = surfaceFormats[0].format;
+        }
+        colorSpace = surfaceFormats[0].colorSpace;
+
+        // Find a queue for both present and graphics
+        queueNodeIndex = context.findQueue(vk::QueueFlagBits::eGraphics, surface);
+    }
+
     // Creates an os specific surface
     // Tries to find a graphics and a present queue
-    void create(GLFWwindow* window) {
-        // Create surface depending on OS
-        if (!surface) {
-            surface = glfw::createWindowSurface(context.instance, window);
-
-            // Get list of supported surface formats
-            std::vector<vk::SurfaceFormatKHR> surfaceFormats = context.physicalDevice.getSurfaceFormatsKHR(surface);
-            auto formatCount = surfaceFormats.size();
-
-
-            // If the surface format list only includes one entry with  vk::Format::eUndefined,
-            // there is no preferered format, so we assume  vk::Format::eB8G8R8A8Unorm
-            if ((formatCount == 1) && (surfaceFormats[0].format == vk::Format::eUndefined)) {
-                colorFormat = vk::Format::eB8G8R8A8Unorm;
-            } else {
-                // Always select the first available color format
-                // If you need a specific format (e.g. SRGB) you'd need to
-                // iterate over the list of available surface format and
-                // check for it's presence
-                colorFormat = surfaceFormats[0].format;
-            }
-            colorSpace = surfaceFormats[0].colorSpace;
-
-            // Find a queue for both present and graphics
-            queueNodeIndex = context.findQueue(vk::QueueFlagBits::eGraphics, surface);
-        }
-
+    void create(const glm::uvec2& size) {
         vk::SwapchainKHR oldSwapchain = swapchain;
         // Get physical device surface properties and formats
         vk::SurfaceCapabilitiesKHR surfCaps = context.physicalDevice.getSurfaceCapabilitiesKHR(surface);
@@ -70,9 +68,8 @@ public:
 
         // width and height are either both -1, or both not -1.
         if (surfCaps.currentExtent.width == -1) {
-            // If the surface size is undefined, the size is set to
-            // the size of the images requested.
-            glfwGetWindowSize(window, &(int&)swapchainExtent.width, &(int&)swapchainExtent.height);
+            swapchainExtent.width = size.x;
+            swapchainExtent.height = size.y;
         } else {
             // If the surface size is defined, the swap chain size must match
             swapchainExtent = surfCaps.currentExtent;
@@ -243,6 +240,7 @@ class SwapChainExample : glfw::Window {
     vks::Context context;
     SwapChain swapchain { context };
     vk::RenderPass renderPass;
+    glm::uvec2 windowSize;
 
     // List of available frame buffers (same as number of swap chain images)
     std::vector<vk::Framebuffer> framebuffers;
@@ -262,9 +260,8 @@ public:
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         auto monitor = glfwGetPrimaryMonitor();
         auto mode = glfwGetVideoMode(monitor);
-        glm::uvec2 windowSize { mode->width / 2 , mode->height / 2 };
+        windowSize = glm::uvec2{ mode->width / 2 , mode->height / 2 };
         glfw::Window::createWindow(windowSize, { 100, 100 });
-        //setSizeLimits(windowSize, windowSize);
         showWindow();
     }
 
@@ -369,7 +366,9 @@ public:
     void createSwapchain() {
         // Using the window surface, construct the swap chain.  The swap chain is dependent on both 
         // the Vulkan instance as well as the window surface, so it needs to happen after
-        swapchain.create(window);
+        swapchain.setWindowSurface(createSurface(context.instance));
+        
+        swapchain.create(windowSize);
 
         if (!renderPass) {
             // Create a renderpass.  
@@ -409,19 +408,21 @@ public:
         createCommandBuffers();
     }
 
-    void windowResized(const glm::uvec2& newSize) override {
+    void onWindowResized(const glm::uvec2& newSize) override {
         context.queue.waitIdle();
         context.device.waitIdle();
         for (const auto& framebuffer : framebuffers) {
             context.device.destroyFramebuffer(framebuffer);
         }
+        windowSize = newSize;
         createSwapchain();
     }
 
     void prepare() {
+        glfw::Window::init();
         // Construct the Vulkan instance just as we did in the init_context example
         context.setValidationEnabled(true);
-        context.requireExtensions(glfw::getRequiredInstanceExtensions());
+        context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
         context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
         context.create();
 

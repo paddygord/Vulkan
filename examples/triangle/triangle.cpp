@@ -11,6 +11,8 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
+#include <glad/glad.h>
+#include <glfw/glfw.hpp>
 #include <common.hpp>
 #include <vks/context.hpp>
 #include <vks/swapchain.hpp>
@@ -80,7 +82,7 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    void windowResized(const glm::uvec2& newSize) override {
+    void onWindowResized(const glm::uvec2& newSize) override {
         queue.waitIdle();
         device.waitIdle();
         size.width = newSize.x;
@@ -92,30 +94,30 @@ public:
 
     void run() {
         prepare();
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
+        runWindowLoop([&] {
             draw();
-        }
+        });
         queue.waitIdle();
         device.waitIdle();
         destroy();
     }
 
     void prepare() {
+        glfw::Window::init();
         // We don't want OpenGL
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
         createWindow({ size.width, size.height }, { 100, 100 });
 
         context.setValidationEnabled(true);
-        context.requireExtensions(glfw::getRequiredInstanceExtensions());
+        context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
         context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
         context.create();
 
         cmdPool = context.getCommandPool();
 
         swapChain.setup(context.physicalDevice, context.device, context.queue, context.queueIndices.graphics);
-        swapChain.setSurface(glfw::createWindowSurface(context.instance, window));
+        swapChain.setSurface(createSurface(context.instance));
         swapChain.create(size);
 
         setupRenderPass();
