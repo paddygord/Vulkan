@@ -35,6 +35,25 @@ namespace openvr {
         return result;
     }
 
+    std::vector<std::string> toStringVec(const std::vector<char>& data) {
+        std::vector<std::string> result;
+        std::string buffer;
+        for (char c : data) {
+            if (c == 0 || c == ' ') {
+                if (!buffer.empty()) {
+                    result.push_back(buffer);
+                    buffer.clear();
+                }
+                if (c == 0) {
+                    break;
+                }
+            } else {
+                buffer += c;
+            }
+        }
+        return result;
+    }
+
     std::set<std::string> toStringSet(const std::vector<char>& data) {
         std::set<std::string> result;
         std::string buffer;
@@ -56,17 +75,17 @@ namespace openvr {
 
     }
 
-    std::set<std::string> getInstanceExtensionsRequired(vr::IVRCompositor* compositor) {
+    std::vector<std::string> getInstanceExtensionsRequired(vr::IVRCompositor* compositor) {
         auto bytesRequired = compositor->GetVulkanInstanceExtensionsRequired(nullptr, 0);
         std::vector<char> extensions;  extensions.resize(bytesRequired);
-        compositor->GetVulkanInstanceExtensionsRequired(extensions.data(), extensions.size());
-        return toStringSet(extensions);
+        compositor->GetVulkanInstanceExtensionsRequired(extensions.data(), (uint32_t)extensions.size());
+        return toStringVec(extensions);
     }
 
     std::set<std::string> getDeviceExtensionsRequired(const vk::PhysicalDevice& physicalDevice, vr::IVRCompositor* compositor) {
         auto bytesRequired = compositor->GetVulkanDeviceExtensionsRequired(physicalDevice, nullptr, 0);
         std::vector<char> extensions;  extensions.resize(bytesRequired);
-        compositor->GetVulkanDeviceExtensionsRequired(physicalDevice, extensions.data(), extensions.size());
+        compositor->GetVulkanDeviceExtensionsRequired(physicalDevice, extensions.data(), (uint32_t)extensions.size());
         return toStringSet(extensions);
     }
 }
@@ -83,7 +102,7 @@ public:
 
     size_t frameIndex { 0 };
 
-    using EyeImages = std::array<vkx::CreateImageResult, 2>;
+    using EyeImages = std::array<vks::Image, 2>;
     using StagingImages = std::array<EyeImages, FRAME_LAG>;
     StagingImages stagingImages;
     std::array<std::vector<vk::CommandBuffer>, FRAME_LAG> stagingBlitCommands;
@@ -119,7 +138,7 @@ public:
             eyeOffsets[eye] = openvr::toGlm(vrSystem->GetEyeToHeadTransform(eye));
             eyeProjections[eye] = openvr::toGlm(vrSystem->GetProjectionMatrix(eye, 0.1f, 256.0f));
             // FIXME Strange distortion and inverted Z view when doing this, but correct head tracking
-            eyeProjections[eye][1][1] *= -1.0f;
+            //eyeProjections[eye][1][1] *= -1.0f;
         });
 
         context.setDeviceExtensionsPicker([this](const vk::PhysicalDevice& physicalDevice)->std::set<std::string> {
@@ -133,7 +152,7 @@ public:
         if (mirrorBlitCommands.empty()) {
             vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
             cmdBufAllocateInfo.commandPool = context.getCommandPool();
-            cmdBufAllocateInfo.commandBufferCount = swapChain.imageCount;
+            cmdBufAllocateInfo.commandBufferCount = swapchain.imageCount;
             mirrorBlitCommands = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
         }
 
@@ -143,13 +162,13 @@ public:
         mirrorBlit.srcOffsets[1] = vk::Offset3D { (int32_t)renderTargetSize.x, (int32_t)renderTargetSize.y, 1 };
         mirrorBlit.dstOffsets[1] = vk::Offset3D { (int32_t)size.x, (int32_t)size.y, 1 };
 
-        for (size_t i = 0; i < swapChain.imageCount; ++i) {
+        for (size_t i = 0; i < swapchain.imageCount; ++i) {
             vk::CommandBuffer& cmdBuffer = mirrorBlitCommands[i];
             cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
             cmdBuffer.begin(vk::CommandBufferBeginInfo {});
-            vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-            cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, swapChain.images[i].image, vk::ImageLayout::eTransferDstOptimal, mirrorBlit, vk::Filter::eNearest);
-            vkx::setImageLayout(cmdBuffer, swapChain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR);
+            context.setImageLayout(cmdBuffer, swapchain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+            cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, swapchain.images[i].image, vk::ImageLayout::eTransferDstOptimal, mirrorBlit, vk::Filter::eNearest);
+            context.setImageLayout(cmdBuffer, swapchain.images[i].image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR);
             cmdBuffer.end();
         }
     }
@@ -197,9 +216,9 @@ public:
                 cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
                 cmdBuffer.begin(vk::CommandBufferBeginInfo {});
                 const auto& stagingImage = stagingImages[frame][eye];
-                vkx::setImageLayout(cmdBuffer, stagingImage.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+                context.setImageLayout(cmdBuffer, stagingImage.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
                 cmdBuffer.blitImage(shapesRenderer->framebuffer.colors[0].image, vk::ImageLayout::eTransferSrcOptimal, stagingImage.image, vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eNearest);
-                vkx::setImageLayout(cmdBuffer, stagingImage.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral);
+                context.setImageLayout(cmdBuffer, stagingImage.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral);
                 cmdBuffer.end();
             }
         }
@@ -230,6 +249,10 @@ public:
         float predictedDisplayTime = frameDuration + vsyncToPhotons;
         vrSystem->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding, (float)predictedDisplayTime, _trackedDevicePose, vr::k_unMaxTrackedDeviceCount);
         auto basePose = openvr::toGlm(_trackedDevicePose[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
+        auto baseRotation = glm::quat_cast(glm::mat3(basePose));
+        baseRotation = glm::quat(baseRotation.w, -baseRotation.x, baseRotation.y, -baseRotation.z);
+        basePose = glm::mat4_cast(baseRotation);
+
         eyeViews = std::array<glm::mat4, 2>{ glm::inverse(basePose * eyeOffsets[0]), glm::inverse(basePose * eyeOffsets[1]) };
         Parent::update(delta);
     }
@@ -238,7 +261,8 @@ public:
         context.device.waitForFences(frameFences[frameIndex], VK_TRUE, UINT64_MAX);
         context.device.resetFences(frameFences[frameIndex]);
 
-        auto currentImage = swapChain.acquireNextImage(shapesRenderer->semaphores.renderStart, frameFences[frameIndex]);
+        auto currentImageResult = swapchain.acquireNextImage(shapesRenderer->semaphores.renderStart, frameFences[frameIndex]);
+        auto currentImage = currentImageResult.value;
 
         shapesRenderer->render();
 
@@ -262,7 +286,7 @@ public:
         vulkanData.m_pPhysicalDevice = (VkPhysicalDevice_T *)context.physicalDevice;
         vulkanData.m_pInstance = (VkInstance_T *)context.instance;
         vulkanData.m_pQueue = (VkQueue_T *)context.queue;
-        vulkanData.m_nQueueFamilyIndex = context.graphicsQueueIndex;
+        vulkanData.m_nQueueFamilyIndex = context.queueIndices.graphics;
         vulkanData.m_nWidth = renderTargetSize.x / 2;
         vulkanData.m_nHeight = renderTargetSize.y;
         vulkanData.m_nFormat = (uint32_t)stagingImages[frameIndex][vr::Eye_Left].format;
@@ -277,7 +301,7 @@ public:
         vulkanData.m_nImage = (uint64_t)(VkImage)stagingImages[frameIndex][vr::Eye_Right].image;
         vr::VRCompositor()->Submit(vr::Eye_Right, &texture, &textureBounds);
 
-        swapChain.queuePresent(stagingBlitCompletes[frameIndex]);
+        swapchain.queuePresent(stagingBlitCompletes[frameIndex]);
         frameIndex = (frameIndex + 1) % FRAME_LAG;
     }
 

@@ -2,12 +2,13 @@
 #include "../vks/context.hpp"
 #include "../vks/swapchain.hpp"
 #include "../shapes.h"
+#include "../shapesRenderer.hpp"
 
 class VrExample : glfw::Window {
     using Parent = glfw::Window;
 public:
-    vkx::Context context;
-    vkx::SwapChain swapChain { context };
+    vks::Context context;
+    vks::SwapChain swapchain;
     std::shared_ptr<vkx::ShapesRenderer> shapesRenderer { std::make_shared<vkx::ShapesRenderer>(context, true) };
     double fpsTimer { 0 };
     float lastFPS { 0 };
@@ -19,15 +20,8 @@ public:
 
     ~VrExample() {
         shapesRenderer.reset();
-
         // Shut down Vulkan 
         context.destroyContext();
-
-        // Shut down GLFW
-        if (nullptr != window) {
-            glfwDestroyWindow(window);
-        }
-        glfwTerminate();
     }
 
     typedef void(*GLFWkeyfun)(GLFWwindow*, int, int, int, int);
@@ -39,26 +33,18 @@ public:
 
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        window = glfwCreateWindow(size.x, size.y, "glfw", nullptr, nullptr);
-        if (!window) {
-            throw std::runtime_error("Unable to create rendering window");
-        }
-        context.addInstanceExtensionPicker([]()->std::set<std::string> {
-            return glfw::getRequiredInstanceExtensions();
-        });
-
-        Parent::prepareWindow();
+        createWindow(size);
+        context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
     }
 
     void prepareVulkan() {
-        //context.setValidationEnabled(true);
-        context.createContext();
+        context.create();
     }
 
     void prepareSwapchain() {
-        swapChain.createSurface(window);
-        auto extent2d = vk::Extent2D { size.x, size.y };
-        swapChain.create(extent2d);
+        swapchain.setup(context.physicalDevice, context.device, context.queue, context.queueIndices.graphics);
+        swapchain.setSurface(createSurface(context.instance));
+        swapchain.create(vk::Extent2D{ size.x, size.y });
     }
 
     void prepareRenderer() {
@@ -69,7 +55,7 @@ public:
 
     virtual void recenter() = 0;
 
-    void keyEvent(int key, int scancode, int action, int mods) override {
+    void onKeyEvent(int key, int scancode, int action, int mods) override {
         switch (key) {
         case GLFW_KEY_R:
             recenter();
@@ -98,17 +84,14 @@ public:
         prepare();
         auto tStart = std::chrono::high_resolution_clock::now();
         static auto lastFrameCounter = frameCounter;
-        while (!glfwWindowShouldClose(window)) {
+        runWindowLoop([&] {
             auto tEnd = std::chrono::high_resolution_clock::now();
             auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-            glfwPollEvents();
             update((float)tDiff / 1000.0f);
             render();
-            ++frameCounter;
             fpsTimer += (float)tDiff;
             if (fpsTimer > 1000.0f) {
-                std::string windowTitle = getWindowTitle();
-                glfwSetWindowTitle(window, windowTitle.c_str());
+                setTitle(getWindowTitle());
                 lastFPS = (float)(frameCounter - lastFrameCounter);
                 lastFPS *= 1000.0f;
                 lastFPS /= (float)fpsTimer;
@@ -116,7 +99,8 @@ public:
                 lastFrameCounter = frameCounter;
             }
             tStart = tEnd;
-        }
+            ++frameCounter;
+        });
     }
 };
 

@@ -178,29 +178,6 @@ public:
         // Load shaders
         pipelineBuilder.loadShader(getAssetPath() + "shaders/indirect/indirect.vert.spv", vk::ShaderStageFlagBits::eVertex);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/indirect/indirect.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
-        /*
-        vks::model::VertexLayout vertexLayout{ {
-                // Location 0 : Position
-                vks::model::VERTEX_COMPONENT_POSITION,
-                // Location 1 : Color
-                vks::model::VERTEX_COMPONENT_COLOR,
-                // Location 2 : Normal
-                vks::model::VERTEX_COMPONENT_NORMAL,
-        } };
-        vks::model::VertexLayout instanceLayout{ {
-                // Location 4 : Position
-                vks::model::VERTEX_COMPONENT_POSITION,
-                // Location 5 : Rotation
-                vks::model::VERTEX_COMPONENT_POSITION,
-                // Location 6 : Scale
-                vks::model::VERTEX_COMPONENT_DUMMY_FLOAT,
-        } };
-
-        pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout, VERTEX_BUFFER_BIND_ID, vk::VertexInputRate::eVertex);
-        pipelineBuilder.vertexInputState.appendVertexLayout(instanceLayout, INSTANCE_BUFFER_BIND_ID, vk::VertexInputRate::eInstance);
-        */
-
         auto bindingDescriptions = pipelineBuilder.vertexInputState.bindingDescriptions;
         auto attributeDescriptions = pipelineBuilder.vertexInputState.attributeDescriptions;
         pipelineBuilder.vertexInputState.bindingDescriptions = {

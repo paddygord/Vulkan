@@ -32,7 +32,7 @@ void gl::init() {
 
 GLuint gl::loadShader(const std::string& shaderSource, GLenum shaderType) {
     GLuint shader = glCreateShader(shaderType);
-    int sizes = shaderSource.size();
+    int sizes = (int)shaderSource.size();
     const GLchar* strings = shaderSource.c_str();
     glShaderSource(shader, 1, &strings, &sizes);
     glCompileShader(shader);

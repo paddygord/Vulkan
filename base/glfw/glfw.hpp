@@ -59,6 +59,10 @@ public:
         }
     }
 
+    void setTitle(const std::string& title) {
+        glfwSetWindowTitle(window, title.c_str());
+    }
+
     void setSizeLimits(const glm::uvec2& minSize, const glm::uvec2& maxSize = {}) {
         glfwSetWindowSizeLimits(window, minSize.x, minSize.y, maxSize.x ? maxSize.x : minSize.x, maxSize.y ? maxSize.y : minSize.y);
     }
