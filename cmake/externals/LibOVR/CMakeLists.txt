@@ -20,8 +20,8 @@ if (WIN32)
 
   ExternalProject_Add(
     ${EXTERNAL_NAME}
-    URL https://s3.amazonaws.com/Oculus/ovr_sdk_win_1.15.0.zip
-    URL_MD5 45e86e55358da52293fb8eb8ef5df5ef
+    URL https://s3.amazonaws.com/Oculus/ovr_sdk_win_1.23.0_public.zip
+    URL_MD5 9d9fa95a876e2907cb290d3bcd4ae3da
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
     PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/LibOVRCMakeLists.txt" <SOURCE_DIR>/CMakeLists.txt
     LOG_DOWNLOAD 1

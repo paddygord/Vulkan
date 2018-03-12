@@ -158,7 +158,7 @@ public:
             ovrMatrix4f ovrPerspectiveProjection =
                 ovrMatrix4f_Projection(erd.Fov, 0.1f, 256.0f, ovrProjection_ClipRangeOpenGL);
             eyeProjections[eye] = ovr::toGlm(ovrPerspectiveProjection);
-            _viewScaleDesc.HmdToEyeOffset[eye] = erd.HmdToEyeOffset;
+            _viewScaleDesc.HmdToEyePose[eye] = erd.HmdToEyePose;
 
             ovrFovPort & fov = _sceneLayer.Fov[eye] = erd.Fov;
             auto eyeSize = ovr_GetFovTextureSize(_session, eye, fov, 1.0f);
@@ -278,8 +278,24 @@ public:
     }
 
     void update(float delta) {
+        ovrResult result;
+        ovrSessionStatus status; 
+        result = ovr_GetSessionStatus(_session, &status);
+        if (!OVR_SUCCESS(result)) {
+            throw std::runtime_error("Can't get session status");
+        }
+
+        while (!status.IsVisible || !status.HmdMounted) {
+            ovrResult result = ovr_GetSessionStatus(_session, &status);
+            if (!OVR_SUCCESS(result)) {
+                throw std::runtime_error("Can't get session status");
+            }
+            Sleep(100);
+        }
+
+        ovr_WaitToBeginFrame(_session, frameCounter);
         ovr::EyePoses eyePoses;
-        ovr_GetEyePoses(_session, frameCounter, true, _viewScaleDesc.HmdToEyeOffset, eyePoses.data(), &_sceneLayer.SensorSampleTime);
+        ovr_GetEyePoses(_session, frameCounter, true, _viewScaleDesc.HmdToEyePose, eyePoses.data(), &_sceneLayer.SensorSampleTime);
         eyeViews = std::array<glm::mat4, 2>{ glm::inverse(ovr::toGlm(eyePoses[0])), glm::inverse(ovr::toGlm(eyePoses[1])) };
         ovr::for_each_eye([&](ovrEyeType eye) {
             const auto& vp = _sceneLayer.Viewport[eye];
@@ -293,10 +309,12 @@ public:
         auto swapchainAcquireResult = swapchain.acquireNextImage(shapesRenderer->semaphores.renderStart);
         auto swapchainIndex = swapchainAcquireResult.value;
 
+        ovrResult result;
+        result = ovr_BeginFrame(_session, frameCounter);
+
         shapesRenderer->render();
 
         int oculusIndex;
-        ovrResult result;
         result = ovr_GetTextureSwapChainCurrentIndex(_session, _eyeTexture, &oculusIndex);
         if (!OVR_SUCCESS(result)) {
             throw std::runtime_error("Unable to acquire next texture index");
@@ -313,7 +331,8 @@ public:
             throw std::runtime_error("Unable to commit swap chain for index " + std::to_string(oculusIndex));
         }
 
-        result = ovr_SubmitFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1);
+        //result = ovr_SubmitFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1);
+        result = ovr_EndFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1);
         if (!OVR_SUCCESS(result)) {
             throw std::runtime_error("Unable to submit frame for index " + std::to_string(oculusIndex));
         }
@@ -330,6 +349,7 @@ public:
                 break;
             }
         }
+
 
         // Blit from the mirror buffer to the swap chain image
         // Technically I could move this to with the other submit, for blitting the framebuffer to the texture,
