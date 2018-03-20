@@ -19,6 +19,7 @@
 #include "buffer.hpp"
 #include "image.hpp"
 #include "filesystem.hpp"
+#include "context.hpp"
 
 namespace vks { namespace texture {
 
@@ -351,6 +352,8 @@ namespace vks { namespace texture {
         }
 #endif
     };
+
+    using Texture2DPtr = std::shared_ptr<Texture2D>;
 
     /** @brief 2D array texture */
     class Texture2DArray : public Texture {

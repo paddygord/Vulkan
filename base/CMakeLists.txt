@@ -34,6 +34,9 @@ target_gli()
 target_vulkan()
 target_assimp()
 target_imgui()
+target_libpng()
+target_nvtt()
+
 
 if (ANDROID)
     add_dependencies(${TARGET_NAME} app-glue)

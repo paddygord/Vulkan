@@ -38,10 +38,6 @@ public:
     static StoragePointer create(size_t size, uint8_t* data);
     static StoragePointer readFile(const std::string& filename);
     StoragePointer createView(size_t size = 0, size_t offset = 0) const;
-
-    // Aliases to prevent having to re-write a ton of code
-    inline size_t getSize() const { return size(); }
-    inline const uint8_t* readData() const { return data(); }
 };
 
 }}  // namespace vks::storage

@@ -14,15 +14,47 @@
 
 #include <iostream>
 #include <mutex>
-#include <filesystem>
 
 #include <vks/gltf.hpp>
 #include <vks/context.hpp>
 #include <vks/filesystem.hpp>
 #include <vks/storage.hpp>
+
+#include <textures.hpp>
 #include <pbr.hpp>
 
+#include <filesystem>
 namespace fs = std::experimental::filesystem;
+
+class TextureRegistry {
+public:
+
+    TextureRegistry(const vks::Context& context) : context(context) {
+
+    }
+
+private:
+    using Texture2DPtr = std::shared_ptr<vks::texture::Texture2D>;
+    using Vector = std::vector<Texture2DPtr>;
+    Vector textures;
+    vks::Context context;
+};
+
+namespace pbr {
+    struct Material {
+        // Color, Normal, Metallic/Roughness, spare
+        glm::ivec4 colorNormalMetallicRoughnessSpare;
+        // Emissive, Occlusion, spare spare
+        glm::ivec4 emissiveOcclusionSpare2;
+        glm::vec4 baseColorFactor{ 1.0 };
+        glm::vec4 metallicRoughnessNormalScaleOcclusionStrength;
+        glm::vec4 emissiveFactorSpare2;
+        // FIXME double sided
+        // FIXME alpha mode / cutoff
+        // FIXME texture coords (TEXCOORD_0 / TEXCOORD_1 / ... )
+    };
+}
+
 
 // Vertex layout for the models
 vks::model::VertexLayout vertexLayout{ {
@@ -31,11 +63,6 @@ vks::model::VertexLayout vertexLayout{ {
     vks::model::VERTEX_COMPONENT_UV,
 } };
 
-inline bool ends_with(const std::string& value, const std::string& ending) {
-    if (ending.size() > value.size())
-        return false;
-    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
-}
 
 // Returns the passed value rounded up to the next 4 byte aligned value, if it's not already 4 byte aligned
 template <typename T>
@@ -51,7 +78,7 @@ using GltfPrimitivePtr = std::shared_ptr<GltfPrimitive>;
 struct GltfBridge {
     vks::Buffer buffer;
     std::unordered_map<vks::gltf::BufferViewPtr, vk::DeviceSize> viewOffsets;
-    std::vector<vks::texture::Texture2D> textures;
+    std::vector<vks::texture::Texture2DPtr> textures;
     std::unordered_map<vks::gltf::ImagePtr, size_t> textureIndices;
 
     std::vector<GltfPrimitivePtr> primitives;
@@ -279,14 +306,9 @@ void GltfBridge::parse(const vks::Context& context, const vks::gltf::GltfPtr& gl
     for (const auto& imagePtr : gltf->images) {
         const auto& image = *imagePtr;
         auto uri = image.uri;
-        size_t pos = uri.find(".png");
-        uri = uri.substr(0, pos);
-        uri = uri + ".ktx";
         auto storagePath = fs::path(gltf->baseUri).append(uri).string();
-        uri = gltf->baseUri + "/" + uri;
         textureIndices.insert({ imagePtr, textures.size() });
-        textures.push_back({});
-        textures.back().loadFromFile(context, storagePath, vk::Format::eR8G8B8A8Unorm);
+        textures.push_back(vkx::texture::loadTexture2D(context, storagePath));
     }
 
     // Make the binary data accessible
@@ -511,10 +533,10 @@ public:
         std::vector<vk::DescriptorImageInfo> imageDescriptors;
         {
             const auto& textures = models.corset.textures;
-            uint32_t textureCount = textures.size();
+            uint32_t textureCount = (uint32_t)textures.size();
             imageDescriptors.resize(textureCount);
             for (size_t i = 0; i < textureCount; ++i) {
-                imageDescriptors[i] = textures[i].descriptor;
+                imageDescriptors[i] = textures[i]->descriptor;
             }
             writeDescriptorSets.push_back({ descriptorSets.object, 5, 0, textureCount, vDT::eCombinedImageSampler, imageDescriptors.data() });
         }
