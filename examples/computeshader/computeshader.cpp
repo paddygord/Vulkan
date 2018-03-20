@@ -59,13 +59,8 @@ public:
 
     void prepareDescriptors() {
         std::vector<vk::DescriptorPoolSize> poolSizes{
-            { vk::DescriptorType::eUniformBuffer, 2 },
-            // Graphics pipeline uses image samplers for display
-            { vk::DescriptorType::eCombinedImageSampler, 4 },
-            // Compute pipeline uses a sampled image for reading
-            { vk::DescriptorType::eSampledImage, 1 },
-            // Compute pipelines uses a storage image to write result
-            { vk::DescriptorType::eStorageImage, 1 },
+            // Compute pipelines uses storage images for reading and writing
+            { vk::DescriptorType::eStorageImage, 2 },
         };
         descriptorPool = device.createDescriptorPool({ {}, 3, (uint32_t)poolSizes.size(), poolSizes.data() });
 
@@ -75,7 +70,7 @@ public:
 
         std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Sampled image (read)
-            { 0, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eCompute },
+            { 0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
             // Binding 1 : Sampled image (write)
             { 1, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute },
         };
@@ -93,7 +88,7 @@ public:
 
         std::vector<vk::WriteDescriptorSet> computeWriteDescriptorSets{
             // Binding 0 : Sampled image (read)
-            { descriptorSet, 0, 0, 1, vk::DescriptorType::eSampledImage, &computeTexDescriptors[0] },
+            { descriptorSet, 0, 0, 1, vk::DescriptorType::eStorageImage, &computeTexDescriptors[0] },
             // Binding 1 : Sampled image (write)
             { descriptorSet, 1, 0, 1, vk::DescriptorType::eStorageImage, &computeTexDescriptors[1] },
         };
@@ -235,7 +230,10 @@ public:
         textureColorMap.destroy();
     }
 
-    void loadAssets() override { textureColorMap.loadFromFile(context, getAssetPath() + "textures/het_kanonschot_rgba8.ktx", vk::Format::eR8G8B8A8Unorm); }
+    void loadAssets() override { 
+        textureColorMap.loadFromFile(context, getAssetPath() + "textures/het_kanonschot_rgba8.ktx", 
+            vk::Format::eR8G8B8A8Unorm, vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage); 
+    }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
@@ -281,10 +279,6 @@ public:
             { vk::DescriptorType::eUniformBuffer, 2 },
             // Graphics pipeline uses image samplers for display
             { vk::DescriptorType::eCombinedImageSampler, 4 },
-            // Compute pipeline uses a sampled image for reading
-            { vk::DescriptorType::eSampledImage, 1 },
-            // Compute pipelines uses a storage image to write result
-            { vk::DescriptorType::eStorageImage, 1 },
         };
         descriptorPool = device.createDescriptorPool({ {}, 3, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
