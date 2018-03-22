@@ -232,9 +232,8 @@ namespace vks {
             instance = vk::createInstance(instanceCreateInfo);
         }
 
-        void create() {
-            createInstance();
-            pickDevice();
+        void createDevice(const vk::SurfaceKHR& surface = nullptr) {
+            pickDevice(surface);
             buildDevice();
 
             if (enableValidation) {
@@ -253,8 +252,10 @@ namespace vks {
             queue = device.getQueue(queueIndices.graphics, 0);
         }
 
-        void destroyContext() {
-            queue.waitIdle();
+        void destroy() {
+            if (queue) {
+                queue.waitIdle();
+            }
             device.waitIdle();
             for (const auto& trash : dumpster) {
                 trash();
@@ -273,7 +274,7 @@ namespace vks {
             instance.destroy();
         }
 
-        uint32_t findQueue(const vk::QueueFlags& desiredFlags, const vk::SurfaceKHR& presentSurface = vk::SurfaceKHR()) const {
+        uint32_t findQueue(const vk::QueueFlags& desiredFlags, const vk::SurfaceKHR& presentSurface = nullptr) const {
             uint32_t bestMatch{ VK_QUEUE_FAMILY_IGNORED };
             VkQueueFlags bestMatchExtraFlags{ VK_QUEUE_FLAG_BITS_MAX_ENUM };
             size_t queueCount = queueFamilyProperties.size();
@@ -284,6 +285,9 @@ namespace vks {
                     continue;
                 }
 
+                if (presentSurface && VK_FALSE == physicalDevice.getSurfaceSupportKHR(i, presentSurface)) {
+                    continue;
+                }
                 VkQueueFlags currentExtraFlags = (currentFlags & ~desiredFlags).operator VkQueueFlags();
 
                 // If we find an exact match, return immediately
@@ -430,7 +434,7 @@ namespace vks {
             });
         }
     protected:
-        void pickDevice() {
+        void pickDevice(const vk::SurfaceKHR& surface) {
             // Physical device
             physicalDevices = instance.enumeratePhysicalDevices();
 
@@ -452,7 +456,7 @@ namespace vks {
             deviceFeatures = physicalDevice.getFeatures();
             // Gather physical device memory properties
             deviceMemoryProperties = physicalDevice.getMemoryProperties();
-            queueIndices.graphics = findQueue(vk::QueueFlagBits::eGraphics);
+            queueIndices.graphics = findQueue(vk::QueueFlagBits::eGraphics, surface);
             queueIndices.compute = findQueue(vk::QueueFlagBits::eCompute);
             queueIndices.transfer = findQueue(vk::QueueFlagBits::eTransfer);
         }

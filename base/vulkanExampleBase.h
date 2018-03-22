@@ -135,6 +135,7 @@ protected:
     const vk::Queue& queue{ context.queue };
     vkx::ui::UIOverlay ui{ context };
 
+    vk::SurfaceKHR surface;
     // Wraps the swap chain to present images (framebuffers) to the windowing system
     vks::SwapChain swapChain;
 
@@ -221,6 +222,7 @@ protected:
 
     // Setup the vulkan instance, enable required extensions and connect to the physical device (GPU)
     virtual void initVulkan();
+    virtual void setupSwapchain();
     virtual void setupWindow();
     virtual void getEnabledFeatures() {}
     // A default draw implementation

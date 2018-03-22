@@ -56,7 +56,7 @@ ExampleBase::~ExampleBase() {
 
     ui.destroy();
 
-    context.destroyContext();
+    context.destroy();
 
 #if defined(__ANDROID__)
     // todo : android cleanup (if required)
@@ -70,8 +70,9 @@ void ExampleBase::run() {
 // Android initialization is handled in APP_CMD_INIT_WINDOW event
 #if !defined(__ANDROID__)
     glfwInit();
-    initVulkan();
     setupWindow();
+    initVulkan();
+    setupSwapchain();
     prepare();
 #endif
 
@@ -92,9 +93,14 @@ void ExampleBase::initVulkan() {
     context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
 #endif
     context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
-    context.create();
+    context.createInstance();
 
-    swapChain.setup(context.physicalDevice, context.device, context.queue, context.queueIndices.graphics);
+#if defined(__ANDROID__)
+    surface = context.instance.createAndroidSurfaceKHR({ {}, window });
+#else
+    surface = glfw::Window::createWindowSurface(window, context.instance);
+#endif
+    context.createDevice(surface);
 
     // Find a suitable depth format
     depthFormat = context.getSupportedDepthFormat();
@@ -113,6 +119,11 @@ void ExampleBase::initVulkan() {
     renderWaitSemaphores.push_back(semaphores.acquireComplete);
     renderWaitStages.push_back(vk::PipelineStageFlagBits::eBottomOfPipe);
     renderSignalSemaphores.push_back(semaphores.renderComplete);
+}
+
+void ExampleBase::setupSwapchain() {
+    swapChain.setup(context.physicalDevice, context.device, context.queue, context.queueIndices.graphics);
+    swapChain.setSurface(surface);
 }
 
 bool ExampleBase::platformLoopCondition() {
@@ -859,7 +870,6 @@ void ExampleBase::setupWindow() {
     size.width = ANativeWindow_getWidth(window);
     size.height = ANativeWindow_getHeight(window);
     camera.setAspectRatio(size);
-    swapChain.setSurface(context.instance.createAndroidSurfaceKHR({ {}, window }));
 }
 
 #else
@@ -900,7 +910,6 @@ void ExampleBase::setupWindow() {
     if (!window) {
         throw std::runtime_error("Could not create window");
     }
-    swapChain.setSurface(glfw::Window::createWindowSurface(window, context.instance));
 }
 
 void ExampleBase::mouseAction(int button, int action, int mods) {

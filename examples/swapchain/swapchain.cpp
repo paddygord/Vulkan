@@ -356,7 +356,7 @@ public:
             // Set target frame buffer
             renderPassBeginInfo.framebuffer = framebuffers[i];
             commandBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-            commandBuffer.begin(vk::CommandBufferBeginInfo {});
+            commandBuffer.begin({});
             commandBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
             commandBuffer.endRenderPass();
             commandBuffer.end();

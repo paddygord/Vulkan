@@ -112,7 +112,8 @@ public:
         context.setValidationEnabled(true);
         context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
         context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
-        context.create();
+        context.createInstance();
+
 
         cmdPool = context.getCommandPool();
 
