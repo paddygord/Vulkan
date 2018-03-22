@@ -38,7 +38,6 @@ public:
         vks::model::Model ufo;
         vks::model::Model ufoGlow;
         vks::model::Model skyBox;
-        vks::model::Model quad;
     } meshes;
 
     struct {
@@ -55,11 +54,8 @@ public:
     };
 
     struct UBOBlur {
-        int32_t texWidth = TEX_DIM;
-        int32_t texHeight = TEX_DIM;
         float blurScale = 1.0f;
         float blurStrength = 1.5f;
-        uint32_t horizontal;
     };
 
     struct {
@@ -68,14 +64,15 @@ public:
     } ubos;
 
     struct {
-        vk::Pipeline blur;
+        vk::Pipeline blurVert;
+        vk::Pipeline blurHorz;
         vk::Pipeline colorPass;
         vk::Pipeline phongPass;
         vk::Pipeline skyBox;
     } pipelines;
 
     struct {
-        vk::PipelineLayout radialBlur;
+        vk::PipelineLayout blur;
         vk::PipelineLayout scene;
     } pipelineLayouts;
 
@@ -88,7 +85,10 @@ public:
 
     // Descriptor set layout is shared amongst
     // all descriptor sets
-    vk::DescriptorSetLayout descriptorSetLayout;
+    struct {
+        vk::DescriptorSetLayout blur;
+        vk::DescriptorSetLayout scene;
+    } descriptorSetLayouts;
 
     VulkanExample() : vkx::OffscreenExampleBase() {
         camera.setPosition(glm::vec3(0.0f, 0.0f, -10.25f));
@@ -101,21 +101,22 @@ public:
         // Clean up used Vulkan resources 
         // Note : Inherited destructor cleans up resources stored in base class
 
-        device.destroyPipeline(pipelines.blur);
+        device.destroyPipeline(pipelines.blurVert);
+        device.destroyPipeline(pipelines.blurHorz);
         device.destroyPipeline(pipelines.phongPass);
         device.destroyPipeline(pipelines.colorPass);
         device.destroyPipeline(pipelines.skyBox);
 
-        device.destroyPipelineLayout(pipelineLayouts.radialBlur);
+        device.destroyPipelineLayout(pipelineLayouts.blur);
         device.destroyPipelineLayout(pipelineLayouts.scene);
 
-        device.destroyDescriptorSetLayout(descriptorSetLayout);
+        device.destroyDescriptorSetLayout(descriptorSetLayouts.blur);
+        device.destroyDescriptorSetLayout(descriptorSetLayouts.scene);
 
         // Meshes
         meshes.ufo.destroy();
         meshes.ufoGlow.destroy();
         meshes.skyBox.destroy();
-        meshes.quad.destroy();
 
         // Uniform buffers
         uniformData.vsScene.destroy();
@@ -176,11 +177,9 @@ public:
             renderPassBeginInfo.pClearValues = clearValues;
             // Draw a vertical blur pass from framebuffer 1's texture into framebuffer 2
             offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.radialBlur, 0, descriptorSets.verticalBlur, nullptr);
-            offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blur);
-            offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offset);
-            offscreen.cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-            offscreen.cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
+            offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.blur, 0, descriptorSets.verticalBlur, nullptr);
+            offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blurVert);
+            offscreen.cmdBuffer.draw(3, 1, 0, 0);
             offscreen.cmdBuffer.endRenderPass();
         }
         offscreen.cmdBuffer.end();
@@ -207,45 +206,10 @@ public:
 
         // Render vertical blurred scene applying a horizontal blur
         if (bloom) {
-            context.setImageLayout(
-                cmdBuffer,
-                offscreen.framebuffers[1].colors[0].image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::eColorAttachmentOptimal,
-                vk::ImageLayout::eShaderReadOnlyOptimal);
-
-            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.radialBlur, 0, descriptorSets.horizontalBlur, nullptr);
-            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blur);
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offset);
-            cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
-            cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.blur, 0, descriptorSets.horizontalBlur, nullptr);
+            cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blurHorz);
+            cmdBuffer.draw(3, 1, 0, 0);
         }
-    }
-
-    // Setup vertices for a single uv-mapped quad
-    void generateQuad() {
-        struct Vertex {
-            glm::vec3 pos;
-            glm::vec2 uv;
-            glm::vec3 col;
-            glm::vec3 normal;
-        };
-
-#define QUAD_COLOR_NORMAL { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f }
-        std::vector<Vertex> vertexBuffer =
-        {
-            { { 1.0f, 1.0f, 0.0f },{ 1.0f, 1.0f }, QUAD_COLOR_NORMAL },
-            { { 0.0f, 1.0f, 0.0f },{ 0.0f, 1.0f }, QUAD_COLOR_NORMAL },
-            { { 0.0f, 0.0f, 0.0f },{ 0.0f, 0.0f }, QUAD_COLOR_NORMAL },
-            { { 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f }, QUAD_COLOR_NORMAL }
-        };
-#undef QUAD_COLOR_NORMAL
-        meshes.quad.vertices = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
-
-        // Setup indices
-        std::vector<uint32_t> indexBuffer = { 0,1,2, 2,3,0 };
-        meshes.quad.indexCount = (uint32_t)indexBuffer.size();
-        meshes.quad.indices = context.createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
     }
 
     void setupDescriptorPool() {
@@ -260,63 +224,52 @@ public:
     }
 
     void setupDescriptorSetLayout() {
-        // Textured quad pipeline layout
+        // Quad pipeline layout
         std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings {
-            // Binding 0 : Vertex shader uniform buffer
-            vk::DescriptorSetLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1,  vk::ShaderStageFlagBits::eVertex },
-            // Binding 1 : Fragment shader image sampler
-            vk::DescriptorSetLayoutBinding{ 1, vk::DescriptorType::eCombinedImageSampler, 1,  vk::ShaderStageFlagBits::eFragment },
-            // Binding 2 : Framgnet shader uniform buffer
-            vk::DescriptorSetLayoutBinding{ 2, vk::DescriptorType::eUniformBuffer, 1,  vk::ShaderStageFlagBits::eFragment },
+            { 0, vk::DescriptorType::eUniformBuffer, 1,  vk::ShaderStageFlagBits::eFragment },
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1,  vk::ShaderStageFlagBits::eFragment },
         };
+        descriptorSetLayouts.blur = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayouts.blur = device.createPipelineLayout({ {}, 1, &descriptorSetLayouts.blur });
 
-        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
 
-        vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{ {}, 1, &descriptorSetLayout };
-
-        pipelineLayouts.radialBlur = device.createPipelineLayout(pipelineLayoutCreateInfo);
-        // Offscreen pipeline layout
-        pipelineLayouts.scene = device.createPipelineLayout(pipelineLayoutCreateInfo);
+        setLayoutBindings = {
+            // Binding 0 : Vertex shader uniform buffer
+            { 0, vk::DescriptorType::eUniformBuffer, 1,  vk::ShaderStageFlagBits::eVertex },
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1,  vk::ShaderStageFlagBits::eFragment },
+            { 2, vk::DescriptorType::eUniformBuffer, 1,  vk::ShaderStageFlagBits::eFragment },
+        };
+        descriptorSetLayouts.scene = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        pipelineLayouts.scene = device.createPipelineLayout({ {}, 1, &descriptorSetLayouts.scene });
     }
 
     void setupDescriptorSet() {
-        const auto allocInfo = vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout };
 
         // Full screen blur descriptor sets
+
         // Vertical blur
-        descriptorSets.verticalBlur = device.allocateDescriptorSets(allocInfo)[0];
+        descriptorSets.verticalBlur = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.blur })[0];
 
         vk::DescriptorImageInfo texDescriptorVert{
             offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal
         };
-
         device.updateDescriptorSets({
-            // Binding 0 : Vertex shader uniform buffer
-            vk::WriteDescriptorSet{ descriptorSets.verticalBlur, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsScene.descriptor },
-            // Binding 1 : Fragment shader texture sampler
-            vk::WriteDescriptorSet{ descriptorSets.verticalBlur, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorVert },
-            // Binding 2 : Fragment shader uniform buffer
-            vk::WriteDescriptorSet{ descriptorSets.verticalBlur, 2, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fsVertBlur.descriptor },
-            }, {});
+            { descriptorSets.verticalBlur, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fsVertBlur.descriptor },
+            { descriptorSets.verticalBlur, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorVert },
+        }, {});
 
         // Horizontal blur
-        descriptorSets.horizontalBlur = device.allocateDescriptorSets(allocInfo)[0];
-
+        descriptorSets.horizontalBlur = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.blur })[0];
         vk::DescriptorImageInfo texDescriptorHorz{
-            offscreen.framebuffers[1].colors[0].sampler, offscreen.framebuffers[1].colors[0].view, vk::ImageLayout::eGeneral
+            offscreen.framebuffers[1].colors[0].sampler, offscreen.framebuffers[1].colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal
         };
-
         device.updateDescriptorSets({
-            // Binding 0 : Vertex shader uniform buffer
-            vk::WriteDescriptorSet{ descriptorSets.horizontalBlur, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsScene.descriptor },
-            // Binding 1 : Fragment shader texture sampler
-            vk::WriteDescriptorSet{ descriptorSets.horizontalBlur, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorVert },
-            // Binding 2 : Fragment shader uniform buffer
-            vk::WriteDescriptorSet{ descriptorSets.horizontalBlur, 2, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fsHorzBlur.descriptor },
-            }, {});
+            { descriptorSets.horizontalBlur, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fsHorzBlur.descriptor },
+            { descriptorSets.horizontalBlur, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorHorz },
+        }, {});
 
         // 3D scene
-        descriptorSets.scene = device.allocateDescriptorSets(allocInfo)[0];
+        descriptorSets.scene = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.scene })[0];
 
         device.updateDescriptorSets({
             // Binding 0 : Vertex shader uniform buffer
@@ -324,7 +277,7 @@ public:
             }, {});
 
         // Skybox
-        descriptorSets.skyBox = device.allocateDescriptorSets(allocInfo)[0];
+        descriptorSets.skyBox = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.scene })[0];
 
         // vk::Image descriptor for the cube map texture
         vk::DescriptorImageInfo cubeMapDescriptor{
@@ -349,7 +302,7 @@ public:
         } });
 
         {
-            vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayouts.radialBlur, renderPass };
+            vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayouts.blur, offscreen.renderPass };
             pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
             pipelineBuilder.colorBlendState.blendAttachmentStates.resize(1);
             auto& blendAttachmentState = pipelineBuilder.colorBlendState.blendAttachmentStates[0];
@@ -364,7 +317,22 @@ public:
             pipelineBuilder.vertexInputState = vertexInputState;
             pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/gaussblur.vert.spv", vk::ShaderStageFlagBits::eVertex);
             pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/gaussblur.frag.spv", vk::ShaderStageFlagBits::eFragment);
-            pipelines.blur = pipelineBuilder.create(context.pipelineCache);
+
+            // Specialization info to compile two versions of the shader without 
+            // relying on shader branching at runtime
+            uint32_t blurdirection = 0;
+            vk::SpecializationMapEntry specializationMapEntry{ 0, 0, sizeof(uint32_t) };
+            vk::SpecializationInfo specializationInfo{ 1, &specializationMapEntry, sizeof(uint32_t), &blurdirection };
+
+            // Vertical blur pipeline
+            pipelineBuilder.shaderStages[1].pSpecializationInfo = &specializationInfo;
+            pipelines.blurVert = pipelineBuilder.create(context.pipelineCache);
+
+            // Horizontal blur pipeline
+            blurdirection = 1;
+            pipelineBuilder.renderPass = renderPass;
+            pipelines.blurHorz = pipelineBuilder.create(context.pipelineCache);
+
         }
 
         // Vertical gauss blur
@@ -443,23 +411,19 @@ public:
         uniformData.vsScene.copy(ubos.scene);
 
         // Fragment shader
+
         // Vertical
-        ubos.vertBlur.horizontal = 0;
         uniformData.fsVertBlur.copy(ubos.vertBlur);
 
         // Horizontal
-        ubos.horzBlur.horizontal = 1;
         uniformData.fsHorzBlur.copy(ubos.horzBlur);
     }
 
-    void loadMeshes() {
+    void loadAssets() override {
         meshes.ufo.loadFromFile(context, getAssetPath() + "models/retroufo.dae", vertexLayout, 0.05f);
         meshes.ufoGlow.loadFromFile(context, getAssetPath() + "models/retroufo_glow.dae", vertexLayout, 0.05f);
         meshes.skyBox.loadFromFile(context, getAssetPath() + "models/cube.obj", vertexLayout, 1.0f);
-    }
-
-    void loadTextures() {
-        textures.cubemap.loadFromFile(context,  getAssetPath() + "textures/cubemap_space.ktx", vk::Format::eR8G8B8A8Unorm);
+        textures.cubemap.loadFromFile(context, getAssetPath() + "textures/cubemap_space.ktx", vk::Format::eR8G8B8A8Unorm);
     }
 
     void draw() override {
@@ -482,8 +446,6 @@ public:
         offscreen.framebuffers.resize(2);
         offscreen.size = glm::uvec2(TEX_DIM);
         Parent::prepare();
-        generateQuad();
-        loadMeshes();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
