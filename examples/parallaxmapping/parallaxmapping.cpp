@@ -70,7 +70,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     VulkanExample() {
-        camera.setRotation({ 40.0, -33.0, 0.0 });
+        camera.setRotation({ 0.0, 15.0, 0.0 });
+        camera.setRotation({ 0.1, 0.1, -2.5 });
         camera.dolly(-2.25f);
         rotationSpeed = 0.25f;
         paused = true;

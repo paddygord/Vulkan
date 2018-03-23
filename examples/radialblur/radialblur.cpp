@@ -373,6 +373,18 @@ public:
         displayTexture = !displayTexture;
         buildCommandBuffers();
     }
+
+
+    void OnUpdateUIOverlay() override {
+        if (ui.header("Settings")) {
+            if (ui.checkBox("Radial blur", &blur)) {
+                buildCommandBuffers();
+            }
+            if (ui.checkBox("Dsiplay render target", &displayTexture)) {
+                buildCommandBuffers();
+            }
+        }
+    }
 };
 
 RUN_EXAMPLE(VulkanExample)

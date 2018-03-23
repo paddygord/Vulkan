@@ -60,7 +60,8 @@ public:
     glm::vec3 meshPos = glm::vec3(0.0f, -1.5f, 0.0f);
 
     VulkanExample() {
-        camera.setRotation({ -11.25f, 45.0f, 0.0f });
+        camera.setRotation({ -2.5f, 0.0f, 0.0f });
+        camera.setPosition({ 0.0f, 1.0f, 0.0f });
         camera.dolly(-6.5f);
         timerSpeed *= 0.25f;
         title = "Vulkan Example - Offscreen rendering";
