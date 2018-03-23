@@ -55,6 +55,7 @@ bool Model::loadFromFile(const Context& context,
     for (unsigned int i = 0; i < pScene->mNumMeshes; i++) {
         const aiMesh* paiMesh = pScene->mMeshes[i];
         parts[i] = {};
+        parts[i].name = paiMesh->mName.C_Str();
         parts[i].vertexBase = vertexCount;
         parts[i].indexBase = indexCount;
         parts[i].vertexCount = paiMesh->mNumVertices;

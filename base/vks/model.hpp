@@ -145,6 +145,7 @@ struct Model {
 
     /** @brief Stores vertex and index base and counts for each part of a model */
     struct ModelPart {
+        std::string name;
         uint32_t vertexBase;
         uint32_t vertexCount;
         uint32_t indexBase;
