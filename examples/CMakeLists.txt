@@ -54,12 +54,14 @@ if ((NOT ANDROID) AND WIN32)
 
 if (TARGET vr_oculus)
     set(TARGET_NAME vr_oculus)
+    set_target_properties(${TARGET_NAME} PROPERTIES FOLDER "examples/vr")
     target_oculus()
 endif()
 
 
 if (TARGET vr_openvr) 
     set(TARGET_NAME vr_openvr)
+    set_target_properties(${TARGET_NAME} PROPERTIES FOLDER "examples/vr")
     target_openvr()
 endif()
 

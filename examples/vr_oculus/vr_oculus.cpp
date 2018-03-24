@@ -325,31 +325,16 @@ public:
 
         // The lack of explicit synchronization here is baffling.  One of these calls must be blocking, 
         // meaning there would have to be some backend use of waitIdle or fences, meaning less optimal 
-        // performance than with semaphors
+        // performance than with semaphores
         result = ovr_CommitTextureSwapChain(_session, _eyeTexture);
         if (!OVR_SUCCESS(result)) {
             throw std::runtime_error("Unable to commit swap chain for index " + std::to_string(oculusIndex));
         }
 
-        //result = ovr_SubmitFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1);
         result = ovr_EndFrame(_session, frameCounter, &_viewScaleDesc, &headerList, 1);
         if (!OVR_SUCCESS(result)) {
             throw std::runtime_error("Unable to submit frame for index " + std::to_string(oculusIndex));
         }
-
-        if (result != ovrSuccess) {
-            switch (result) {
-            case ovrSuccess_NotVisible:
-                Sleep(100);
-                break;
-
-            case ovrSuccess_BoundaryInvalid:
-            case ovrSuccess_DeviceUnavailable:
-            default:
-                break;
-            }
-        }
-
 
         // Blit from the mirror buffer to the swap chain image
         // Technically I could move this to with the other submit, for blitting the framebuffer to the texture,
