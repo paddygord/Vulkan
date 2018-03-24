@@ -8,15 +8,15 @@
 
 #include "vulkanExampleBase.h"
 
+// Vertex layout for the models
+static const vks::model::VertexLayout VERTEX_LAYOUT{ {
+    vks::model::VERTEX_COMPONENT_POSITION,
+    vks::model::VERTEX_COMPONENT_NORMAL,
+    vks::model::VERTEX_COMPONENT_COLOR,
+} };
+
 class VulkanExample : public vkx::ExampleBase {
 public:
-    // Vertex layout for the models
-    vks::model::VertexLayout vertexLayout{ {
-        vks::model::VERTEX_COMPONENT_POSITION,
-        vks::model::VERTEX_COMPONENT_NORMAL,
-        vks::model::VERTEX_COMPONENT_COLOR,
-    } };
-
     vks::model::Model scene;
 
     struct UBOGS {
@@ -49,13 +49,10 @@ public:
     }
 
     ~VulkanExample() {
-        vkDestroyPipeline(device, pipeline, nullptr);
-
-        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-
+        device.destroy(pipeline);
+        device.destroy(pipelineLayout);
+        device.destroy(descriptorSetLayout);
         scene.destroy();
-
         uniformBufferGS.destroy();
     }
 
@@ -74,21 +71,23 @@ public:
     void updateDrawCommandBuffer(const vk::CommandBuffer& commandBuffer) override {
         std::vector<vk::Viewport> viewports{
             // Left
-            vk::Viewport{ 0, 0, size.width / 2.0f, size.height, 1, 0 },
+            vk::Viewport{ 0.0f, 0.0f, (float)size.width / 2.0f, (float)size.height, 0.0f, 1.0f},
             // Right
-            vk::Viewport{ size.width / 2.0f, 0, size.width / 2.0f, size.height, 1, 0 },
+            vk::Viewport{ (float)size.width / 2.0f, 0.0f, (float)size.width / 2.0f, (float)size.height, 0.0f, 1.0f },
         };
         commandBuffer.setViewport(0, viewports);
 
         std::vector<vk::Rect2D> scissorRects{
-            vk::Rect2D{ { 0, 0, }, { size.width / 2, size.height } },
-            vk::Rect2D{ { size.width / 2, 0 }, { size.width / 2, size.height } },
+            vk::Rect2D{ vk::Offset2D{ 0, 0, },
+                        vk::Extent2D{ size.width / 2, size.height } },
+            vk::Rect2D{ vk::Offset2D{ (int32_t)size.width / 2, 0 }, vk::Extent2D{ size.width / 2, size.height } },
         };
         commandBuffer.setScissor(0, scissorRects);
         commandBuffer.setLineWidth(1.0f);
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         commandBuffer.bindVertexBuffers(0, scene.vertices.buffer, { 0 });
-        commandBuffer.bindIndexBuffer(scene.vertices.buffer, { 0 }, vk::IndexType::eUint32);
+        commandBuffer.bindIndexBuffer(scene.indices.buffer, { 0 }, vk::IndexType::eUint32);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
         commandBuffer.drawIndexed(scene.indexCount, 1, 0, 0, 0);
     }
     /*
@@ -119,7 +118,7 @@ public:
     }
     */
 
-    void loadAssets() { scene.loadFromFile(context, getAssetPath() + "models/sampleroom.dae", vertexLayout, 0.25f); }
+    void loadAssets() { scene.loadFromFile(context, getAssetPath() + "models/sampleroom.dae", VERTEX_LAYOUT, 0.25f); }
 
     void setupDescriptorPool() {
         // Example uses two ubos
@@ -149,17 +148,8 @@ public:
 
     void preparePipelines() {
         vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
-
-        // Vertex bindings an attributes
-        pipelineBuilder.vertexInputState.bindingDescriptions = {
-            { 0, vertexLayout.stride(), vk::VertexInputRate::eVertex },
-        };
-        pipelineBuilder.vertexInputState.attributeDescriptions = {
-            { 0, 0, vk::Format::eR32G32B32Sfloat, 0 },
-            { 1, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3 },
-            { 2, 0, vk::Format::eR32G32B32Sfloat, sizeof(float) * 6 },
-        };
-
+        pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        pipelineBuilder.vertexInputState.appendVertexLayout(VERTEX_LAYOUT);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/viewportarray/scene.vert.spv", vk::ShaderStageFlagBits::eVertex);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/viewportarray/scene.frag.spv", vk::ShaderStageFlagBits::eFragment);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/viewportarray/multiview.geom.spv", vk::ShaderStageFlagBits::eGeometry);
@@ -170,8 +160,6 @@ public:
     void prepareUniformBuffers() {
         // Geometry shader uniform buffer block
         uniformBufferGS = context.createUniformBuffer(uboGS);
-        // Map persistent
-        uniformBufferGS.map();
         updateUniformBuffers();
     }
 
@@ -187,13 +175,8 @@ public:
         float top = wd2;
         float bottom = -wd2;
 
-        glm::vec3 camFront;
-        camFront.x = -cos(glm::radians(rotation.x)) * sin(glm::radians(rotation.y));
-        camFront.y = sin(glm::radians(rotation.x));
-        camFront.z = cos(glm::radians(rotation.x)) * cos(glm::radians(rotation.y));
-        camFront = glm::normalize(camFront);
-        camera.yawPitch glm::vec3 camRight = glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f)));
-
+        glm::vec3 camFront = camera.getFront();
+        glm::vec3 camRight = glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f)));
         glm::mat4 rotM = glm::mat4(1.0f);
         glm::mat4 transM;
 
@@ -237,11 +220,11 @@ public:
     void viewChanged() override { updateUniformBuffers(); }
 
     void OnUpdateUIOverlay() override {
-        //if (overlay->header("Settings")) {
-        //    if (overlay->sliderFloat("Eye separation", &eyeSeparation, -1.0f, 1.0f)) {
-        //        updateUniformBuffers();
-        //    }
-        //}
+        if (ui.header("Settings")) {
+            if (ui.sliderFloat("Eye separation", &eyeSeparation, -1.0f, 1.0f)) {
+                updateUniformBuffers();
+            }
+        }
     }
 };
 
