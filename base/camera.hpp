@@ -104,11 +104,17 @@ public:
         translate(glm::vec3{ 0, 0, z });
     }
 
-    void translate(const glm::vec3& delta) {
+    glm::vec3 getFront() const {
         glm::vec3 camFront;
         camFront.x = -cos(glm::radians(rotation.x)) * sin(glm::radians(rotation.y));
         camFront.y = sin(glm::radians(rotation.x));
         camFront.z = cos(glm::radians(rotation.x)) * cos(glm::radians(rotation.y));
+        camFront = glm::normalize(camFront);
+        return camFront;
+    }
+
+    void translate(const glm::vec3& delta) {
+        glm::vec3 camFront = getFront();
         glm::vec3 camUp = glm::vec3(0.0f, 1.0f, 0.0f);
         glm::vec3 camLeft = glm::cross(camFront, camUp);
         camUp = glm::cross(camFront, camLeft);
