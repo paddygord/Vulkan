@@ -704,15 +704,21 @@ namespace vks {
             return createStagingBuffer(sizeof(T), &data);
         }
 
-        template <typename T>
-        Buffer createUniformBuffer(const T& data, size_t count = 3) const {
+        Buffer createSizedUniformBuffer(vk::DeviceSize size) const {
             auto alignment = deviceProperties.limits.minUniformBufferOffsetAlignment;
-            auto extra = sizeof(T) % alignment;
-            auto alignedSize = sizeof(T) + (alignment - extra);
+            auto extra = size % alignment;
+            auto count = 1;
+            auto alignedSize = size + (alignment - extra);
             auto allocatedSize = count * alignedSize;
-            auto result = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, allocatedSize);
+            auto result = createBuffer(vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, allocatedSize);
             result.alignment = alignedSize;
             result.descriptor.range = result.alignment;
+            return result;
+        }
+
+        template <typename T>
+        Buffer createUniformBuffer(const T& data) const {
+            auto result = createSizedUniformBuffer(sizeof(T));
             result.map();
             result.copy(data);
             return result;
