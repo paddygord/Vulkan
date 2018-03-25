@@ -202,7 +202,7 @@ public:
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.view.descriptor },
-            { descriptorSet, 1, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.dynamic.descriptor },
+            { descriptorSet, 1, 0, 1, vk::DescriptorType::eUniformBufferDynamic, nullptr, &uniformBuffers.dynamic.descriptor },
         };
         device.updateDescriptorSets(writeDescriptorSets, {});
     }

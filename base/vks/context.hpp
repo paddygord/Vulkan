@@ -664,7 +664,7 @@ namespace vks {
             Buffer result;
             result.device = device;
             result.size = size;
-            result.descriptor.range = size;
+            result.descriptor.range = VK_WHOLE_SIZE;
             result.descriptor.offset = 0;
 
             vk::BufferCreateInfo bufferCreateInfo;
