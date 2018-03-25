@@ -696,7 +696,7 @@ namespace vks {
 
         template <typename T>
         Buffer createStagingBuffer(const std::vector<T>& data) const {
-            return createBuffer(data.size() * sizeof(T), (void*)data.data());
+            return createStagingBuffer(data.size() * sizeof(T), (void*)data.data());
         }
 
         template <typename T>

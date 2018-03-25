@@ -9,7 +9,6 @@
 #include "vulkanExampleBase.h"
 
 #define VERTEX_BUFFER_BIND_ID 0
-#define ENABLE_VALIDATION false
 
 #define SSAO_KERNEL_SIZE 32
 #define SSAO_RADIUS 0.5f

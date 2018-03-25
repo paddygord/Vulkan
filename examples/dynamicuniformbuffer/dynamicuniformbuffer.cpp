@@ -19,7 +19,6 @@
 #include "vulkanExampleBase.h"
 
 #define VERTEX_BUFFER_BIND_ID 0
-#define ENABLE_VALIDATION false
 #define OBJECT_INSTANCES 125
 
 // Vertex layout for this example
@@ -160,20 +159,10 @@ public:
         // For the sake of simplicity we won't stage the vertex data to the gpu memory
 
         // Vertex buffer
-        auto verticesSize = vertices.size() * sizeof(Vertex);
-        vertexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer,
-                                            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, verticesSize);
-        vertexBuffer.map();
-        vertexBuffer.copy(vertices);
-        vertexBuffer.unmap();
+        vertexBuffer = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertices);
 
         // Index buffer
-        auto indicesSize = indices.size() * sizeof(uint32_t);
-        indexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eIndexBuffer,
-                                           vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, indicesSize);
-        indexBuffer.map();
-        indexBuffer.copy(indices);
-        indexBuffer.unmap();
+        indexBuffer = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indices);
     }
 
     void setupDescriptorPool() {
