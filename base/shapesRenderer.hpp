@@ -297,7 +297,7 @@ namespace vkx {
         }
 
         void prepareUniformBuffers() {
-            uniformData.vsScene = context.createUniformBuffer(uboVS, 2);
+            uniformData.vsScene = context.createUniformBuffer(uboVS);
         }
 
         void prepare() {

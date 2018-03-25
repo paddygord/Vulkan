@@ -9,6 +9,7 @@ class VrExample : glfw::Window {
 public:
     vks::Context context;
     vks::SwapChain swapchain;
+    vk::SurfaceKHR surface;
     std::shared_ptr<vkx::ShapesRenderer> shapesRenderer { std::make_shared<vkx::ShapesRenderer>(context, true) };
     double fpsTimer { 0 };
     float lastFPS { 0 };
@@ -21,7 +22,7 @@ public:
     ~VrExample() {
         shapesRenderer.reset();
         // Shut down Vulkan 
-        context.destroyContext();
+        context.destroy();
     }
 
     typedef void(*GLFWkeyfun)(GLFWwindow*, int, int, int, int);
@@ -38,12 +39,14 @@ public:
     }
 
     void prepareVulkan() {
-        context.create();
+        context.createInstance();
+        surface = createSurface(context.instance);
+        context.createDevice(surface);
     }
 
     void prepareSwapchain() {
         swapchain.setup(context.physicalDevice, context.device, context.queue, context.queueIndices.graphics);
-        swapchain.setSurface(createSurface(context.instance));
+        swapchain.setSurface(surface);
         swapchain.create(vk::Extent2D{ size.x, size.y });
     }
 

@@ -164,7 +164,7 @@ public:
             }
         }
         swapChain.destroy();
-        context.destroyContext();
+        context.destroy();
     }
 
     void setupRenderPass() {

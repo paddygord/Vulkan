@@ -241,6 +241,7 @@ class SwapChainExample : glfw::Window {
     SwapChain swapchain { context };
     vk::RenderPass renderPass;
     glm::uvec2 windowSize;
+    vk::SurfaceKHR surface;
 
     // List of available frame buffers (same as number of swap chain images)
     std::vector<vk::Framebuffer> framebuffers;
@@ -263,6 +264,7 @@ public:
         windowSize = glm::uvec2{ mode->width / 2 , mode->height / 2 };
         glfw::Window::createWindow(windowSize, { 100, 100 });
         showWindow();
+        surface = createSurface(context.instance);
     }
 
     void createRenderPass() {
@@ -356,7 +358,7 @@ public:
             // Set target frame buffer
             renderPassBeginInfo.framebuffer = framebuffers[i];
             commandBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
-            commandBuffer.begin({});
+            commandBuffer.begin(vk::CommandBufferBeginInfo{});
             commandBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
             commandBuffer.endRenderPass();
             commandBuffer.end();
@@ -366,7 +368,7 @@ public:
     void createSwapchain() {
         // Using the window surface, construct the swap chain.  The swap chain is dependent on both 
         // the Vulkan instance as well as the window surface, so it needs to happen after
-        swapchain.setWindowSurface(createSurface(context.instance));
+        swapchain.setWindowSurface(surface);
         
         swapchain.create(windowSize);
 
@@ -423,13 +425,15 @@ public:
         // Construct the Vulkan instance just as we did in the init_context example
         context.setValidationEnabled(true);
         context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
-        context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
-        context.create();
+        context.createInstance();
 
         // Construct the window.  The window doesn't need any special attributes, it just 
         // need to be a native Win32 or XCB window surface. Window is independent of the contenxt and
         // RenderPass creation.  It can creation can occur before or after them.
         createWindow();
+
+        context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
+        context.createDevice(surface);
 
         // Finally, we need to create a number of Sempahores.  Semaphores are used for GPU<->GPU 
         // synchronization.  Tyipically this means that you include them in certain function calls to 
@@ -496,7 +500,7 @@ public:
         context.device.destroyRenderPass(renderPass);
         swapchain.cleanup();
         destroyWindow();
-        context.destroyContext();
+        context.destroy();
     }
 
     void run() {
