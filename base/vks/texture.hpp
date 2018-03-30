@@ -70,7 +70,7 @@ namespace vks { namespace texture {
         void loadFromFile(
             const vks::Context& context,
             const std::string& filename, 
-            vk::Format format,
+            vk::Format format = vk::Format::eR8G8B8A8Unorm,
             vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled,
             vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal, 
             bool forceLinear = false)
