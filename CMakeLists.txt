@@ -1,23 +1,21 @@
 cmake_minimum_required(VERSION 3.6 FATAL_ERROR)
 cmake_policy(VERSION 3.6)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 include("cmake/defaults.cmake")
-set(NAME vulkanExamples)
+set(NAME VulkanCppExamples)
 
 project(${NAME})
 
+if (NOT "${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
+    message( FATAL_ERROR "Only 64 bit builds supported." )
+endif()
+
 include("cmake/compiler.cmake")
 
-if(WIN32)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
-endif()
-
-if(NOT ("${CMAKE_SIZEOF_VOID_P}" EQUAL "8"))
-  message(FATAL_ERROR "32 bit builds not supported")
-endif()
-
 find_package(Threads REQUIRED)
+
+
+# This define is specific to Vulkan has a depth range of [0, 1], unlike OpenGL which has a [-1, 1] 
+add_definitions(-DGLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 if (NOT ANDROID)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
