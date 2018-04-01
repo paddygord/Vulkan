@@ -92,19 +92,28 @@ public:
     // Framebuffer for offscreen rendering
     using FrameBufferAttachment = vks::Image;
 
-    struct FrameBuffer {
+    struct Offscreen {
         vk::Extent2D size;
         vk::Framebuffer frameBuffer;
         FrameBufferAttachment position, normal, albedo;
         FrameBufferAttachment depth;
         vk::RenderPass renderPass;
-    } offScreenFrameBuf;
-
-    vk::CommandBuffer offScreenCmdBuffer;
-    // Semaphore used to synchronize between offscreen and final scene rendering
-    vk::Semaphore offscreenSemaphore;
-    // One sampler for the frame buffer color attachments
-    vk::Sampler colorSampler;
+        void destroy(const vk::Device& device) {
+            position.destroy();
+            normal.destroy();
+            albedo.destroy();
+            depth.destroy();
+            device.destroy(frameBuffer);
+            device.destroy(renderPass);
+            device.destroy(semaphore);
+            device.destroy(colorSampler);
+        }
+        vk::CommandBuffer commandBuffer;
+        // Semaphore used to synchronize between offscreen and final scene rendering
+        vk::Semaphore semaphore;
+        // One sampler for the frame buffer color attachments
+        vk::Sampler colorSampler;
+    } offscreen;
 
     VulkanExample() {
         title = "Multi sampled deferred shading";
@@ -146,6 +155,8 @@ public:
         textures.model.normalMap.destroy();
         textures.floor.colorMap.destroy();
         textures.floor.normalMap.destroy();
+
+        offscreen.destroy(device);
     }
 
     // Enable physical device features required for this example
@@ -181,8 +192,8 @@ public:
         vk::ImageCreateInfo image;
         image.imageType = vk::ImageType::e2D;
         image.format = format;
-        image.extent.width = offScreenFrameBuf.size.width;
-        image.extent.height = offScreenFrameBuf.size.height;
+        image.extent.width = offscreen.size.width;
+        image.extent.height = offscreen.size.height;
         image.extent.depth = 1;
         image.mipLevels = 1;
         image.arrayLayers = 1;
@@ -201,22 +212,25 @@ public:
     // Prepare a new framebuffer for offscreen rendering
     // The contents of this framebuffer are then
     // blitted to our render target
-    void prepareOffscreenFramebuffer() {
-        offScreenFrameBuf.size = size;
+    void prepareOffscreen() {
+        offscreen.size = size;
+
+        // Create a semaphore used to synchronize offscreen rendering and usage
+        offscreen.semaphore = device.createSemaphore({});
 
         // Color attachments
 
         // (World space) Positions
-        createAttachment(vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eColorAttachment, offScreenFrameBuf.position);
+        createAttachment(vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eColorAttachment, offscreen.position);
 
         // (World space) Normals
-        createAttachment(vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eColorAttachment, offScreenFrameBuf.normal);
+        createAttachment(vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eColorAttachment, offscreen.normal);
 
         // Albedo (color)
-        createAttachment(vk::Format::eR8G8B8A8Unorm, vk::ImageUsageFlagBits::eColorAttachment, offScreenFrameBuf.albedo);
+        createAttachment(vk::Format::eR8G8B8A8Unorm, vk::ImageUsageFlagBits::eColorAttachment, offscreen.albedo);
 
         // Depth attachment
-        createAttachment(context.getSupportedDepthFormat(), vk::ImageUsageFlagBits::eDepthStencilAttachment, offScreenFrameBuf.depth);
+        createAttachment(context.getSupportedDepthFormat(), vk::ImageUsageFlagBits::eDepthStencilAttachment, offscreen.depth);
 
         // Set up separate renderpass with references
         // to the color and depth attachments
@@ -239,10 +253,10 @@ public:
         }
 
         // Formats
-        attachmentDescs[0].format = offScreenFrameBuf.position.format;
-        attachmentDescs[1].format = offScreenFrameBuf.normal.format;
-        attachmentDescs[2].format = offScreenFrameBuf.albedo.format;
-        attachmentDescs[3].format = offScreenFrameBuf.depth.format;
+        attachmentDescs[0].format = offscreen.position.format;
+        attachmentDescs[1].format = offscreen.normal.format;
+        attachmentDescs[2].format = offscreen.albedo.format;
+        attachmentDescs[3].format = offscreen.depth.format;
 
         std::vector<vk::AttachmentReference> colorReferences;
         colorReferences.push_back({ 0, vk::ImageLayout::eColorAttachmentOptimal });
@@ -275,22 +289,18 @@ public:
         dependencies[1].dstAccessMask = vk::AccessFlagBits::eMemoryRead;
         dependencies[1].dependencyFlags = vk::DependencyFlagBits::eByRegion;
 
-        offScreenFrameBuf.renderPass =
+        offscreen.renderPass =
             device.createRenderPass({ {}, static_cast<uint32_t>(attachmentDescs.size()), attachmentDescs.data(), 1, &subpass, 2, dependencies.data() });
 
-        std::array<vk::ImageView, 4> attachments;
-        attachments[0] = offScreenFrameBuf.position.view;
-        attachments[1] = offScreenFrameBuf.normal.view;
-        attachments[2] = offScreenFrameBuf.albedo.view;
-        attachments[3] = offScreenFrameBuf.depth.view;
+        std::array<vk::ImageView, 4> attachments{
+            offscreen.position.view,
+            offscreen.normal.view,
+            offscreen.albedo.view,
+            offscreen.depth.view,
+        };
 
-        offScreenFrameBuf.frameBuffer = device.createFramebuffer({ {},
-                                                                   offScreenFrameBuf.renderPass,
-                                                                   static_cast<uint32_t>(attachments.size()),
-                                                                   attachments.data(),
-                                                                   offScreenFrameBuf.size.width,
-                                                                   offScreenFrameBuf.size.height,
-                                                                   1 });
+        offscreen.frameBuffer = device.createFramebuffer(
+            { {}, offscreen.renderPass, static_cast<uint32_t>(attachments.size()), attachments.data(), offscreen.size.width, offscreen.size.height, 1 });
 
         // Create sampler to sample from the color attachments
         vk::SamplerCreateInfo sampler;
@@ -303,53 +313,51 @@ public:
         sampler.minLod = 0.0f;
         sampler.maxLod = 1.0f;
         sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-        colorSampler = device.createSampler(sampler);
+        offscreen.colorSampler = device.createSampler(sampler);
     }
 
     // Build command buffer for rendering the scene to the offscreen frame buffer attachments
     void buildDeferredCommandBuffer() {
-        if (!offScreenCmdBuffer) {
-            offScreenCmdBuffer = context.allocateCommandBuffers(1)[0];
+        if (offscreen.commandBuffer) {
+            context.trash(offscreen.commandBuffer);
         }
-
-        // Create a semaphore used to synchronize offscreen rendering and usage
-        offscreenSemaphore = device.createSemaphore({});
+        offscreen.commandBuffer = context.allocateCommandBuffers(1)[0];
 
         // Clear values for all attachments written in the fragment sahder
         std::array<vk::ClearValue, 4> clearValues;
         clearValues[0].color = clearValues[1].color = clearValues[2].color = vks::util::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
         clearValues[3].depthStencil = { 1.0f, 0 };
 
-        offScreenCmdBuffer.begin({ vk::CommandBufferUsageFlagBits::eSimultaneousUse });
+        offscreen.commandBuffer.begin({ vk::CommandBufferUsageFlagBits::eSimultaneousUse });
 
-        vk::RenderPassBeginInfo renderPassBeginInfo{ offScreenFrameBuf.renderPass,
-                                                     offScreenFrameBuf.frameBuffer,
-                                                     { { 0, 0 }, offScreenFrameBuf.size },
+        vk::RenderPassBeginInfo renderPassBeginInfo{ offscreen.renderPass,
+                                                     offscreen.frameBuffer,
+                                                     { { 0, 0 }, offscreen.size },
                                                      static_cast<uint32_t>(clearValues.size()),
                                                      clearValues.data() };
-        offScreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        offscreen.commandBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
 
-        vk::Viewport viewport{ 0, 0, (float)offScreenFrameBuf.size.width, (float)offScreenFrameBuf.size.height, 0.0f, 1.0f };
-        offScreenCmdBuffer.setViewport(0, viewport);
+        vk::Viewport viewport{ 0, 0, (float)offscreen.size.width, (float)offscreen.size.height, 0.0f, 1.0f };
+        offscreen.commandBuffer.setViewport(0, viewport);
 
-        vk::Rect2D scissor{ { 0, 0 }, offScreenFrameBuf.size };
-        offScreenCmdBuffer.setScissor(0, scissor);
-        offScreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, useSampleShading ? pipelines.offscreenSampleShading : pipelines.offscreen);
+        vk::Rect2D scissor{ { 0, 0 }, offscreen.size };
+        offscreen.commandBuffer.setScissor(0, scissor);
+        offscreen.commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, useSampleShading ? pipelines.offscreenSampleShading : pipelines.offscreen);
 
         // Background
-        offScreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, 1, &descriptorSets.floor, 0, NULL);
-        offScreenCmdBuffer.bindVertexBuffers(0, { models.floor.vertices.buffer }, { 0 });
-        offScreenCmdBuffer.bindIndexBuffer(models.floor.indices.buffer, 0, vk::IndexType::eUint32);
-        offScreenCmdBuffer.drawIndexed(models.floor.indexCount, 1, 0, 0, 0);
+        offscreen.commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, 1, &descriptorSets.floor, 0, NULL);
+        offscreen.commandBuffer.bindVertexBuffers(0, { models.floor.vertices.buffer }, { 0 });
+        offscreen.commandBuffer.bindIndexBuffer(models.floor.indices.buffer, 0, vk::IndexType::eUint32);
+        offscreen.commandBuffer.drawIndexed(models.floor.indexCount, 1, 0, 0, 0);
 
         // Object
-        offScreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, 1, &descriptorSets.model, 0, NULL);
-        offScreenCmdBuffer.bindVertexBuffers(0, { models.model.vertices.buffer }, { 0 });
-        offScreenCmdBuffer.bindIndexBuffer(models.model.indices.buffer, 0, vk::IndexType::eUint32);
-        offScreenCmdBuffer.drawIndexed(models.model.indexCount, 3, 0, 0, 0);
+        offscreen.commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, 1, &descriptorSets.model, 0, NULL);
+        offscreen.commandBuffer.bindVertexBuffers(0, { models.model.vertices.buffer }, { 0 });
+        offscreen.commandBuffer.bindIndexBuffer(models.model.indices.buffer, 0, vk::IndexType::eUint32);
+        offscreen.commandBuffer.drawIndexed(models.model.indexCount, 3, 0, 0, 0);
 
-        offScreenCmdBuffer.endRenderPass();
-        offScreenCmdBuffer.end();
+        offscreen.commandBuffer.endRenderPass();
+        offscreen.commandBuffer.end();
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& drawCmdBuffer) override {
@@ -481,9 +489,9 @@ public:
         descriptorSets.floor = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout })[0];
 
         // Image descriptors for the offscreen color attachments
-        vk::DescriptorImageInfo texDescriptorPosition{ colorSampler, offScreenFrameBuf.position.view, vk::ImageLayout::eShaderReadOnlyOptimal };
-        vk::DescriptorImageInfo texDescriptorNormal{ colorSampler, offScreenFrameBuf.normal.view, vk::ImageLayout::eShaderReadOnlyOptimal };
-        vk::DescriptorImageInfo texDescriptorAlbedo{ colorSampler, offScreenFrameBuf.albedo.view, vk::ImageLayout::eShaderReadOnlyOptimal };
+        vk::DescriptorImageInfo texDescriptorPosition{ offscreen.colorSampler, offscreen.position.view, vk::ImageLayout::eShaderReadOnlyOptimal };
+        vk::DescriptorImageInfo texDescriptorNormal{ offscreen.colorSampler, offscreen.normal.view, vk::ImageLayout::eShaderReadOnlyOptimal };
+        vk::DescriptorImageInfo texDescriptorAlbedo{ offscreen.colorSampler, offscreen.albedo.view, vk::ImageLayout::eShaderReadOnlyOptimal };
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets = {
             // Binding 0 : Vertex shader uniform buffer
@@ -551,7 +559,7 @@ public:
         builder.multisampleState.alphaToCoverageEnable = VK_TRUE;
 
         // Separate render pass
-        builder.renderPass = offScreenFrameBuf.renderPass;
+        builder.renderPass = offscreen.renderPass;
         // Separate layout
         builder.layout = pipelineLayouts.offscreen;
 
@@ -655,16 +663,16 @@ public:
     void draw() override {
         ExampleBase::prepareFrame();
         // Offscreen rendering
-        context.submit(offScreenCmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreenSemaphore);
+        context.submit(offscreen.commandBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.semaphore);
         // Scene rendering
-        renderWaitSemaphores = { offscreenSemaphore };
+        renderWaitSemaphores = { offscreen.semaphore };
         drawCurrentCommandBuffer();
         ExampleBase::submitFrame();
     }
 
     void prepare() override {
         ExampleBase::prepare();
-        prepareOffscreenFramebuffer();
+        prepareOffscreen();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();

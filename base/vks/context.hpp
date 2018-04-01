@@ -305,7 +305,12 @@ namespace vks {
         }
 
         template<typename T>
-        void trash(T value, std::function<void(T t)> destructor = [](T t) { t.destroy();  }) const {
+        void trash(T value) const {
+            trash<T>(value, [](T t) { t.destroy(); });
+        }
+
+        template<typename T>
+        void trash(T value, std::function<void(T t)> destructor) const {
             if (!value) {
                 return;
             }
@@ -918,5 +923,11 @@ namespace vks {
     template <>
     inline void Context::copyToMemory(const vk::DeviceMemory &memory, const gli::texture& texture, size_t offset) const {
         copyToMemory(memory, texture.data(), vk::DeviceSize(texture.size()), offset);
+    }
+
+    template <>
+    inline void Context::trash<vk::CommandBuffer>(vk::CommandBuffer commandBuffer) const {
+        std::function<void(vk::CommandBuffer t)> destructor = [this](vk::CommandBuffer commandBuffer) { device.freeCommandBuffers(getCommandPool(), commandBuffer); };
+        trash<vk::CommandBuffer>(commandBuffer, destructor);
     }
 }
