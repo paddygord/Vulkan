@@ -6,335 +6,174 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <vector>
+#include "vulkanExampleBase.h"
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
-#include <vulkan/vulkan.h>
-#include "vulkanexamplebase.h"
-#include "VulkanModel.hpp"
-#include "VulkanBuffer.hpp"
-
-#define ENABLE_VALIDATION false
-
-class VulkanExample : public VulkanExampleBase
-{
+class VulkanExample : public vkx::ExampleBase {
 public:
-	// Vertex layout for the models
-	vks::VertexLayout vertexLayout = vks::VertexLayout({
-		vks::VERTEX_COMPONENT_POSITION,
-		vks::VERTEX_COMPONENT_COLOR,
-		vks::VERTEX_COMPONENT_NORMAL,
-	});
+    // Vertex layout for the models
+    vks::model::VertexLayout vertexLayout = vks::model::VertexLayout({
+        vks::model::VERTEX_COMPONENT_POSITION,
+        vks::model::VERTEX_COMPONENT_COLOR,
+        vks::model::VERTEX_COMPONENT_NORMAL,
+    });
 
-	vks::Model model;
+    vks::model::Model model;
 
-	struct UBO {
-		glm::mat4 projection;
-		glm::mat4 model;
-		glm::vec4 lightPos = glm::vec4(0.0f, -2.0f, 1.0f, 0.0f);
-		// Vertex shader extrudes model by this value along normals for outlining
-		float outlineWidth = 0.05f;
-	} uboVS;
+    struct UBO {
+        glm::mat4 projection;
+        glm::mat4 model;
+        glm::vec4 lightPos = glm::vec4(0.0f, -2.0f, 1.0f, 0.0f);
+        // Vertex shader extrudes model by this value along normals for outlining
+        float outlineWidth = 0.05f;
+    } uboVS;
 
-	vks::Buffer uniformBufferVS;
+    vks::Buffer uniformBufferVS;
 
-	struct {
-		VkPipeline stencil;
-		VkPipeline outline;
-	} pipelines;
+    struct {
+        vk::Pipeline stencil;
+        vk::Pipeline outline;
+    } pipelines;
 
-	VkPipelineLayout pipelineLayout;
-	VkDescriptorSet descriptorSet;
-	VkDescriptorSetLayout descriptorSetLayout;
+    vk::PipelineLayout pipelineLayout;
+    vk::DescriptorSet descriptorSet;
+    vk::DescriptorSetLayout descriptorSetLayout;
 
-	VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
-	{
-		title = "Stencil buffer outlines";
-		timerSpeed *= 0.25f;
-		camera.type = Camera::CameraType::lookat;
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
-		camera.setRotation(glm::vec3(2.5f, -35.0f, 0.0f));
-		camera.setTranslation(glm::vec3(0.08f, 3.6f, -8.4f));
-		settings.overlay = true;
-	}
+    VulkanExample() {
+        title = "Stencil buffer outlines";
+        timerSpeed *= 0.25f;
+        camera.type = Camera::CameraType::lookat;
+        camera.setPerspective(60.0f, (float)size.width / (float)size.height, 0.1f, 512.0f);
+        camera.setRotation(glm::vec3(2.5f, -35.0f, 0.0f));
+        camera.setTranslation(glm::vec3(0.08f, 3.6f, -8.4f));
+        settings.overlay = true;
+    }
 
-	~VulkanExample()
-	{
-		vkDestroyPipeline(device, pipelines.stencil, nullptr);
-		vkDestroyPipeline(device, pipelines.outline, nullptr);
+    ~VulkanExample() {
+        device.destroy(pipelines.stencil);
+        device.destroy(pipelines.outline);
+        device.destroy(pipelineLayout);
+        device.destroy(descriptorSetLayout);
 
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+        model.destroy();
+        uniformBufferVS.destroy();
+    }
 
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+    void updateDrawCommandBuffer(const vk::CommandBuffer& drawCmdBuffer) override {
+        vk::Viewport viewport{ 0, 0, (float)size.width, (float)size.height, 0.0f, 1.0f };
+        drawCmdBuffer.setViewport(0, viewport);
 
-		model.destroy();
-		uniformBufferVS.destroy();
-	}
+        vk::Rect2D scissor{ { 0, 0 }, size };
+        drawCmdBuffer.setScissor(0, scissor);
 
-	void buildCommandBuffers()
-	{
-		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+        drawCmdBuffer.bindVertexBuffers(0, model.vertices.buffer, { 0 });
+        drawCmdBuffer.bindIndexBuffer(model.indices.buffer, 0, vk::IndexType::eUint32);
 
-		VkClearValue clearValues[2];
-		clearValues[0].color = { { 1.0f, 1.0f, 1.0f, 1.0f } };
-		clearValues[0].color = defaultClearColor;
-		clearValues[1].depthStencil = { 1.0f, 0 };
+        drawCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
-		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
-		renderPassBeginInfo.renderArea.offset.x = 0;
-		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
-		renderPassBeginInfo.clearValueCount = 2;
-		renderPassBeginInfo.pClearValues = clearValues;
+        // First pass renders object (toon shaded) and fills stencil buffer
+        drawCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.stencil);
+        drawCmdBuffer.drawIndexed(model.indexCount, 1, 0, 0, 0);
 
-		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
-		{
-			renderPassBeginInfo.framebuffer = frameBuffers[i];
+        // Second pass renders scaled object only where stencil was not set by first pass
+        drawCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.outline);
+        drawCmdBuffer.drawIndexed(model.indexCount, 1, 0, 0, 0);
+    }
 
-			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
+    void loadAssets() override { model.loadFromFile(context, getAssetPath() + "models/venus.fbx", vertexLayout, 0.3f); }
 
-			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    void setupDescriptorPool() {
+        std::vector<vk::DescriptorPoolSize> poolSizes{
+            vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, 1 },
+        };
+        descriptorPool = device.createDescriptorPool({ {}, 3, static_cast<uint32_t>(poolSizes.size()), poolSizes.data() });
+    }
 
-			VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+    void setupDescriptorSetLayout() {
+        // Deferred shading layout
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
+            vk::DescriptorSetLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+        };
 
-			VkRect2D scissor = vks::initializers::rect2D(width, height,	0, 0);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, static_cast<uint32_t>(setLayoutBindings.size()), setLayoutBindings.data() });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
+    }
 
-			VkDeviceSize offsets[1] = { 0 };
+    void setupDescriptorSet() {
+        descriptorSet = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout })[0];
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets = {
+            { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBufferVS.descriptor },
+        };
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
+    }
 
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &model.vertices.buffer, offsets);
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], model.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
+    void preparePipelines() {
+        vks::pipelines::GraphicsPipelineBuilder builder{ device, pipelineLayout, renderPass };
+        builder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
+        builder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
+        auto& depthStencilState = builder.depthStencilState;
+        depthStencilState.stencilTestEnable = VK_TRUE;
+        depthStencilState.back.compareOp = vk::CompareOp::eAlways;
+        depthStencilState.back.failOp = vk::StencilOp::eReplace;
+        depthStencilState.back.depthFailOp = vk::StencilOp::eReplace;
+        depthStencilState.back.passOp = vk::StencilOp::eReplace;
+        depthStencilState.back.compareMask = 0xff;
+        depthStencilState.back.writeMask = 0xff;
+        depthStencilState.back.reference = 1;
+        depthStencilState.front = depthStencilState.back;
+        // Vertex bindings and attributes
+        builder.vertexInputState.appendVertexLayout(vertexLayout);
+        // Toon render and stencil fill pass
+        builder.loadShader(getAssetPath() + "shaders/stencilbuffer/toon.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        builder.loadShader(getAssetPath() + "shaders/stencilbuffer/toon.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.stencil = builder.create(context.pipelineCache);
+        builder.destroyShaderModules();
 
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
+        // Outline pass
+        depthStencilState.back.compareOp = vk::CompareOp::eNotEqual;
+        depthStencilState.back.failOp = vk::StencilOp::eKeep;
+        depthStencilState.back.depthFailOp = vk::StencilOp::eKeep;
+        depthStencilState.back.passOp = vk::StencilOp::eReplace;
+        depthStencilState.front = depthStencilState.back;
+        depthStencilState.depthTestEnable = VK_FALSE;
+        builder.loadShader(getAssetPath() + "shaders/stencilbuffer/outline.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        builder.loadShader(getAssetPath() + "shaders/stencilbuffer/outline.frag.spv", vk::ShaderStageFlagBits::eFragment);
+        pipelines.outline = builder.create(context.pipelineCache);
+    }
 
-			// First pass renders object (toon shaded) and fills stencil buffer
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.stencil);
-			vkCmdDrawIndexed(drawCmdBuffers[i], model.indexCount, 1, 0, 0, 0);
+    // Prepare and initialize uniform buffer containing shader uniforms
+    void prepareUniformBuffers() {
+        // Mesh vertex shader uniform buffer block
+        uniformBufferVS = context.createUniformBuffer(uboVS);
+        updateUniformBuffers();
+    }
 
-			// Second pass renders scaled object only where stencil was not set by first pass
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.outline);
-			vkCmdDrawIndexed(drawCmdBuffers[i], model.indexCount, 1, 0, 0, 0);
+    void updateUniformBuffers() {
+        uboVS.projection = camera.matrices.perspective;
+        uboVS.model = camera.matrices.view;
+        memcpy(uniformBufferVS.mapped, &uboVS, sizeof(uboVS));
+    }
 
-			vkCmdEndRenderPass(drawCmdBuffers[i]);
 
-			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
-		}
-	}
+    void prepare() override {
+        ExampleBase::prepare();
+        prepareUniformBuffers();
+        setupDescriptorSetLayout();
+        preparePipelines();
+        setupDescriptorPool();
+        setupDescriptorSet();
+        buildCommandBuffers();
+        prepared = true;
+    }
 
-	void loadAssets()
-	{
-		model.loadFromFile(getAssetPath() + "models/venus.fbx", vertexLayout, 0.3f, vulkanDevice, queue);
-	}
+    void viewChanged() override { updateUniformBuffers(); }
 
-	void setupDescriptorPool()
-	{
-		std::vector<VkDescriptorPoolSize> poolSizes = {
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
-		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo =
-			vks::initializers::descriptorPoolCreateInfo(static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), 1);
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
-	}
-
-	void setupDescriptorSetLayout()
-	{	
-		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0)
-		};
-
-		VkDescriptorSetLayoutCreateInfo descriptorLayoutInfo = 
-			vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), 1);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &descriptorSetLayout));
-
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo = 
-			vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
-	}
-
-	void setupDescriptorSet()
-	{
-		VkDescriptorSetAllocateInfo allocInfo =
-			vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
-		std::vector<VkWriteDescriptorSet> modelWriteDescriptorSets = {
-			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBufferVS.descriptor)
-		};
-		vkUpdateDescriptorSets(device, static_cast<uint32_t>(modelWriteDescriptorSets.size()), modelWriteDescriptorSets.data(), 0, NULL);
-	}
-
-	void preparePipelines()
-	{
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
-			vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
-
-		VkPipelineRasterizationStateCreateInfo rasterizationState =
-			vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_FRONT_BIT, VK_FRONT_FACE_CLOCKWISE, 0);
-
-		VkPipelineColorBlendAttachmentState blendAttachmentState =
-			vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
-
-		VkPipelineColorBlendStateCreateInfo colorBlendState =
-			vks::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-
-		VkPipelineDepthStencilStateCreateInfo depthStencilState =
-			vks::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-		VkPipelineViewportStateCreateInfo viewportState =
-			vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
-
-		VkPipelineMultisampleStateCreateInfo multisampleState =
-			vks::initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT, 0);
-
-		std::vector<VkDynamicState> dynamicStateEnables = {
-			VK_DYNAMIC_STATE_VIEWPORT,
-			VK_DYNAMIC_STATE_SCISSOR
-		};
-		VkPipelineDynamicStateCreateInfo dynamicState =
-			vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
-
-		std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
-
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-			vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
-
-		// Vertex bindings an attributes
-		std::vector<VkVertexInputBindingDescription> vertexInputBindings = {
-			vks::initializers::vertexInputBindingDescription(0, vertexLayout.stride(), VK_VERTEX_INPUT_RATE_VERTEX),
-		};
-		std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
-			vks::initializers::vertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0),					// Location 0: Position
-			vks::initializers::vertexInputAttributeDescription(0, 1, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3),	// Location 1: Color		
-			vks::initializers::vertexInputAttributeDescription(0, 2, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 6)		// Location 2: Normal
-		};
-
-		VkPipelineVertexInputStateCreateInfo vertexInputState = vks::initializers::pipelineVertexInputStateCreateInfo();
-		vertexInputState.vertexBindingDescriptionCount = static_cast<uint32_t>(vertexInputBindings.size());
-		vertexInputState.pVertexBindingDescriptions = vertexInputBindings.data();
-		vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
-		vertexInputState.pVertexAttributeDescriptions = vertexInputAttributes.data();
-
-		pipelineCreateInfo.pVertexInputState = &vertexInputState;
-		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-		pipelineCreateInfo.pRasterizationState = &rasterizationState;
-		pipelineCreateInfo.pColorBlendState = &colorBlendState;
-		pipelineCreateInfo.pMultisampleState = &multisampleState;
-		pipelineCreateInfo.pViewportState = &viewportState;
-		pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-		pipelineCreateInfo.pDynamicState = &dynamicState;
-		pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
-		pipelineCreateInfo.pStages = shaderStages.data();
-
-		// Toon render and stencil fill pass
-		shaderStages[0] = loadShader(getAssetPath() + "shaders/stencilbuffer/toon.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShader(getAssetPath() + "shaders/stencilbuffer/toon.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-
-		rasterizationState.cullMode = VK_CULL_MODE_NONE;
-
-		depthStencilState.stencilTestEnable = VK_TRUE;
-
-		depthStencilState.back.compareOp = VK_COMPARE_OP_ALWAYS;
-		depthStencilState.back.failOp = VK_STENCIL_OP_REPLACE;
-		depthStencilState.back.depthFailOp = VK_STENCIL_OP_REPLACE;
-		depthStencilState.back.passOp = VK_STENCIL_OP_REPLACE;
-		depthStencilState.back.compareMask = 0xff;
-		depthStencilState.back.writeMask = 0xff;
-		depthStencilState.back.reference = 1;
-		depthStencilState.front = depthStencilState.back;
-
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.stencil));
-
-		// Outline pass
-		depthStencilState.back.compareOp = VK_COMPARE_OP_NOT_EQUAL;
-		depthStencilState.back.failOp = VK_STENCIL_OP_KEEP;
-		depthStencilState.back.depthFailOp = VK_STENCIL_OP_KEEP;
-		depthStencilState.back.passOp = VK_STENCIL_OP_REPLACE;
-		depthStencilState.front = depthStencilState.back;
-		depthStencilState.depthTestEnable = VK_FALSE;
-
-		shaderStages[0] = loadShader(getAssetPath() + "shaders/stencilbuffer/outline.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShader(getAssetPath() + "shaders/stencilbuffer/outline.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.outline));
-	}
-
-	// Prepare and initialize uniform buffer containing shader uniforms
-	void prepareUniformBuffers()
-	{
-		// Mesh vertex shader uniform buffer block
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&uniformBufferVS,
-			sizeof(uboVS)));
-
-		// Map persistent
-		VK_CHECK_RESULT(uniformBufferVS.map());
-
-		updateUniformBuffers();
-	}
-
-	void updateUniformBuffers()
-	{
-		uboVS.projection = camera.matrices.perspective;
-		uboVS.model = camera.matrices.view;
-		memcpy(uniformBufferVS.mapped, &uboVS, sizeof(uboVS));
-	}
-
-	void draw()
-	{
-		VulkanExampleBase::prepareFrame();
-
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-
-		VulkanExampleBase::submitFrame();
-	}
-
-	void prepare()
-	{
-		VulkanExampleBase::prepare();
-		loadAssets();
-		prepareUniformBuffers();
-		setupDescriptorSetLayout();
-		preparePipelines();
-		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
-		prepared = true;
-	}
-
-	virtual void render()
-	{
-		if (!prepared)
-			return;
-		draw();
-	}
-
-	virtual void viewChanged()
-	{
-		updateUniformBuffers();
-	}
-
-	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay)
-	{
-		if (overlay->header("Settings")) {
-			if (overlay->inputFloat("Outline width", &uboVS.outlineWidth, 0.05f, 2)) {
-				updateUniformBuffers();
-			}
-		}
-	}
-
+    void OnUpdateUIOverlay() override {
+        if (ui.header("Settings")) {
+            if (ui.inputFloat("Outline width", &uboVS.outlineWidth, 0.05f, 2)) {
+                updateUniformBuffers();
+            }
+        }
+    }
 };
 
 VULKAN_EXAMPLE_MAIN()
