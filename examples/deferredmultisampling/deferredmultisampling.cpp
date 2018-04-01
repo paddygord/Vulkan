@@ -8,7 +8,6 @@
 
 #include "vulkanExampleBase.h"
 
-#define ENABLE_VALIDATION false
 // todo: check if hardware supports sample number (or select max. supported)
 #define SAMPLE_COUNT vk::SampleCountFlagBits::e8;
 
