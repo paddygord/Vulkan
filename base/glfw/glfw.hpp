@@ -25,7 +25,7 @@ public:
 
     void createWindow(const glm::uvec2& size, const glm::ivec2& position = { INT_MIN, INT_MIN }) {
         // Disable window resize
-        window = glfwCreateWindow(size.x, size.y, "Window Title", NULL, NULL);
+        window = glfwCreateWindow(size.x, size.y, "Window Title", nullptr, nullptr);
         if (position != glm::ivec2{ INT_MIN, INT_MIN }) {
             glfwSetWindowPos(window, position.x, position.y);
         }
@@ -64,11 +64,11 @@ public:
     }
 
     void setSizeLimits(const glm::uvec2& minSize, const glm::uvec2& maxSize = {}) {
-        glfwSetWindowSizeLimits(window, minSize.x, minSize.y, maxSize.x ? maxSize.x : minSize.x, maxSize.y ? maxSize.y : minSize.y);
+        glfwSetWindowSizeLimits(window, minSize.x, minSize.y, (maxSize.x != 0) ? maxSize.x : minSize.x, (maxSize.y != 0 )? maxSize.y : minSize.y);
     }
 
     void runWindowLoop(const std::function<void()>& frameHandler) {
-        while (!glfwWindowShouldClose(window)) {
+        while (0 != glfwWindowShouldClose(window)) {
             glfwPollEvents();
             frameHandler();
         }

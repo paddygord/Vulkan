@@ -143,13 +143,13 @@ bool ExampleBase::platformLoopCondition() {
     // Exit loop, example will be destroyed in application main
     return !destroy;
 #else
-    if (glfwWindowShouldClose(window)) {
+    if (0 != glfwWindowShouldClose(window)) {
         return false;
     }
 
     glfwPollEvents();
 
-    if (glfwJoystickPresent(0)) {
+    if (0 != glfwJoystickPresent(0)) {
         // FIXME implement joystick handling
         int axisCount{ 0 };
         const float* axes = glfwGetJoystickAxes(0, &axisCount);
@@ -172,7 +172,7 @@ bool ExampleBase::platformLoopCondition() {
             int buttonCount{ 0 };
             const uint8_t* buttons = glfwGetJoystickButtons(0, &buttonCount);
             for (uint8_t i = 0; i < buttonCount && i < 64; ++i) {
-                if (buttons[i]) {
+                if (0 != buttons[i]) {
                     newButtons |= (1 << i);
                 }
             }
@@ -537,7 +537,7 @@ void ExampleBase::update(float deltaTime) {
             timer -= 1.0f;
         }
     }
-    fpsTimer += (float)frameTimer;
+    fpsTimer += frameTimer;
     if (fpsTimer > 1.0f) {
 #if !defined(__ANDROID__)
         std::string windowTitle = getWindowTitle();
@@ -617,8 +617,9 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
 }
 
 void ExampleBase::updateOverlay() {
-    if (!settings.overlay)
+    if (!settings.overlay) {
         return;
+    }
 
     ImGuiIO& io = ImGui::GetIO();
 
@@ -893,11 +894,11 @@ void ExampleBase::setupWindow() {
     size.height = mode->height;
 
     if (fullscreen) {
-        window = glfwCreateWindow(size.width, size.height, "My Title", monitor, NULL);
+        window = glfwCreateWindow(size.width, size.height, "My Title", monitor, nullptr);
     } else {
         size.width /= 2;
         size.height /= 2;
-        window = glfwCreateWindow(size.width, size.height, "Window Title", NULL, NULL);
+        window = glfwCreateWindow(size.width, size.height, "Window Title", nullptr, nullptr);
     }
 
     glfwSetWindowUserPointer(window, this);
@@ -927,7 +928,7 @@ void ExampleBase::mouseAction(int button, int action, int mods) {
 }
 
 void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
+    auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     switch (action) {
     case GLFW_PRESS:
         example->keyPressed(key);
@@ -943,28 +944,28 @@ void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int
 }
 
 void ExampleBase::MouseHandler(GLFWwindow* window, int button, int action, int mods) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
+    auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->mouseAction(button, action, mods);
 }
 
 void ExampleBase::MouseMoveHandler(GLFWwindow* window, double posx, double posy) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
+    auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->mouseMoved(glm::vec2(posx, posy));
 }
 
 void ExampleBase::MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
+    auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->mouseScrolled((float)yoffset);
 }
 
 void ExampleBase::CloseHandler(GLFWwindow* window) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
+    auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->prepared = false;
     glfwSetWindowShouldClose(window, 1);
 }
 
 void ExampleBase::FramebufferSizeHandler(GLFWwindow* window, int width, int height) {
-    ExampleBase* example = (ExampleBase*)glfwGetWindowUserPointer(window);
+    auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->windowResize(glm::uvec2(width, height));
 }
 

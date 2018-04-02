@@ -68,7 +68,7 @@ public:
     float getFarClip() { return zfar; }
 
     void setPerspective(float fov, const vk::Extent2D& size, float znear, float zfar) {
-        setPerspective(fov, (float)size.width / (float)size.height, znear, zfar);
+        setPerspective(fov, static_cast<float>(size.width) / static_cast<float>(size.height), znear, zfar);
     }
 
     void setPerspective(float fov, float aspect, float znear, float zfar) {

@@ -17,13 +17,13 @@
 
 struct aiScene;
 namespace Assimp {
-    class Importer;
+class Importer;
 };
 
 namespace vks { namespace model {
 
 /** @brief Vertex layout components */
-typedef enum Component
+enum Component
 {
     VERTEX_COMPONENT_POSITION = 0x0,
     VERTEX_COMPONENT_NORMAL = 0x1,
@@ -36,14 +36,14 @@ typedef enum Component
     VERTEX_COMPONENT_DUMMY_VEC4 = 0x8,
     VERTEX_COMPONENT_DUMMY_INT4 = 0x9,
     VERTEX_COMPONENT_DUMMY_UINT4 = 0xA,
-} Component;
+};
 
 /** @brief Stores vertex layout components for model loading and Vulkan vertex input and atribute bindings  */
 struct VertexLayout {
 public:
     /** @brief Components used to generate vertices from */
     std::vector<Component> components;
-    VertexLayout() {}
+    VertexLayout() = default;
     VertexLayout(const std::vector<Component>& components, uint32_t binding = 0)
         : components(components) {}
     VertexLayout(std::vector<Component>&& components, uint32_t binding = 0)
@@ -55,7 +55,7 @@ public:
                 return (uint32_t)i;
             }
         }
-        return (uint32_t)-1;
+        return static_cast<uint32_t>(-1);
     }
 
     static vk::Format componentFormat(Component component) {
@@ -117,11 +117,11 @@ public:
 
 /** @brief Used to parametrize model loading */
 struct ModelCreateInfo {
-    glm::vec3 center { 0 };
-    glm::vec3 scale { 1 };
-    glm::vec2 uvscale { 1 };
+    glm::vec3 center{ 0 };
+    glm::vec3 scale{ 1 };
+    glm::vec2 uvscale{ 1 };
 
-    ModelCreateInfo(){};
+    ModelCreateInfo() = default;
 
     ModelCreateInfo(const glm::vec3& scale, const glm::vec2& uvscale, const glm::vec3& center)
         : center(center)
@@ -167,7 +167,6 @@ struct Model {
         indices.destroy();
     }
 
-
     /**
     * Loads a 3D model from a file into Vulkan buffers
     *
@@ -182,7 +181,7 @@ struct Model {
                       const std::string& filename,
                       const VertexLayout& layout,
                       const ModelCreateInfo& createInfo,
-                      const int flags = defaultFlags);
+                      int flags = defaultFlags);
 
     /**
     * Loads a 3D model from a file into Vulkan buffers
@@ -200,7 +199,7 @@ struct Model {
 
     virtual void appendVertex(std::vector<uint8_t>& outputBuffer, const aiScene* pScene, uint32_t meshIndex, uint32_t vertexIndex);
 
-    template <typename T> 
+    template <typename T>
     void appendOutput(std::vector<uint8_t>& outputBuffer, const T& t) {
         auto offset = outputBuffer.size();
         auto copySize = sizeof(T);
@@ -217,4 +216,4 @@ struct Model {
     }
 };
 
-}}  // Namespace vks::model
+}}  // namespace vks::model
