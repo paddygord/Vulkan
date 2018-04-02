@@ -485,18 +485,6 @@ public:
         }
     }
 
-#if 0
-    void getOverlayText(vkx::TextOverlay* textOverlay) override {
-#if defined(__ANDROID__)
-        textOverlay->addText("Press \"L1/R1\" to change blur scale", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-        textOverlay->addText("Press \"Button A\" to toggle bloom", 5.0f, 105.0f, vkx::TextOverlay::alignLeft);
-#else
-        textOverlay->addText("Press \"NUMPAD +/-\" to change blur scale", 5.0f, 85.0f, vkx::TextOverlay::alignLeft);
-        textOverlay->addText("Press \"B\" to toggle bloom", 5.0f, 105.0f, vkx::TextOverlay::alignLeft);
-#endif
-    }
-#endif
-
     void changeBlurScale(float delta) {
         ubos.vertBlur.blurScale += delta;
         ubos.horzBlur.blurScale += delta;

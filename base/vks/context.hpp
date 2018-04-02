@@ -241,7 +241,7 @@ namespace vks {
             }
 
             if (enableDebugMarkers) {
-                debug::marker::setup(device);
+                debug::marker::setup(instance, device);
             }
 
             pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
