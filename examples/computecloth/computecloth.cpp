@@ -10,8 +10,6 @@
 
 #include <vulkanExampleBase.h>
 
-#define ENABLE_VALIDATION false
-
 struct Cloth {
     glm::uvec2 gridsize = glm::uvec2(60, 60);
     glm::vec2 size = glm::vec2(2.5f, 2.5f);
@@ -162,9 +160,7 @@ struct Compute : public vkx::Compute {
         }
     }
 
-    void submit() {
-        Parent::submit(commandBuffers[readSet]);
-    }
+    void submit() { Parent::submit(commandBuffers[readSet]); }
 };
 
 class VulkanExample : public vkx::ExampleBase {

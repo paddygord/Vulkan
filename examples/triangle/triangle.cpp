@@ -55,7 +55,7 @@ public:
         vk::Buffer buffer;
         vk::DeviceMemory memory;
         vk::DescriptorBufferInfo descriptor;
-    }  uniformDataVS;
+    } uniformDataVS;
 
     struct {
         glm::mat4 projectionMatrix;
@@ -94,9 +94,7 @@ public:
 
     void run() {
         prepare();
-        runWindowLoop([&] {
-            draw();
-        });
+        runWindowLoop([&] { draw(); });
         queue.waitIdle();
         device.waitIdle();
         destroy();
@@ -113,7 +111,6 @@ public:
         context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
         context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
         context.createInstance();
-
 
         cmdPool = context.getCommandPool();
 
@@ -135,7 +132,7 @@ public:
     }
 
     void destroy() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         device.destroyPipeline(pipeline);
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
@@ -256,11 +253,18 @@ public:
         };
 
         // Setup vertices
-        std::vector<Vertex> vertexBuffer = {
-            { { 1.0f,  1.0f, 0.0f },{ 1.0f, 0.0f, 0.0f } },
-            { { -1.0f,  1.0f, 0.0f },{ 0.0f, 1.0f, 0.0f } },
-            { { 0.0f, -1.0f, 0.0f },{ 0.0f, 0.0f, 1.0f } }
-        };
+        std::vector<Vertex> vertexBuffer = { { { 1.0f, 1.0f, 0.0f },
+                                               { 1.0f,
+                                                 0.0f,
+                                                 0.0f } },
+                                             { { -1.0f, 1.0f, 0.0f },
+                                               { 0.0f,
+                                                 1.0f,
+                                                 0.0f } },
+                                             { { 0.0f, -1.0f, 0.0f },
+                                               { 0.0f,
+                                                 0.0f,
+                                                 1.0f } } };
         uint32_t vertexBufferSize = (uint32_t)(vertexBuffer.size() * sizeof(Vertex));
 
         // Setup indices
@@ -271,9 +275,9 @@ public:
         vk::MemoryAllocateInfo memAlloc;
         vk::MemoryRequirements memReqs;
 
-        void *data;
+        void* data;
 
-        // Static data like vertex and index buffer should be stored on the device memory 
+        // Static data like vertex and index buffer should be stored on the device memory
         // for optimal (and fastest) access by the GPU
         //
         // To achieve this we use so-called "staging buffers" :
@@ -357,7 +361,7 @@ public:
         vk::BufferCopy copyRegion;
 
         // Put buffer region copies into command buffer
-        // Note that the staging buffer must not be deleted before the copies 
+        // Note that the staging buffer must not be deleted before the copies
         // have been submitted and executed
         copyCommandBuffer.begin(cmdBufferBeginInfo);
 
@@ -416,7 +420,7 @@ public:
     void prepareUniformBuffers() {
         // Prepare and initialize a uniform buffer block containing shader uniforms
         // In Vulkan there are no more single uniforms like in GL
-        // All shader uniforms are passed as uniform buffer blocks 
+        // All shader uniforms are passed as uniform buffer blocks
         vk::MemoryRequirements memReqs;
 
         // Vertex shader uniform buffer block
@@ -429,11 +433,11 @@ public:
 
         // Create a new buffer
         uniformDataVS.buffer = device.createBuffer(bufferInfo);
-        // Get memory requirements including size, alignment and memory type 
+        // Get memory requirements including size, alignment and memory type
         memReqs = device.getBufferMemoryRequirements(uniformDataVS.buffer);
         allocInfo.allocationSize = memReqs.size;
         // Get the memory type index that supports host visibile memory access
-        // Most implementations offer multiple memory tpyes and selecting the 
+        // Most implementations offer multiple memory tpyes and selecting the
         // correct one to allocate memory from is important
         allocInfo.memoryTypeIndex = context.getMemoryType(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible);
         // Allocate memory for the uniform buffer
@@ -452,9 +456,9 @@ public:
         uboVS.modelMatrix = glm::mat4();
 
         // Map uniform buffer and update it
-        // If you want to keep a handle to the memory and not unmap it afer updating, 
-        // create the memory with the vk::MemoryPropertyFlagBits::eHostCoherent 
-        void *pData = device.mapMemory(uniformDataVS.memory, 0, sizeof(uboVS), vk::MemoryMapFlags());
+        // If you want to keep a handle to the memory and not unmap it afer updating,
+        // create the memory with the vk::MemoryPropertyFlagBits::eHostCoherent
+        void* pData = device.mapMemory(uniformDataVS.memory, 0, sizeof(uboVS), vk::MemoryMapFlags());
         memcpy(pData, &uboVS, sizeof(uboVS));
         device.unmapMemory(uniformDataVS.memory);
     }
@@ -546,12 +550,12 @@ public:
         // fixed states
         // This replaces OpenGL's huge (and cumbersome) state machine
         // A pipeline is then stored and hashed on the GPU making
-        // pipeline changes much faster than having to set dozens of 
+        // pipeline changes much faster than having to set dozens of
         // states
         // In a real world application you'd have dozens of pipelines
         // for every shader set used in a scene
         // Note that there are a few states that are not stored with
-        // the pipeline. These are called dynamic states and the 
+        // the pipeline. These are called dynamic states and the
         // pipeline only stores that they are used with this pipeline,
         // but not their states
 
@@ -585,7 +589,8 @@ public:
         // One blend attachment state
         // Blending is not used in this example
         vk::PipelineColorBlendAttachmentState blendAttachmentState[1] = {};
-        blendAttachmentState[0].colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+        blendAttachmentState[0].colorWriteMask =
+            vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
         blendAttachmentState[0].blendEnable = VK_FALSE;
         colorBlendState.attachmentCount = 1;
         colorBlendState.pAttachments = blendAttachmentState;
@@ -613,7 +618,7 @@ public:
         // Depth and stencil state
         // Describes depth and stenctil test and compare ops
         vk::PipelineDepthStencilStateCreateInfo depthStencilState;
-        // No depth or stencil testing enabled 
+        // No depth or stencil testing enabled
         depthStencilState.depthTestEnable = VK_FALSE;
         depthStencilState.depthWriteEnable = VK_FALSE;
         depthStencilState.stencilTestEnable = VK_FALSE;
@@ -652,7 +657,6 @@ public:
         }
     }
 
-
     void buildDrawCommandBuffers() {
         // Create one command buffer per image in the swap chain
 
@@ -667,7 +671,8 @@ public:
 
         vk::CommandBufferBeginInfo cmdBufInfo;
         vk::ClearValue clearValues[2];
-        clearValues[0].color = vks::util::clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));;
+        clearValues[0].color = vks::util::clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
+        ;
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = renderPass;
@@ -715,7 +720,7 @@ public:
         vk::PipelineStageFlags pipelineStages = vk::PipelineStageFlagBits::eBottomOfPipe;
         vk::SubmitInfo submitInfo;
         submitInfo.pWaitDstStageMask = &pipelineStages;
-        // The wait semaphore ensures that the image is presented 
+        // The wait semaphore ensures that the image is presented
         // before we start submitting command buffers agein
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = &semaphores.presentComplete;

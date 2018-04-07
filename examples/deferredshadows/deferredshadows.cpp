@@ -126,7 +126,8 @@ public:
     vk::DescriptorSetLayout descriptorSetLayout;
 
     struct Framebuffers {
-        Framebuffers(const vks::Context& context) : context(context) {}
+        Framebuffers(const vks::Context& context)
+            : context(context) {}
         const vks::Context& context;
         // Framebuffer resources for the deferred pass
         vks::Framebuffer deferred{ context };
@@ -283,13 +284,15 @@ public:
         commandBuffers.deferred.setScissor(0, scissor);
 
         // Background
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, shadow ? descriptorSets.shadow : descriptorSets.background, nullptr);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, shadow ? descriptorSets.shadow : descriptorSets.background,
+                                     nullptr);
         cmdBuffer.bindVertexBuffers(0, models.background.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(models.background.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(models.background.indexCount, 1, 0, 0, 0);
 
         // Objects
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, shadow ? descriptorSets.shadow : descriptorSets.model, nullptr);
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, shadow ? descriptorSets.shadow : descriptorSets.model,
+                                     nullptr);
         cmdBuffer.bindVertexBuffers(0, models.model.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(models.model.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(models.model.indexCount, 3, 0, 0, 0);
@@ -333,7 +336,7 @@ public:
         // -------------------------------------------------------------------------------------------------------
 
         // Clear values for all attachments written in the fragment sahder
-        clearValues[2].color = clearValues[1].color = clearValues[0].color = vks::util::clearColor( { 0.0f, 0.0f, 0.0f, 0.0f });
+        clearValues[2].color = clearValues[1].color = clearValues[0].color = vks::util::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
         clearValues[3].depthStencil = { 1.0f, 0 };
 
         renderPassBeginInfo.renderPass = frameBuffers.deferred.renderPass;
@@ -424,7 +427,6 @@ public:
 
         models.quad.vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
 
-
         // Setup indices
         std::vector<uint32_t> indexBuffer = { 0, 1, 2, 2, 3, 0 };
         for (uint32_t i = 0; i < 3; ++i) {
@@ -448,7 +450,6 @@ public:
     }
 
     void setupDescriptorSetLayout() {
-
         // todo: split for clarity, esp. with GS instancing
         // Deferred shading layout (Shared with debug display)
         std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings = {
@@ -482,14 +483,17 @@ public:
         // Shadow
         descriptorSets.shadow = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
 
-
         // Image descriptors for the offscreen color attachments
-        vk::DescriptorImageInfo texDescriptorPosition{ frameBuffers.deferred.sampler, frameBuffers.deferred.attachments[0].view, vk::ImageLayout::eShaderReadOnlyOptimal };
-        vk::DescriptorImageInfo texDescriptorNormal { frameBuffers.deferred.sampler, frameBuffers.deferred.attachments[1].view, vk::ImageLayout::eShaderReadOnlyOptimal };
-        vk::DescriptorImageInfo texDescriptorAlbedo{ frameBuffers.deferred.sampler, frameBuffers.deferred.attachments[2].view, vk::ImageLayout::eShaderReadOnlyOptimal };
-        vk::DescriptorImageInfo texDescriptorShadowMap{ frameBuffers.shadow.sampler, frameBuffers.shadow.attachments[0].view, vk::ImageLayout::eDepthStencilReadOnlyOptimal };
+        vk::DescriptorImageInfo texDescriptorPosition{ frameBuffers.deferred.sampler, frameBuffers.deferred.attachments[0].view,
+                                                       vk::ImageLayout::eShaderReadOnlyOptimal };
+        vk::DescriptorImageInfo texDescriptorNormal{ frameBuffers.deferred.sampler, frameBuffers.deferred.attachments[1].view,
+                                                     vk::ImageLayout::eShaderReadOnlyOptimal };
+        vk::DescriptorImageInfo texDescriptorAlbedo{ frameBuffers.deferred.sampler, frameBuffers.deferred.attachments[2].view,
+                                                     vk::ImageLayout::eShaderReadOnlyOptimal };
+        vk::DescriptorImageInfo texDescriptorShadowMap{ frameBuffers.shadow.sampler, frameBuffers.shadow.attachments[0].view,
+                                                        vk::ImageLayout::eDepthStencilReadOnlyOptimal };
 
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0: Vertex shader uniform buffer
             { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.vsFullScreen.descriptor },
             // Binding 1: World space position texture

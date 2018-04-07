@@ -11,7 +11,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
 
 class VulkanExample : public vkx::ExampleBase {
     // Moved to base class

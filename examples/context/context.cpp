@@ -6,77 +6,75 @@
 #include <iostream>
 
 namespace vkx {
-    // A trimmed down version of our context class.
-    // The full version creates additional objects required for rendering:
-    //
-    //  vk::Device 
-    //  vk::Queue 
-    //  vk::PipelineCache 
-    //  vk::CommandPool
-    // 
-    // The full version also sets up validation layers for debugging if requested
-    // See vulkanContext.hpp
-    class Context {
-    public:
-        // Vulkan instance, stores all per-application states
-        vk::Instance instance;
-        std::vector<vk::PhysicalDevice> physicalDevices;
-        // Physical device (GPU) that Vulkan will ise
-        vk::PhysicalDevice physicalDevice;
-        // Stores physical device properties (for e.g. checking device limits)
-        vk::PhysicalDeviceProperties deviceProperties;
-        // Stores phyiscal device features (for e.g. checking if a feature is available)
-        vk::PhysicalDeviceFeatures deviceFeatures;
-        // Stores all available memory (type) properties for the physical device
-        vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
+// A trimmed down version of our context class.
+// The full version creates additional objects required for rendering:
+//
+//  vk::Device
+//  vk::Queue
+//  vk::PipelineCache
+//  vk::CommandPool
+//
+// The full version also sets up validation layers for debugging if requested
+// See vulkanContext.hpp
+class Context {
+public:
+    // Vulkan instance, stores all per-application states
+    vk::Instance instance;
+    std::vector<vk::PhysicalDevice> physicalDevices;
+    // Physical device (GPU) that Vulkan will ise
+    vk::PhysicalDevice physicalDevice;
+    // Stores physical device properties (for e.g. checking device limits)
+    vk::PhysicalDeviceProperties deviceProperties;
+    // Stores phyiscal device features (for e.g. checking if a feature is available)
+    vk::PhysicalDeviceFeatures deviceFeatures;
+    // Stores all available memory (type) properties for the physical device
+    vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
 
-        vks::Version version;
-        vks::Version driverVersion;
+    vks::Version version;
+    vks::Version driverVersion;
 
-        void createContext() {
-            {
-                // Vulkan instance
-                vk::ApplicationInfo appInfo;
-                appInfo.pApplicationName = "VulkanExamples";
-                appInfo.pEngineName = "VulkanExamples";
-                appInfo.apiVersion = VK_API_VERSION_1_0;
+    void createContext() {
+        {
+            // Vulkan instance
+            vk::ApplicationInfo appInfo;
+            appInfo.pApplicationName = "VulkanExamples";
+            appInfo.pEngineName = "VulkanExamples";
+            appInfo.apiVersion = VK_API_VERSION_1_0;
 
-                vk::InstanceCreateInfo instanceCreateInfo;
-                instanceCreateInfo.pApplicationInfo = &appInfo;
-                instance = vk::createInstance(instanceCreateInfo);
-            }
-
-            // Physical device
-            physicalDevices = instance.enumeratePhysicalDevices();
-            // Note :
-            // This example will always use the first physical device reported,
-            // change the vector index if you have multiple Vulkan devices installed
-            // and want to use another one
-            physicalDevice = physicalDevices[0];
-
-            // Version information for Vulkan is stored in a single 32 bit integer
-            // with individual bits representing the major, minor and patch versions.
-            // The maximum possible major and minor version is 512 (look out nVidia)
-            // while the maximum possible patch version is 2048
-
-            // Store properties (including limits) and features of the phyiscal device
-            // So examples can check against them and see if a feature is actually supported
-            deviceProperties = physicalDevice.getProperties();
-            version = deviceProperties.apiVersion;
-            driverVersion = deviceProperties.driverVersion;
-            deviceFeatures = physicalDevice.getFeatures();
-            // Gather physical device memory properties
-            deviceMemoryProperties = physicalDevice.getMemoryProperties();
+            vk::InstanceCreateInfo instanceCreateInfo;
+            instanceCreateInfo.pApplicationInfo = &appInfo;
+            instance = vk::createInstance(instanceCreateInfo);
         }
 
-        void destroyContext() {
-            instance.destroy();
-        }
-    };
-}
+        // Physical device
+        physicalDevices = instance.enumeratePhysicalDevices();
+        // Note :
+        // This example will always use the first physical device reported,
+        // change the vector index if you have multiple Vulkan devices installed
+        // and want to use another one
+        physicalDevice = physicalDevices[0];
+
+        // Version information for Vulkan is stored in a single 32 bit integer
+        // with individual bits representing the major, minor and patch versions.
+        // The maximum possible major and minor version is 512 (look out nVidia)
+        // while the maximum possible patch version is 2048
+
+        // Store properties (including limits) and features of the phyiscal device
+        // So examples can check against them and see if a feature is actually supported
+        deviceProperties = physicalDevice.getProperties();
+        version = deviceProperties.apiVersion;
+        driverVersion = deviceProperties.driverVersion;
+        deviceFeatures = physicalDevice.getFeatures();
+        // Gather physical device memory properties
+        deviceMemoryProperties = physicalDevice.getMemoryProperties();
+    }
+
+    void destroyContext() { instance.destroy(); }
+};
+}  // namespace vkx
 
 std::string toHumanSize(size_t size) {
-    static const std::vector<std::string> SUFFIXES{ { "B", "KB", "MB", "GB", "TB", "PB"} };
+    static const std::vector<std::string> SUFFIXES{ { "B", "KB", "MB", "GB", "TB", "PB" } };
     size_t suffixIndex = 0;
     while (suffixIndex < SUFFIXES.size() - 1 && size > 1024) {
         size >>= 10;
@@ -92,13 +90,9 @@ class InitContextExample {
     vkx::Context context;
 
 public:
-    InitContextExample() {
-        context.createContext();
-    }
+    InitContextExample() { context.createContext(); }
 
-    ~InitContextExample() {
-        context.destroyContext();
-    }
+    ~InitContextExample() { context.destroyContext(); }
 
     void run() {
         std::cout << "Vulkan Context Created" << std::endl;
@@ -134,5 +128,3 @@ public:
 };
 
 RUN_EXAMPLE(InitContextExample)
-
-

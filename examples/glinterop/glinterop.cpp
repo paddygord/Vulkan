@@ -42,7 +42,7 @@ public:
 
         glDisable(GL_DEPTH_TEST);
 
-        // Create the texture for the FBO color attachment.  
+        // Create the texture for the FBO color attachment.
         // This only reserves the ID, it doesn't allocate memory
         glCreateTextures(GL_TEXTURE_2D, 1, &color);
 
@@ -53,7 +53,6 @@ public:
         // Platform specific import.  On non-Win32 systems use glImportSemaphoreFdEXT instead
         glImportSemaphoreWin32HandleEXT(glReady, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glReady);
         glImportSemaphoreWin32HandleEXT(glComplete, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.glComplete);
-        
 
         // Import memory
         glCreateMemoryObjectsEXT(1, &mem);
@@ -61,11 +60,11 @@ public:
         glImportMemoryWin32HandleEXT(mem, memorySize, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handles.memory);
 
         // Use the imported memory as backing for the OpenGL texture.  The internalFormat, dimensions
-        // and mip count should match the ones used by Vulkan to create the image and determine it's memory 
+        // and mip count should match the ones used by Vulkan to create the image and determine it's memory
         // allocation.
         glTextureStorageMem2DEXT(color, 1, GL_RGBA8, SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, mem, 0);
 
-        // The remaining initialization code is all standard OpenGL 
+        // The remaining initialization code is all standard OpenGL
         glCreateFramebuffers(1, &fbo);
         glNamedFramebufferTexture(fbo, GL_COLOR_ATTACHMENT0, color, 0);
         glGenVertexArrays(1, &vao);
@@ -102,20 +101,20 @@ public:
         // Draw to the framebuffer
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-        // Once drawing is complete, signal the Vulkan semaphore indicating 
+        // Once drawing is complete, signal the Vulkan semaphore indicating
         // it can continue with it's render
         GLenum dstLayout = GL_LAYOUT_SHADER_READ_ONLY_EXT;
         glSignalSemaphoreEXT(glComplete, 0, nullptr, 1, &color, &dstLayout);
 
         // When using synchronization across multiple GL context, or in this case
-        // across OpenGL and another API, it's critical that an operation on a 
-        // synchronization object that will be waited on in another context or API 
-        // is flushed to the GL server.  
-        // 
+        // across OpenGL and another API, it's critical that an operation on a
+        // synchronization object that will be waited on in another context or API
+        // is flushed to the GL server.
+        //
         // Failure to flush the operation can cause the GL driver to sit and wait for
         // sufficient additional commands in the buffer before it flushes automatically
-        // but depending on how the waits and signals are structured, this may never 
-        // occur.  
+        // but depending on how the waits and signals are structured, this may never
+        // occur.
         glFlush();
     }
 
@@ -214,14 +213,13 @@ struct Vertex {
     float normal[3];
 };
 
-// The bulk of this example is the same as the existing texture example.  
-// However, instead of loading a texture from a file, it relies on an OpenGL 
+// The bulk of this example is the same as the existing texture example.
+// However, instead of loading a texture from a file, it relies on an OpenGL
 // shader to populate the texture.
 class OpenGLInteropExample : public vkx::ExampleBase {
     using Parent = ExampleBase;
 
 public:
-
     struct SharedResources {
         vks::Image texture;
         struct {
@@ -306,7 +304,7 @@ public:
             transitionCmdBuf = context.createCommandBuffer();
             transitionCmdBuf.begin(vk::CommandBufferBeginInfo{});
             context.setImageLayout(transitionCmdBuf, texture.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eColorAttachmentOptimal);
+                                   vk::ImageLayout::eColorAttachmentOptimal);
             transitionCmdBuf.end();
         }
 
@@ -366,15 +364,15 @@ public:
         });
 
         context.requireDeviceExtensions({
-            VK_KHR_MAINTENANCE1_EXTENSION_NAME, //
-            VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME, //
-            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,  //
+            VK_KHR_MAINTENANCE1_EXTENSION_NAME,            //
+                VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,     //
+                VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,  //
 #if defined(WIN32)
-            VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,    //
-            VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME  //
+                VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,    //
+                VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME  //
 #else
-            VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,    //
-            VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME  //
+                VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,    //
+                VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME  //
 #endif
         });
     }

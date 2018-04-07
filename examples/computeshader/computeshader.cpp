@@ -230,9 +230,9 @@ public:
         textureColorMap.destroy();
     }
 
-    void loadAssets() override { 
-        textureColorMap.loadFromFile(context, getAssetPath() + "textures/het_kanonschot_rgba8.ktx", 
-            vk::Format::eR8G8B8A8Unorm, vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage); 
+    void loadAssets() override {
+        textureColorMap.loadFromFile(context, getAssetPath() + "textures/het_kanonschot_rgba8.ktx", vk::Format::eR8G8B8A8Unorm,
+                                     vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage);
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {

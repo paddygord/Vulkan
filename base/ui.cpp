@@ -16,7 +16,6 @@
 #include "utils.hpp"
 #include "android.hpp"
 
-
 using namespace vkx;
 using namespace vkx::ui;
 
@@ -62,7 +61,8 @@ void UIOverlay::create(const UIOverlayCreateInfo& createInfo) {
 }
 
 /** Free up all Vulkan resources acquired by the UI overlay */
-UIOverlay::~UIOverlay() {}
+UIOverlay::~UIOverlay() {
+}
 
 void UIOverlay::destroy() {
     if (commandPool) {
@@ -145,13 +145,9 @@ void UIOverlay::prepareResources() {
     descriptorPool = context.device.createDescriptorPool({ {}, 2, 1, &poolSize });
 
     // Descriptor set layout
-    vk::DescriptorSetLayoutBinding setLayoutBinding{
-        0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment
-    };
+    vk::DescriptorSetLayoutBinding setLayoutBinding{ 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment };
 
-    descriptorSetLayout = context.device.createDescriptorSetLayout(
-        { {}, 1, &setLayoutBinding }
-    );
+    descriptorSetLayout = context.device.createDescriptorSetLayout({ {}, 1, &setLayoutBinding });
 
     // Descriptor set
     vk::DescriptorSetAllocateInfo allocInfo;
@@ -159,7 +155,6 @@ void UIOverlay::prepareResources() {
     allocInfo.pSetLayouts = &descriptorSetLayout;
     allocInfo.descriptorSetCount = 1;
     descriptorSet = context.device.allocateDescriptorSets(allocInfo)[0];
-
 
     vk::DescriptorImageInfo fontDescriptor;
     fontDescriptor.imageView = font.view;
@@ -174,7 +169,7 @@ void UIOverlay::prepareResources() {
 
     // Pipeline layout
     // Push constants for UI rendering parameters
-    vk::PushConstantRange pushConstantRange{ vk::ShaderStageFlagBits::eVertex , 0, sizeof(PushConstBlock) };
+    vk::PushConstantRange pushConstantRange{ vk::ShaderStageFlagBits::eVertex, 0, sizeof(PushConstBlock) };
     vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo{ {}, 1, &descriptorSetLayout, 1, &pushConstantRange };
     pipelineLayout = context.device.createPipelineLayout(pipelineLayoutCreateInfo);
 
@@ -213,9 +208,9 @@ void UIOverlay::preparePipeline() {
     // Vertex bindings an attributes based on ImGui vertex definition
     pipelineBuilder.vertexInputState.bindingDescriptions = { { 0, sizeof(ImDrawVert), vk::VertexInputRate::eVertex } };
     pipelineBuilder.vertexInputState.attributeDescriptions = {
-        { 0, 0, vk::Format::eR32G32Sfloat, offsetof(ImDrawVert, pos) }, // Location 0: Position
-        { 1, 0, vk::Format::eR32G32Sfloat, offsetof(ImDrawVert, uv) }, // Location 1: UV
-        { 2, 0, vk::Format::eR8G8B8A8Unorm, offsetof(ImDrawVert, col) }, // Location 2: Color
+        { 0, 0, vk::Format::eR32G32Sfloat, offsetof(ImDrawVert, pos) },   // Location 0: Position
+        { 1, 0, vk::Format::eR32G32Sfloat, offsetof(ImDrawVert, uv) },    // Location 1: UV
+        { 2, 0, vk::Format::eR8G8B8A8Unorm, offsetof(ImDrawVert, col) },  // Location 2: Color
     };
     pipeline = pipelineBuilder.create(context.pipelineCache);
 }
@@ -290,21 +285,18 @@ void UIOverlay::updateCommandBuffers() {
     ImGuiIO& io = ImGui::GetIO();
 
     const vk::Viewport viewport{ 0.0f, 0.0f, io.DisplaySize.x, io.DisplaySize.y, 0.0f, 1.0f };
-    const vk::Rect2D scissor{ {} , vk::Extent2D{ (uint32_t)io.DisplaySize.x, (uint32_t)io.DisplaySize.y } };
+    const vk::Rect2D scissor{ {}, vk::Extent2D{ (uint32_t)io.DisplaySize.x, (uint32_t)io.DisplaySize.y } };
     // UI scale and translate via push constants
     pushConstBlock.scale = glm::vec2(2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y);
     pushConstBlock.translate = glm::vec2(-1.0f);
 
     if (cmdBuffers.size()) {
-        context.trashAll<vk::CommandBuffer>(cmdBuffers, [&](const std::vector<vk::CommandBuffer>& buffers) {
-            context.device.freeCommandBuffers(commandPool, buffers);
-        });
+        context.trashAll<vk::CommandBuffer>(cmdBuffers,
+                                            [&](const std::vector<vk::CommandBuffer>& buffers) { context.device.freeCommandBuffers(commandPool, buffers); });
         cmdBuffers.clear();
     }
 
-    cmdBuffers = context.device.allocateCommandBuffers(
-        { commandPool, vk::CommandBufferLevel::ePrimary, (uint32_t)createInfo.framebuffers.size() }
-    );
+    cmdBuffers = context.device.allocateCommandBuffers({ commandPool, vk::CommandBufferLevel::ePrimary, (uint32_t)createInfo.framebuffers.size() });
 
     for (size_t i = 0; i < cmdBuffers.size(); ++i) {
         renderPassBeginInfo.framebuffer = createInfo.framebuffers[i];
@@ -371,7 +363,9 @@ void UIOverlay::update() {
     ImDrawData* imDrawData = ImGui::GetDrawData();
     bool updateCmdBuffers = false;
 
-    if (!imDrawData) { return; };
+    if (!imDrawData) {
+        return;
+    };
 
     // Note: Alignment is done inside buffer creation
     vk::DeviceSize vertexBufferSize = imDrawData->TotalVtxCount * sizeof(ImDrawVert);
@@ -448,22 +442,22 @@ void UIOverlay::submit(const vk::Queue& queue, uint32_t bufferindex, vk::SubmitI
     context.device.resetFences(fence);
 }
 
-bool UIOverlay::header(const char *caption) const {
+bool UIOverlay::header(const char* caption) const {
     return ImGui::CollapsingHeader(caption, ImGuiTreeNodeFlags_DefaultOpen);
 }
 
-bool UIOverlay::checkBox(const char *caption, bool *value) const {
+bool UIOverlay::checkBox(const char* caption, bool* value) const {
     return ImGui::Checkbox(caption, value);
 }
 
-bool UIOverlay::checkBox(const char *caption, int32_t *value) const {
+bool UIOverlay::checkBox(const char* caption, int32_t* value) const {
     bool val = (*value == 1);
     bool res = ImGui::Checkbox(caption, &val);
     *value = val;
     return res;
 }
 
-bool UIOverlay::inputFloat(const char *caption, float *value, float step, uint32_t precision) const {
+bool UIOverlay::inputFloat(const char* caption, float* value, float step, uint32_t precision) const {
     return ImGui::InputFloat(caption, value, step, step * 10.0f, precision);
 }
 
@@ -475,7 +469,7 @@ bool UIOverlay::sliderInt(const char* caption, int32_t* value, int32_t min, int3
     return ImGui::SliderInt(caption, value, min, max);
 }
 
-bool UIOverlay::comboBox(const char *caption, int32_t *itemindex, const std::vector<std::string>& items) const {
+bool UIOverlay::comboBox(const char* caption, int32_t* itemindex, const std::vector<std::string>& items) const {
     if (items.empty()) {
         return false;
     }
@@ -488,11 +482,11 @@ bool UIOverlay::comboBox(const char *caption, int32_t *itemindex, const std::vec
     return ImGui::Combo(caption, itemindex, &charitems[0], itemCount, itemCount);
 }
 
-bool UIOverlay::button(const char *caption) const {
+bool UIOverlay::button(const char* caption) const {
     return ImGui::Button(caption);
 }
 
-void UIOverlay::text(const char *formatstr, ...) const {
+void UIOverlay::text(const char* formatstr, ...) const {
     va_list args;
     va_start(args, formatstr);
     ImGui::TextV(formatstr, args);

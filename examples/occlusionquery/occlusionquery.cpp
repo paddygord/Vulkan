@@ -6,8 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
-
+#include <vulkanExampleBase.h>
 
 // Vertex layout used in this example
 // Vertex layout for this example
@@ -65,7 +64,7 @@ public:
 
     VulkanExample() {
         passedSamples[0] = passedSamples[1] = 1;
-        size = vk::Extent2D { 1280, 720 };
+        size = vk::Extent2D{ 1280, 720 };
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ 0.0, -123.75, 0.0 });
@@ -74,7 +73,7 @@ public:
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
         device.destroyPipeline(pipelines.solid);
         device.destroyPipeline(pipelines.occluder);
@@ -102,7 +101,8 @@ public:
     void setupQueryResultBuffer() {
         uint32_t bufSize = 2 * sizeof(uint64_t);
         // Results are saved in a host visible buffer for easy access by the application
-        queryResult = context.createBuffer(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostVisible, bufSize);
+        queryResult = context.createBuffer(vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst,
+                                           vk::MemoryPropertyFlagBits::eHostVisible, bufSize);
         // Query pool will be created for occlusion queries
         queryPool = device.createQueryPool({ {}, vk::QueryType::eOcclusion, 2 });
     }
@@ -118,7 +118,7 @@ public:
         // We use vkGetQueryResults to copy the results into a host visible buffer
         // you can use vk::QueryResultFlagBits::eWithAvailability
         // which also returns the state of the result (ready) in the result
-        device.getQueryPoolResults(queryPool, 0, 2, vk::ArrayProxy<uint64_t> { passedSamples }, sizeof(uint64_t), queryResultFlags);
+        device.getQueryPoolResults(queryPool, 0, 2, vk::ArrayProxy<uint64_t>{ passedSamples }, sizeof(uint64_t), queryResultFlags);
     }
 
     void updateCommandBufferPreDraw(const vk::CommandBuffer& cmdBuffer) override {
@@ -216,21 +216,20 @@ public:
     }
 
     void setupDescriptorPool() {
-        std::vector<vk::DescriptorPoolSize> poolSizes {
-            // One uniform buffer block for each mesh
-            vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 3)
+        std::vector<vk::DescriptorPoolSize> poolSizes{ // One uniform buffer block for each mesh
+                                                       vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 3)
         };
-        descriptorPool = device.createDescriptorPool(vk::DescriptorPoolCreateInfo{ {}, 3,  (uint32_t)poolSizes.size(), poolSizes.data() });
+        descriptorPool = device.createDescriptorPool(vk::DescriptorPoolCreateInfo{ {}, 3, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Vertex shader uniform buffer
             vk::DescriptorSetLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex }
         };
 
         descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
-        pipelineLayout = device.createPipelineLayout({ {}, 1,  &descriptorSetLayout });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSets() {
@@ -279,7 +278,6 @@ public:
         pipelines.simple = pipelineBuilder.create(context.pipelineCache);
         pipelineBuilder.destroyShaderModules();
 
-
         // Visual pipeline for the occluder
         pipelineBuilder.loadShader(getAssetPath() + "shaders/occlusionquery/occluder.vert.spv", vk::ShaderStageFlagBits::eVertex);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/occlusionquery/occluder.frag.spv", vk::ShaderStageFlagBits::eFragment);
@@ -295,11 +293,11 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
-        uniformData.vsScene= context.createUniformBuffer(uboVS);
+        uniformData.vsScene = context.createUniformBuffer(uboVS);
         // Teapot
-        uniformData.teapot= context.createUniformBuffer(uboVS);
+        uniformData.teapot = context.createUniformBuffer(uboVS);
         // Sphere
-        uniformData.sphere= context.createUniformBuffer(uboVS);
+        uniformData.sphere = context.createUniformBuffer(uboVS);
         updateUniformBuffers();
     }
 
@@ -344,9 +342,7 @@ public:
         draw();
     }
 
-    void viewChanged() override {
-        updateUniformBuffers();
-    }
+    void viewChanged() override { updateUniformBuffers(); }
 };
 
 RUN_EXAMPLE(VulkanExample)

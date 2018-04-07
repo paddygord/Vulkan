@@ -6,9 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
-
-#define VERTEX_BUFFER_BIND_ID 0
+#include <vulkanExampleBase.h>
 
 #define SSAO_KERNEL_SIZE 32
 #define SSAO_RADIUS 0.5f
@@ -378,7 +376,7 @@ public:
         offScreenCmdBuffer.setScissor(0, scissor);
         offScreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
         offScreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.gBuffer, 0, descriptorSets.floor, {});
-        offScreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, models.scene.vertices.buffer, { 0 });
+        offScreenCmdBuffer.bindVertexBuffers(0, models.scene.vertices.buffer, { 0 });
         offScreenCmdBuffer.bindIndexBuffer(models.scene.indices.buffer, 0, vk::IndexType::eUint32);
         offScreenCmdBuffer.drawIndexed(models.scene.indexCount, 1, 0, 0, 0);
         offScreenCmdBuffer.endRenderPass();

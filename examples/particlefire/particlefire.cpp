@@ -6,7 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
 
 #define PARTICLE_COUNT 512
 #define PARTICLE_SIZE 10.0f
@@ -138,7 +138,7 @@ public:
         device.destroySampler(textures.particles.sampler);
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override{
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         cmdBuffer.setViewport(0, vks::util::viewport(size));
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         // Environment
@@ -209,8 +209,9 @@ public:
             particle.alpha = 1.0f - (abs(particle.pos.y) / (FLAME_RADIUS * 2.0f));
         }
 
-        particles.buffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, 
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, sizeof(Particle) * particleBuffer.size());
+        particles.buffer =
+            context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+                                 sizeof(Particle) * particleBuffer.size());
         particles.buffer.map();
         particles.buffer.copy(particleBuffer);
     }
@@ -343,7 +344,6 @@ public:
         pipelineBuilder.loadShader(getAssetPath() + "shaders/particlefire/normalmap.frag.spv", vk::ShaderStageFlagBits::eFragment);
         pipelines.environment = pipelineBuilder.create(context.pipelineCache);
         pipelineBuilder.destroyShaderModules();
-
 
         // Particle pipeline, read depth, but do not write it.
         // Premulitplied alpha

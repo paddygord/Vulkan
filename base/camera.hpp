@@ -100,9 +100,7 @@ public:
         updateViewMatrix();
     };
 
-    void dolly(float z) {
-        translate(glm::vec3{ 0, 0, z });
-    }
+    void dolly(float z) { translate(glm::vec3{ 0, 0, z }); }
 
     glm::vec3 getFront() const {
         glm::vec3 camFront;

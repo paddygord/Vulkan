@@ -8,9 +8,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
-
-#define VERTEX_BUFFER_BIND_ID 0
+#include <vulkanExampleBase.h>
 
 class VulkanExample : public vkx::ExampleBase {
 public:
@@ -83,7 +81,7 @@ public:
         viewport.maxDepth = 1;
 
         drawCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, { descriptorSet }, {});
-        drawCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, models.cube.vertices.buffer, { 0 });
+        drawCmdBuffer.bindVertexBuffers(0, models.cube.vertices.buffer, { 0 });
         drawCmdBuffer.bindIndexBuffer(models.cube.indices.buffer, 0, vk::IndexType::eUint32);
 
         // Left

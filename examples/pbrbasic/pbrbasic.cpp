@@ -10,7 +10,6 @@
 
 #include <vulkanExampleBase.h>
 
-#define VERTEX_BUFFER_BIND_ID 0
 #define ENABLE_VALIDATION false
 #define GRID_DIM 7
 #define OBJ_DIM 0.05f
@@ -124,7 +123,7 @@ public:
         uniformBuffers.params.destroy();
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override{
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         cmdBuffer.setViewport(0, viewport());
         cmdBuffer.setScissor(0, scissor());
 
@@ -133,7 +132,7 @@ public:
         // Objects
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, models.objects[models.objectIndex].vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(0, models.objects[models.objectIndex].vertices.buffer, offsets);
         cmdBuffer.bindIndexBuffer(models.objects[models.objectIndex].indices.buffer, 0, vk::IndexType::eUint32);
 
         Material mat = materials[materialIndex];
@@ -193,7 +192,7 @@ public:
         }
     }
 #endif
-    void loadAssets() override{
+    void loadAssets() override {
         // Objects
         std::vector<std::string> filenames = { "geosphere.obj", "teapot.dae", "torusknot.obj", "venus.fbx" };
         auto modelCount = filenames.size();
@@ -232,7 +231,6 @@ public:
         // Descriptor sets
         // 3D object descriptor set
         descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
-
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets = {
             { descriptorSet, 0, 0, 1, vDT::eUniformBuffer, nullptr, &uniformBuffers.object.descriptor },

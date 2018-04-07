@@ -6,8 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
-
+#include <vulkanExampleBase.h>
 
 // Vertex layout for this example
 vks::model::VertexLayout vertexLayout{ {
@@ -54,7 +53,7 @@ public:
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
         device.destroyPipeline(pipelines.solid);
         device.destroyPipeline(pipelines.normals);
@@ -85,9 +84,7 @@ public:
         }
     }
 
-    void loadAssets() override {
-        meshes.object.loadFromFile(context, getAssetPath() + "models/suzanne.obj", vertexLayout, 0.25f);
-    }
+    void loadAssets() override { meshes.object.loadFromFile(context, getAssetPath() + "models/suzanne.obj", vertexLayout, 0.25f); }
 
     void setupDescriptorPool() {
         // Example uses two ubos
@@ -95,26 +92,21 @@ public:
             vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, 2 },
         };
 
-        descriptorPool = device.createDescriptorPool(
-            vk::DescriptorPoolCreateInfo{ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() }
-        );
+        descriptorPool = device.createDescriptorPool(vk::DescriptorPoolCreateInfo{ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
         std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Vertex shader ubo
-            vk::DescriptorSetLayoutBinding{0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+            vk::DescriptorSetLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Geometry shader ubo
-            vk::DescriptorSetLayoutBinding{1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eGeometry },
+            vk::DescriptorSetLayoutBinding{ 1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eGeometry },
         };
 
-        descriptorSetLayout = device.createDescriptorSetLayout(
-            vk::DescriptorSetLayoutCreateInfo{ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() }
-        );
+        descriptorSetLayout =
+            device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
 
-        pipelineLayout = device.createPipelineLayout(
-            vk::PipelineLayoutCreateInfo{ {}, 1, &descriptorSetLayout }
-        );
+        pipelineLayout = device.createPipelineLayout(vk::PipelineLayoutCreateInfo{ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
@@ -133,11 +125,7 @@ public:
     void preparePipelines() {
         vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
         pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
-        pipelineBuilder.dynamicState.dynamicStateEnables = {
-            vk::DynamicState::eViewport,
-            vk::DynamicState::eScissor,
-            vk::DynamicState::eLineWidth
-        };
+        pipelineBuilder.dynamicState.dynamicStateEnables = { vk::DynamicState::eViewport, vk::DynamicState::eScissor, vk::DynamicState::eLineWidth };
 
         // Normal debugging pipeline
         pipelineBuilder.loadShader(getAssetPath() + "shaders/geometryshader/base.vert.spv", vk::ShaderStageFlagBits::eVertex);
@@ -146,7 +134,6 @@ public:
         pipelineBuilder.vertexInputState.appendVertexLayout(vertexLayout);
         pipelines.normals = pipelineBuilder.create(context.pipelineCache);
         pipelineBuilder.destroyShaderModules();
-
 
         // Solid rendering pipeline
         pipelineBuilder.loadShader(getAssetPath() + "shaders/geometryshader/mesh.vert.spv", vk::ShaderStageFlagBits::eVertex);
@@ -157,9 +144,9 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
-        uniformData.VS= context.createUniformBuffer(uboVS);
+        uniformData.VS = context.createUniformBuffer(uboVS);
         // Geometry shader uniform buffer block
-        uniformData.GS= context.createUniformBuffer(uboGS);
+        uniformData.GS = context.createUniformBuffer(uboGS);
         updateUniformBuffers();
     }
 
@@ -192,10 +179,7 @@ public:
         draw();
     }
 
-    void viewChanged() override {
-        updateUniformBuffers();
-    }
-
+    void viewChanged() override { updateUniformBuffers(); }
 
     virtual void OnUpdateUIOverlay() {
         if (ui.header("Settings")) {
@@ -204,7 +188,6 @@ public:
             }
         }
     }
-
 };
 
 RUN_EXAMPLE(VulkanExample)

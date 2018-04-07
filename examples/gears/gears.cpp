@@ -6,13 +6,12 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-
-
 #include "vulkanGear.h"
 #include "vulkanExampleBase.h"
 
 class VulkanExample : public vkx::ExampleBase {
     using Parent = vkx::ExampleBase;
+
 public:
     struct {
         vk::Pipeline solid;
@@ -35,14 +34,14 @@ public:
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
         device.destroyPipeline(pipelines.solid);
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
 
         for (auto& gear : gears) {
-            delete(gear);
+            delete (gear);
         }
     }
 
@@ -62,51 +61,33 @@ public:
         std::vector<float> widths = { 1.0f, 2.0f, 0.5f };
         std::vector<int32_t> toothCount = { 20, 10, 10 };
         std::vector<float> toothDepth = { 0.7f, 0.7f, 0.7f };
-        std::vector<glm::vec3> colors = {
-            glm::vec3(1.0f, 0.0f, 0.0f),
-            glm::vec3(0.0f, 1.0f, 0.2f),
-            glm::vec3(0.0f, 0.0f, 1.0f)
-        };
-        std::vector<glm::vec3> positions = {
-            glm::vec3(-3.0, 0.0, 0.0),
-            glm::vec3(3.1, 0.0, 0.0),
-            glm::vec3(-3.1, -6.2, 0.0)
-        };
+        std::vector<glm::vec3> colors = { glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.2f), glm::vec3(0.0f, 0.0f, 1.0f) };
+        std::vector<glm::vec3> positions = { glm::vec3(-3.0, 0.0, 0.0), glm::vec3(3.1, 0.0, 0.0), glm::vec3(-3.1, -6.2, 0.0) };
         std::vector<float> rotationSpeeds = { 1.0f, -2.0f, -2.0f };
         std::vector<float> rotationStarts = { 0.0f, -9.0f, -30.0f };
 
         gears.resize(positions.size());
         for (int32_t i = 0; i < gears.size(); ++i) {
             gears[i] = new VulkanGear(context);
-            gears[i]->generate(
-                innerRadiuses[i],
-                outerRadiuses[i],
-                widths[i],
-                toothCount[i],
-                toothDepth[i],
-                colors[i],
-                positions[i],
-                rotationSpeeds[i],
-                rotationStarts[i]);
+            gears[i]->generate(innerRadiuses[i], outerRadiuses[i], widths[i], toothCount[i], toothDepth[i], colors[i], positions[i], rotationSpeeds[i],
+                               rotationStarts[i]);
         }
     }
 
     void setupDescriptorPool() {
         // One UBO for each gears
-        std::vector<vk::DescriptorPoolSize> poolSizes {
+        std::vector<vk::DescriptorPoolSize> poolSizes{
             vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 3),
         };
         descriptorPool = device.createDescriptorPool({ {}, 3, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings = {
-            // Binding 0 : Vertex shader uniform buffer
-            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex }
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings = { // Binding 0 : Vertex shader uniform buffer
+                                                                          { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex }
         };
         descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
         pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
-
     }
 
     void setupDescriptorSets() {
@@ -117,7 +98,7 @@ public:
 
     void preparePipelines() {
         // Solid rendering pipeline
-        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device,  pipelineLayout, renderPass };
+        vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
         pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
         pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
         pipelineBuilder.colorBlendState.blendAttachmentStates.resize(1);
@@ -130,7 +111,7 @@ public:
     }
 
     void updateUniformBuffers() {
-        glm::mat4 perspective = glm::perspective(glm::radians(60.0f), (float)size.width/ (float)size.height, 0.001f, 256.0f);
+        glm::mat4 perspective = glm::perspective(glm::radians(60.0f), (float)size.width / (float)size.height, 0.001f, 256.0f);
         for (auto& gear : gears) {
             gear->updateUniformBuffer(perspective, camera.matrices.view, timer * 360.0f);
         }
@@ -155,10 +136,7 @@ public:
         }
     }
 
-    void viewChanged() override {
-        updateUniformBuffers();
-    }
-
+    void viewChanged() override { updateUniformBuffers(); }
 };
 
 RUN_EXAMPLE(VulkanExample)

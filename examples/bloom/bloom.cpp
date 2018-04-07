@@ -27,6 +27,7 @@ vks::model::VertexLayout vertexLayout{ {
 
 class VulkanExample : public vkx::OffscreenExampleBase {
     using Parent = OffscreenExampleBase;
+
 public:
     bool bloom = true;
 
@@ -90,7 +91,8 @@ public:
         vk::DescriptorSetLayout scene;
     } descriptorSetLayouts;
 
-    VulkanExample() : vkx::OffscreenExampleBase() {
+    VulkanExample()
+        : vkx::OffscreenExampleBase() {
         camera.setPosition(glm::vec3(0.0f, 0.0f, -10.25f));
         camera.setRotation(glm::vec3(7.5f, -343.0f, 0.0f));
         timerSpeed *= 0.5f;
@@ -98,7 +100,7 @@ public:
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
 
         device.destroyPipeline(pipelines.blurVert);
@@ -127,7 +129,6 @@ public:
         textures.cubemap.destroy();
     }
 
-
     // Render the 3D scene into a texture target
     void buildOffscreenCommandBuffer() override {
         vk::Viewport viewport = vks::util::viewport(offscreen.size);
@@ -138,7 +139,6 @@ public:
         vk::ClearValue clearValues[2];
         clearValues[0].color = vks::util::clearColor({ 0.0f, 0.0f, 0.0f, 1.0f });
         clearValues[1].depthStencil = vk::ClearDepthStencilValue{ 1.0f, 0 };
-
 
         offscreen.cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
         vk::CommandBufferBeginInfo cmdBufInfo;
@@ -190,7 +190,7 @@ public:
         cmdBuffer.setViewport(0, vks::util::viewport(size));
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
 
-        // Skybox 
+        // Skybox
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.skyBox, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skyBox);
         cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.skyBox.vertices.buffer, offset);
@@ -213,83 +213,83 @@ public:
     }
 
     void setupDescriptorPool() {
-        std::vector<vk::DescriptorPoolSize> poolSizes {
+        std::vector<vk::DescriptorPoolSize> poolSizes{
             vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, 8 },
-            vk::DescriptorPoolSize{ vk::DescriptorType::eCombinedImageSampler, 6},
+            vk::DescriptorPoolSize{ vk::DescriptorType::eCombinedImageSampler, 6 },
         };
 
-        descriptorPool = device.createDescriptorPool(
-            vk::DescriptorPoolCreateInfo{ {}, 5, (uint32_t)poolSizes.size(), poolSizes.data() }
-        );
+        descriptorPool = device.createDescriptorPool(vk::DescriptorPoolCreateInfo{ {}, 5, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
         // Quad pipeline layout
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings {
-            { 0, vk::DescriptorType::eUniformBuffer, 1,  vk::ShaderStageFlagBits::eFragment },
-            { 1, vk::DescriptorType::eCombinedImageSampler, 1,  vk::ShaderStageFlagBits::eFragment },
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
+            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
         descriptorSetLayouts.blur = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
         pipelineLayouts.blur = device.createPipelineLayout({ {}, 1, &descriptorSetLayouts.blur });
 
-
         setLayoutBindings = {
             // Binding 0 : Vertex shader uniform buffer
-            { 0, vk::DescriptorType::eUniformBuffer, 1,  vk::ShaderStageFlagBits::eVertex },
-            { 1, vk::DescriptorType::eCombinedImageSampler, 1,  vk::ShaderStageFlagBits::eFragment },
-            { 2, vk::DescriptorType::eUniformBuffer, 1,  vk::ShaderStageFlagBits::eFragment },
+            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
+            { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
+            { 2, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment },
         };
         descriptorSetLayouts.scene = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
         pipelineLayouts.scene = device.createPipelineLayout({ {}, 1, &descriptorSetLayouts.scene });
     }
 
     void setupDescriptorSet() {
-
         // Full screen blur descriptor sets
 
         // Vertical blur
         descriptorSets.verticalBlur = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.blur })[0];
 
-        vk::DescriptorImageInfo texDescriptorVert{
-            offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal
-        };
-        device.updateDescriptorSets({
-            { descriptorSets.verticalBlur, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fsVertBlur.descriptor },
-            { descriptorSets.verticalBlur, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorVert },
-        }, {});
+        vk::DescriptorImageInfo texDescriptorVert{ offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view,
+                                                   vk::ImageLayout::eShaderReadOnlyOptimal };
+        device.updateDescriptorSets(
+            {
+                { descriptorSets.verticalBlur, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fsVertBlur.descriptor },
+                { descriptorSets.verticalBlur, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorVert },
+            },
+            {});
 
         // Horizontal blur
         descriptorSets.horizontalBlur = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.blur })[0];
-        vk::DescriptorImageInfo texDescriptorHorz{
-            offscreen.framebuffers[1].colors[0].sampler, offscreen.framebuffers[1].colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal
-        };
-        device.updateDescriptorSets({
-            { descriptorSets.horizontalBlur, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fsHorzBlur.descriptor },
-            { descriptorSets.horizontalBlur, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorHorz },
-        }, {});
+        vk::DescriptorImageInfo texDescriptorHorz{ offscreen.framebuffers[1].colors[0].sampler, offscreen.framebuffers[1].colors[0].view,
+                                                   vk::ImageLayout::eShaderReadOnlyOptimal };
+        device.updateDescriptorSets(
+            {
+                { descriptorSets.horizontalBlur, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fsHorzBlur.descriptor },
+                { descriptorSets.horizontalBlur, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorHorz },
+            },
+            {});
 
         // 3D scene
         descriptorSets.scene = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.scene })[0];
 
-        device.updateDescriptorSets({
-            // Binding 0 : Vertex shader uniform buffer
-            vk::WriteDescriptorSet{ descriptorSets.scene, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsFullScreen.descriptor },
-            }, {});
+        device.updateDescriptorSets(
+            {
+                // Binding 0 : Vertex shader uniform buffer
+                vk::WriteDescriptorSet{ descriptorSets.scene, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsFullScreen.descriptor },
+            },
+            {});
 
         // Skybox
         descriptorSets.skyBox = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.scene })[0];
 
         // vk::Image descriptor for the cube map texture
-        vk::DescriptorImageInfo cubeMapDescriptor{
-            textures.cubemap.sampler, textures.cubemap.view, vk::ImageLayout::eGeneral 
-        };
+        vk::DescriptorImageInfo cubeMapDescriptor{ textures.cubemap.sampler, textures.cubemap.view, vk::ImageLayout::eGeneral };
 
-        device.updateDescriptorSets({
-            // Binding 0 : Vertex shader uniform buffer
-            vk::WriteDescriptorSet{ descriptorSets.skyBox, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsSkyBox.descriptor },
-            // Binding 1 : Fragment shader texture sampler
-            vk::WriteDescriptorSet{ descriptorSets.skyBox, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &cubeMapDescriptor },
-            }, {});
+        device.updateDescriptorSets(
+            {
+                // Binding 0 : Vertex shader uniform buffer
+                vk::WriteDescriptorSet{ descriptorSets.skyBox, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsSkyBox.descriptor },
+                // Binding 1 : Fragment shader texture sampler
+                vk::WriteDescriptorSet{ descriptorSets.skyBox, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &cubeMapDescriptor },
+            },
+            {});
     }
 
     void preparePipelines() {
@@ -318,7 +318,7 @@ public:
             pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/gaussblur.vert.spv", vk::ShaderStageFlagBits::eVertex);
             pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/gaussblur.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
-            // Specialization info to compile two versions of the shader without 
+            // Specialization info to compile two versions of the shader without
             // relying on shader branching at runtime
             uint32_t blurdirection = 0;
             vk::SpecializationMapEntry specializationMapEntry{ 0, 0, sizeof(uint32_t) };
@@ -332,7 +332,6 @@ public:
             blurdirection = 1;
             pipelineBuilder.renderPass = renderPass;
             pipelines.blurHorz = pipelineBuilder.create(context.pipelineCache);
-
         }
 
         // Vertical gauss blur
@@ -363,7 +362,6 @@ public:
             pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/skybox.vert.spv", vk::ShaderStageFlagBits::eVertex);
             pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/skybox.frag.spv", vk::ShaderStageFlagBits::eFragment);
             pipelines.skyBox = pipelineBuilder.create(context.pipelineCache);
-
         }
     }
 
@@ -390,9 +388,10 @@ public:
     void updateUniformBuffersScene() {
         // UFO
         ubos.fullscreen.projection = camera.matrices.perspective;
-        ubos.fullscreen.model = camera.matrices.view * glm::translate(glm::mat4(), glm::vec3(sin(glm::radians(timer * 360.0f)) * 0.25f, 0.0f, cos(glm::radians(timer * 360.0f)) * 0.25f));
+        ubos.fullscreen.model = camera.matrices.view * glm::translate(glm::mat4(), glm::vec3(sin(glm::radians(timer * 360.0f)) * 0.25f, 0.0f,
+                                                                                             cos(glm::radians(timer * 360.0f)) * 0.25f));
         auto rotation = glm::angleAxis(-sinf(glm::radians(timer * 360.0f)) * 0.15f, glm::vec3(1.0f, 0.0f, 0.0f)) *
-            glm::angleAxis(glm::radians(timer * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                        glm::angleAxis(glm::radians(timer * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         ubos.fullscreen.model = ubos.fullscreen.model * glm::mat4_cast(rotation);
         uniformData.vsFullScreen.copy(ubos.fullscreen);
 
@@ -470,18 +469,18 @@ public:
 
     void keyPressed(uint32_t keyCode) override {
         switch (keyCode) {
-        case KEY_KPADD:
-        case GAMEPAD_BUTTON_R1:
-            changeBlurScale(0.25f);
-            break;
-        case KEY_KPSUB:
-        case GAMEPAD_BUTTON_L1:
-            changeBlurScale(-0.25f);
-            break;
-        case KEY_B:
-        case GAMEPAD_BUTTON_A:
-            toggleBloom();
-            break;
+            case KEY_KPADD:
+            case GAMEPAD_BUTTON_R1:
+                changeBlurScale(0.25f);
+                break;
+            case KEY_KPSUB:
+            case GAMEPAD_BUTTON_L1:
+                changeBlurScale(-0.25f);
+                break;
+            case KEY_B:
+            case GAMEPAD_BUTTON_A:
+                toggleBloom();
+                break;
         }
     }
 

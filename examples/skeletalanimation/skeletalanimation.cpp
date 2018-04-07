@@ -143,7 +143,6 @@ public:
         vertex.uv *= uvscale;
         vertex.color = { pColor.r, pColor.g, pColor.b };
 
-
         // Fetch bone weights and IDs
         for (uint32_t boneIndex = 0; boneIndex < MAX_BONES_PER_VERTEX; boneIndex++) {
             vertex.boneWeights[boneIndex] = bone.weights[boneIndex];
@@ -155,7 +154,6 @@ public:
 
         appendOutput(outputBuffer, vertex);
     }
-
 
     // Set active animation by index
     void setAnimation(uint32_t animationIndex) {
@@ -440,7 +438,8 @@ public:
         textures.floor.loadFromFile(context, getAssetPath() + "textures/pattern_35_bc3.ktx", vk::Format::eBc3UnormBlock);
         meshes.floor.loadFromFile(context, getAssetPath() + "models/plane_z.obj", vertexLayout, 512.0f);
         // Load a mesh based on data read via assimp
-        skinnedMesh.loadFromFile(context, getAssetPath() + "models/goblin.dae", vertexLayout, 1.0f, aiProcess_FlipWindingOrder | aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals);
+        skinnedMesh.loadFromFile(context, getAssetPath() + "models/goblin.dae", vertexLayout, 1.0f,
+                                 aiProcess_FlipWindingOrder | aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals);
         skinnedMesh.setAnimation(0);
     }
 

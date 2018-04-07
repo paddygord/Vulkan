@@ -7,10 +7,9 @@
 */
 
 #include <vulkanExampleBase.h>
-#include "assimp/scene.h"
-#include "assimp/postprocess.h"
-#include "assimp/Importer.hpp"
-#define VERTEX_BUFFER_BIND_ID 0
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <assimp/Importer.hpp>
 
 // Vertex layout used in this example
 struct Vertex {
@@ -21,10 +20,10 @@ struct Vertex {
 };
 
 vks::model::VertexLayout vertexLayout{ {
-        vks::model::VERTEX_COMPONENT_POSITION,
-        vks::model::VERTEX_COMPONENT_NORMAL,
-        vks::model::VERTEX_COMPONENT_UV,
-        vks::model::VERTEX_COMPONENT_COLOR,
+    vks::model::VERTEX_COMPONENT_POSITION,
+    vks::model::VERTEX_COMPONENT_NORMAL,
+    vks::model::VERTEX_COMPONENT_UV,
+    vks::model::VERTEX_COMPONENT_COLOR,
 } };
 
 // Scene related structs
@@ -156,8 +155,6 @@ private:
             { 0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
         descriptorSetLayouts.material = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
-            
-            
 
         // Setup pipeline layout
         std::array<vk::DescriptorSetLayout, 2> setLayouts = { descriptorSetLayouts.scene, descriptorSetLayouts.material };
@@ -260,7 +257,8 @@ public:
     bool renderSingleScenePart = false;
     uint32_t scenePartIndex = 0;
 
-    Scene(const vks::Context& context) : context(context) {
+    Scene(const vks::Context& context)
+        : context(context) {
         uniformBuffer = context.createUniformBuffer(uniformData);
     }
 
@@ -363,7 +361,6 @@ public:
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         scene->render(cmdBuffer, wireframe);
     }
-
 
     void preparePipelines() {
         vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, scene->pipelineLayout, renderPass };

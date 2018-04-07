@@ -344,7 +344,7 @@ public:
 
     void viewChanged() override { updateUniformBuffers(); }
 
-    void OnUpdateUIOverlay() override{
+    void OnUpdateUIOverlay() override {
         if (ui.header("Settings")) {
             if (ui.comboBox("Material", &materialIndex, materialNames)) {
                 buildCommandBuffers();

@@ -12,7 +12,7 @@
 
 #include <android/keycodes.h>
 
-#define KEY_ESCAPE AKEYCODE_ESCAPE 
+#define KEY_ESCAPE AKEYCODE_ESCAPE
 #define KEY_F1 AKEYCODE_F1
 #define KEY_F2 AKEYCODE_F2
 #define KEY_F3 AKEYCODE_F3
@@ -44,7 +44,7 @@
 
 #else
 
-#define KEY_ESCAPE GLFW_KEY_ESCAPE 
+#define KEY_ESCAPE GLFW_KEY_ESCAPE
 #define KEY_F1 GLFW_KEY_F1
 #define KEY_F2 GLFW_KEY_F2
 #define KEY_F3 GLFW_KEY_F3
@@ -66,4 +66,3 @@
 #define KEY_T GLFW_KEY_T
 
 #endif
-

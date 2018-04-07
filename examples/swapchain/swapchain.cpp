@@ -26,7 +26,8 @@ public:
     // Index of the deteced graphics and presenting device queue
     uint32_t queueNodeIndex = UINT32_MAX;
 
-    SwapChain(const vks::Context& context) : context(context) {
+    SwapChain(const vks::Context& context)
+        : context(context) {
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = &swapchain;
         presentInfo.pImageIndices = &currentImage;
@@ -37,7 +38,6 @@ public:
         // Get list of supported surface formats
         std::vector<vk::SurfaceFormatKHR> surfaceFormats = context.physicalDevice.getSurfaceFormatsKHR(surface);
         auto formatCount = surfaceFormats.size();
-
 
         // If the surface format list only includes one entry with  vk::Format::eUndefined,
         // there is no preferered format, so we assume  vk::Format::eB8G8R8A8Unorm
@@ -100,8 +100,8 @@ public:
             preTransform = surfCaps.currentTransform;
         }
 
-
-        auto imageFormat = context.physicalDevice.getImageFormatProperties(colorFormat, vk::ImageType::e2D, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eColorAttachment, vk::ImageCreateFlags());
+        auto imageFormat = context.physicalDevice.getImageFormatProperties(colorFormat, vk::ImageType::e2D, vk::ImageTiling::eOptimal,
+                                                                           vk::ImageUsageFlagBits::eColorAttachment, vk::ImageCreateFlags());
 
         vk::SwapchainCreateInfoKHR swapchainCI;
         swapchainCI.surface = surface;
@@ -121,7 +121,6 @@ public:
         swapchainCI.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
 
         swapchain = context.device.createSwapchainKHR(swapchainCI);
-
 
         // If an existing sawp chain is re-created, destroy the old swap chain
         // This also cleans up all the presentable images
@@ -156,7 +155,6 @@ public:
         // Verify that the first attachment is null
         assert(framebufferCreateInfo.pAttachments[0] == vk::ImageView());
 
-
         std::vector<vk::ImageView> attachments;
         attachments.resize(framebufferCreateInfo.attachmentCount);
         for (size_t i = 0; i < framebufferCreateInfo.attachmentCount; ++i) {
@@ -186,16 +184,16 @@ public:
         currentImage = resultValue.value;
         return currentImage;
     }
-        
-    // This function serves two purposes.  The first is to provide a fence associated with a given swap chain 
+
+    // This function serves two purposes.  The first is to provide a fence associated with a given swap chain
     // image.  If this fence is submitted to a queue along with the command buffer(s) that write to that image
-    // then if that fence is signaled, you can rely on the fact that those command buffers 
+    // then if that fence is signaled, you can rely on the fact that those command buffers
     // (and any other per-swapchain-image resoures) are no longer in use.
-    // 
-    // The second purpose is to actually perform a blocking wait on any previous fence that was associated with 
-    // that image before returning.  By doing so, it can ensure that we do not attempt to submit a command 
-    // buffer that may already be exeucting for a previous frame using this image.  
-    // 
+    //
+    // The second purpose is to actually perform a blocking wait on any previous fence that was associated with
+    // that image before returning.  By doing so, it can ensure that we do not attempt to submit a command
+    // buffer that may already be exeucting for a previous frame using this image.
+    //
     // Note that the fence
     const vk::Fence& getSubmitFence() {
         auto& image = images[currentImage];
@@ -227,7 +225,7 @@ public:
                 context.device.destroyFence(image.fence);
             }
             context.device.destroyImageView(image.view);
-            // Note, we do not destroy the vk::Image itself  because we are not responsible for it. It is 
+            // Note, we do not destroy the vk::Image itself  because we are not responsible for it. It is
             // owned by the underlying swap chain implementation and will be handled by destroySwapchainKHR
         }
         images.clear();
@@ -238,7 +236,7 @@ public:
 
 class SwapChainExample : glfw::Window {
     vks::Context context;
-    SwapChain swapchain { context };
+    SwapChain swapchain{ context };
     vk::RenderPass renderPass;
     glm::uvec2 windowSize;
     vk::SurfaceKHR surface;
@@ -249,19 +247,18 @@ class SwapChainExample : glfw::Window {
     // List of command buffers (same as number of swap chain images)
     std::vector<vk::CommandBuffer> commandBuffers;
 
-    // Syncronization primitices 
+    // Syncronization primitices
     struct {
         vk::Semaphore acquireComplete;
         vk::Semaphore renderComplete;
     } semaphores;
 
 public:
-
     void createWindow() {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         auto monitor = glfwGetPrimaryMonitor();
         auto mode = glfwGetVideoMode(monitor);
-        windowSize = glm::uvec2{ mode->width / 2 , mode->height / 2 };
+        windowSize = glm::uvec2{ mode->width / 2, mode->height / 2 };
         glfw::Window::createWindow(windowSize, { 100, 100 });
         showWindow();
         surface = createSurface(context.instance);
@@ -324,7 +321,7 @@ public:
         framebufferCreateInfo.layers = 1;
 
         // Create frame buffers for every swap chain image
-        framebuffers =  swapchain.createFramebuffers(framebufferCreateInfo);
+        framebuffers = swapchain.createFramebuffers(framebufferCreateInfo);
     }
 
     void createCommandBuffers() {
@@ -334,22 +331,18 @@ public:
         }
 
         static const std::vector<vk::ClearColorValue> CLEAR_COLORS{
-            vks::util::clearColor({ 1, 0, 0, 0 }),
-            vks::util::clearColor({ 0, 1, 0, 0 }),
-            vks::util::clearColor({ 0, 0, 1, 0 }),
-            vks::util::clearColor({ 0, 1, 1, 0 }),
-            vks::util::clearColor({ 1, 0, 1, 0 }),
-            vks::util::clearColor({ 1, 1, 0, 0 }),
+            vks::util::clearColor({ 1, 0, 0, 0 }), vks::util::clearColor({ 0, 1, 0, 0 }), vks::util::clearColor({ 0, 0, 1, 0 }),
+            vks::util::clearColor({ 0, 1, 1, 0 }), vks::util::clearColor({ 1, 0, 1, 0 }), vks::util::clearColor({ 1, 1, 0, 0 }),
             vks::util::clearColor({ 1, 1, 1, 0 }),
         };
 
         vk::ClearValue clearValue;
-        vk::RenderPassBeginInfo renderPassBeginInfo {
+        vk::RenderPassBeginInfo renderPassBeginInfo{
             renderPass,
-            {}, // no framebuffer explicitly set
+            {},  // no framebuffer explicitly set
             { {}, swapchain.swapchainExtent },
-            1,  // number of clear values
-            &clearValue // clear value
+            1,           // number of clear values
+            &clearValue  // clear value
         };
 
         for (size_t i = 0; i < swapchain.imageCount; ++i) {
@@ -366,47 +359,47 @@ public:
     }
 
     void createSwapchain() {
-        // Using the window surface, construct the swap chain.  The swap chain is dependent on both 
+        // Using the window surface, construct the swap chain.  The swap chain is dependent on both
         // the Vulkan instance as well as the window surface, so it needs to happen after
         swapchain.setWindowSurface(surface);
-        
+
         swapchain.create(windowSize);
 
         if (!renderPass) {
-            // Create a renderpass.  
+            // Create a renderpass.
             //
-            // A renderpass defines what combination of input and output attachments types will be used 
-            // during a given set of rendering operations, as well as what subpasses 
-            // 
-            // Note, it doesn't reference the actual images, just defines the kinds of images, they're 
-            // layouts, and how the layouts will change over the course of executing commands during the 
+            // A renderpass defines what combination of input and output attachments types will be used
+            // during a given set of rendering operations, as well as what subpasses
+            //
+            // Note, it doesn't reference the actual images, just defines the kinds of images, they're
+            // layouts, and how the layouts will change over the course of executing commands during the
             // renderpass.  Therefore it can be created almost immediately after the context and typically
-            // doesn't need to change over time in response to things like window resizing , or rendering a 
-            // different set of objects, or using different pipelines for rendering.  
+            // doesn't need to change over time in response to things like window resizing , or rendering a
+            // different set of objects, or using different pipelines for rendering.
             //
             // A RenderPass is required for creating framebuffers and pipelines, which can then only be used
-            // with that specific RenderPass OR another RenderPass that is considered compatible.  
-            // 
-            // Creation of the RenderPass is dependent on the Vulkan context creation, and in this case on the 
+            // with that specific RenderPass OR another RenderPass that is considered compatible.
+            //
+            // Creation of the RenderPass is dependent on the Vulkan context creation, and in this case on the
             // swap chain because we're using the swap chain images directly in the framebuffer
             createRenderPass();
         }
 
-        // Create the Framebuffers to which we will render output that will be presented to the screen.  
-        // As noted above, any FrameBuffer is dependent on a RenderPass and can only be used with that 
-        // RenderPass or another RenderPass compatible with it.  It's also typically dpenedent on the 
-        // Window, since usually you'll be creating at least one set of Framebuffers specifically for 
+        // Create the Framebuffers to which we will render output that will be presented to the screen.
+        // As noted above, any FrameBuffer is dependent on a RenderPass and can only be used with that
+        // RenderPass or another RenderPass compatible with it.  It's also typically dpenedent on the
+        // Window, since usually you'll be creating at least one set of Framebuffers specifically for
         // presentation to the window surface, and that set (which we are creating here) must must be using
         // the images acquired from the SwapChain, and must match the size of those images.
-        // 
+        //
         // Common practice is to create an individual Framebuffer for each of the SwapChain images,
-        // although all of them can typically share the same depth image, since they will not be 
+        // although all of them can typically share the same depth image, since they will not be
         // in use concurrently
         createFramebuffers();
 
-        // Create the CommandBuffer objects which will contain the commands we execute for our rendering.  
-        // 
-        // Similar to the Framebuffers, we will create one for each of the swap chain images.  
+        // Create the CommandBuffer objects which will contain the commands we execute for our rendering.
+        //
+        // Similar to the Framebuffers, we will create one for each of the swap chain images.
         createCommandBuffers();
     }
 
@@ -427,7 +420,7 @@ public:
         context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
         context.createInstance();
 
-        // Construct the window.  The window doesn't need any special attributes, it just 
+        // Construct the window.  The window doesn't need any special attributes, it just
         // need to be a native Win32 or XCB window surface. Window is independent of the contenxt and
         // RenderPass creation.  It can creation can occur before or after them.
         createWindow();
@@ -435,18 +428,18 @@ public:
         context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
         context.createDevice(surface);
 
-        // Finally, we need to create a number of Sempahores.  Semaphores are used for GPU<->GPU 
-        // synchronization.  Tyipically this means that you include them in certain function calls to 
+        // Finally, we need to create a number of Sempahores.  Semaphores are used for GPU<->GPU
+        // synchronization.  Tyipically this means that you include them in certain function calls to
         // tell the GPU to wait until the semaphore is signalled before actually executing the commands
-        // or that once it's completed the commands, it should signal the semaphore, or both.  
+        // or that once it's completed the commands, it should signal the semaphore, or both.
 
         // Create a semaphore used to synchronize image presentation
         // This semaphore will be signaled when the system actually displays an image.  By waiting on this
-        // semaphore, we can ensure that the GPU doesn't start working on the next frame until the image 
+        // semaphore, we can ensure that the GPU doesn't start working on the next frame until the image
         // for it has been acquired (typically meaning that it's previous contents have been presented to the screen)
         semaphores.acquireComplete = context.device.createSemaphore({});
         // Create a semaphore used to synchronize command submission
-        // This semaphore is used to ensure that before we submit a given image for presentation, all the rendering 
+        // This semaphore is used to ensure that before we submit a given image for presentation, all the rendering
         // command for generating the image have been completed.
         semaphores.renderComplete = context.device.createSemaphore({});
 
@@ -455,11 +448,11 @@ public:
     }
 
     void renderFrame() {
-        // Acquire the next image from the swap chain.  
+        // Acquire the next image from the swap chain.
         uint32_t currentBuffer = swapchain.acquireNextImage(semaphores.acquireComplete);
 
-        // We request a fence from the swap chain.  The swap chain code will 
-        // block on this fence until its operations are complete, guaranteeing 
+        // We request a fence from the swap chain.  The swap chain code will
+        // block on this fence until its operations are complete, guaranteeing
         // we don't run concurrent operations that are trying to write to a
         // given swap chain image
         vk::Fence submitFence = swapchain.getSubmitFence();
@@ -472,20 +465,16 @@ public:
         //  Before the commands will execute, these semaphores must have reached the
         // specified stages.
 
-        // The third paramater is a semaphore or semaphore array that will be signalled 
-        // as the command are processed through the pipeline.  
-        // 
+        // The third paramater is a semaphore or semaphore array that will be signalled
+        // as the command are processed through the pipeline.
+        //
         // Finally, the submit fence is another synchornization primitive that will be signaled
         // when the commands have been fully completed, but the fence, unlike the semaphores,
-        // can be queried by the client (us) to determine when it's signaled.  
-        context.submit(
-            commandBuffers[currentBuffer],
-            { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe },
-            semaphores.renderComplete, 
-            submitFence
-        );
+        // can be queried by the client (us) to determine when it's signaled.
+        context.submit(commandBuffers[currentBuffer], { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe }, semaphores.renderComplete,
+                       submitFence);
 
-        // Once the image has been written, the swap chain 
+        // Once the image has been written, the swap chain
         swapchain.queuePresent(semaphores.renderComplete);
     }
 
@@ -517,9 +506,8 @@ public:
 #else
 class SwapChainExample {
 public:
-void run() {};
+    void run(){};
 };
 #endif
 
 RUN_EXAMPLE(SwapChainExample)
-

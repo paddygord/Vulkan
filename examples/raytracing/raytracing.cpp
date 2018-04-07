@@ -275,7 +275,8 @@ public:
         // Create compute shader pipelines
         vk::ComputePipelineCreateInfo computePipelineCreateInfo;
         computePipelineCreateInfo.layout = computePipelineLayout;
-        computePipelineCreateInfo.stage = vks::shaders::loadShader(device, getAssetPath() + "shaders/raytracing/raytracing.comp.spv", vk::ShaderStageFlagBits::eCompute);
+        computePipelineCreateInfo.stage =
+            vks::shaders::loadShader(device, getAssetPath() + "shaders/raytracing/raytracing.comp.spv", vk::ShaderStageFlagBits::eCompute);
         pipelines.compute = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo);
     }
 

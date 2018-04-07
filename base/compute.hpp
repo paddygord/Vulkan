@@ -45,7 +45,6 @@ struct Compute {
         computeSubmitInfo.pSignalSemaphores = &semaphores.complete;
         queue.submit(computeSubmitInfo, {});
     }
-
 };
 
 }  // namespace vkx

@@ -10,7 +10,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanOffscreenExampleBase.hpp"
+#include <vulkanOffscreenExampleBase.hpp>
 
 // Texture properties
 
@@ -416,7 +416,6 @@ public:
                 break;
         }
     }
-
 };
 
 RUN_EXAMPLE(VulkanExample)

@@ -10,7 +10,7 @@
 * This code is licensed under the Mozilla Public License Version 2.0 (http://opensource.org/licenses/MPL-2.0)
 */
 
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
 
 static std::vector<std::string> names{ "logos", "background", "models", "skybox" };
 
@@ -81,9 +81,7 @@ public:
         textures.skybox.destroy();
     }
 
-    void loadTextures() {
-        textures.skybox.loadFromFile(context, getAssetPath() + "textures/cubemap_vulkan.ktx", vk::Format::eR8G8B8A8Unorm);
-    }
+    void loadTextures() { textures.skybox.loadFromFile(context, getAssetPath() + "textures/cubemap_vulkan.ktx", vk::Format::eR8G8B8A8Unorm); }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
         cmdBuffer.setViewport(0, vks::util::viewport(size));
@@ -139,13 +137,11 @@ public:
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{ { 0, vk::DescriptorType::eUniformBuffer, 1,
-                                                                         vk::ShaderStageFlagBits::eVertex },
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{ { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
                                                                        { 1, vk::DescriptorType::eCombinedImageSampler, 1,
                                                                          vk::ShaderStageFlagBits::eFragment } };
 
-        descriptorSetLayout =
-            device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
         pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
@@ -153,8 +149,7 @@ public:
         descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
 
         // Cube map image descriptor
-        vk::DescriptorImageInfo texDescriptorCubeMap{ textures.skybox.sampler, textures.skybox.view,
-                                                      vk::ImageLayout::eGeneral };
+        vk::DescriptorImageInfo texDescriptorCubeMap{ textures.skybox.sampler, textures.skybox.view, vk::ImageLayout::eGeneral };
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
@@ -171,8 +166,7 @@ public:
         pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
 
         // Binding description
-        pipelineBuilder.vertexInputState.bindingDescriptions = { { VERTEX_BUFFER_BIND_ID, vertexLayout.stride(),
-                                                                   vk::VertexInputRate::eVertex } };
+        pipelineBuilder.vertexInputState.bindingDescriptions = { { VERTEX_BUFFER_BIND_ID, vertexLayout.stride(), vk::VertexInputRate::eVertex } };
         pipelineBuilder.vertexInputState.attributeDescriptions = {
             // Location 0 : Position
             { 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, 0 },
@@ -224,7 +218,7 @@ public:
         uboVS.projection = getProjection();
         uboVS.view = glm::translate(glm::mat4(), glm::vec3(0, 0, camera.position.z));
         uboVS.model = camera.matrices.view;
-        uboVS.model[3] = vec4{0, 0, 0, 1};
+        uboVS.model[3] = vec4{ 0, 0, 0, 1 };
         uboVS.normal = glm::inverseTranspose(uboVS.view * uboVS.model);
         uboVS.lightPos = lightPos;
         uniformData.meshVS.copy(uboVS);
@@ -243,13 +237,7 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
-        if (!prepared)
-            return;
-        draw();
-    }
-
-    virtual void viewChanged() { updateUniformBuffers(); }
+    void viewChanged() override { updateUniformBuffers(); }
 };
 
 RUN_EXAMPLE(VulkanExample)

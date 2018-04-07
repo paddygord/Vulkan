@@ -127,8 +127,6 @@ protected:
     std::vector<vk::PipelineStageFlags> renderWaitStages;
     std::vector<vk::Semaphore> renderSignalSemaphores;
 
-
-
     vks::Context context;
     const vk::PhysicalDevice& physicalDevice{ context.physicalDevice };
     const vk::Device& device{ context.device };
@@ -305,7 +303,7 @@ private:
     static void handle_app_cmd(android_app* app, int32_t cmd);
     void onAppCmd(int32_t cmd);
 #else
-    GLFWwindow * window{ nullptr };
+    GLFWwindow* window{ nullptr };
     // Keyboard movement handler
     virtual void mouseAction(int buttons, int action, int mods);
     static void KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods);

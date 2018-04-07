@@ -13,14 +13,12 @@
 #include <glm/glm.hpp>
 #include "vks/context.hpp"
 
-struct Vertex
-{
+struct Vertex {
     float pos[3];
     float normal[3];
     float color[3];
 
-    Vertex(const glm::vec3& p, const glm::vec3& n, const glm::vec3& c)
-    {
+    Vertex(const glm::vec3& p, const glm::vec3& n, const glm::vec3& c) {
         pos[0] = p.x;
         pos[1] = p.y;
         pos[2] = p.z;
@@ -33,11 +31,9 @@ struct Vertex
     }
 };
 
-class VulkanGear
-{
+class VulkanGear {
 private:
-    struct UBO
-    {
+    struct UBO {
         glm::mat4 projection;
         glm::mat4 model;
         glm::mat4 normal;
@@ -66,10 +62,11 @@ private:
     UBO ubo;
     vks::Buffer uniformData;
 
-    int32_t newVertex(std::vector<Vertex> *vBuffer, float x, float y, float z, const glm::vec3& normal);
-    void newFace(std::vector<uint32_t> *iBuffer, int a, int b, int c);
+    int32_t newVertex(std::vector<Vertex>* vBuffer, float x, float y, float z, const glm::vec3& normal);
+    void newFace(std::vector<uint32_t>* iBuffer, int a, int b, int c);
 
     void prepareUniformBuffer();
+
 public:
     vk::DescriptorSet descriptorSet;
 
@@ -82,7 +79,13 @@ public:
     VulkanGear(const vks::Context& context);
     ~VulkanGear();
 
-    void generate(float inner_radius, float outer_radius, float width, int teeth, float tooth_depth, glm::vec3 color, glm::vec3 pos, float rotSpeed, float rotOffset);
-
+    void generate(float inner_radius,
+                  float outer_radius,
+                  float width,
+                  int teeth,
+                  float tooth_depth,
+                  glm::vec3 color,
+                  glm::vec3 pos,
+                  float rotSpeed,
+                  float rotOffset);
 };
-

@@ -6,7 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
 
 #define SAMPLE_COUNT vk::SampleCountFlagBits::e4
 
@@ -67,14 +67,14 @@ public:
         createInfo.rasterizationSamples = SAMPLE_COUNT;
         createInfo.attachmentCount = 1;
         createInfo.clearValues = {
-            vk::ClearValue { vks::util::clearColor(glm::vec4(1.0f)) },
-            vk::ClearValue { vks::util::clearColor(glm::vec4(1.0f)) },
-            vk::ClearValue { vk::ClearDepthStencilValue{ 1.0f, 0  } },
+            vk::ClearValue{ vks::util::clearColor(glm::vec4(1.0f)) },
+            vk::ClearValue{ vks::util::clearColor(glm::vec4(1.0f)) },
+            vk::ClearValue{ vk::ClearDepthStencilValue{ 1.0f, 0 } },
         };
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
         device.destroyPipeline(pipelines.solid);
 
@@ -96,7 +96,7 @@ public:
         uniformData.vsScene.destroy();
     }
 
-    // Creates a multi sample render target (image and view) that is used to resolve 
+    // Creates a multi sample render target (image and view) that is used to resolve
     // into the visible frame buffer target in the render pass
     void setupMultisampleTarget() {
         // Check if device supports requested sample count for color and depth frame buffer
@@ -120,7 +120,7 @@ public:
         // vk::Image will only be used as a transient target
         info.usage = vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment;
         info.initialLayout = vk::ImageLayout::eUndefined;
-        multisampleTarget.color= context.createImage(info, vk::MemoryPropertyFlagBits::eDeviceLocal);
+        multisampleTarget.color = context.createImage(info, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
         //// We prefer a lazily allocated memory type
         //// This means that the memory get allocated when the implementation sees fit, e.g. when first using the images
@@ -159,7 +159,7 @@ public:
         // vk::Image will only be used as a transient target
         info.usage = vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eDepthStencilAttachment;
         info.initialLayout = vk::ImageLayout::eUndefined;
-        multisampleTarget.depth= context.createImage(info, vk::MemoryPropertyFlagBits::eDeviceLocal);
+        multisampleTarget.depth = context.createImage(info, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
         // Create image view for the MSAA target
         viewInfo.image = multisampleTarget.depth.image;
@@ -173,28 +173,19 @@ public:
 
         // Initial image layout transitions
         // We need to transform the MSAA target layouts before using them
-       context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
+        context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& setupCmdBuffer) {
             // Tansform MSAA color target
-           context.setImageLayout(
-               setupCmdBuffer, 
-                multisampleTarget.color.image,
-                vk::ImageAspectFlagBits::eColor,
-                vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eColorAttachmentOptimal);
+            context.setImageLayout(setupCmdBuffer, multisampleTarget.color.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
+                                   vk::ImageLayout::eColorAttachmentOptimal);
 
             // Tansform MSAA depth target
-            context.setImageLayout(
-                setupCmdBuffer,
-                multisampleTarget.depth.image,
-                vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
-                vk::ImageLayout::eUndefined,
-                vk::ImageLayout::eDepthStencilAttachmentOptimal);
+            context.setImageLayout(setupCmdBuffer, multisampleTarget.depth.image, vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
+                                   vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal);
         });
-
     }
 
-    // Setup a render pass for using a multi sampled attachment 
-    // and a resolve attachment that the msaa image is resolved 
+    // Setup a render pass for using a multi sampled attachment
+    // and a resolve attachment that the msaa image is resolved
     // to at the end of the render pass
     void setupRenderPass() override {
         // Overrides the virtual function of the base class
@@ -266,17 +257,9 @@ public:
         subpass.pResolveAttachments = resolveReferences.data();
         subpass.pDepthStencilAttachment = &depthReference;
 
-
-        std::vector<vk::SubpassDependency> dependencies{
-            { 
-                0, 
-                VK_SUBPASS_EXTERNAL, 
-                vk::PipelineStageFlagBits::eBottomOfPipe, 
-                vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                vk::AccessFlagBits::eColorAttachmentWrite,
-                vk::AccessFlagBits::eColorAttachmentRead 
-            }
-        };
+        std::vector<vk::SubpassDependency> dependencies{ { 0, VK_SUBPASS_EXTERNAL, vk::PipelineStageFlagBits::eBottomOfPipe,
+                                                           vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite,
+                                                           vk::AccessFlagBits::eColorAttachmentRead } };
 
         vk::RenderPassCreateInfo renderPassInfo;
         renderPassInfo.attachmentCount = (uint32_t)attachments.size();
@@ -289,8 +272,8 @@ public:
         renderPass = device.createRenderPass(renderPassInfo);
     }
 
-    // Frame buffer attachments must match with render pass setup, 
-    // so we need to adjust frame buffer creation to cover our 
+    // Frame buffer attachments must match with render pass setup,
+    // so we need to adjust frame buffer creation to cover our
     // multisample target
     void setupFrameBuffer() override {
         // Overrides the virtual function of the base class
@@ -352,10 +335,9 @@ public:
         meshes.example.loadFromFile(context, getAssetPath() + "models/voyager/voyager.dae", vertexLayout);
     }
 
-
     void setupDescriptorPool() {
         // Example uses one ubo and one combined image sampler
-        std::vector<vk::DescriptorPoolSize> poolSizes {
+        std::vector<vk::DescriptorPoolSize> poolSizes{
             vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 1),
             vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 1),
         };
@@ -363,23 +345,23 @@ public:
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Vertex shader uniform buffer
             { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Fragment shader combined sampler
             { 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
         };
         descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
-        pipelineLayout = device.createPipelineLayout({ {}, 1,  &descriptorSetLayout });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
         descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
         vk::DescriptorImageInfo texDescriptor{ textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral };
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets  {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
             { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsScene.descriptor },
-            // Binding 1 : Color map 
+            // Binding 1 : Color map
             { descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
         };
 
@@ -401,7 +383,7 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Vertex shader uniform buffer block
-        uniformData.vsScene= context.createUniformBuffer(uboVS);
+        uniformData.vsScene = context.createUniformBuffer(uboVS);
         updateUniformBuffers();
     }
 
@@ -423,9 +405,7 @@ public:
         prepared = true;
     }
 
-    void viewChanged() override {
-        updateUniformBuffers();
-    }
+    void viewChanged() override { updateUniformBuffers(); }
 };
 
 RUN_EXAMPLE(VulkanExample)

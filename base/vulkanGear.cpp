@@ -12,23 +12,21 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 
-int32_t VulkanGear::newVertex(std::vector<Vertex> *vBuffer, float x, float y, float z, const glm::vec3& normal) {
-    Vertex v(
-        glm::vec3(x, y, z),
-        normal,
-        color
-        );
+int32_t VulkanGear::newVertex(std::vector<Vertex>* vBuffer, float x, float y, float z, const glm::vec3& normal) {
+    Vertex v(glm::vec3(x, y, z), normal, color);
     vBuffer->push_back(v);
     return (uint32_t)vBuffer->size() - 1;
 }
 
-void VulkanGear::newFace(std::vector<uint32_t> *iBuffer, int a, int b, int c) {
+void VulkanGear::newFace(std::vector<uint32_t>* iBuffer, int a, int b, int c) {
     iBuffer->push_back(a);
     iBuffer->push_back(b);
     iBuffer->push_back(c);
 }
 
-VulkanGear::VulkanGear(const vks::Context& context) : context(context) { }
+VulkanGear::VulkanGear(const vks::Context& context)
+    : context(context) {
+}
 
 VulkanGear::~VulkanGear() {
     // Clean up vulkan resources
@@ -36,7 +34,15 @@ VulkanGear::~VulkanGear() {
     meshInfo.destroy();
 }
 
-void VulkanGear::generate(float inner_radius, float outer_radius, float width, int teeth, float tooth_depth, glm::vec3 color, glm::vec3 pos, float rotSpeed, float rotOffset) {
+void VulkanGear::generate(float inner_radius,
+                          float outer_radius,
+                          float width,
+                          int teeth,
+                          float tooth_depth,
+                          glm::vec3 color,
+                          glm::vec3 pos,
+                          float rotSpeed,
+                          float rotOffset) {
     this->color = color;
     this->pos = pos;
     this->rotOffset = rotOffset;
@@ -104,7 +110,7 @@ void VulkanGear::generate(float inner_radius, float outer_radius, float width, i
         newFace(&iBuffer, ix0, ix1, ix2);
         newFace(&iBuffer, ix1, ix3, ix2);
 
-        // back face 
+        // back face
         normal = glm::vec3(0.0, 0.0, -1.0);
         ix0 = newVertex(&vBuffer, r1 * cos_ta, r1 * sin_ta, -width * 0.5f, normal);
         ix1 = newVertex(&vBuffer, r0 * cos_ta, r0 * sin_ta, -width * 0.5f, normal);
@@ -117,7 +123,7 @@ void VulkanGear::generate(float inner_radius, float outer_radius, float width, i
         newFace(&iBuffer, ix2, ix3, ix4);
         newFace(&iBuffer, ix3, ix5, ix4);
 
-        // back sides of teeth 
+        // back sides of teeth
         normal = glm::vec3(0.0, 0.0, -1.0);
         ix0 = newVertex(&vBuffer, r1 * cos_ta_3da, r1 * sin_ta_3da, -width * 0.5f, normal);
         ix1 = newVertex(&vBuffer, r2 * cos_ta_2da, r2 * sin_ta_2da, -width * 0.5f, normal);
@@ -126,7 +132,7 @@ void VulkanGear::generate(float inner_radius, float outer_radius, float width, i
         newFace(&iBuffer, ix0, ix1, ix2);
         newFace(&iBuffer, ix1, ix3, ix2);
 
-        // draw outward faces of teeth 
+        // draw outward faces of teeth
         normal = glm::vec3(v1, -u1, 0.0);
         ix0 = newVertex(&vBuffer, r1 * cos_ta, r1 * sin_ta, width * 0.5f, normal);
         ix1 = newVertex(&vBuffer, r1 * cos_ta, r1 * sin_ta, -width * 0.5f, normal);
@@ -159,7 +165,7 @@ void VulkanGear::generate(float inner_radius, float outer_radius, float width, i
         newFace(&iBuffer, ix0, ix1, ix2);
         newFace(&iBuffer, ix1, ix3, ix2);
 
-        // draw inside radius cylinder 
+        // draw inside radius cylinder
         ix0 = newVertex(&vBuffer, r0 * cos_ta, r0 * sin_ta, -width * 0.5f, glm::vec3(-cos_ta, -sin_ta, 0.0));
         ix1 = newVertex(&vBuffer, r0 * cos_ta, r0 * sin_ta, width * 0.5f, glm::vec3(-cos_ta, -sin_ta, 0.0));
         ix2 = newVertex(&vBuffer, r0 * cos_ta_4da, r0 * sin_ta_4da, -width * 0.5f, glm::vec3(-cos_ta_4da, -sin_ta_4da, 0.0));
@@ -202,9 +208,7 @@ void VulkanGear::setupDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLa
     descriptorSet = context.device.allocateDescriptorSets({ pool, 1, &descriptorSetLayout })[0];
 
     // Binding 0 : Vertex shader uniform buffer
-    vk::WriteDescriptorSet writeDescriptorSet{
-        descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.descriptor
-    };
+    vk::WriteDescriptorSet writeDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.descriptor };
 
     context.device.updateDescriptorSets(writeDescriptorSet, nullptr);
 }

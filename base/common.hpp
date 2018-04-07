@@ -54,25 +54,22 @@
 // Vulkan!
 #include <vulkan/vulkan.hpp>
 
-
 using glm::ivec2;
+using glm::mat3;
+using glm::mat4;
+using glm::quat;
 using glm::uvec2;
 using glm::vec2;
 using glm::vec3;
 using glm::vec4;
-using glm::mat3;
-using glm::mat4;
-using glm::quat;
 
 class Rotations {
- public:
+public:
     static const quat IDENTITY;
     static const quat Y_180;
 
     //  Helper function returns the positive angle (in radians) between two 3D vectors
-    static inline float angleBetween(const glm::vec3& v1, const glm::vec3& v2) {
-        return acosf((glm::dot(v1, v2)) / (glm::length(v1) * glm::length(v2)));
-    }
+    static inline float angleBetween(const glm::vec3& v1, const glm::vec3& v2) { return acosf((glm::dot(v1, v2)) / (glm::length(v1) * glm::length(v2))); }
 };
 
 class Vectors {
@@ -111,26 +108,23 @@ public:
 
 // Boilerplate for running an example
 #if defined(__ANDROID__)
-#define ENTRY_POINT_START \
-        void android_main(android_app* state) { \
-            vkx::android::androidApp = state;
+#define ENTRY_POINT_START                   \
+    void android_main(android_app* state) { \
+        vkx::android::androidApp = state;
 
-#define ENTRY_POINT_END \
-        }
+#define ENTRY_POINT_END }
 #else
-#define ENTRY_POINT_START \
-        int main(const int argc, const char *argv[]) {
-
+#define ENTRY_POINT_START int main(const int argc, const char* argv[]) {
 #define ENTRY_POINT_END \
-            return 0; \
-        }
+    return 0;           \
+    }
 #endif
 
-#define RUN_EXAMPLE(ExampleType) \
-    ENTRY_POINT_START \
-        ExampleType* example = new ExampleType(); \
-        example->run(); \
-        delete(example); \
+#define RUN_EXAMPLE(ExampleType)              \
+    ENTRY_POINT_START                         \
+    ExampleType* example = new ExampleType(); \
+    example->run();                           \
+    delete (example);                         \
     ENTRY_POINT_END
 
 #define VULKAN_EXAMPLE_MAIN() RUN_EXAMPLE(VulkanExample)

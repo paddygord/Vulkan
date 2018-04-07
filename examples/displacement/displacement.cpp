@@ -9,8 +9,11 @@
 #include <vulkanExampleBase.h>
 
 // Vertex layout for this example
-vks::model::VertexLayout vertexLayout{ { vks::model::Component::VERTEX_COMPONENT_POSITION, vks::model::Component::VERTEX_COMPONENT_NORMAL,
-                                         vks::model::Component::VERTEX_COMPONENT_UV } };
+vks::model::VertexLayout vertexLayout{ {
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_UV,
+} };
 
 class VulkanExample : public vkx::ExampleBase {
     using Parent = vkx::ExampleBase;

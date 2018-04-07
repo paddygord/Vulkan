@@ -8,7 +8,6 @@
 
 #include <vulkanExampleBase.h>
 
-#define VERTEX_BUFFER_BIND_ID 0
 #define ENABLE_VALIDATION false
 #if defined(__ANDROID__)
 // Lower particle count on Android for performance reasons
@@ -300,7 +299,7 @@ public:
         cmdBuffer.setScissor(0, scissor());
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, graphics.pipeline);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, graphics.pipelineLayout, 0, graphics.descriptorSet, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, compute.storageBuffer.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, compute.storageBuffer.buffer, { 0 });
         cmdBuffer.draw(compute.numParticles, 1, 0, 0);
     }
 
@@ -351,13 +350,13 @@ public:
         blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eDstAlpha;
         pipelineBuilder.depthStencilState = { false };
         pipelineBuilder.vertexInputState.bindingDescriptions = {
-            { VERTEX_BUFFER_BIND_ID, sizeof(ComputeNBody::Particle), vk::VertexInputRate::eVertex },
+            { 0, sizeof(ComputeNBody::Particle), vk::VertexInputRate::eVertex },
         };
         pipelineBuilder.vertexInputState.attributeDescriptions = {
             // Location 0 : Position
-            { 0, VERTEX_BUFFER_BIND_ID, vF::eR32G32B32A32Sfloat, offsetof(ComputeNBody::Particle, pos) },
+            { 0, 0, vF::eR32G32B32A32Sfloat, offsetof(ComputeNBody::Particle, pos) },
             // Location 1 : Velocity (used for gradient lookup)
-            { 1, VERTEX_BUFFER_BIND_ID, vF::eR32G32B32A32Sfloat, offsetof(ComputeNBody::Particle, vel) },
+            { 1, 0, vF::eR32G32B32A32Sfloat, offsetof(ComputeNBody::Particle, vel) },
         };
         // Load shaders
         pipelineBuilder.loadShader(getAssetPath() + "shaders/computenbody/particle.vert.spv", vk::ShaderStageFlagBits::eVertex);

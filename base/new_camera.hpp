@@ -41,7 +41,11 @@ private:
     }
 
 public:
-    enum CameraType { lookat, firstperson };
+    enum CameraType
+    {
+        lookat,
+        firstperson
+    };
     CameraType type{ CameraType::lookat };
 
     const glm::quat orientation;
@@ -64,43 +68,29 @@ public:
         bool down = false;
     } keys;
 
-    Camera() {
-        matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
-    }
+    Camera() { matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar); }
 
-    bool moving() {
-        return keys.left || keys.right || keys.up || keys.down;
-    }
+    bool moving() { return keys.left || keys.right || keys.up || keys.down; }
 
     void setFieldOfView(float fov) {
         this->fov = fov;
         matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
     }
 
-    void setAspectRatio(const glm::vec2& size) {
-        setAspectRatio(size.x / size.y);
-    }
+    void setAspectRatio(const glm::vec2& size) { setAspectRatio(size.x / size.y); }
 
-    void setAspectRatio(const vk::Extent2D& size) {
-        setAspectRatio((float)size.width / (float)size.height);
-    }
+    void setAspectRatio(const vk::Extent2D& size) { setAspectRatio((float)size.width / (float)size.height); }
 
     void setAspectRatio(float aspect) {
         this->aspect = aspect;
         matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
     }
 
-    void setNear(float newZnear) {
-        setPerspective(fov, aspect, newZnear, zfar);
-    }
+    void setNear(float newZnear) { setPerspective(fov, aspect, newZnear, zfar); }
 
-    void setFar(float newZfar) {
-        setPerspective(fov, aspect, znear, newZfar);
-    }
+    void setFar(float newZfar) { setPerspective(fov, aspect, znear, newZfar); }
 
-    void setPerspective(float fov, const glm::vec2& size, float znear = 0.1f, float zfar = 512.0f) {
-        setPerspective(fov, size.x / size.y, znear, zfar);
-    }
+    void setPerspective(float fov, const glm::vec2& size, float znear = 0.1f, float zfar = 512.0f) { setPerspective(fov, size.x / size.y, znear, zfar); }
 
     void setPerspective(float fov, const vk::Extent2D& size, float znear = 0.1f, float zfar = 512.0f) {
         setPerspective(fov, (float)size.width / (float)size.height, znear, zfar);
@@ -119,37 +109,27 @@ public:
         updateViewMatrix();
     };
 
-    void setPosition(const glm::vec3& translation) {
-        setTranslation(translation);
-    }
+    void setPosition(const glm::vec3& translation) { setTranslation(translation); }
 
     void setTranslation(const glm::vec3& translation) {
-        position = vec3(-translation.x, - translation.y, translation.z);
+        position = vec3(-translation.x, -translation.y, translation.z);
         updateViewMatrix();
     }
 
-    void setZoom(float f) {
-        setTranslation({ 0, 0, f });
-    }
+    void setZoom(float f) { setTranslation({ 0, 0, f }); }
 
     void rotate(const glm::vec2& delta) {
         yawPitch += delta;
         updateViewMatrix();
     }
 
-    void rotate(const glm::vec3& delta) {
-        yawPitch += glm::radians(glm::vec2(delta));
-    }
+    void rotate(const glm::vec3& delta) { yawPitch += glm::radians(glm::vec2(delta)); }
 
     // Translate in the Z axis of the camera
-    void dolly(float delta) {
-        translate(glm::vec3(0, 0, delta));
-    }
+    void dolly(float delta) { translate(glm::vec3(0, 0, delta)); }
 
     // Translate in the XY plane of the camera
-    void translate(const glm::vec2& delta) {
-        translate(glm::vec3(delta.x, delta.y, 0));
-    }
+    void translate(const glm::vec2& delta) { translate(glm::vec3(delta.x, delta.y, 0)); }
 
     void translate(const glm::vec3& delta) {
         if (type == CameraType::firstperson) {
@@ -160,11 +140,9 @@ public:
         updateViewMatrix();
     }
 
-    void keyPressed(uint32_t key, uint32_t mods) {
-    }
+    void keyPressed(uint32_t key, uint32_t mods) {}
 
-    void keyReleased(uint32_t key, uint32_t mods) {
-    }
+    void keyReleased(uint32_t key, uint32_t mods) {}
 
     void update(float deltaTime) {
         if (type == CameraType::firstperson) {
@@ -192,7 +170,7 @@ public:
         bool retVal = false;
 
         if (type == CameraType::firstperson) {
-            // Use the common console thumbstick layout        
+            // Use the common console thumbstick layout
             // Left = view, right = move
 
             const float deadZone = 0.0015f;

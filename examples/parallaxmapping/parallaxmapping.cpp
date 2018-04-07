@@ -6,8 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
-
+#include <vulkanExampleBase.h>
 
 // Vertex layout for this example
 vks::model::VertexLayout vertexLayout{ {
@@ -15,7 +14,7 @@ vks::model::VertexLayout vertexLayout{ {
     vks::model::Component::VERTEX_COMPONENT_UV,
     vks::model::Component::VERTEX_COMPONENT_NORMAL,
     vks::model::Component::VERTEX_COMPONENT_TANGENT,
-    vks::model::Component::VERTEX_COMPONENT_BITANGENT
+    vks::model::Component::VERTEX_COMPONENT_BITANGENT,
 } };
 
 class VulkanExample : public vkx::ExampleBase {
@@ -38,7 +37,6 @@ public:
     } uniformData;
 
     struct {
-
         struct {
             glm::mat4 projection;
             glm::mat4 model;
@@ -79,7 +77,7 @@ public:
     }
 
     ~VulkanExample() {
-        // Clean up used Vulkan resources 
+        // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
         device.destroyPipeline(pipelines.parallaxMapping);
         device.destroyPipeline(pipelines.normalMapping);
@@ -97,12 +95,8 @@ public:
     }
 
     void loadTextures() {
-        textures.colorMap.loadFromFile(context,
-            getAssetPath() + "textures/rocks_color_bc3.dds",
-            vk::Format::eBc3UnormBlock);
-        textures.normalHeightMap.loadFromFile(context,
-            getAssetPath() + "textures/rocks_normal_height_rgba.dds",
-            vk::Format::eR8G8B8A8Unorm);
+        textures.colorMap.loadFromFile(context, getAssetPath() + "textures/rocks_color_bc3.dds", vk::Format::eBc3UnormBlock);
+        textures.normalHeightMap.loadFromFile(context, getAssetPath() + "textures/rocks_normal_height_rgba.dds", vk::Format::eR8G8B8A8Unorm);
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
@@ -130,16 +124,11 @@ public:
         }
     }
 
-    void loadMeshes() {
-        meshes.quad.loadFromFile(context, getAssetPath() + "models/plane_z.obj", vertexLayout, 0.1f);
-    }
+    void loadMeshes() { meshes.quad.loadFromFile(context, getAssetPath() + "models/plane_z.obj", vertexLayout, 0.1f); }
 
     void setupDescriptorPool() {
         // Example uses two ubos and two image sampler
-        std::vector<vk::DescriptorPoolSize> poolSizes {
-            { vk::DescriptorType::eUniformBuffer, 2 },
-            { vk::DescriptorType::eCombinedImageSampler, 2 }
-        };
+        std::vector<vk::DescriptorPoolSize> poolSizes{ { vk::DescriptorType::eUniformBuffer, 2 }, { vk::DescriptorType::eCombinedImageSampler, 2 } };
 
         descriptorPool = device.createDescriptorPool({ {}, 4, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
@@ -157,7 +146,7 @@ public:
         };
 
         descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
-        pipelineLayout = device.createPipelineLayout({ {}, 1,  &descriptorSetLayout });
+        pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
     void setupDescriptorSet() {
@@ -167,9 +156,9 @@ public:
         vk::DescriptorImageInfo texDescriptorColorMap{ textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral };
         vk::DescriptorImageInfo texDescriptorNormalHeightMap{ textures.normalHeightMap.sampler, textures.normalHeightMap.view, vk::ImageLayout::eGeneral };
 
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
-            vk::WriteDescriptorSet { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vertexShader.descriptor },
+            vk::WriteDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vertexShader.descriptor },
             // Binding 1 : Fragment shader image sampler
             vk::WriteDescriptorSet{ descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorColorMap },
             // Binding 2 : Combined normal and heightmap
@@ -199,16 +188,17 @@ public:
 
     void prepareUniformBuffers() {
         // Vertex shader ubo
-        uniformData.vertexShader= context.createUniformBuffer(ubos.vertexShader);
+        uniformData.vertexShader = context.createUniformBuffer(ubos.vertexShader);
         // Fragment shader ubo
-        uniformData.fragmentShader= context.createUniformBuffer(ubos.fragmentShader);
+        uniformData.fragmentShader = context.createUniformBuffer(ubos.fragmentShader);
 
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
         // Vertex shader
-        ubos.vertexShader.projection = glm::perspective(glm::radians(45.0f), (float)(size.width* ((splitScreen) ? 0.5f : 1.0f)) / (float)size.height, 0.001f, 256.0f);
+        ubos.vertexShader.projection =
+            glm::perspective(glm::radians(45.0f), (float)(size.width * ((splitScreen) ? 0.5f : 1.0f)) / (float)size.height, 0.001f, 256.0f);
         ubos.vertexShader.model = camera.matrices.view;
         ubos.vertexShader.normal = glm::inverseTranspose(ubos.vertexShader.model);
 
@@ -246,9 +236,7 @@ public:
         }
     }
 
-    void viewChanged() override {
-        updateUniformBuffers();
-    }
+    void viewChanged() override { updateUniformBuffers(); }
 
     void toggleParallaxOffset() {
         ubos.fragmentShader.usePom = !ubos.fragmentShader.usePom;
@@ -265,7 +253,6 @@ public:
         updateUniformBuffers();
         buildCommandBuffers();
     }
-
 };
 
 RUN_EXAMPLE(VulkanExample)

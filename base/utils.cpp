@@ -19,31 +19,35 @@
 #if defined(__ANDROID__)
 inline int logLevelToAndroidPriority(vkx::LogLevel level) {
     switch (level) {
-        case vkx::LogLevel::LOG_DEBUG: return ANDROID_LOG_DEBUG;
-        case vkx::LogLevel::LOG_INFO: return ANDROID_LOG_INFO;
-        case vkx::LogLevel::LOG_WARN: return ANDROID_LOG_WARN;
-        case vkx::LogLevel::LOG_ERROR: return ANDROID_LOG_ERROR;
+        case vkx::LogLevel::LOG_DEBUG:
+            return ANDROID_LOG_DEBUG;
+        case vkx::LogLevel::LOG_INFO:
+            return ANDROID_LOG_INFO;
+        case vkx::LogLevel::LOG_WARN:
+            return ANDROID_LOG_WARN;
+        case vkx::LogLevel::LOG_ERROR:
+            return ANDROID_LOG_ERROR;
     }
 }
 #endif
 
 void vkx::logMessage(vkx::LogLevel level, const char* format, ...) {
     va_list arglist;
-    va_start( arglist, format );
+    va_start(arglist, format);
 
 #if defined(__ANDROID__)
     int prio = logLevelToAndroidPriority(level);
     __android_log_vprint(prio, "vulkanExample", format, arglist);
 #else
     char buffer[8192];
-    vsnprintf( buffer, 8192, format, arglist );
+    vsnprintf(buffer, 8192, format, arglist);
 #ifdef WIN32
     OutputDebugStringA(buffer);
     OutputDebugStringA("\n");
 #endif
     std::cout << buffer << std::endl;
 #endif
-    va_end( arglist );
+    va_end(arglist);
 }
 
 const std::string& vkx::getAssetPath() {
@@ -62,5 +66,4 @@ const std::string& vkx::getAssetPath() {
     });
     return path;
 #endif
-
 }

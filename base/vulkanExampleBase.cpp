@@ -88,7 +88,7 @@ void ExampleBase::initVulkan() {
     context.setValidationEnabled(true);
 #endif
 #if defined(__ANDROID__)
-    context.requireExtensions({VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME});
+    context.requireExtensions({ VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME });
 #else
     context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
 #endif
@@ -136,7 +136,7 @@ bool ExampleBase::platformLoopCondition() {
         if (source != NULL) {
             source->process(vkx::android::androidApp, source);
         }
-        destroy =  vkx::android::androidApp->destroyRequested != 0;
+        destroy = vkx::android::androidApp->destroyRequested != 0;
     }
 
     // App destruction requested
@@ -302,7 +302,6 @@ void ExampleBase::clearCommandBuffers() {
 void ExampleBase::buildCommandBuffers() {
     // Destroy and recreate command buffers if already present
     allocateCommandBuffers();
-
 
     vk::CommandBufferBeginInfo cmdBufInfo{ vk::CommandBufferUsageFlagBits::eSimultaneousUse };
     for (size_t i = 0; i < swapChain.imageCount; ++i) {
@@ -548,7 +547,6 @@ void ExampleBase::update(float deltaTime) {
         frameCounter = 0;
     }
 
-
     updateOverlay();
 
     // Check gamepad state
@@ -653,7 +651,7 @@ void ExampleBase::updateOverlay() {
     ImGui::End();
     ImGui::PopStyleVar();
     ImGui::Render();
-    
+
     ui.update();
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
@@ -706,70 +704,70 @@ void ExampleBase::mouseScrolled(float delta) {
 void ExampleBase::keyPressed(uint32_t key) {
     if (camera.firstperson) {
         switch (key) {
-        case KEY_W:
-            camera.keys.up = true;
-            break;
-        case KEY_S:
-            camera.keys.down = true;
-            break;
-        case KEY_A:
-            camera.keys.left = true;
-            break;
-        case KEY_D:
-            camera.keys.right = true;
-            break;
+            case KEY_W:
+                camera.keys.up = true;
+                break;
+            case KEY_S:
+                camera.keys.down = true;
+                break;
+            case KEY_A:
+                camera.keys.left = true;
+                break;
+            case KEY_D:
+                camera.keys.right = true;
+                break;
         }
     }
 
     switch (key) {
-    case KEY_P:
-        paused = !paused;
-        break;
+        case KEY_P:
+            paused = !paused;
+            break;
 
-    case KEY_F1:
-        ui.visible = !ui.visible;
-        break;
+        case KEY_F1:
+            ui.visible = !ui.visible;
+            break;
 
-    case KEY_ESCAPE:
+        case KEY_ESCAPE:
 #if defined(__ANDROID__)
 #else
-        glfwSetWindowShouldClose(window, 1);
+            glfwSetWindowShouldClose(window, 1);
 #endif
-        break;
+            break;
 
-    default:
-        break;
+        default:
+            break;
     }
 }
 
 void ExampleBase::keyReleased(uint32_t key) {
     if (camera.firstperson) {
         switch (key) {
-        case KEY_W:
-            camera.keys.up = false;
-            break;
-        case KEY_S:
-            camera.keys.down = false;
-            break;
-        case KEY_A:
-            camera.keys.left = false;
-            break;
-        case KEY_D:
-            camera.keys.right = false;
-            break;
+            case KEY_W:
+                camera.keys.up = false;
+                break;
+            case KEY_S:
+                camera.keys.down = false;
+                break;
+            case KEY_A:
+                camera.keys.left = false;
+                break;
+            case KEY_D:
+                camera.keys.right = false;
+                break;
         }
     }
 }
 
 #if defined(__ANDROID__)
 
-int32_t ExampleBase::handle_input_event(android_app* app, AInputEvent *event) {
-    ExampleBase *exampleBase = reinterpret_cast<ExampleBase *>(app->userData);
+int32_t ExampleBase::handle_input_event(android_app* app, AInputEvent* event) {
+    ExampleBase* exampleBase = reinterpret_cast<ExampleBase*>(app->userData);
     return exampleBase->onInput(event);
 }
 
 void ExampleBase::handle_app_cmd(android_app* app, int32_t cmd) {
-    ExampleBase *exampleBase = reinterpret_cast<ExampleBase *>(app->userData);
+    ExampleBase* exampleBase = reinterpret_cast<ExampleBase*>(app->userData);
     exampleBase->onAppCmd(cmd);
 }
 
@@ -797,19 +795,18 @@ int32_t ExampleBase::onInput(AInputEvent* event) {
                     case AMOTION_EVENT_ACTION_MOVE:
                         touchPoint.x = AMotionEvent_getX(event, 0);
                         touchPoint.y = AMotionEvent_getY(event, 0);
-                        mouseMoved(vec2{touchPoint});
+                        mouseMoved(vec2{ touchPoint });
                         break;
 
                     default:
                         break;
                 }
             }
-            return 1;
+                return 1;
         }
     }
 
-    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY)
-    {
+    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY) {
         int32_t keyCode = AKeyEvent_getKeyCode((const AInputEvent*)event);
         int32_t action = AKeyEvent_getAction((const AInputEvent*)event);
         int32_t button = 0;
@@ -817,8 +814,7 @@ int32_t ExampleBase::onInput(AInputEvent* event) {
         if (action == AKEY_EVENT_ACTION_UP)
             return 0;
 
-        switch (keyCode)
-        {
+        switch (keyCode) {
             case AKEYCODE_BUTTON_A:
                 keyPressed(GAMEPAD_BUTTON_A);
                 break;
@@ -845,24 +841,23 @@ int32_t ExampleBase::onInput(AInputEvent* event) {
     return 0;
 }
 
-
 void ExampleBase::onAppCmd(int32_t cmd) {
     switch (cmd) {
-    case APP_CMD_INIT_WINDOW:
-        if (vkx::android::androidApp->window != nullptr) {
-            initVulkan();
-            setupWindow();
-            prepare();
-        }
-        break;
-    case APP_CMD_LOST_FOCUS:
-        focused = false;
-        break;
-    case APP_CMD_GAINED_FOCUS:
-        focused = true;
-        break;
-    default:
-        break;
+        case APP_CMD_INIT_WINDOW:
+            if (vkx::android::androidApp->window != nullptr) {
+                initVulkan();
+                setupWindow();
+                prepare();
+            }
+            break;
+        case APP_CMD_LOST_FOCUS:
+            focused = false;
+            break;
+        case APP_CMD_GAINED_FOCUS:
+            focused = true;
+            break;
+        default:
+            break;
     }
 }
 
@@ -915,31 +910,31 @@ void ExampleBase::setupWindow() {
 
 void ExampleBase::mouseAction(int button, int action, int mods) {
     switch (button) {
-    case GLFW_MOUSE_BUTTON_LEFT:
-        mouseButtons.left = action == GLFW_PRESS;
-        break;
-    case GLFW_MOUSE_BUTTON_RIGHT:
-        mouseButtons.right = action == GLFW_PRESS;
-        break;
-    case GLFW_MOUSE_BUTTON_MIDDLE:
-        mouseButtons.middle = action == GLFW_PRESS;
-        break;
+        case GLFW_MOUSE_BUTTON_LEFT:
+            mouseButtons.left = action == GLFW_PRESS;
+            break;
+        case GLFW_MOUSE_BUTTON_RIGHT:
+            mouseButtons.right = action == GLFW_PRESS;
+            break;
+        case GLFW_MOUSE_BUTTON_MIDDLE:
+            mouseButtons.middle = action == GLFW_PRESS;
+            break;
     }
 }
 
 void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods) {
     auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     switch (action) {
-    case GLFW_PRESS:
-        example->keyPressed(key);
-        break;
+        case GLFW_PRESS:
+            example->keyPressed(key);
+            break;
 
-    case GLFW_RELEASE:
-        example->keyReleased(key);
-        break;
+        case GLFW_RELEASE:
+            example->keyReleased(key);
+            break;
 
-    default:
-        break;
+        default:
+            break;
     }
 }
 
@@ -970,4 +965,3 @@ void ExampleBase::FramebufferSizeHandler(GLFWwindow* window, int width, int heig
 }
 
 #endif
-

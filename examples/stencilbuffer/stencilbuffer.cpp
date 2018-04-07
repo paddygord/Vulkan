@@ -6,7 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
 
 class VulkanExample : public vkx::ExampleBase {
 public:
@@ -152,7 +152,6 @@ public:
         uboVS.model = camera.matrices.view;
         memcpy(uniformBufferVS.mapped, &uboVS, sizeof(uboVS));
     }
-
 
     void prepare() override {
         ExampleBase::prepare();

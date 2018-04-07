@@ -457,17 +457,18 @@ public:
         descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.base })[0];
 
         // Scene rendering / debug display
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets {
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.VS.descriptor },
-            { descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &depthMapDescriptor},
-            { descriptorSet, 2, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.FS.descriptor},
+            { descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &depthMapDescriptor },
+            { descriptorSet, 2, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.FS.descriptor },
         };
         // Per-cascade descriptor sets
         // Each descriptor set represents a single layer of the array texture
         vk::DescriptorImageInfo cascadeImageInfo{ depth.sampler, depth.view, vk::ImageLayout::eDepthStencilReadOnlyOptimal };
         for (uint32_t i = 0; i < SHADOW_MAP_CASCADE_COUNT; i++) {
             cascades[i].descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.base })[0];
-            writeDescriptorSets.push_back({ cascades[i].descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &depthPass.uniformBuffer.descriptor });
+            writeDescriptorSets.push_back(
+                { cascades[i].descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &depthPass.uniformBuffer.descriptor });
             writeDescriptorSets.push_back({ cascades[i].descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &cascadeImageInfo });
             device.updateDescriptorSets(writeDescriptorSets, nullptr);
         }
@@ -491,7 +492,6 @@ public:
             // Depth pass pipeline layout
             depthPass.pipelineLayout = device.createPipelineLayout({ {}, (uint32_t)setLayouts.size(), setLayouts.data(), 1, &pushConstantRange });
         }
-
     }
 
     void preparePipelines() {

@@ -6,7 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
 
 // Vertex layout for the models
 static const vks::model::VertexLayout VERTEX_LAYOUT{ {
@@ -71,14 +71,17 @@ public:
     void updateDrawCommandBuffer(const vk::CommandBuffer& commandBuffer) override {
         std::vector<vk::Viewport> viewports{
             // Left
-            vk::Viewport{ 0.0f, 0.0f, (float)size.width / 2.0f, (float)size.height, 0.0f, 1.0f},
+            vk::Viewport{ 0.0f, 0.0f, (float)size.width / 2.0f, (float)size.height, 0.0f, 1.0f },
             // Right
             vk::Viewport{ (float)size.width / 2.0f, 0.0f, (float)size.width / 2.0f, (float)size.height, 0.0f, 1.0f },
         };
         commandBuffer.setViewport(0, viewports);
 
         std::vector<vk::Rect2D> scissorRects{
-            vk::Rect2D{ vk::Offset2D{ 0, 0, },
+            vk::Rect2D{ vk::Offset2D{
+                            0,
+                            0,
+                        },
                         vk::Extent2D{ size.width / 2, size.height } },
             vk::Rect2D{ vk::Offset2D{ (int32_t)size.width / 2, 0 }, vk::Extent2D{ size.width / 2, size.height } },
         };

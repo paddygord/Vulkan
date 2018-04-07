@@ -153,8 +153,7 @@ public:
             vk::DescriptorSetLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
         };
 
-        descriptorSetLayout =
-            device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+        descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
         pipelineLayout = device.createPipelineLayout({ {}, 1, &descriptorSetLayout });
     }
 
@@ -227,8 +226,7 @@ public:
 
         for (auto i = 0; i < INSTANCE_COUNT; i++) {
             auto& instance = instanceData[i];
-            instance.rot =
-                (float)M_PI * glm::vec3(uniformDist(rndGenerator), uniformDist(rndGenerator), uniformDist(rndGenerator));
+            instance.rot = (float)M_PI * glm::vec3(uniformDist(rndGenerator), uniformDist(rndGenerator), uniformDist(rndGenerator));
             float theta = 2.0f * (float)M_PI * uniformDist(rndGenerator);
             float phi = acos(1 - 2 * uniformDist(rndGenerator));
             instance.scale = 0.1f + expDist(rndGenerator) * 3.0f;

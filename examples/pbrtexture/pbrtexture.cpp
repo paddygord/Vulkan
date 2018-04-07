@@ -273,9 +273,9 @@ public:
         prepared = true;
     }
 
-    void viewChanged() override{ updateUniformBuffers(); }
+    void viewChanged() override { updateUniformBuffers(); }
 
-    void OnUpdateUIOverlay() override{
+    void OnUpdateUIOverlay() override {
         if (ui.header("Settings")) {
             if (ui.inputFloat("Exposure", &uboParams.exposure, 0.1f, 2)) {
                 updateParams();

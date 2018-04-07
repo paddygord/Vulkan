@@ -6,15 +6,17 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
 
 #define INSTANCE_COUNT 2048
 
 // Vertex layout for this example
-vks::model::VertexLayout vertexLayout{
-    { vks::model::Component::VERTEX_COMPONENT_POSITION, vks::model::Component::VERTEX_COMPONENT_NORMAL,
-      vks::model::Component::VERTEX_COMPONENT_UV, vks::model::Component::VERTEX_COMPONENT_COLOR }
-};
+vks::model::VertexLayout vertexLayout{ {
+    vks::model::Component::VERTEX_COMPONENT_POSITION,
+    vks::model::Component::VERTEX_COMPONENT_NORMAL,
+    vks::model::Component::VERTEX_COMPONENT_UV,
+    vks::model::Component::VERTEX_COMPONENT_COLOR,
+} };
 
 class VulkanExample : public vkx::ExampleBase {
 public:
@@ -88,10 +90,7 @@ public:
 
     void loadMeshes() { meshes.example.loadFromFile(context, getAssetPath() + "models/rock01.dae", vertexLayout, 0.1f); }
 
-    void loadTextures() {
-        textures.colorMap.loadFromFile(context, getAssetPath() + "textures/texturearray_rocks_bc3.ktx",
-                                       vk::Format::eBc3UnormBlock);
-    }
+    void loadTextures() { textures.colorMap.loadFromFile(context, getAssetPath() + "textures/texturearray_rocks_bc3.ktx", vk::Format::eBc3UnormBlock); }
 
     void setupDescriptorPool() {
         // Example uses one ubo
@@ -100,8 +99,7 @@ public:
             vk::DescriptorPoolSize{ vk::DescriptorType::eCombinedImageSampler, 1 },
         };
 
-        descriptorPool =
-            device.createDescriptorPool(vk::DescriptorPoolCreateInfo{ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
+        descriptorPool = device.createDescriptorPool(vk::DescriptorPoolCreateInfo{ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
 
     void setupDescriptorSetLayout() {
@@ -117,16 +115,13 @@ public:
     }
 
     void setupDescriptorSet() {
-        descriptorSet =
-            device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout })[0];
+        descriptorSet = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout })[0];
 
-        vk::DescriptorImageInfo texDescriptor =
-            vk::DescriptorImageInfo{ textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral };
+        vk::DescriptorImageInfo texDescriptor = vk::DescriptorImageInfo{ textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral };
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
             // Binding 0 : Vertex shader uniform buffer
-            vk::WriteDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr,
-                                    &uniformData.vsScene.descriptor },
+            vk::WriteDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsScene.descriptor },
             // Binding 1 : Color map
             vk::WriteDescriptorSet{ descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
         };
@@ -172,16 +167,14 @@ public:
         };
 
         // Load shaders
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/instancing/instancing.vert.spv",
-                                      vk::ShaderStageFlagBits::eVertex);
-        pipelineBuilder.loadShader(getAssetPath() + "shaders/instancing/instancing.frag.spv",
-                                      vk::ShaderStageFlagBits::eFragment);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/instancing/instancing.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/instancing/instancing.frag.spv", vk::ShaderStageFlagBits::eFragment);
         // Instacing pipeline
         pipelines.solid = pipelineBuilder.create(context.pipelineCache);
     }
 
     float rnd(float range) { return range * (rand() / float(RAND_MAX)); }
-    uint32_t rnd(uint32_t  range) { return (uint32_t)rnd((float)range); }
+    uint32_t rnd(uint32_t range) { return (uint32_t)rnd((float)range); }
 
     void prepareInstanceData() {
         std::vector<InstanceData> instanceData;
@@ -191,13 +184,11 @@ public:
         std::uniform_real_distribution<double> uniformDist(0.0, 1.0);
 
         for (auto i = 0; i < INSTANCE_COUNT; i++) {
-            instanceData[i].rot =
-                glm::vec3(M_PI * uniformDist(rndGenerator), M_PI * uniformDist(rndGenerator), M_PI * uniformDist(rndGenerator));
+            instanceData[i].rot = glm::vec3(M_PI * uniformDist(rndGenerator), M_PI * uniformDist(rndGenerator), M_PI * uniformDist(rndGenerator));
             float theta = (float)(2 * M_PI * uniformDist(rndGenerator));
             float phi = (float)acos(1 - 2 * uniformDist(rndGenerator));
             glm::vec3 pos;
-            instanceData[i].pos =
-                glm::vec3(sin(phi) * cos(theta), sin(theta) * uniformDist(rndGenerator) / 1500.0f, cos(phi)) * 7.5f;
+            instanceData[i].pos = glm::vec3(sin(phi) * cos(theta), sin(theta) * uniformDist(rndGenerator) / 1500.0f, cos(phi)) * 7.5f;
             instanceData[i].scale = 1.0f + (float)uniformDist(rndGenerator) * 2.0f;
             instanceData[i].texIndex = rnd(textures.colorMap.layerCount);
         }

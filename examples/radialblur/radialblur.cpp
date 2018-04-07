@@ -6,7 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanOffscreenExampleBase.hpp"
+#include <vulkanOffscreenExampleBase.hpp>
 
 // Texture properties
 #define TEX_DIM 128
@@ -373,7 +373,6 @@ public:
         displayTexture = !displayTexture;
         buildCommandBuffers();
     }
-
 
     void OnUpdateUIOverlay() override {
         if (ui.header("Settings")) {

@@ -43,13 +43,9 @@ public:
         window = nullptr;
     }
 
-    void makeCurrent() const {
-        glfwMakeContextCurrent(window);
-    }
+    void makeCurrent() const { glfwMakeContextCurrent(window); }
 
-    void present() const {
-        glfwSwapBuffers(window);
-    }
+    void present() const { glfwSwapBuffers(window); }
 
     void showWindow(bool show = true) {
         if (show) {
@@ -59,12 +55,10 @@ public:
         }
     }
 
-    void setTitle(const std::string& title) {
-        glfwSetWindowTitle(window, title.c_str());
-    }
+    void setTitle(const std::string& title) { glfwSetWindowTitle(window, title.c_str()); }
 
     void setSizeLimits(const glm::uvec2& minSize, const glm::uvec2& maxSize = {}) {
-        glfwSetWindowSizeLimits(window, minSize.x, minSize.y, (maxSize.x != 0) ? maxSize.x : minSize.x, (maxSize.y != 0 )? maxSize.y : minSize.y);
+        glfwSetWindowSizeLimits(window, minSize.x, minSize.y, (maxSize.x != 0) ? maxSize.x : minSize.x, (maxSize.y != 0) ? maxSize.y : minSize.y);
     }
 
     void runWindowLoop(const std::function<void()>& frameHandler) {

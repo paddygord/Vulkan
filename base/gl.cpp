@@ -5,7 +5,7 @@ typedef PROC(APIENTRYP PFNWGLGETPROCADDRESS)(LPCSTR);
 PFNWGLGETPROCADDRESS glad_wglGetProcAddress;
 #define wglGetProcAddress glad_wglGetProcAddress
 
-static void* getGlProcessAddress(const char *namez) {
+static void* getGlProcessAddress(const char* namez) {
     static HMODULE glModule = nullptr;
     if (!glModule) {
         glModule = LoadLibraryW(L"opengl32.dll");
@@ -25,9 +25,7 @@ static void* getGlProcessAddress(const char *namez) {
 
 void gl::init() {
     static std::once_flag once;
-    std::call_once(once, [] {
-        gladLoadGL();
-    });
+    std::call_once(once, [] { gladLoadGL(); });
 }
 
 GLuint gl::loadShader(const std::string& shaderSource, GLenum shaderType) {
@@ -51,12 +49,11 @@ GLuint gl::loadShader(const std::string& shaderSource, GLenum shaderType) {
 
         // Provide the infolog in whatever manor you deem best.
         // Exit with failure.
-        glDeleteShader(shader); // Don't leak the shader.
+        glDeleteShader(shader);  // Don't leak the shader.
         throw std::runtime_error("Shader compiled failed");
     }
     return shader;
 }
-
 
 GLuint gl::buildProgram(const std::string& vertexShaderSource, const std::string& fragmentShaderSource) {
     GLuint program = glCreateProgram();

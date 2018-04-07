@@ -9,7 +9,6 @@
 
 namespace vks { namespace file {
 
-
 void withBinaryFileContents(const std::string& filename, std::function<void(size_t size, const void* data)> handler) {
     withBinaryFileContents(filename, [&](const char* filename, size_t size, const void* data) { handler(size, data); });
 }
@@ -44,4 +43,4 @@ std::string readTextFile(const std::string& fileName) {
     return fileContent;
 }
 
-}}  // namespace vks::util
+}}  // namespace vks::file

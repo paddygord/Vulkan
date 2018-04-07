@@ -14,8 +14,12 @@
 
 class VulkanExample : public vkx::ExampleBase {
 public:
-    vks::model::VertexLayout vertexLayout{ { vks::model::Component::VERTEX_COMPONENT_POSITION, vks::model::Component::VERTEX_COMPONENT_NORMAL,
-                                             vks::model::Component::VERTEX_COMPONENT_UV, vks::model::Component::VERTEX_COMPONENT_COLOR, } };
+    vks::model::VertexLayout vertexLayout{ {
+        vks::model::Component::VERTEX_COMPONENT_POSITION,
+        vks::model::Component::VERTEX_COMPONENT_NORMAL,
+        vks::model::Component::VERTEX_COMPONENT_UV,
+        vks::model::Component::VERTEX_COMPONENT_COLOR,
+    } };
 
     struct {
         vks::model::Model object;

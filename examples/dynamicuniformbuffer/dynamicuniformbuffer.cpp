@@ -16,9 +16,8 @@
 * offset used to pass data from the single uniform buffer to the connected shader binding point.
 */
 
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
 
-#define VERTEX_BUFFER_BIND_ID 0
 #define OBJECT_INSTANCES 125
 
 // Vertex layout for this example
@@ -127,7 +126,7 @@ public:
         drawCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 
         VkDeviceSize offsets[1] = { 0 };
-        drawCommandBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertexBuffer.buffer, { 0 });
+        drawCommandBuffer.bindVertexBuffers(0, vertexBuffer.buffer, { 0 });
         drawCommandBuffer.bindIndexBuffer(indexBuffer.buffer, 0, vk::IndexType::eUint32);
 
         // Render multiple objects using different model matrices by dynamically offsetting into one uniform buffer
@@ -204,13 +203,13 @@ public:
         auto& vertexInputState = builder.vertexInputState;
         // Binding description
         vertexInputState.bindingDescriptions = {
-            vk::VertexInputBindingDescription{ VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex },
+            vk::VertexInputBindingDescription{ 0, sizeof(Vertex), vk::VertexInputRate::eVertex },
         };
 
         // Attribute descriptions
         vertexInputState.attributeDescriptions = {
-            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos) },  // Location 0 : Position
-            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color) },  // Location 1 : Color
+            vk::VertexInputAttributeDescription{ 0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos) },    // Location 0 : Position
+            vk::VertexInputAttributeDescription{ 1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color) },  // Location 1 : Color
         };
 
         builder.loadShader(getAssetPath() + "shaders/dynamicuniformbuffer/base.vert.spv", vk::ShaderStageFlagBits::eVertex);
