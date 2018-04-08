@@ -24,17 +24,14 @@ void VulkanGear::newFace(std::vector<uint32_t>* iBuffer, int a, int b, int c) {
     iBuffer->push_back(c);
 }
 
-VulkanGear::VulkanGear(const vks::Context& context)
-    : context(context) {
-}
-
 VulkanGear::~VulkanGear() {
     // Clean up vulkan resources
     uniformData.destroy();
     meshInfo.destroy();
 }
 
-void VulkanGear::generate(float inner_radius,
+void VulkanGear::generate(const vks::Context& context,
+                          float inner_radius,
                           float outer_radius,
                           float width,
                           int teeth,
@@ -43,6 +40,7 @@ void VulkanGear::generate(float inner_radius,
                           glm::vec3 pos,
                           float rotSpeed,
                           float rotOffset) {
+    device = context.device;
     this->color = color;
     this->pos = pos;
     this->rotOffset = rotOffset;
@@ -179,7 +177,8 @@ void VulkanGear::generate(float inner_radius,
     meshInfo.indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, iBuffer);
     meshInfo.indexCount = (uint32_t)iBuffer.size();
 
-    prepareUniformBuffer();
+    // Vertex shader uniform buffer block
+    uniformData = context.createUniformBuffer(ubo);
 }
 
 void VulkanGear::draw(vk::CommandBuffer cmdbuffer, vk::PipelineLayout pipelineLayout) {
@@ -205,15 +204,9 @@ void VulkanGear::updateUniformBuffer(const glm::mat4& perspective, const glm::ma
 }
 
 void VulkanGear::setupDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout descriptorSetLayout) {
-    descriptorSet = context.device.allocateDescriptorSets({ pool, 1, &descriptorSetLayout })[0];
+    descriptorSet = device.allocateDescriptorSets({ pool, 1, &descriptorSetLayout })[0];
 
     // Binding 0 : Vertex shader uniform buffer
-    vk::WriteDescriptorSet writeDescriptorSet{ descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.descriptor };
-
-    context.device.updateDescriptorSets(writeDescriptorSet, nullptr);
+    device.updateDescriptorSets({ { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.descriptor } }, nullptr);
 }
 
-void VulkanGear::prepareUniformBuffer() {
-    // Vertex shader uniform buffer block
-    uniformData = context.createUniformBuffer(ubo);
-}

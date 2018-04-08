@@ -44,8 +44,6 @@ public:
     /** @brief Components used to generate vertices from */
     std::vector<Component> components;
     VertexLayout() = default;
-    VertexLayout(const std::vector<Component>& components, uint32_t binding = 0)
-        : components(components) {}
     VertexLayout(std::vector<Component>&& components, uint32_t binding = 0)
         : components(std::move(components)) {}
 

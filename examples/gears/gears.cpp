@@ -6,8 +6,8 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanGear.h"
-#include "vulkanExampleBase.h"
+#include <vulkanExampleBase.h>
+#include <vulkanGear.h>
 
 class VulkanExample : public vkx::ExampleBase {
     using Parent = vkx::ExampleBase;
@@ -17,7 +17,7 @@ public:
         vk::Pipeline solid;
     } pipelines;
 
-    std::vector<VulkanGear*> gears;
+    std::vector<VulkanGear> gears;
     vks::model::VertexLayout vertexLayout{ {
         vks::model::VERTEX_COMPONENT_POSITION,
         vks::model::VERTEX_COMPONENT_NORMAL,
@@ -40,9 +40,7 @@ public:
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
 
-        for (auto& gear : gears) {
-            delete (gear);
-        }
+        gears.clear();
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
@@ -50,7 +48,7 @@ public:
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
         for (auto& gear : gears) {
-            gear->draw(cmdBuffer, pipelineLayout);
+            gear.draw(cmdBuffer, pipelineLayout);
         }
     }
 
@@ -68,9 +66,8 @@ public:
 
         gears.resize(positions.size());
         for (int32_t i = 0; i < gears.size(); ++i) {
-            gears[i] = new VulkanGear(context);
-            gears[i]->generate(innerRadiuses[i], outerRadiuses[i], widths[i], toothCount[i], toothDepth[i], colors[i], positions[i], rotationSpeeds[i],
-                               rotationStarts[i]);
+            gears[i].generate(context, innerRadiuses[i], outerRadiuses[i], widths[i], toothCount[i], toothDepth[i], colors[i], positions[i], rotationSpeeds[i],
+                              rotationStarts[i]);
         }
     }
 
@@ -92,7 +89,7 @@ public:
 
     void setupDescriptorSets() {
         for (auto& gear : gears) {
-            gear->setupDescriptorSet(descriptorPool, descriptorSetLayout);
+            gear.setupDescriptorSet(descriptorPool, descriptorSetLayout);
         }
     }
 
@@ -113,7 +110,7 @@ public:
     void updateUniformBuffers() {
         glm::mat4 perspective = glm::perspective(glm::radians(60.0f), (float)size.width / (float)size.height, 0.001f, 256.0f);
         for (auto& gear : gears) {
-            gear->updateUniformBuffer(perspective, camera.matrices.view, timer * 360.0f);
+            gear.updateUniformBuffer(perspective, camera.matrices.view, timer * 360.0f);
         }
     }
 

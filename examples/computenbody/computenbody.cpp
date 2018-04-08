@@ -8,7 +8,6 @@
 
 #include <vulkanExampleBase.h>
 
-#define ENABLE_VALIDATION false
 #if defined(__ANDROID__)
 // Lower particle count on Android for performance reasons
 #define PARTICLES_PER_ATTRACTOR 3 * 1024

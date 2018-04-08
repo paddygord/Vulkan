@@ -41,8 +41,7 @@ private:
         glm::vec3 lightPos;
     };
 
-    const vks::Context& context;
-
+    vk::Device device;
     glm::vec3 color;
     glm::vec3 pos;
     float rotSpeed;
@@ -65,21 +64,18 @@ private:
     int32_t newVertex(std::vector<Vertex>* vBuffer, float x, float y, float z, const glm::vec3& normal);
     void newFace(std::vector<uint32_t>* iBuffer, int a, int b, int c);
 
-    void prepareUniformBuffer();
-
 public:
     vk::DescriptorSet descriptorSet;
 
     void draw(vk::CommandBuffer cmdbuffer, vk::PipelineLayout pipelineLayout);
     void updateUniformBuffer(const glm::mat4& perspective, const glm::mat4& view, float timer);
-    void updateUniformBuffer(const glm::mat4& perspective, glm::vec3 rotation, float zoom, float timer);
 
     void setupDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout descriptorSetLayout);
 
-    VulkanGear(const vks::Context& context);
     ~VulkanGear();
 
-    void generate(float inner_radius,
+    void generate(const vks::Context& context,
+                  float inner_radius,
                   float outer_radius,
                   float width,
                   int teeth,

@@ -47,7 +47,7 @@ struct PipelineVertexInputStateCreateInfo : public vk::PipelineVertexInputStateC
     std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
 
     void appendVertexLayout(const vks::model::VertexLayout& vertexLayout, uint32_t binding = 0, vk::VertexInputRate rate = vk::VertexInputRate::eVertex) {
-        bindingDescriptions.push_back({ binding, vertexLayout.stride(), rate });
+        bindingDescriptions.emplace_back(binding, vertexLayout.stride(), rate);
         auto componentsSize = vertexLayout.components.size();
         attributeDescriptions.reserve(attributeDescriptions.size() + componentsSize);
         auto attributeIndexOffset = (uint32_t)attributeDescriptions.size();
@@ -55,7 +55,7 @@ struct PipelineVertexInputStateCreateInfo : public vk::PipelineVertexInputStateC
             const auto& component = vertexLayout.components[i];
             const auto format = vertexLayout.componentFormat(component);
             const auto offset = vertexLayout.offset(i);
-            attributeDescriptions.push_back(vk::VertexInputAttributeDescription{ attributeIndexOffset + i, binding, format, offset });
+            attributeDescriptions.emplace_back(attributeIndexOffset + i, binding, format, offset);
         }
     }
 
