@@ -176,7 +176,7 @@ public:
         int32_t width, height;
         vk::Framebuffer framebuffer;
         vks::Image color, depth;
-        vks::texture::Texture2D textureTarget;
+        vks::Image textureTarget;
     } offscreenFrameBuf;
 
     vk::Semaphore offscreenSemaphore;
@@ -250,17 +250,15 @@ public:
             imageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
             // Texture will be sampled in a shader and is also the blit destination
             imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
-
-            (vks::Image&)offscreenFrameBuf.textureTarget = context.createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+            offscreenFrameBuf.textureTarget = context.createImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
             // Transform image layout to transfer destination
-            tex.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
             context.setImageLayout(
                 cmdBuffer,
                 tex.image,
                 vk::ImageAspectFlagBits::eColor,
                 vk::ImageLayout::eUndefined,
-                tex.imageLayout);
+                vk::ImageLayout::eShaderReadOnlyOptimal);
 
             // Create sampler
             vk::SamplerCreateInfo sampler;
@@ -277,7 +275,6 @@ public:
             sampler.maxLod = 0.0f;
             sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
             tex.sampler = device.createSampler(sampler);
-
 
             // Create image view
             vk::ImageViewCreateInfo view;
