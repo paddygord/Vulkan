@@ -218,7 +218,7 @@ public:
 
         // Get device push descriptor properties (to display them)
         if (context.deviceProperties.apiVersion >= VK_MAKE_VERSION(1, 1, 0)) {
-            pushDescriptorProps = context.physicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDevicePushDescriptorPropertiesKHR>(dispatcher).get<vk::PhysicalDevicePushDescriptorPropertiesKHR>();1
+            pushDescriptorProps = context.physicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDevicePushDescriptorPropertiesKHR>(dispatcher).get<vk::PhysicalDevicePushDescriptorPropertiesKHR>();
         } else {
             pushDescriptorProps = context.physicalDevice.getProperties2KHR<vk::PhysicalDeviceProperties2KHR, vk::PhysicalDevicePushDescriptorPropertiesKHR>(dispatcher).get<vk::PhysicalDevicePushDescriptorPropertiesKHR>();
         }
