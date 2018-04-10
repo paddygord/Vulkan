@@ -211,18 +211,16 @@ public:
         */
 
         // The push descriptor update function is part of an extension so it has to be manually loaded 
+        // The DispatchLoaderDynamic class exposes all known extensions (to the current SDK version)
+        // and handles dynamic loading.  It must be initialized with an instance in order to fetch 
+        // instance-level extensions and with an instance and device to expose device level extensions.  
         dispatcher.init(context.instance, context.device);
-        if (!dispatcher.vkCmdPushDescriptorSetKHR) {
-            throw std::runtime_error("Could not get a valid function pointer for vkCmdPushDescriptorSetKHR");
-        }
 
         // Get device push descriptor properties (to display them)
-        if (dispatcher.vkGetPhysicalDeviceProperties2) {
-            pushDescriptorProps = context.physicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDevicePushDescriptorPropertiesKHR>(dispatcher).get<vk::PhysicalDevicePushDescriptorPropertiesKHR>();
-        } else if (dispatcher.vkGetPhysicalDeviceProperties2KHR) {
-            pushDescriptorProps = context.physicalDevice.getProperties2KHR<vk::PhysicalDeviceProperties2KHR, vk::PhysicalDevicePushDescriptorPropertiesKHR>(dispatcher).get<vk::PhysicalDevicePushDescriptorPropertiesKHR>();
+        if (context.deviceProperties.apiVersion >= VK_MAKE_VERSION(1, 1, 0)) {
+            pushDescriptorProps = context.physicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDevicePushDescriptorPropertiesKHR>(dispatcher).get<vk::PhysicalDevicePushDescriptorPropertiesKHR>();1
         } else {
-            throw std::runtime_error("Could not get a valid function pointer for vkGetPhysicalDeviceProperties2KHR");
+            pushDescriptorProps = context.physicalDevice.getProperties2KHR<vk::PhysicalDeviceProperties2KHR, vk::PhysicalDevicePushDescriptorPropertiesKHR>(dispatcher).get<vk::PhysicalDevicePushDescriptorPropertiesKHR>();
         }
 
         /*
