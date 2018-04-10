@@ -80,27 +80,29 @@ public:
 
     void updateAspectRatio(float aspect) { matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar); }
 
-    void setPosition(glm::vec3 position) {
+    void updateAspectRatio(const vk::Extent2D& size) { updateAspectRatio((float)size.width / (float)size.height); }
+
+    void setPosition(const glm::vec3& position) {
         this->position = position;
         updateViewMatrix();
     }
 
-    void setRotation(glm::vec3 rotation) {
+    void setRotation(const glm::vec3& rotation) {
         this->rotation = rotation;
         updateViewMatrix();
     };
 
-    void rotate(glm::vec3 delta) {
+    void rotate(const glm::vec3& delta) {
         this->rotation += delta;
         updateViewMatrix();
     }
 
-    void setTranslation(glm::vec3 translation) {
+    void setTranslation(const glm::vec3& translation) {
         this->position = translation;
         updateViewMatrix();
     };
 
-    void dolly(float z) { translate(glm::vec3{ 0, 0, z }); }
+    void dolly(float z) { translate({ 0, 0, z }); }
 
     glm::vec3 getFront() const {
         glm::vec3 camFront;

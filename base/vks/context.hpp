@@ -836,7 +836,11 @@ public:
 
     InstanceExtensionsPickerFunctions instanceExtensionsPickers;
     // Set to true when example is created with enabled validation layers
+#ifndef NDEBUG
+    bool enableValidation = true;
+#else
     bool enableValidation = false;
+#endif
     // Set to true when the debug marker extension is detected
     bool enableDebugMarkers = false;
 

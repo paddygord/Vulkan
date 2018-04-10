@@ -84,9 +84,6 @@ void ExampleBase::run() {
 }
 
 void ExampleBase::initVulkan() {
-#ifndef NDEBUG
-    context.setValidationEnabled(true);
-#endif
 #if defined(__ANDROID__)
     context.requireExtensions({ VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME });
 #else
