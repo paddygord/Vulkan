@@ -62,7 +62,7 @@ public:
     }
 
     void runWindowLoop(const std::function<void()>& frameHandler) {
-        while (0 != glfwWindowShouldClose(window)) {
+        while (0 == glfwWindowShouldClose(window)) {
             glfwPollEvents();
             frameHandler();
         }

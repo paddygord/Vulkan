@@ -112,10 +112,16 @@ public:
         context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
         context.createInstance();
 
+        // The `surface` should be created before the Vulkan `device` because the device selection needs to pick a queue 
+        // that will support presentation to the surface
+        auto surface = createSurface(context.instance);
+
+        context.createDevice(surface);
+
         cmdPool = context.getCommandPool();
 
         swapChain.setup(context.physicalDevice, context.device, context.queue, context.queueIndices.graphics);
-        swapChain.setSurface(createSurface(context.instance));
+        swapChain.setSurface(surface);
         swapChain.create(size);
 
         setupRenderPass();
