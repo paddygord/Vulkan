@@ -234,10 +234,12 @@ struct SwapChain {
 
     // Free all Vulkan resources used by the swap chain
     void destroy() {
-        for (uint32_t i = 0; i < imageCount; i++) {
-            device.destroyImageView(images[i].view);
+        if (device) {
+            for (uint32_t i = 0; i < imageCount; i++) {
+                device.destroyImageView(images[i].view);
+            }
+            device.destroySwapchainKHR(swapChain);
         }
-        device.destroySwapchainKHR(swapChain);
     }
 
 private:

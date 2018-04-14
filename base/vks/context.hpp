@@ -188,7 +188,7 @@ public:
         vk::ApplicationInfo appInfo;
         appInfo.pApplicationName = "VulkanExamples";
         appInfo.pEngineName = "VulkanExamples";
-        appInfo.apiVersion = VK_API_VERSION_1_0;
+        appInfo.apiVersion = VK_MAKE_VERSION(1, 1, 0);
 
         std::set<std::string> instanceExtensions;
         instanceExtensions.insert(requiredExtensions.begin(), requiredExtensions.end());
@@ -243,7 +243,11 @@ public:
         if (queue) {
             queue.waitIdle();
         }
-        device.waitIdle();
+
+        if (device) {
+            device.waitIdle();
+        }
+
         for (const auto& trash : dumpster) {
             trash();
         }
@@ -253,8 +257,14 @@ public:
         }
 
         destroyCommandPool();
-        device.destroyPipelineCache(pipelineCache);
-        device.destroy();
+        if (device && pipelineCache) {
+            device.destroyPipelineCache(pipelineCache);
+        }
+
+        if (device) {
+            device.destroy();
+        }
+
         if (enableValidation) {
             debug::freeDebugCallback(instance);
         }

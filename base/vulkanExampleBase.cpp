@@ -30,11 +30,17 @@ ExampleBase::ExampleBase() {
 }
 
 ExampleBase::~ExampleBase() {
-    context.queue.waitIdle();
-    context.device.waitIdle();
+    // Once we exit the render loop, wait for everything to become idle before proceeding to the descructor.
+    if (context.queue) {
+        context.queue.waitIdle();
+    }
+    if (context.device) {
+        context.device.waitIdle();
+    }
 
     // Clean up Vulkan resources
     swapChain.destroy();
+
     // FIXME destroy surface
     if (descriptorPool) {
         device.destroyDescriptorPool(descriptorPool);
@@ -43,16 +49,21 @@ ExampleBase::~ExampleBase() {
         device.freeCommandBuffers(cmdPool, commandBuffers);
         commandBuffers.clear();
     }
-    device.destroyRenderPass(renderPass);
+    if (renderPass) {
+        device.destroyRenderPass(renderPass);
+    }
+
     for (uint32_t i = 0; i < framebuffers.size(); i++) {
         device.destroyFramebuffer(framebuffers[i]);
     }
 
     depthStencil.destroy();
 
-    device.destroySemaphore(semaphores.acquireComplete);
-    device.destroySemaphore(semaphores.renderComplete);
-    device.destroySemaphore(semaphores.overlayComplete);
+    if (device) {
+        device.destroySemaphore(semaphores.acquireComplete);
+        device.destroySemaphore(semaphores.renderComplete);
+        device.destroySemaphore(semaphores.overlayComplete);
+    }
 
     ui.destroy();
 
@@ -67,20 +78,26 @@ ExampleBase::~ExampleBase() {
 }
 
 void ExampleBase::run() {
-// Android initialization is handled in APP_CMD_INIT_WINDOW event
+    try {
+
+        // Android initialization is handled in APP_CMD_INIT_WINDOW event
 #if !defined(__ANDROID__)
-    glfwInit();
-    setupWindow();
-    initVulkan();
-    setupSwapchain();
-    prepare();
+        glfwInit();
+        setupWindow();
+        initVulkan();
+        setupSwapchain();
+        prepare();
 #endif
 
-    renderLoop();
+        renderLoop();
+    } catch (const std::exception& exception) {
+#if defined(WIN32)
+        MessageBoxA(nullptr, exception.what(), "Exception", MB_OK);
+        OutputDebugStringA(exception.what());
+        OutputDebugStringA("\n");
+#endif
+    }
 
-    // Once we exit the render loop, wait for everything to become idle before proceeding to the descructor.
-    context.queue.waitIdle();
-    context.device.waitIdle();
 }
 
 void ExampleBase::initVulkan() {
