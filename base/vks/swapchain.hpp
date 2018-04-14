@@ -14,6 +14,7 @@
 #include <vulkan/vulkan.hpp>
 
 namespace vks {
+
 struct SwapChainImage {
     vk::Image image;
     vk::ImageView view;

@@ -180,7 +180,7 @@ public:
         depthPass.destroy(device);
     }
 
-    virtual void getEnabledFeatures() {
+    void getEnabledFeatures() override {
         context.enabledFeatures.samplerAnisotropy = context.deviceFeatures.samplerAnisotropy;
         // Depth clamp to avoid near plane clipping
         context.enabledFeatures.depthClamp = context.deviceFeatures.depthClamp;
@@ -366,11 +366,11 @@ public:
         depthPass.commandBuffer.setViewport(0, viewport);
 
         vk::Rect2D scissor;
-        scissor.extent = { SHADOWMAP_DIM, SHADOWMAP_DIM };
+        scissor.extent = vk::Extent2D{ SHADOWMAP_DIM, SHADOWMAP_DIM };
         depthPass.commandBuffer.setScissor(0, scissor);
 
         vk::ClearValue clearValue;
-        clearValue.depthStencil = { 1.0f, 0 };
+        clearValue.depthStencil = defaultClearDepth;
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = depthPass.renderPass;
@@ -412,7 +412,7 @@ public:
         renderScene(drawCommandBuffer, pipelineLayout, descriptorSet);
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         materials.resize(3);
         materials[0].texture.loadFromFile(context, getAssetPath() + "textures/gridlines.ktx");
         materials[1].texture.loadFromFile(context, getAssetPath() + "textures/oak_bark.ktx");
@@ -663,7 +663,7 @@ public:
         memcpy(uniformBuffers.FS.mapped, &uboFS, sizeof(uboFS));
     }
 
-    void draw() {
+    void draw() override {
         prepareFrame();
 
         // Depth map generation
@@ -686,7 +686,7 @@ public:
         submitFrame();
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         updateLight();
         updateCascades();

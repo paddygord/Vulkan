@@ -74,7 +74,7 @@ public:
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.cube.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.cube.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.cube.indices.buffer, 0, vk::IndexType::eUint32);
 
         // Left : Solid colored

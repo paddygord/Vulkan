@@ -1,4 +1,6 @@
 #include "common.hpp"
+
+#if !defined(__ANDROID__)
 #include <glad/glad.h>
 
 namespace gl {
@@ -8,3 +10,5 @@ GLuint buildProgram(const std::string& vertexShaderSource, const std::string& fr
 void report();
 void setupDebugLogging();
 }  // namespace gl
+
+#endif

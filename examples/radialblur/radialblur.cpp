@@ -133,7 +133,7 @@ public:
         offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.colorPass);
 
         vk::DeviceSize offsets = 0;
-        offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, offsets);
+        offscreen.cmdBuffer.bindVertexBuffers(0, meshes.example.vertices.buffer, offsets);
         offscreen.cmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
         offscreen.cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
         offscreen.cmdBuffer.endRenderPass();
@@ -148,7 +148,7 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phongPass);
 
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.example.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
 
@@ -156,7 +156,7 @@ public:
         if (blur) {
             cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.radialBlur, 0, descriptorSets.quad, nullptr);
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, (displayTexture) ? pipelines.fullScreenOnly : pipelines.radialBlur);
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, { 0 });
+            cmdBuffer.bindVertexBuffers(0, meshes.quad.vertices.buffer, { 0 });
             cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
         }

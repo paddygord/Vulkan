@@ -136,11 +136,7 @@ public:
         // Create image for this attachment
         (vks::Image&)attachment = context.createImage(image);
 
-        attachment.subresourceRange = {};
-        attachment.subresourceRange.aspectMask = aspectMask;
-        attachment.subresourceRange.levelCount = 1;
-        attachment.subresourceRange.layerCount = createinfo.layerCount;
-
+        attachment.subresourceRange = vk::ImageSubresourceRange{ aspectMask, 0, 1, 0, createinfo.layerCount };
         vk::ImageViewCreateInfo imageView;
         imageView.viewType = (createinfo.layerCount == 1) ? vk::ImageViewType::e2D : vk::ImageViewType::e2DArray;
         imageView.format = createinfo.format;
@@ -151,7 +147,6 @@ public:
         attachment.view = device.createImageView(imageView);
 
         // Fill attachment description
-        attachment.description = {};
         attachment.description.loadOp = vk::AttachmentLoadOp::eClear;
         attachment.description.storeOp =
             (createinfo.usage & vk::ImageUsageFlagBits::eSampled) ? vk::AttachmentStoreOp::eStore : vk::AttachmentStoreOp::eDontCare;

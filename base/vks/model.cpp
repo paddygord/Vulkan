@@ -21,11 +21,7 @@ using namespace vks::model;
 const int Model::defaultFlags =
     aiProcess_FlipWindingOrder | aiProcess_Triangulate | aiProcess_PreTransformVertices | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals;
 
-bool Model::loadFromFile(const Context& context,
-                         const std::string& filename,
-                         const VertexLayout& layout,
-                         const ModelCreateInfo& createInfo,
-                         const int flags) {
+bool Model::loadFromFile(const Context& context, const std::string& filename, const VertexLayout& layout, const ModelCreateInfo& createInfo, const int flags) {
     this->layout = layout;
     scale = createInfo.scale;
     uvscale = createInfo.uvscale;

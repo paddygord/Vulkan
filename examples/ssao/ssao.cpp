@@ -206,10 +206,7 @@ public:
         vk::ImageViewCreateInfo imageView;
         imageView.viewType = vk::ImageViewType::e2D;
         imageView.format = format;
-        imageView.subresourceRange = {};
-        imageView.subresourceRange.aspectMask = aspectMask;
-        imageView.subresourceRange.levelCount = 1;
-        imageView.subresourceRange.layerCount = 1;
+        imageView.subresourceRange = { aspectMask, 0, 1, 0, 1 };
         imageView.image = attachment.image;
         attachment.view = device.createImageView(imageView);
     }
@@ -361,7 +358,7 @@ public:
         // -------------------------------------------------------------------------------------------------------
         std::vector<vk::ClearValue> clearValues(4);
         clearValues[0].color = clearValues[1].color = clearValues[2].color = vks::util::clearColor({ 0.0f, 0.0f, 0.0f, 1.0f });
-        clearValues[3].depthStencil = { 1.0f, 0 };
+        clearValues[3].depthStencil = defaultClearDepth;
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = frameBuffers.offscreen.renderPass;
         renderPassBeginInfo.framebuffer = frameBuffers.offscreen.frameBuffer;
@@ -383,7 +380,7 @@ public:
 
         // Second pass: SSAO generation
         // -------------------------------------------------------------------------------------------------------
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        clearValues[1].depthStencil = defaultClearDepth;
         renderPassBeginInfo.framebuffer = frameBuffers.ssao.frameBuffer;
         renderPassBeginInfo.renderPass = frameBuffers.ssao.renderPass;
         renderPassBeginInfo.renderArea.extent = frameBuffers.ssao.size;
@@ -421,7 +418,7 @@ public:
         offScreenCmdBuffer.end();
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         vks::model::ModelCreateInfo modelCreateInfo;
         modelCreateInfo.scale = glm::vec3(0.5f);
         modelCreateInfo.uvscale = glm::vec2(1.0f);
@@ -672,7 +669,7 @@ public:
         submitFrame();
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         loadAssets();
         prepareOffscreenFramebuffers();

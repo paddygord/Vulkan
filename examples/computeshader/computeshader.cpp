@@ -48,7 +48,7 @@ public:
         Parent::destroy();
     }
 
-    void prepare() {
+    void prepare() override {
         Parent::prepare();
 
         textureTarget = prepareTextureTarget(vk::ImageLayout::eGeneral, textureColorMap.extent, vk::Format::eR8G8B8A8Unorm);
@@ -238,7 +238,7 @@ public:
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
 
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.quad.vertices.buffer, { 0 });
 
         cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
         // Left (pre compute)
@@ -335,15 +335,15 @@ public:
         pipelineBuilder.loadShader(getAssetPath() + "shaders/computeshader/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
         // Binding description
-        pipelineBuilder.vertexInputState.bindingDescriptions = { { VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex } };
+        pipelineBuilder.vertexInputState.bindingDescriptions = { { 0, sizeof(Vertex), vk::VertexInputRate::eVertex } };
 
         // Attribute descriptions
         // Describes memory layout and shader positions
         pipelineBuilder.vertexInputState.attributeDescriptions = {
             // Location 0 : Position
-            { 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, 0 },
+            { 0, 0, vk::Format::eR32G32B32Sfloat, 0 },
             // Location 1 : Texture coordinates
-            { 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, offsetof(Vertex, uv) },
+            { 1, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, uv) },
         };
 
         graphics.pipeline = pipelineBuilder.create(context.pipelineCache);

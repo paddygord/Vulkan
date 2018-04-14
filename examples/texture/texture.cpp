@@ -127,7 +127,7 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
         vk::DeviceSize offsets = 0;
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, geometry.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(0, geometry.vertices.buffer, offsets);
         cmdBuffer.bindIndexBuffer(geometry.indices.buffer, 0, vk::IndexType::eUint32);
 
         cmdBuffer.drawIndexed(geometry.count, 1, 0, 0, 0);
@@ -192,13 +192,13 @@ public:
         vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
         pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eNone;
         pipelineBuilder.vertexInputState.bindingDescriptions = {
-            { VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex }
+            { 0, sizeof(Vertex), vk::VertexInputRate::eVertex }
         };
 
         pipelineBuilder.vertexInputState.attributeDescriptions = {
-            { 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, 0 },
-            { 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, sizeof(float) * 3 },
-            { 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5 },
+            { 0, 0, vk::Format::eR32G32B32Sfloat, 0 },
+            { 1, 0, vk::Format::eR32G32Sfloat, sizeof(float) * 3 },
+            { 2, 0, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5 },
         };
         pipelineBuilder.loadShader(getAssetPath() + "shaders/texture/texture.vert.spv", vk::ShaderStageFlagBits::eVertex);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/texture/texture.frag.spv", vk::ShaderStageFlagBits::eFragment);

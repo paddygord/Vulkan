@@ -110,7 +110,7 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
         vk::DeviceSize offsets = 0;
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(0, meshes.scene.vertices.buffer, offsets);
         cmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
 
         cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);

@@ -47,12 +47,6 @@
             android:name=".examples.ComputeShader">
             <meta-data android:name="android.app.lib_name" android:value="computeshader" />
         </activity>
-        <!--
-        <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-            android:name=".examples.Context">
-            <meta-data android:name="android.app.lib_name" android:value="context" />
-        </activity>
-        -->
         <activity android:configChanges="orientation|screenSize|keyboardHidden" android:launchMode="singleTask" android:screenOrientation="landscape" android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:name=".examples.Deferred">
             <meta-data android:name="android.app.lib_name" android:value="deferred" />

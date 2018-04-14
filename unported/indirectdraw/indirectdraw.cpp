@@ -38,8 +38,8 @@
 #include "VulkanTexture.hpp"
 #include "VulkanModel.hpp"
 
-#define VERTEX_BUFFER_BIND_ID 0
-#define INSTANCE_BUFFER_BIND_ID 1
+#define 0 0
+#define 1 1
 #define ENABLE_VALIDATION false
 
 // Number of instances per object
@@ -202,9 +202,9 @@ public:
 			// Plants
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.plants);
 			// Binding point 0 : Mesh vertex buffer
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &models.plants.vertices.buffer, offsets);
+			vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &models.plants.vertices.buffer, offsets);
 			// Binding point 1 : Instance data buffer
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], INSTANCE_BUFFER_BIND_ID, 1, &instanceBuffer.buffer, offsets);
+			vkCmdBindVertexBuffers(drawCmdBuffers[i], 1, 1, &instanceBuffer.buffer, offsets);
 			
 			vkCmdBindIndexBuffer(drawCmdBuffers[i], models.plants.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
 
@@ -226,12 +226,12 @@ public:
 
 			// Ground
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.ground);
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &models.ground.vertices.buffer, offsets);
+			vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &models.ground.vertices.buffer, offsets);
 			vkCmdBindIndexBuffer(drawCmdBuffers[i], models.ground.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(drawCmdBuffers[i], models.ground.indexCount, 1, 0, 0, 0);
 			// Skysphere
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.skysphere);
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &models.skysphere.vertices.buffer, offsets);
+			vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &models.skysphere.vertices.buffer, offsets);
 			vkCmdBindIndexBuffer(drawCmdBuffers[i], models.skysphere.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(drawCmdBuffers[i], models.skysphere.indexCount, 1, 0, 0, 0);
 
@@ -279,7 +279,7 @@ public:
 		// Mesh vertex buffer (description) at binding point 0
 		vertices.bindingDescriptions[0] =
 			vks::initializers::vertexInputBindingDescription(
-				VERTEX_BUFFER_BIND_ID,
+				0,
 				vertexLayout.stride(),
 				// Input rate for the data passed to shader
 				// Step for each vertex rendered
@@ -287,7 +287,7 @@ public:
 
 		vertices.bindingDescriptions[1] =
 			vks::initializers::vertexInputBindingDescription(
-				INSTANCE_BUFFER_BIND_ID,
+				1,
 				sizeof(InstanceData), 
 				// Input rate for the data passed to shader
 				// Step for each instance rendered
@@ -301,7 +301,7 @@ public:
 		// Location 0 : Position
 		vertices.attributeDescriptions.push_back(
 			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
+				0,
 				0,
 				VK_FORMAT_R32G32B32_SFLOAT,
 				0)
@@ -309,7 +309,7 @@ public:
 		// Location 1 : Normal
 		vertices.attributeDescriptions.push_back(
 			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
+				0,
 				1,
 				VK_FORMAT_R32G32B32_SFLOAT,
 				sizeof(float) * 3)
@@ -317,7 +317,7 @@ public:
 		// Location 2 : Texture coordinates
 		vertices.attributeDescriptions.push_back(
 			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
+				0,
 				2,
 				VK_FORMAT_R32G32_SFLOAT,
 				sizeof(float) * 6)
@@ -325,7 +325,7 @@ public:
 		// Location 3 : Color
 		vertices.attributeDescriptions.push_back(
 			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
+				0,
 				3,
 				VK_FORMAT_R32G32B32_SFLOAT,
 				sizeof(float) * 8)
@@ -335,22 +335,22 @@ public:
 		// Location 4: Position
 		vertices.attributeDescriptions.push_back(
 			vks::initializers::vertexInputAttributeDescription(
-				INSTANCE_BUFFER_BIND_ID, 4, VK_FORMAT_R32G32B32_SFLOAT, offsetof(InstanceData, pos))
+				1, 4, VK_FORMAT_R32G32B32_SFLOAT, offsetof(InstanceData, pos))
 			);
 		// Location 5: Rotation
 		vertices.attributeDescriptions.push_back(
 			vks::initializers::vertexInputAttributeDescription(
-				INSTANCE_BUFFER_BIND_ID, 5, VK_FORMAT_R32G32B32_SFLOAT, offsetof(InstanceData, rot))
+				1, 5, VK_FORMAT_R32G32B32_SFLOAT, offsetof(InstanceData, rot))
 			);
 		// Location 6: Scale
 		vertices.attributeDescriptions.push_back(
 			vks::initializers::vertexInputAttributeDescription(
-				INSTANCE_BUFFER_BIND_ID, 6, VK_FORMAT_R32_SFLOAT, offsetof(InstanceData, scale))
+				1, 6, VK_FORMAT_R32_SFLOAT, offsetof(InstanceData, scale))
 			);
 		// Location 7: Texture array layer index
 		vertices.attributeDescriptions.push_back(
 			vks::initializers::vertexInputAttributeDescription(
-				INSTANCE_BUFFER_BIND_ID, 7, VK_FORMAT_R32_SINT, offsetof(InstanceData, texIndex))
+				1, 7, VK_FORMAT_R32_SINT, offsetof(InstanceData, texIndex))
 			);
 
 		vertices.inputState = vks::initializers::pipelineVertexInputStateCreateInfo();

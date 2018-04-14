@@ -83,7 +83,7 @@ public:
 
     void loadTextures() { textures.skybox.loadFromFile(context, getAssetPath() + "textures/cubemap_vulkan.ktx", vk::Format::eR8G8B8A8Unorm); }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         cmdBuffer.setViewport(0, vks::util::viewport(size));
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
@@ -97,7 +97,7 @@ public:
             const auto& pipeline = meshPtr->second;
             const auto& mesh = meshPtr->first;
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, mesh.vertices.buffer, { 0 });
+            cmdBuffer.bindVertexBuffers(0, mesh.vertices.buffer, { 0 });
             cmdBuffer.bindIndexBuffer(mesh.indices.buffer, 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(mesh.indexCount, 1, 0, 0, 0);
         }
@@ -166,16 +166,16 @@ public:
         pipelineBuilder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
 
         // Binding description
-        pipelineBuilder.vertexInputState.bindingDescriptions = { { VERTEX_BUFFER_BIND_ID, vertexLayout.stride(), vk::VertexInputRate::eVertex } };
+        pipelineBuilder.vertexInputState.bindingDescriptions = { { 0, vertexLayout.stride(), vk::VertexInputRate::eVertex } };
         pipelineBuilder.vertexInputState.attributeDescriptions = {
             // Location 0 : Position
-            { 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, 0 },
+            { 0, 0, vk::Format::eR32G32B32Sfloat, 0 },
             // Location 1 : Normal
-            { 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3 },
+            { 1, 0, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3 },
             // Location 2 : Texture coordinates
-            { 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, sizeof(float) * 6 },
+            { 2, 0, vk::Format::eR32G32Sfloat, sizeof(float) * 6 },
             // Location 3 : Color
-            { 3, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8 },
+            { 3, 0, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8 },
         };
 
         // Attribute descriptions
@@ -224,7 +224,7 @@ public:
         uniformData.meshVS.copy(uboVS);
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         loadTextures();
         prepareVertices();

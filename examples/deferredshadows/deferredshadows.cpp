@@ -20,7 +20,7 @@
 
 #if defined(__ANDROID__)
 // Use max. screen dimension as deferred framebuffer size
-#define FB_DIM std::max(width, height)
+#define FB_DIM std::max(size.width, size.height)
 #else
 #define FB_DIM 2048
 #endif
@@ -197,7 +197,7 @@ public:
     }
 
     // Enable physical device features required for this example
-    virtual void getEnabledFeatures() {
+    void getEnabledFeatures() override {
         // Geometry shader support is required for writing to multiple shadow map layers in one single pass
         if (context.deviceFeatures.geometryShader) {
             context.enabledFeatures.geometryShader = VK_TRUE;
@@ -222,7 +222,7 @@ public:
     // The shadow mapping pass uses geometry shader instancing to output the scene from the different
     // light sources' point of view to the layers of the depth attachment in one single pass
     void shadowSetup() {
-        frameBuffers.shadow.size = { SHADOWMAP_DIM, SHADOWMAP_DIM };
+        frameBuffers.shadow.size = vk::Extent2D{ SHADOWMAP_DIM, SHADOWMAP_DIM };
 
         // Create a layered depth attachment for rendering the depth maps from the lights' point of view
         // Each layer corresponds to one of the lights
@@ -244,7 +244,7 @@ public:
 
     // Prepare the framebuffer for offscreen rendering with multiple attachments used as render targets inside the fragment shaders
     void deferredSetup() {
-        frameBuffers.deferred.size = { FB_DIM, FB_DIM };
+        frameBuffers.deferred.size = vk::Extent2D{ FB_DIM, FB_DIM };
 
         // Four attachments (3 color, 1 depth)
         vks::AttachmentCreateInfo attachmentInfo = {};
@@ -309,13 +309,11 @@ public:
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
         std::array<vk::ClearValue, 4> clearValues;
-        vk::Viewport viewport;
-        vk::Rect2D scissor;
 
         // First pass: Shadow map generation
         // -------------------------------------------------------------------------------------------------------
 
-        clearValues[0].depthStencil = { 1.0f, 0 };
+        clearValues[0].depthStencil = defaultClearDepth;
 
         renderPassBeginInfo.renderPass = frameBuffers.shadow.renderPass;
         renderPassBeginInfo.framebuffer = frameBuffers.shadow.framebuffer;
@@ -337,7 +335,7 @@ public:
 
         // Clear values for all attachments written in the fragment sahder
         clearValues[2].color = clearValues[1].color = clearValues[0].color = vks::util::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
-        clearValues[3].depthStencil = { 1.0f, 0 };
+        clearValues[3].depthStencil = defaultClearDepth;
 
         renderPassBeginInfo.renderPass = frameBuffers.deferred.renderPass;
         renderPassBeginInfo.framebuffer = frameBuffers.deferred.framebuffer;
@@ -346,9 +344,11 @@ public:
         renderPassBeginInfo.pClearValues = clearValues.data();
 
         commandBuffers.deferred.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-        viewport = { 0, 0, (float)frameBuffers.deferred.size.width, (float)frameBuffers.deferred.size.height, 0.0f, 1.0f };
+        vk::Viewport viewport;
+        viewport = vk::Viewport{ 0, 0, (float)frameBuffers.deferred.size.width, (float)frameBuffers.deferred.size.height, 0.0f, 1.0f };
         commandBuffers.deferred.setViewport(0, viewport);
-        scissor = { {}, frameBuffers.deferred.size };
+        vk::Rect2D scissor;
+        scissor.extent = frameBuffers.deferred.size;
         commandBuffers.deferred.setScissor(0, scissor);
         commandBuffers.deferred.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
         renderScene(frameBuffers.deferred.size, commandBuffers.deferred, false);
@@ -356,7 +356,7 @@ public:
         commandBuffers.deferred.end();
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         models.model.loadFromFile(context, getAssetPath() + "models/armor/armor.dae", vertexLayout, 1.0f);
 
         vks::model::ModelCreateInfo modelCreateInfo;
@@ -388,7 +388,7 @@ public:
         materials.background.normalMap.loadFromFile(context, getAssetPath() + "textures/stonefloor02_normal" + texFormatSuffix + ".ktx", texFormat);
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& drawCmdBuffer) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& drawCmdBuffer) override {
         vk::Viewport viewport{ 0, 0, (float)size.width, (float)size.height, 0.0f, 1.0f };
         drawCmdBuffer.setViewport(0, viewport);
 
@@ -669,7 +669,7 @@ public:
         memcpy(uniformBuffers.fsLights.mapped, &uboFragmentLights, sizeof(uboFragmentLights));
     }
 
-    void draw() {
+    void draw() override {
         ExampleBase::prepareFrame();
 
         // Offscreen rendering

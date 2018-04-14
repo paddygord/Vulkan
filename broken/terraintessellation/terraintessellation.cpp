@@ -9,7 +9,7 @@
 #include "vulkanExampleBase.h"
 #include "frustum.hpp"
 
-#define VERTEX_BUFFER_BIND_ID 0
+#define 0 0
 
 // Vertex layout for this example
 vks::model::VertexLayout vertexLayout =
@@ -192,7 +192,7 @@ public:
         // Skysphere
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skysphere);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.skysphere, 0, descriptorSets.skysphere, {});
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.skysphere.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.skysphere.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.skysphere.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.skysphere.indexCount, 1, 0, 0, 0);
 
@@ -202,7 +202,7 @@ public:
         // Render
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, wireframe ? pipelines.wireframe : pipelines.terrain);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.terrain, 0, descriptorSets.terrain, {});
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.object.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.object.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.object.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
         // End pipeline statistics query
@@ -264,7 +264,7 @@ public:
         vertices.bindingDescriptions.resize(1);
         vertices.bindingDescriptions[0] =
             vkx::vertexInputBindingDescription(
-                VERTEX_BUFFER_BIND_ID,
+                0,
                 vkx::vertexSize(vertexLayout),
                 vk::VertexInputRate::eVertex);
 
@@ -275,7 +275,7 @@ public:
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
             vkx::vertexInputAttributeDescription(
-                VERTEX_BUFFER_BIND_ID,
+                0,
                 0,
                 vk::Format::eR32G32B32Sfloat,
                 0);
@@ -283,7 +283,7 @@ public:
         // Location 1 : Normals
         vertices.attributeDescriptions[1] =
             vkx::vertexInputAttributeDescription(
-                VERTEX_BUFFER_BIND_ID,
+                0,
                 1,
                 vk::Format::eR32G32B32Sfloat,
                 sizeof(float) * 3);
@@ -291,7 +291,7 @@ public:
         // Location 2 : Texture coordinates
         vertices.attributeDescriptions[2] =
             vkx::vertexInputAttributeDescription(
-                VERTEX_BUFFER_BIND_ID,
+                0,
                 2,
                 vk::Format::eR32G32Sfloat,
                 sizeof(float) * 6);

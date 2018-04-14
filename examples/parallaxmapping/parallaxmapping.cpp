@@ -107,7 +107,7 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 
         vk::DeviceSize offsets = 0;
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(0, meshes.quad.vertices.buffer, offsets);
         cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
 
         // Parallax enabled

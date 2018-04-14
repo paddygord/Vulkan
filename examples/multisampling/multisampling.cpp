@@ -317,7 +317,7 @@ public:
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
 
         vk::DeviceSize offsets = 0;
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(0, meshes.example.vertices.buffer, offsets);
         cmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
     }

@@ -209,4 +209,3 @@ void VulkanGear::setupDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLa
     // Binding 0 : Vertex shader uniform buffer
     device.updateDescriptorSets({ { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.descriptor } }, nullptr);
 }
-

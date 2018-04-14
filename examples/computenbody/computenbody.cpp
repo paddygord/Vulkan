@@ -284,7 +284,7 @@ public:
         textures.gradient.destroy();
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         textures.particle.loadFromFile(context, getAssetPath() + "textures/particle01_rgba.ktx", vF::eR8G8B8A8Unorm);
         textures.gradient.loadFromFile(context, getAssetPath() + "textures/particle_gradient_rgba.ktx", vF::eR8G8B8A8Unorm);
     }
@@ -293,7 +293,7 @@ public:
 
     void updateCommandBufferPostDraw(const vk::CommandBuffer& cmdBuffer) override {}
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         cmdBuffer.setViewport(0, viewport());
         cmdBuffer.setScissor(0, scissor());
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, graphics.pipeline);
@@ -385,7 +385,7 @@ public:
         memcpy(graphics.uniformBuffer.mapped, &graphics.ubo, sizeof(graphics.ubo));
     }
 
-    void draw() {
+    void draw() override {
         // Submit graphics commands
         ExampleBase::draw();
 

@@ -179,7 +179,7 @@ public:
         // Signed distance field font
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sdf, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.sdf);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, vertices.buffer.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(indices.buffer.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(indices.count, 1, 0, 0, 0);
 
@@ -189,7 +189,7 @@ public:
             cmdBuffer.setViewport(0, viewport);
             cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.bitmap, nullptr);
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.bitmap);
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer.buffer, { 0 });
+            cmdBuffer.bindVertexBuffers(0, vertices.buffer.buffer, { 0 });
             cmdBuffer.bindIndexBuffer(indices.buffer.buffer, 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(indices.count, 1, 0, 0, 0);
         }

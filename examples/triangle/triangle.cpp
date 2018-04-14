@@ -20,16 +20,15 @@
 #include <utils.hpp>
 
 #if defined(__ANDROID__)
+
 class TriangleExample {
 public:
     void run() {}
 };
 
 #else
-#define VERTEX_BUFFER_BIND_ID 0
 
 class TriangleExample : public glfw::Window {
-#if !defined(__ANDROID__)
 public:
     float zoom{ -2.5f };
     std::string title{ "Vulkan Example - Basic indexed triangle" };
@@ -398,7 +397,7 @@ public:
 
         // Binding description
         bindingDescriptions.resize(1);
-        bindingDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
+        bindingDescriptions[0].binding = 0;
         bindingDescriptions[0].stride = sizeof(Vertex);
         bindingDescriptions[0].inputRate = vk::VertexInputRate::eVertex;
 
@@ -406,12 +405,12 @@ public:
         // Describes memory layout and shader attribute locations
         attributeDescriptions.resize(2);
         // Location 0 : Position
-        attributeDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
+        attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
         attributeDescriptions[0].format = vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[0].offset = 0;
         // Location 1 : Color
-        attributeDescriptions[1].binding = VERTEX_BUFFER_BIND_ID;
+        attributeDescriptions[1].binding = 0;
         attributeDescriptions[1].location = 1;
         attributeDescriptions[1].format = vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[1].offset = sizeof(float) * 3;
@@ -706,7 +705,7 @@ public:
             // Bind the rendering pipeline (including the shaders)
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
             // Bind triangle vertices
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
+            cmdBuffer.bindVertexBuffers(0, vertices.buffer, offsets);
             // Bind triangle indices
             cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
             // Draw indexed triangle
@@ -749,10 +748,6 @@ public:
         // all commands have been submitted
         swapChain.queuePresent(semaphores.renderComplete);
     }
-#else
-public:
-    void run() {}
-#endif
 };
 #endif
 

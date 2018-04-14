@@ -1,161 +1,110 @@
 
 // FIXME work in progress
 namespace oculus {
-    class exception : public std::runtime_error {
-    public:
-        exception(const char* what) : std::runtime_error(what) { }
-    };
 
-    void checkResult(ovrResult result, const std::string& message) {
-        if (!OVR_SUCCESS(result)) {
-            throw exception(message.c_str());
-        }
+class exception : public std::runtime_error {
+public:
+    exception(const char* what)
+        : std::runtime_error(what) {}
+};
+
+void checkResult(ovrResult result, const std::string& message) {
+    if (!OVR_SUCCESS(result)) {
+        throw exception(message.c_str());
+    }
+}
+
+class Session {
+public:
+    static void initialize(const ::ovrInitParams& params = {}) { checkResult(::ovr_Initialize(&params), "Unable to intialize Oculus SDK"); }
+
+    static void shutdown() { ovr_Shutdown(); }
+
+    static ovrErrorInfo getLastErrorInfo() {
+        ovrErrorInfo errorInfo;
+        ovr_GetLastErrorInfo(&errorInfo);
+        return errorInfo;
     }
 
-    class Session {
-    public:
-        static void initialize(const ::ovrInitParams& params = {}) {
-            checkResult(
-                ::ovr_Initialize(&params),
-                "Unable to intialize Oculus SDK"
-            );
+    static std::string getVersionString() {
+        std::string result;
+        result = ovr_GetVersionString();
+        return result;
+    }
+
+    static int traceMessage(ovrLogLevel logLevel, const std::string& message) { return ovr_TraceMessage(logLevel, message.c_str()); }
+
+    static void identifyClient(const std::string& identity) { checkResult(::ovr_IdentifyClient(identity.c_str()), "Unable to identify client"); }
+
+    void create() { checkResult(ovr_Create(&m_session & m_graphicsLuid), "Unable to create Oculus session"); }
+
+    void destroy() {
+        ::ovr_Destroy(m_session);
+        m_session = nullptr;
+    }
+
+    ovrSessionStatus getStatus() const {
+        ovrSessionStatus result;
+        checkResult(::ovr_GetSessionStatus(m_session, &result), "Unable to get session status");
+        return result;
+    }
+
+    ovrHmdDesc getHmdDesc() const { return ::ovr_GetHmdDesc(m_session); }
+
+    unsigned int getTrackerCount() const { return ::ovr_GetTrackerCount(m_session); }
+
+    ovrTrackerDesc getTrackerDesc(unsigned int trackerDescIndex) const { return ::ovr_GetTrackerDesc(m_session, trackerDescIndex); }
+
+    std::vector<ovrTrackerDesc> getTrackerDescs() const {
+        auto count = getTrackerCount();
+        std::vector<ovrTrackerDesc> result;
+        result.resize(count);
+        for (unsigned int i = 0; i < count; ++i) {
+            result[i] = getTrackerDesc(i);
         }
+        return result;
+    }
 
-        static void shutdown() {
-            ovr_Shutdown();
+    ovrTrackerPose getTrackerPose(unsigned int trackerPoseIndex) const { return ::ovr_GetTrackerPose(m_session, trackerPoseIndex); }
+
+    std::vector<ovrTrackerPose> getTrackerPoses() const {
+        auto count = getTrackerCount();
+        std::vector<ovrTrackerPose> result;
+        result.resize(count);
+        for (unsigned int i = 0; i < count; ++i) {
+            result[i] = getTrackerPose(i);
         }
+        return result;
+    }
 
-        static ovrErrorInfo getLastErrorInfo() {
-            ovrErrorInfo errorInfo;
-            ovr_GetLastErrorInfo(&errorInfo);
-            return errorInfo;
-        }
+    void setTrackingOriginType(ovrTrackingOrigin origin) const { checkResult(::ovr_SetTrackingOriginType(m_session, origin), "Unable to set tracking status"); }
 
-        static std::string getVersionString() {
-            std::string result;
-            result = ovr_GetVersionString();
-            return result;
-        }
+    ovrTrackingOrigin setTrackingOriginType() const { return ::ovr_GetTrackingOriginType(m_session); }
 
-        static int traceMessage(ovrLogLevel logLevel, const std::string& message) {
-            return ovr_TraceMessage(logLevel, message.c_str());
-        }
+    void recenterTrackingOrigin() const { checkResult(::ovr_RecenterTrackingOrigin(m_session), "Unable to reset tracking origin"); }
 
+    void specifyTrackingOrigin(const ovrPosef& originPose) const {
+        checkResult(::ovr_SpecifyTrackingOrigin(m_session, originPose), "Unable to set tracking origin");
+    }
 
-        static void identifyClient(const std::string& identity) {
-            checkResult(
-                ::ovr_IdentifyClient(identity.c_str()), 
-                "Unable to identify client");
-        }
+    void clearShouldRecenterFlag() const { ::ovr_ClearShouldRecenterFlag(m_session); }
 
-        void create() {
-            checkResult(
-                ovr_Create(&m_session &m_graphicsLuid),
-                "Unable to create Oculus session"
-            );
-        }
+    ovrTrackingState getTrackingState(bool latencyMarker = false, double absTime = 0.0) const {
+        return ::ovr_GetTrackingState(m_session, absTime, latencyMarker);
+    }
 
-        void destroy() {
-            ::ovr_Destroy(m_session);
-            m_session = nullptr;
-        }
+    std::vector<ovrPoseStatef> getDevicePoses(std::vector<ovrTrackedDeviceType> devices, double absTime = 0.0) const {
+        std::vector<ovrPoseStatef> result;
+        int count = devices.size();
+        result.resize(count);
+        checkResult(::ovr_GetDevicePoses(m_session, devices.data(), count, absTime, result.data()), "Unable to fetch device poses");
+        return result;
+    }
 
-        ovrSessionStatus getStatus() const {
-            ovrSessionStatus result;
-            checkResult(
-                ::ovr_GetSessionStatus(m_session, &result),
-                "Unable to get session status"
-            );
-            return result;
-        }
-
-        ovrHmdDesc getHmdDesc() const {
-            return ::ovr_GetHmdDesc(m_session);
-        }
-
-        unsigned int getTrackerCount() const {
-            return ::ovr_GetTrackerCount(m_session);
-        }
-
-        ovrTrackerDesc getTrackerDesc(unsigned int trackerDescIndex) const {
-            return ::ovr_GetTrackerDesc(m_session, trackerDescIndex);
-        }
-
-        std::vector<ovrTrackerDesc> getTrackerDescs() const {
-            auto count = getTrackerCount();
-            std::vector<ovrTrackerDesc> result;
-            result.resize(count);
-            for (unsigned int i = 0; i < count; ++i) {
-                result[i] = getTrackerDesc(i);
-            }
-            return result;
-        }
-
-        ovrTrackerPose getTrackerPose(unsigned int trackerPoseIndex) const {
-            return ::ovr_GetTrackerPose(m_session, trackerPoseIndex);
-        }
-
-        std::vector<ovrTrackerPose> getTrackerPoses() const {
-            auto count = getTrackerCount();
-            std::vector<ovrTrackerPose> result;
-            result.resize(count);
-            for (unsigned int i = 0; i < count; ++i) {
-                result[i] = getTrackerPose(i);
-            }
-            return result;
-        }
-
-        void setTrackingOriginType(ovrTrackingOrigin origin) const {
-            checkResult(
-                ::ovr_SetTrackingOriginType(m_session, origin),
-                "Unable to set tracking status"
-            );
-        }
-
-        ovrTrackingOrigin setTrackingOriginType() const {
-            return ::ovr_GetTrackingOriginType(m_session);
-        }
-
-        void recenterTrackingOrigin() const {
-            checkResult(
-                ::ovr_RecenterTrackingOrigin(m_session),
-                "Unable to reset tracking origin"
-            );
-        }
-
-        void specifyTrackingOrigin(const ovrPosef& originPose) const {
-            checkResult(
-                ::ovr_SpecifyTrackingOrigin(m_session, originPose),
-                "Unable to set tracking origin"
-            );
-        }
-
-        void clearShouldRecenterFlag() const {
-            ::ovr_ClearShouldRecenterFlag(m_session);
-        }
-
-        ovrTrackingState getTrackingState(bool latencyMarker = false, double absTime = 0.0) const {
-            return ::ovr_GetTrackingState(m_session, absTime, latencyMarker);
-        }
-
-        std::vector<ovrPoseStatef> getDevicePoses(std::vector<ovrTrackedDeviceType> devices, double absTime = 0.0) const {
-            std::vector<ovrPoseStatef> result;
-            int count = devices.size();
-            result.resize(count);
-            checkResult(
-                ::ovr_GetDevicePoses(m_session, devices.data(), count, absTime, result.data()),
-                "Unable to fetch device poses"
-            );
-            return result;
-        }
-
-
-
-    private:
-        ::ovrSession m_session { nullptr };
-        ::ovrGraphicsLuid m_graphicsLuid;
-    };
-
+private:
+    ::ovrSession m_session{ nullptr };
+    ::ovrGraphicsLuid m_graphicsLuid;
+};
 
 #if 0
         OVR_PUBLIC_FUNCTION(ovrResult)
@@ -280,5 +229,4 @@ namespace oculus {
                 const ovrCameraExtrinsics* const extrinsics);
 #endif
 
-}
-
+}  // namespace oculus

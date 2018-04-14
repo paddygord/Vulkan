@@ -69,7 +69,7 @@ public:
         uniformBuffer.destroy();
     }
 
-    void updateDrawCommandBuffer(const vk::CommandBuffer& drawCmdBuffer) {
+    void updateDrawCommandBuffer(const vk::CommandBuffer& drawCmdBuffer) override {
         vk::Rect2D scissor;
         scissor.extent = size;
         drawCmdBuffer.setScissor(0, scissor);
@@ -103,7 +103,7 @@ public:
         drawCmdBuffer.drawIndexed(models.cube.indexCount, 1, 0, 0, 0);
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         models.cube.loadFromFile(context, getAssetPath() + "models/color_teapot_spheres.dae", vertexLayout, 0.1f);
         textures.colormap.loadFromFile(context, getAssetPath() + "textures/metalplate_nomips_rgba.ktx", vk::Format::eR8G8B8A8Unorm);
     }
@@ -208,9 +208,8 @@ public:
         memcpy(uniformBuffer.mapped, &uboVS, sizeof(uboVS));
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
-        loadAssets();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();

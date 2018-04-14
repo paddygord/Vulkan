@@ -161,7 +161,7 @@ public:
             offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
             offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
             offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phongPass);
-            offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.ufoGlow.vertices.buffer, offset);
+            offscreen.cmdBuffer.bindVertexBuffers(0, meshes.ufoGlow.vertices.buffer, offset);
             offscreen.cmdBuffer.bindIndexBuffer(meshes.ufoGlow.indices.buffer, 0, vk::IndexType::eUint32);
             offscreen.cmdBuffer.drawIndexed(meshes.ufoGlow.indexCount, 1, 0, 0, 0);
             offscreen.cmdBuffer.endRenderPass();
@@ -193,14 +193,14 @@ public:
         // Skybox
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.skyBox, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skyBox);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.skyBox.vertices.buffer, offset);
+        cmdBuffer.bindVertexBuffers(0, meshes.skyBox.vertices.buffer, offset);
         cmdBuffer.bindIndexBuffer(meshes.skyBox.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.skyBox.indexCount, 1, 0, 0, 0);
 
         // 3D scene
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phongPass);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.ufo.vertices.buffer, offset);
+        cmdBuffer.bindVertexBuffers(0, meshes.ufo.vertices.buffer, offset);
         cmdBuffer.bindIndexBuffer(meshes.ufo.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.ufo.indexCount, 1, 0, 0, 0);
 

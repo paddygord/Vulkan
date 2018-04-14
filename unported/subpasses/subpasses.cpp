@@ -33,7 +33,7 @@
 #include "VulkanTexture.hpp"
 #include "VulkanModel.hpp"
 
-#define VERTEX_BUFFER_BIND_ID 0
+#define 0 0
 #define ENABLE_VALIDATION false
 
 #define NUM_LIGHTS 64
@@ -490,7 +490,7 @@ public:
 
 				vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.offscreen);
 				vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.offscreen, 0, 1, &descriptorSets.scene, 0, NULL);
-				vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &models.scene.vertices.buffer, offsets);
+				vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &models.scene.vertices.buffer, offsets);
 				vkCmdBindIndexBuffer(drawCmdBuffers[i], models.scene.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
 				vkCmdDrawIndexed(drawCmdBuffers[i], models.scene.indexCount, 1, 0, 0, 0);
 
@@ -520,7 +520,7 @@ public:
 
 				vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.transparent);
 				vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.transparent, 0, 1, &descriptorSets.transparent, 0, NULL);
-				vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &models.transparent.vertices.buffer, offsets);
+				vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &models.transparent.vertices.buffer, offsets);
 				vkCmdBindIndexBuffer(drawCmdBuffers[i], models.transparent.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
 				vkCmdDrawIndexed(drawCmdBuffers[i], models.transparent.indexCount, 1, 0, 0, 0);
 
@@ -557,7 +557,7 @@ public:
 		// Binding description
 		vertices.bindingDescriptions = {
 			vks::initializers::vertexInputBindingDescription(
-				VERTEX_BUFFER_BIND_ID,
+				0,
 				vertexLayout.stride(),
 				VK_VERTEX_INPUT_RATE_VERTEX),
 		};
@@ -566,25 +566,25 @@ public:
 		vertices.attributeDescriptions = {
 			// Location 0: Position
 			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
+				0,
 				0,
 				VK_FORMAT_R32G32B32_SFLOAT,
 				0),
 			// Location 1: Color
 			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
+				0,
 				1,
 				VK_FORMAT_R32G32B32_SFLOAT,
 				sizeof(float) * 3),
 			// Location 2: Normal
 			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
+				0,
 				2,
 				VK_FORMAT_R32G32B32_SFLOAT,
 				sizeof(float) * 6),
 			// Location 3: UV
 			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
+				0,
 				3,
 				VK_FORMAT_R32G32_SFLOAT,
 				sizeof(float) * 9),

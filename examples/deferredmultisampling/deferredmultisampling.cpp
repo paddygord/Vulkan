@@ -159,7 +159,7 @@ public:
     }
 
     // Enable physical device features required for this example
-    virtual void getEnabledFeatures() {
+    void getEnabledFeatures() override {
         // Enable sample rate shading filtering if supported
         if (context.deviceFeatures.sampleRateShading) {
             context.enabledFeatures.sampleRateShading = VK_TRUE;
@@ -325,7 +325,7 @@ public:
         // Clear values for all attachments written in the fragment sahder
         std::array<vk::ClearValue, 4> clearValues;
         clearValues[0].color = clearValues[1].color = clearValues[2].color = vks::util::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
-        clearValues[3].depthStencil = { 1.0f, 0 };
+        clearValues[3].depthStencil = defaultClearDepth;
 
         offscreen.commandBuffer.begin({ vk::CommandBufferUsageFlagBits::eSimultaneousUse });
 

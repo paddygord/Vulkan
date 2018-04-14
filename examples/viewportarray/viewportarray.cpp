@@ -57,7 +57,7 @@ public:
     }
 
     // Enable physical device features required for this example
-    virtual void getEnabledFeatures() {
+    void getEnabledFeatures() override {
         // Geometry shader support is required for this example
         if (!context.deviceFeatures.geometryShader) {
             throw std::runtime_error("Selected GPU does not support geometry shaders!");
@@ -89,7 +89,7 @@ public:
         commandBuffer.setLineWidth(1.0f);
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         commandBuffer.bindVertexBuffers(0, scene.vertices.buffer, { 0 });
-        commandBuffer.bindIndexBuffer(scene.indices.buffer, { 0 }, vk::IndexType::eUint32);
+        commandBuffer.bindIndexBuffer(scene.indices.buffer, 0, vk::IndexType::eUint32);
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
         commandBuffer.drawIndexed(scene.indexCount, 1, 0, 0, 0);
     }
@@ -121,7 +121,7 @@ public:
     }
     */
 
-    void loadAssets() { scene.loadFromFile(context, getAssetPath() + "models/sampleroom.dae", VERTEX_LAYOUT, 0.25f); }
+    void loadAssets() override { scene.loadFromFile(context, getAssetPath() + "models/sampleroom.dae", VERTEX_LAYOUT, 0.25f); }
 
     void setupDescriptorPool() {
         // Example uses two ubos
@@ -208,7 +208,7 @@ public:
         memcpy(uniformBufferGS.mapped, &uboGS, sizeof(uboGS));
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         loadAssets();
         prepareUniformBuffers();

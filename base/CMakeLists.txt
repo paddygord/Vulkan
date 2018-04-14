@@ -1,6 +1,5 @@
 set(TARGET_NAME base)
 
-
 set(SHADER_DIR "${PROJECT_SOURCE_DIR}/data/shaders")
 file(GLOB_RECURSE SHADERS
     ${SHADER_DIR}/*.vert

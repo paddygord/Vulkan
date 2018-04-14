@@ -16,13 +16,12 @@
 #include <android/asset_manager.h>
 #endif
 
-
 namespace vks { namespace storage {
 
 #if defined(__ANDROID__)
-    void setAssetManager(AAssetManager* assetManager);
+void setAssetManager(AAssetManager* assetManager);
 #endif
-    
+
 class Storage;
 using StoragePointer = std::shared_ptr<const Storage>;
 using ByteArray = std::vector<uint8_t>;

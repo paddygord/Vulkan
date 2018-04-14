@@ -21,7 +21,7 @@
 #include "vulkanexamplebase.h"
 #include "VulkanModel.hpp"
 
-#define VERTEX_BUFFER_BIND_ID 0
+#define 0 0
 #define ENABLE_VALIDATION false
 
 class VulkanExample : public VulkanExampleBase
@@ -119,7 +119,7 @@ public:
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
 			VkDeviceSize offsets[1] = { 0 };
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &models.object.vertices.buffer, offsets);
+			vkCmdBindVertexBuffers(drawCmdBuffers[i], 0, 1, &models.object.vertices.buffer, offsets);
 			vkCmdBindIndexBuffer(drawCmdBuffers[i], models.object.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
 
 			vkCmdDrawIndexed(drawCmdBuffers[i], models.object.indexCount, 1, 0, 0, 0);

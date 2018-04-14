@@ -374,20 +374,20 @@ public:
         // Binding description
         vertices.bindingDescriptions.resize(1);
         vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
+            vkx::vertexInputBindingDescription(0, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
 
         // Attribute descriptions
         // Describes memory layout and shader positions
         vertices.attributeDescriptions.resize(3);
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0,  vk::Format::eR32G32B32Sfloat, 0);
+            vkx::vertexInputAttributeDescription(0, 0,  vk::Format::eR32G32B32Sfloat, 0);
         // Location 1 : Normal
         vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
+            vkx::vertexInputAttributeDescription(0, 1,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
         // Location 3 : Color
         vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 6);
+            vkx::vertexInputAttributeDescription(0, 2,  vk::Format::eR32G32B32Sfloat, sizeof(float) * 6);
 
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();

@@ -85,7 +85,7 @@ public:
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.sem);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.object.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.object.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.object.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
     }

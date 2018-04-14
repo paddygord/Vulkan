@@ -84,9 +84,9 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
         // Binding point 0 : Mesh vertex buffer
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.buffer, { 0 });
         // Binding point 1 : Instance data buffer
-        cmdBuffer.bindVertexBuffers(INSTANCE_BUFFER_BIND_ID, instanceBuffer.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(1, instanceBuffer.buffer, { 0 });
         // Equivlant non-indirect commands:
         //for (size_t j = 0; j < SHAPES_COUNT; ++j) {
         //    auto shape = shapes[j];
@@ -181,22 +181,22 @@ public:
         auto attributeDescriptions = pipelineBuilder.vertexInputState.attributeDescriptions;
         pipelineBuilder.vertexInputState.bindingDescriptions = {
             // Mesh vertex buffer (description) at binding point 0
-            { VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex },
-            { INSTANCE_BUFFER_BIND_ID, sizeof(InstanceData), vk::VertexInputRate::eInstance },
+            { 0, sizeof(Vertex), vk::VertexInputRate::eVertex },
+            { 1, sizeof(InstanceData), vk::VertexInputRate::eInstance },
         };
 
         // Attribute descriptions
         // Describes memory layout and shader positions
         pipelineBuilder.vertexInputState.attributeDescriptions = {
             // Per-Vertex attributes
-            { 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, position) },
-            { 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color) },
-            { 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal) },
+            { 0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, position) },
+            { 1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color) },
+            { 2, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal) },
 
             // Instanced attributes
-            { 3, INSTANCE_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(InstanceData, pos) },
-            { 4, INSTANCE_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(InstanceData, rot) },
-            { 5, INSTANCE_BUFFER_BIND_ID, vk::Format::eR32Sfloat, offsetof(InstanceData, scale) },
+            { 3, 1, vk::Format::eR32G32B32Sfloat, offsetof(InstanceData, pos) },
+            { 4, 1, vk::Format::eR32G32B32Sfloat, offsetof(InstanceData, rot) },
+            { 5, 1, vk::Format::eR32Sfloat, offsetof(InstanceData, scale) },
         };
 
         pipelines.solid = pipelineBuilder.create(context.pipelineCache);

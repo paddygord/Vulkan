@@ -152,7 +152,7 @@ public:
         offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
         offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
         offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
-        offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, { 0 });
+        offscreen.cmdBuffer.bindVertexBuffers(0, meshes.scene.vertices.buffer, { 0 });
         offscreen.cmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
         offscreen.cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
         offscreen.cmdBuffer.endRenderPass();
@@ -167,7 +167,7 @@ public:
 
         // Visualize shadow map
         if (displayShadowMap) {
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, { 0 });
+            cmdBuffer.bindVertexBuffers(0, meshes.quad.vertices.buffer, { 0 });
             cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 0);
         }
@@ -176,7 +176,7 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.quad, 0, descriptorSets.scene, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.scene);
 
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.scene.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
     }

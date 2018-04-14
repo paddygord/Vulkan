@@ -9,7 +9,6 @@
 #include "vulkanExampleBase.h"
 #include <numeric>
 #include <future>
-#define VERTEX_BUFFER_BIND_ID 0
 
 // Vertex layout for this example
 struct Vertex {
@@ -321,7 +320,7 @@ public:
         drawCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
 
         VkDeviceSize offsets[1] = { 0 };
-        drawCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertexBuffer.buffer, { 0 });
+        drawCmdBuffer.bindVertexBuffers(0, vertexBuffer.buffer, { 0 });
         drawCmdBuffer.bindIndexBuffer(indexBuffer.buffer, 0, vk::IndexType::eUint32);
         drawCmdBuffer.drawIndexed(indexCount, 1, 0, 0, 0);
     }
@@ -379,14 +378,14 @@ public:
         auto& vertexInputState = builder.vertexInputState;
         // Binding description
         vertexInputState.bindingDescriptions = {
-            vk::VertexInputBindingDescription{ VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex },
+            vk::VertexInputBindingDescription{ 0, sizeof(Vertex), vk::VertexInputRate::eVertex },
         };
 
         // Attribute descriptions
         vertexInputState.attributeDescriptions = {
-            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos) },     // Location 0 : Position
-            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, offsetof(Vertex, uv) },         // Location 1 : Texture
-            vk::VertexInputAttributeDescription{ 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal) },  // Location 2 : Normal
+            vk::VertexInputAttributeDescription{ 0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos) },     // Location 0 : Position
+            vk::VertexInputAttributeDescription{ 1, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, uv) },         // Location 1 : Texture
+            vk::VertexInputAttributeDescription{ 2, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal) },  // Location 2 : Normal
         };
 
         builder.loadShader(getAssetPath() + "shaders/texture3d/texture3d.vert.spv", vk::ShaderStageFlagBits::eVertex);
@@ -420,7 +419,7 @@ public:
         memcpy(uniformBufferVS.mapped, &uboVS, sizeof(uboVS));
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         generateQuad();
         prepareUniformBuffers();

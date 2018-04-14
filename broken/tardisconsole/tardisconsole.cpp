@@ -73,7 +73,7 @@ public:
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.models);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, mesh.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, mesh.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(mesh.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(mesh.indexCount, 1, 0, 0, 0);
     }
@@ -95,19 +95,19 @@ public:
         // Binding description
         bindingDescriptions.resize(1);
         bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex);
+            vkx::vertexInputBindingDescription(0, sizeof(Vertex), vk::VertexInputRate::eVertex);
 
         // Attribute descriptions
         // Location 0 : Position
         attributeDescriptions.resize(3);
         attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos));
+            vkx::vertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos));
         // Location 1 : Normal
         attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal));
+            vkx::vertexInputAttributeDescription(0, 1, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal));
         // Location 3 : Color
         attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color));
+            vkx::vertexInputAttributeDescription(0, 2, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color));
 
         inputState.vertexBindingDescriptionCount = bindingDescriptions.size();
         inputState.pVertexBindingDescriptions = bindingDescriptions.data();

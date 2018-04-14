@@ -125,7 +125,7 @@ public:
         cmdBuffer.setScissor(0, scissor());
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(indexCount, 1, 0, 0, 1);
     }
@@ -214,11 +214,11 @@ public:
         // Vertex input state
         vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayout, renderPass };
         pipelineBuilder.vertexInputState.bindingDescriptions = {
-            { VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex },
+            { 0, sizeof(Vertex), vk::VertexInputRate::eVertex },
         };
         pipelineBuilder.vertexInputState.attributeDescriptions = {
-            { 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos) },
-            { 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, col) },
+            { 0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos) },
+            { 1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, col) },
         };
 
         // No culling

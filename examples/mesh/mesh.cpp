@@ -87,7 +87,7 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, wireframe ? pipelines.wireframe : pipelines.solid);
         // Bind mesh vertex buffer
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.model.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.model.vertices.buffer, { 0 });
         // Bind mesh index buffer
         cmdBuffer.bindIndexBuffer(meshes.model.indices.buffer, 0, vk::IndexType::eUint32);
         // Render mesh vertex buffer using it's indices

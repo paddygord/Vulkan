@@ -153,7 +153,7 @@ public:
         offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
 
         vk::DeviceSize offsets = { 0 };
-        offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, { 0 });
+        offscreen.cmdBuffer.bindVertexBuffers(0, meshes.example.vertices.buffer, { 0 });
         offscreen.cmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
         offscreen.cmdBuffer.drawIndexed(meshes.example.indexCount, 1, 0, 0, 0);
         offscreen.cmdBuffer.endRenderPass();
@@ -172,7 +172,7 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.deferred, 0, descriptorSet, nullptr);
         if (debugDisplay) {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.debug);
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, { 0 });
+            cmdBuffer.bindVertexBuffers(0, meshes.quad.vertices.buffer, { 0 });
             cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(meshes.quad.indexCount, 1, 0, 0, 1);
             // Move viewport to display final composition in lower right corner
@@ -183,7 +183,7 @@ public:
         cmdBuffer.setViewport(0, viewport);
         // Final composition as full screen quad
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.deferred);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.quad.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.quad.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.quad.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(6, 1, 0, 0, 1);
     }

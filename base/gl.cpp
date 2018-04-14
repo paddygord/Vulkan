@@ -1,4 +1,6 @@
 #include "gl.hpp"
+
+#if !defined(__ANDROID__)
 #include <mutex>
 
 typedef PROC(APIENTRYP PFNWGLGETPROCADDRESS)(LPCSTR);
@@ -95,3 +97,4 @@ void gl::setupDebugLogging() {
     glDebugMessageCallback(debugMessageCallback, NULL);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
 }
+#endif

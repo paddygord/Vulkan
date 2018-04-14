@@ -7,6 +7,7 @@
 //
 
 #include "storage.hpp"
+#include <string>
 
 #if defined(WIN32)
 #include <Windows.h>
@@ -17,7 +18,7 @@ namespace vks { namespace storage {
 #if defined(__ANDROID__)
 AAssetManager* assetManager = nullptr;
 void setAssetManager(AAssetManager* assetManager) {
-    vks::file::assetManager = assetManager;
+    vks::storage::assetManager = assetManager;
 }
 #endif
 
@@ -98,8 +99,8 @@ FileStorage::FileStorage(const std::string& filename) {
     _asset = AAssetManager_open(assetManager, filename.c_str(), AASSET_MODE_BUFFER);
     assert(_asset);
     _size = AAsset_getLength(_asset);
-    assert(size > 0);
-    _mapped = AAsset_getBuffer(_asset);
+    assert(_size > 0);
+    _mapped = (uint8_t*)(AAsset_getBuffer(_asset));
 #elif (WIN32)
     _file = CreateFileA(filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
     if (_file == INVALID_HANDLE_VALUE) {
@@ -140,7 +141,7 @@ FileStorage::FileStorage(const std::string& filename) {
 
 FileStorage::~FileStorage() {
 #if defined(__ANDROID__)
-    AAsset_close(asset);
+    AAsset_close(_asset);
 #elif (WIN32)
     UnmapViewOfFile(_mapped);
     CloseHandle(_mapFile);
@@ -155,6 +156,5 @@ StoragePointer Storage::create(size_t size, uint8_t* data) {
 StoragePointer Storage::readFile(const std::string& filename) {
     return std::make_shared<FileStorage>(filename);
 }
-
 
 }}  // namespace vks::storage

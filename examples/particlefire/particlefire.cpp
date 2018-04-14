@@ -144,14 +144,14 @@ public:
         // Environment
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.environment);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, meshes.descriptorSet, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.environment.vertices.buffer, vk::DeviceSize());
+        cmdBuffer.bindVertexBuffers(0, meshes.environment.vertices.buffer, vk::DeviceSize());
         cmdBuffer.bindIndexBuffer(meshes.environment.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.environment.indexCount, 1, 0, 0, 0);
 
         // Particle system
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.particles);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, particles.buffer.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, particles.buffer.buffer, { 0 });
         cmdBuffer.draw(PARTICLE_COUNT, 1, 0, 0);
     }
 

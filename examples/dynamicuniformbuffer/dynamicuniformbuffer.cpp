@@ -307,7 +307,7 @@ public:
         uniformBuffers.dynamic.flush();
     }
 
-    void prepare() {
+    void prepare() override {
         ExampleBase::prepare();
         generateCube();
         prepareUniformBuffers();
@@ -319,7 +319,7 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
+    void render() override {
         if (!prepared)
             return;
         draw();
@@ -327,7 +327,7 @@ public:
             updateDynamicUniformBuffer();
     }
 
-    virtual void viewChanged() { updateUniformBuffers(); }
+    void viewChanged() override { updateUniformBuffers(); }
 };
 
 VULKAN_EXAMPLE_MAIN()

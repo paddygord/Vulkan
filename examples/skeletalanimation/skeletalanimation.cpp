@@ -421,14 +421,14 @@ public:
         // Skinned mesh
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skinning);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, skinnedMesh.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, skinnedMesh.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(skinnedMesh.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(skinnedMesh.indexCount, 1, 0, 0, 0);
 
         // Floor
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.floor, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.texture);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.floor.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.floor.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.floor.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.floor.indexCount, 1, 0, 0, 0);
     }

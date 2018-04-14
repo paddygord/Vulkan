@@ -23,6 +23,10 @@
 #include "camera.hpp"
 #include "compute.hpp"
 
+#if defined(__ANDROID__)
+#include "AndroidNativeApp.hpp"
+#endif
+
 #define GAMEPAD_BUTTON_A 0x1000
 #define GAMEPAD_BUTTON_B 0x1001
 #define GAMEPAD_BUTTON_X 0x1002
@@ -31,11 +35,8 @@
 #define GAMEPAD_BUTTON_R1 0x1005
 #define GAMEPAD_BUTTON_START 0x1006
 
-#define VERTEX_BUFFER_BIND_ID 0
-#define INSTANCE_BUFFER_BIND_ID 1
-//#define ENABLE_VALIDATION true
-
 namespace vkx {
+
 struct UpdateOperation {
     const vk::Buffer buffer;
     const vk::DeviceSize size;
@@ -297,6 +298,7 @@ private:
     // OS specific
 #if defined(__ANDROID__)
     // true if application has focused, false if moved to background
+    ANativeWindow* window{ nullptr};
     bool focused = false;
     static int32_t handle_input_event(android_app* app, AInputEvent* event);
     int32_t onInput(AInputEvent* event);

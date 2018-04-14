@@ -18,8 +18,7 @@
 
 using namespace vks;
 
-namespace vks {
-namespace debug {
+namespace vks { namespace debug {
 
 #if defined(__ANDROID__)
 std::list<std::string> validationLayerNames = { "VK_LAYER_GOOGLE_threading",      "VK_LAYER_LUNARG_parameter_validation",
@@ -201,5 +200,4 @@ void setEventName(const vk::Device& device, const VkEvent& _event, const char* n
     setObjectName(device, (uint64_t)_event, vk::DebugReportObjectTypeEXT::eEvent, name);
 }
 };  // namespace marker
-}
-}  // namespace vks
+}}  // namespace vks::debug

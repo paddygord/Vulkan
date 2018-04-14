@@ -120,11 +120,9 @@ public:
     }
 #endif
 
-#define RUN_EXAMPLE(ExampleType)              \
-    ENTRY_POINT_START                         \
-    ExampleType* example = new ExampleType(); \
-    example->run();                           \
-    delete (example);                         \
+#define RUN_EXAMPLE(ExampleType) \
+    ENTRY_POINT_START            \
+    ExampleType().run();         \
     ENTRY_POINT_END
 
 #define VULKAN_EXAMPLE_MAIN() RUN_EXAMPLE(VulkanExample)

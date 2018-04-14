@@ -185,7 +185,7 @@ public:
         textures.gradient.destroy();
     }
 
-    void loadAssets() {
+    void loadAssets() override {
         textures.particle.loadFromFile(context, getAssetPath() + "textures/particle01_rgba.ktx", vk::Format::eR8G8B8A8Unorm);
         textures.gradient.loadFromFile(context, getAssetPath() + "textures/particle_gradient_rgba.ktx", vk::Format::eR8G8B8A8Unorm);
     }
@@ -196,7 +196,7 @@ public:
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, graphics.pipeline);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, graphics.pipelineLayout, 0, graphics.descriptorSet, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, compute.buffers.storage.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, compute.buffers.storage.buffer, { 0 });
         cmdBuffer.draw(PARTICLE_COUNT, 1, 0, 0);
     }
 
@@ -261,15 +261,15 @@ public:
         blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eDstAlpha;
 
         // Binding description
-        pipelineBuilder.vertexInputState.bindingDescriptions = { { VERTEX_BUFFER_BIND_ID, sizeof(Particle), vk::VertexInputRate::eVertex } };
+        pipelineBuilder.vertexInputState.bindingDescriptions = { { 0, sizeof(Particle), vk::VertexInputRate::eVertex } };
 
         // Attribute descriptions
         // Describes memory layout and shader positions
         pipelineBuilder.vertexInputState.attributeDescriptions = {
             // Location 0 : Position
-            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, offsetof(Particle, pos) },
+            vk::VertexInputAttributeDescription{ 0, 0, vk::Format::eR32G32Sfloat, offsetof(Particle, pos) },
             // Location 1 : Gradient position
-            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, gradientPos) },
+            vk::VertexInputAttributeDescription{ 1, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, gradientPos) },
         };
 
         // Rendering pipeline

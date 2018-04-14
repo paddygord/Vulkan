@@ -137,7 +137,7 @@ public:
         const auto& meshes = model.parts;
         vk::DeviceSize offsets = 0;
 
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(0, vertices.buffer, offsets);
         cmdBuffer.bindIndexBuffer(indices.buffer, 0, vk::IndexType::eUint32);
         for (auto mesh : meshes) {
             // Add debug marker for mesh name
@@ -705,12 +705,12 @@ public:
 
     void keyPressed(uint32_t keyCode) override {
         switch (keyCode) {
-        case GLFW_KEY_W:
+        case KEY_W:
         case GAMEPAD_BUTTON_X:
             wireframe = !wireframe;
             buildCommandBuffers();
             break;
-        case GLFW_KEY_G:
+        case KEY_G:
         case GAMEPAD_BUTTON_A:
             glow = !glow;
             buildCommandBuffers();

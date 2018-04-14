@@ -136,7 +136,7 @@ public:
 
         // Occluder first
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.plane.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.plane.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.plane.indexCount, 1, 0, 0, 0);
 
@@ -144,7 +144,7 @@ public:
         cmdBuffer.beginQuery(queryPool, 0, vk::QueryControlFlags());
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.teapot, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.teapot.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.teapot.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.teapot.indexCount, 1, 0, 0, 0);
 
@@ -154,7 +154,7 @@ public:
         cmdBuffer.beginQuery(queryPool, 1, vk::QueryControlFlags());
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sphere, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.sphere.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.sphere.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.sphere.indexCount, 1, 0, 0, 0);
 
@@ -180,20 +180,20 @@ public:
 
         // Teapot
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.teapot, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.teapot.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.teapot.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.teapot.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.teapot.indexCount, 1, 0, 0, 0);
 
         // Sphere
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.sphere, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.sphere.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.sphere.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.sphere.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.sphere.indexCount, 1, 0, 0, 0);
 
         // Occluder
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.occluder);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.plane.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.plane.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.plane.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.drawIndexed(meshes.plane.indexCount, 1, 0, 0, 0);
     }

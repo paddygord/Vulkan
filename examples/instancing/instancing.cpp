@@ -80,9 +80,9 @@ public:
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
         // Binding point 0 : Mesh vertex buffer
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.example.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.example.vertices.buffer, { 0 });
         // Binding point 1 : Instance data buffer
-        cmdBuffer.bindVertexBuffers(INSTANCE_BUFFER_BIND_ID, instanceBuffer.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(1, instanceBuffer.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.example.indices.buffer, 0, vk::IndexType::eUint32);
         // Render instances
         cmdBuffer.drawIndexed(meshes.example.indexCount, INSTANCE_COUNT, 0, 0, 0);
@@ -137,9 +137,9 @@ public:
         pipelineBuilder.vertexInputState.bindingDescriptions = {
             // Mesh vertex buffer (description) at binding point 0
             // Step for each vertex rendered
-            { VERTEX_BUFFER_BIND_ID, vertexLayout.stride(), vk::VertexInputRate::eVertex },
+            { 0, vertexLayout.stride(), vk::VertexInputRate::eVertex },
             // Step for each instance rendered
-            { INSTANCE_BUFFER_BIND_ID, sizeof(InstanceData), vk::VertexInputRate::eInstance },
+            { 1, sizeof(InstanceData), vk::VertexInputRate::eInstance },
         };
 
         // Attribute descriptions
@@ -147,23 +147,23 @@ public:
         pipelineBuilder.vertexInputState.attributeDescriptions = {
             // Per-Vertex attributes
             // Location 0 : Position
-            { 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(0) },
+            { 0, 0, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(0) },
             // Location 1 : Normal
-            { 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(1) },
+            { 1, 0, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(1) },
             // Location 2 : Texture coordinates
-            { 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, vertexLayout.offset(2) },
+            { 2, 0, vk::Format::eR32G32Sfloat, vertexLayout.offset(2) },
             // Location 3 : Color
-            { 3, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(3) },
+            { 3, 0, vk::Format::eR32G32B32Sfloat, vertexLayout.offset(3) },
 
             // Instanced attributes
             // Location 4 : Instance Position
-            { 4, INSTANCE_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(InstanceData, pos) },
+            { 4, 1, vk::Format::eR32G32B32Sfloat, offsetof(InstanceData, pos) },
             // Location 5 : Instance Rotation
-            { 5, INSTANCE_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(InstanceData, rot) },
+            { 5, 1, vk::Format::eR32G32B32Sfloat, offsetof(InstanceData, rot) },
             // Location 6 : Instance Scale
-            { 6, INSTANCE_BUFFER_BIND_ID, vk::Format::eR32Sfloat, offsetof(InstanceData, scale) },
+            { 6, 1, vk::Format::eR32Sfloat, offsetof(InstanceData, scale) },
             // Location 7 : Instance array layer
-            { 7, INSTANCE_BUFFER_BIND_ID, vk::Format::eR32Sint, offsetof(InstanceData, texIndex) },
+            { 7, 1, vk::Format::eR32Sint, offsetof(InstanceData, texIndex) },
         };
 
         // Load shaders

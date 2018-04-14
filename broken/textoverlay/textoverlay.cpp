@@ -79,7 +79,7 @@ public:
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
         cmdBuffer.setViewport(0, vks::util::viewport(size));
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.cube.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.cube.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.cube.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.background, nullptr);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.background);
@@ -156,22 +156,22 @@ public:
         // Binding description
         vertices.bindingDescriptions.resize(1);
         vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
+            vkx::vertexInputBindingDescription(0, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
 
         // Attribute descriptions
         vertices.attributeDescriptions.resize(4);
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
+            vkx::vertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, 0);
         // Location 1 : Normal
         vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
+            vkx::vertexInputAttributeDescription(0, 1, vk::Format::eR32G32B32Sfloat, sizeof(float) * 3);
         // Location 2 : Texture coordinates
         vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
+            vkx::vertexInputAttributeDescription(0, 2, vk::Format::eR32G32Sfloat, sizeof(float) * 6);
         // Location 3 : Color
         vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
+            vkx::vertexInputAttributeDescription(0, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
 
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();

@@ -72,7 +72,7 @@ public:
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.setLineWidth(1.0f);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.object.vertices.buffer, { 0 });
+        cmdBuffer.bindVertexBuffers(0, meshes.object.vertices.buffer, { 0 });
         cmdBuffer.bindIndexBuffer(meshes.object.indices.buffer, 0, vk::IndexType::eUint32);
         // Solid shading
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
@@ -181,7 +181,7 @@ public:
 
     void viewChanged() override { updateUniformBuffers(); }
 
-    virtual void OnUpdateUIOverlay() {
+    void OnUpdateUIOverlay() override {
         if (ui.header("Settings")) {
             if (ui.checkBox("Display normals", &displayNormals)) {
                 buildCommandBuffers();

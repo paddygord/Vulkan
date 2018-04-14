@@ -6,26 +6,27 @@
 
 class VrExample : glfw::Window {
     using Parent = glfw::Window;
+
 public:
     vks::Context context;
     vks::SwapChain swapchain;
     vk::SurfaceKHR surface;
-    std::shared_ptr<vkx::ShapesRenderer> shapesRenderer { std::make_shared<vkx::ShapesRenderer>(context, true) };
-    double fpsTimer { 0 };
-    float lastFPS { 0 };
-    uint32_t frameCounter { 0 };
-    glm::uvec2 size { 1280, 720 };
+    std::shared_ptr<vkx::ShapesRenderer> shapesRenderer{ std::make_shared<vkx::ShapesRenderer>(context, true) };
+    double fpsTimer{ 0 };
+    float lastFPS{ 0 };
+    uint32_t frameCounter{ 0 };
+    glm::uvec2 size{ 1280, 720 };
     glm::uvec2 renderTargetSize;
     std::array<glm::mat4, 2> eyeViews;
     std::array<glm::mat4, 2> eyeProjections;
 
     ~VrExample() {
         shapesRenderer.reset();
-        // Shut down Vulkan 
+        // Shut down Vulkan
         context.destroy();
     }
 
-    typedef void(*GLFWkeyfun)(GLFWwindow*, int, int, int, int);
+    typedef void (*GLFWkeyfun)(GLFWwindow*, int, int, int, int);
 
     void prepareWindow() {
         // Make the on screen window 1/4 the resolution of the render target
@@ -60,13 +61,12 @@ public:
 
     void onKeyEvent(int key, int scancode, int action, int mods) override {
         switch (key) {
-        case GLFW_KEY_R:
-            recenter();
-        default:
-            break;
+            case GLFW_KEY_R:
+                recenter();
+            default:
+                break;
         }
     }
-
 
     virtual void prepare() {
         prepareWindow();
@@ -75,9 +75,7 @@ public:
         prepareRenderer();
     }
 
-    virtual void update(float delta) {
-        shapesRenderer->update(delta, eyeProjections, eyeViews);
-    }
+    virtual void update(float delta) { shapesRenderer->update(delta, eyeProjections, eyeViews); }
 
     virtual void render() = 0;
 
@@ -106,5 +104,3 @@ public:
         });
     }
 };
-
-

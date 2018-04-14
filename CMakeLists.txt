@@ -3,6 +3,7 @@ cmake_policy(VERSION 3.6)
 include("cmake/defaults.cmake")
 set(NAME VulkanCppExamples)
 
+
 project(${NAME})
 
 if (NOT "${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
@@ -12,7 +13,6 @@ endif()
 include("cmake/compiler.cmake")
 
 find_package(Threads REQUIRED)
-
 
 # This define is specific to Vulkan has a depth range of [0, 1], unlike OpenGL which has a [-1, 1] 
 add_definitions(-DGLM_FORCE_DEPTH_ZERO_TO_ONE)
@@ -29,8 +29,8 @@ if (NOT ANDROID)
     set_target_properties(SetupDebug PROPERTIES FOLDER "CMakeTargets")
 endif()
 
-
 if (ANDROID)
+    add_definitions(-DVULKAN_HPP_NO_SMART_HANDLE)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -u ANativeActivity_onCreate")
     set(APP_GLUE_DIR ${ANDROID_NDK}/sources/android/native_app_glue)
     include_directories(${APP_GLUE_DIR})

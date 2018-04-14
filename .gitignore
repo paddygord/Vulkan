@@ -212,9 +212,9 @@ bin_debug
 # Android Studio
 .idea
 *.iml
+*.hprof
+gradle
 gradlew
 gradlew.bat
-*.hprof
 local.properties
-android/gradle
-android/app/src/main/jniLibs
+android/src/main/jniLibs

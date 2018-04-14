@@ -1,23 +1,51 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
+apply plugin: 'com.android.application'
 
-buildscript {
-    
-    repositories {
-        google()
-        jcenter()
+android {
+    compileSdkVersion 26
+    defaultConfig {
+        applicationId "org.saintandreas.vulkanexamples"
+        minSdkVersion 26
+        targetSdkVersion 26
+        versionCode 1
+        versionName "1.0"
+        ndk { abiFilter "arm64-v8a" }
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_PLATFORM=android-26',
+                        '-DANDROID_TOOLCHAIN=clang',
+                        '-DANDROID_STL=c++_shared',
+                        '-DVULKAN_SDK=' + vulkan_sdk
+            }
+        }
+        compileOptions {
+            sourceCompatibility JavaVersion.VERSION_1_8
+            targetCompatibility JavaVersion.VERSION_1_8
+        }
     }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:3.0.1'
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs += "${android.ndkDirectory}/sources/third_party/vulkan/src/build-android/jniLibs"
+            assets.srcDirs += "$projectDir.absolutePath/../data"
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path '../CMakeLists.txt'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
     }
 }
 
-allprojects {
-    repositories {
-        google()
-        jcenter()
-    }
-}
-
-task clean(type: Delete) {
-    delete rootProject.buildDir
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.android.support:appcompat-v7:26.1.0'
+    implementation 'com.android.support.constraint:constraint-layout:1.1.0'
 }

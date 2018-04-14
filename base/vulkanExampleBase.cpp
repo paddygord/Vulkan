@@ -12,7 +12,7 @@
 #include "ui.hpp"
 #include "android.hpp"
 #include "keycodes.hpp"
-
+#include "vks/storage.hpp"
 #include "vks/filesystem.hpp"
 
 using namespace vkx;
@@ -21,7 +21,7 @@ using namespace vkx;
 // Instead, use the `prepare` and `run` methods
 ExampleBase::ExampleBase() {
 #if defined(__ANDROID__)
-    vks::file::setAssetManager(vkx::android::androidApp->activity->assetManager);
+    vks::storage::setAssetManager(vkx::android::androidApp->activity->assetManager);
     vkx::android::androidApp->userData = this;
     vkx::android::androidApp->onInputEvent = ExampleBase::handle_input_event;
     vkx::android::androidApp->onAppCmd = ExampleBase::handle_app_cmd;
@@ -842,8 +842,9 @@ void ExampleBase::onAppCmd(int32_t cmd) {
     switch (cmd) {
         case APP_CMD_INIT_WINDOW:
             if (vkx::android::androidApp->window != nullptr) {
-                initVulkan();
                 setupWindow();
+                initVulkan();
+                setupSwapchain();
                 prepare();
             }
             break;
@@ -859,10 +860,10 @@ void ExampleBase::onAppCmd(int32_t cmd) {
 }
 
 void ExampleBase::setupWindow() {
-    auto window = vkx::android::androidApp->window;
+    window = vkx::android::androidApp->window;
     size.width = ANativeWindow_getWidth(window);
     size.height = ANativeWindow_getHeight(window);
-    camera.setAspectRatio(size);
+    camera.updateAspectRatio(size);
 }
 
 #else

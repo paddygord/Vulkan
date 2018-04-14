@@ -253,7 +253,7 @@ public:
         offscreen.cmdBuffer.pushConstants(pipelineLayouts.offscreen, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &viewMatrix);
         offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
         offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.offscreen, nullptr);
-        offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, { 0 });
+        offscreen.cmdBuffer.bindVertexBuffers(0, meshes.scene.vertices.buffer, { 0 });
         offscreen.cmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
         offscreen.cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
         offscreen.cmdBuffer.endRenderPass();
@@ -343,12 +343,12 @@ public:
 
         if (displayCubeMap) {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.cubeMap);
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.skybox.vertices.buffer, { 0 });
+            cmdBuffer.bindVertexBuffers(0, meshes.skybox.vertices.buffer, { 0 });
             cmdBuffer.bindIndexBuffer(meshes.skybox.indices.buffer, 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(meshes.skybox.indexCount, 1, 0, 0, 0);
         } else {
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.scene);
-            cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.scene.vertices.buffer, { 0 });
+            cmdBuffer.bindVertexBuffers(0, meshes.scene.vertices.buffer, { 0 });
             cmdBuffer.bindIndexBuffer(meshes.scene.indices.buffer, 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(meshes.scene.indexCount, 1, 0, 0, 0);
         }
@@ -364,22 +364,22 @@ public:
         // Binding description
         vertices.bindingDescriptions.resize(1);
         vertices.bindingDescriptions[0] =
-            vkx::vertexInputBindingDescription(VERTEX_BUFFER_BIND_ID, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
+            vkx::vertexInputBindingDescription(0, vkx::vertexSize(vertexLayout), vk::VertexInputRate::eVertex);
 
         // Attribute descriptions
         vertices.attributeDescriptions.resize(4);
         // Location 0 : Position
         vertices.attributeDescriptions[0] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32Sfloat, 0);
+            vkx::vertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, 0);
         // Location 1 : Texture coordinates
         vertices.attributeDescriptions[1] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32Sfloat, sizeof(float) * 3);
+            vkx::vertexInputAttributeDescription(0, 1, vk::Format::eR32G32Sfloat, sizeof(float) * 3);
         // Location 2 : Color
         vertices.attributeDescriptions[2] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5);
+            vkx::vertexInputAttributeDescription(0, 2, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5);
         // Location 3 : Normal
         vertices.attributeDescriptions[3] =
-            vkx::vertexInputAttributeDescription(VERTEX_BUFFER_BIND_ID, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
+            vkx::vertexInputAttributeDescription(0, 3, vk::Format::eR32G32B32Sfloat, sizeof(float) * 8);
 
         vertices.inputState = vk::PipelineVertexInputStateCreateInfo();
         vertices.inputState.vertexBindingDescriptionCount = vertices.bindingDescriptions.size();

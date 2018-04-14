@@ -80,14 +80,14 @@ public:
 
         // Skybox
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.skybox, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.skybox.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(0, meshes.skybox.vertices.buffer, offsets);
         cmdBuffer.bindIndexBuffer(meshes.skybox.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.skybox);
         cmdBuffer.drawIndexed(meshes.skybox.indexCount, 1, 0, 0, 0);
 
         // 3D object
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSets.object, nullptr);
-        cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, meshes.object.vertices.buffer, offsets);
+        cmdBuffer.bindVertexBuffers(0, meshes.object.vertices.buffer, offsets);
         cmdBuffer.bindIndexBuffer(meshes.object.indices.buffer, 0, vk::IndexType::eUint32);
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.reflect);
         cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
