@@ -212,7 +212,7 @@ public:
     VulkanExample() {
         title = "Compute shader cloth simulation";
         camera.type = Camera::CameraType::lookat;
-        camera.setPerspective(60.0f, (float)size.width / (float)size.height, 0.1f, 512.0f);
+        camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
         camera.setRotation(glm::vec3(-30.0f, -45.0f, 0.0f));
         camera.setTranslation(glm::vec3(0.0f, 0.0f, -3.5f));
         settings.overlay = true;

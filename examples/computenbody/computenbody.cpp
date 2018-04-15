@@ -264,7 +264,7 @@ public:
         title = "Compute shader N-body system";
         settings.overlay = true;
         camera.type = Camera::CameraType::lookat;
-        camera.setPerspective(60.0f, (float)size.width / (float)size.height, 0.1f, 512.0f);
+        camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
         camera.setRotation(glm::vec3(-26.0f, 75.0f, 0.0f));
         camera.setTranslation(glm::vec3(0.0f, 0.0f, -14.0f));
         camera.movementSpeed = 2.5f;

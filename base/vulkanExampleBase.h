@@ -182,6 +182,8 @@ protected:
 
     bool prepared = false;
     vk::Extent2D size{ 1280, 720 };
+    uint32_t& width{ size.width };
+    uint32_t& height{ size.height };
 
     vk::ClearColorValue defaultClearColor = vks::util::clearColor(glm::vec4({ 0.025f, 0.025f, 0.025f, 1.0f }));
     vk::ClearDepthStencilValue defaultClearDepth{ 1.0f, 0 };
