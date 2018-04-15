@@ -48,7 +48,7 @@ public:
         settings.overlay = true;
         context.setValidationEnabled(false);
         context.requireExtensions({ VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME });
-        context.requireDeviceExtensions({ VK_KHR_MULTIVIEW_EXTENSION_NAME });
+        //context.requireDeviceExtensions({ VK_KHR_MULTIVIEW_EXTENSION_NAME });
     }
 
     ~VulkanExample() {

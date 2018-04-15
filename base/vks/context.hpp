@@ -186,9 +186,10 @@ public:
 
         // Vulkan instance
         vk::ApplicationInfo appInfo;
-        appInfo.pApplicationName = "VulkanExamples";
-        appInfo.pEngineName = "VulkanExamples";
-        appInfo.apiVersion = VK_MAKE_VERSION(1, 1, 0);
+        appInfo.pApplicationName = "VkppExamples";
+        appInfo.pEngineName = "VkppExamples";
+        appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+        appInfo.apiVersion = VK_MAKE_VERSION(2, 2, 0);
 
         std::set<std::string> instanceExtensions;
         instanceExtensions.insert(requiredExtensions.begin(), requiredExtensions.end());
@@ -847,7 +848,7 @@ public:
     InstanceExtensionsPickerFunctions instanceExtensionsPickers;
     // Set to true when example is created with enabled validation layers
 #ifndef NDEBUG
-    bool enableValidation = true;
+    bool enableValidation = false;
 #else
     bool enableValidation = false;
 #endif

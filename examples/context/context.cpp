@@ -39,7 +39,7 @@ public:
             vk::ApplicationInfo appInfo;
             appInfo.pApplicationName = "VulkanExamples";
             appInfo.pEngineName = "VulkanExamples";
-            appInfo.apiVersion = VK_API_VERSION_1_0;
+            appInfo.apiVersion = VK_MAKE_VERSION(1, 1, 0);
 
             vk::InstanceCreateInfo instanceCreateInfo;
             instanceCreateInfo.pApplicationInfo = &appInfo;

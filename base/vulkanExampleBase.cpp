@@ -78,7 +78,7 @@ ExampleBase::~ExampleBase() {
 }
 
 void ExampleBase::run() {
-    try {
+//    try {
 
         // Android initialization is handled in APP_CMD_INIT_WINDOW event
 #if !defined(__ANDROID__)
@@ -90,13 +90,13 @@ void ExampleBase::run() {
 #endif
 
         renderLoop();
-    } catch (const std::exception& exception) {
-#if defined(WIN32)
-        MessageBoxA(nullptr, exception.what(), "Exception", MB_OK);
-        OutputDebugStringA(exception.what());
-        OutputDebugStringA("\n");
-#endif
-    }
+//    } catch (const std::exception& exception) {
+//#if defined(WIN32)
+//        MessageBoxA(nullptr, exception.what(), "Exception", MB_OK);
+//        OutputDebugStringA(exception.what());
+//        OutputDebugStringA("\n");
+//#endif
+//    }
 
 }
 
