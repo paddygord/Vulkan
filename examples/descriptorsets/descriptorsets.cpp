@@ -10,8 +10,7 @@
 
 #include <vulkanExampleBase.h>
 
-class VulkanExample : public vkx::ExampleBase
-{
+class VulkanExample : public vkx::ExampleBase {
 public:
     bool animate{ true };
 
@@ -43,7 +42,7 @@ public:
     struct Models {
         vks::model::Model cube;
     } models;
-    
+
     vk::Pipeline pipeline;
     vk::PipelineLayout pipelineLayout;
 
@@ -58,8 +57,7 @@ public:
         camera.setTranslation({ 0.0f, 0.0f, -5.0f });
     }
 
-    ~VulkanExample()
-    {
+    ~VulkanExample() {
         device.destroy(pipeline);
         device.destroy(pipelineLayout);
         device.destroy(descriptorSetLayout);
@@ -70,8 +68,7 @@ public:
         }
     }
 
-    void getEnabledFeatures() override 
-    {
+    void getEnabledFeatures() override {
         if (context.deviceFeatures.samplerAnisotropy) {
             context.enabledFeatures.samplerAnisotropy = VK_TRUE;
         };
@@ -94,8 +91,7 @@ public:
         }
     }
 
-    void loadAssets() override 
-    {
+    void loadAssets() override {
         models.cube.loadFromFile(context, getAssetPath() + "models/cube.dae", vertexLayout, 1.0f);
         cubes[0].texture.loadFromFile(context, getAssetPath() + "textures/crate01_color_height_rgba.ktx");
         cubes[1].texture.loadFromFile(context, getAssetPath() + "textures/crate02_color_height_rgba.ktx");
@@ -104,8 +100,7 @@ public:
     /*
         [POI] Set up descriptor sets and set layout
     */
-    void setupDescriptors()
-    {
+    void setupDescriptors() {
         /*
 
             Descriptor set layout
@@ -122,34 +117,33 @@ public:
 
         */
 
-        std::array<vk::DescriptorSetLayoutBinding,2> setLayoutBindings{};
+        std::array<vk::DescriptorSetLayoutBinding, 2> setLayoutBindings{};
 
         /*
         Binding 0: Uniform buffers (used to pass matrices matrices)
         */
-        setLayoutBindings[0] = vk::DescriptorSetLayoutBinding{
-            // Shader binding point
-            0,
-            // This is a uniform buffer
-            vk::DescriptorType::eUniformBuffer,
-            // Binding contains one element (can be used for array bindings)
-            1,
-            // Accessible from the vertex shader only (flags can be combined to make it accessible to multiple shader stages)
-            vk::ShaderStageFlagBits::eVertex
-        };
+        setLayoutBindings[0] =
+            vk::DescriptorSetLayoutBinding{ // Shader binding point
+                                            0,
+                                            // This is a uniform buffer
+                                            vk::DescriptorType::eUniformBuffer,
+                                            // Binding contains one element (can be used for array bindings)
+                                            1,
+                                            // Accessible from the vertex shader only (flags can be combined to make it accessible to multiple shader stages)
+                                            vk::ShaderStageFlagBits::eVertex
+            };
 
         /*
         Binding 1: Combined image sampler (used to pass per object texture information)
         */
-        setLayoutBindings[1] = vk::DescriptorSetLayoutBinding{
-            // Shader binding point
-            1,
-            // This is a image buffer
-            vk::DescriptorType::eCombinedImageSampler,
-            // Binding contains one element (can be used for array bindings)
-            1,
-            // Accessible from the fragment shader only
-            vk::ShaderStageFlagBits::eFragment
+        setLayoutBindings[1] = vk::DescriptorSetLayoutBinding{ // Shader binding point
+                                                               1,
+                                                               // This is a image buffer
+                                                               vk::DescriptorType::eCombinedImageSampler,
+                                                               // Binding contains one element (can be used for array bindings)
+                                                               1,
+                                                               // Accessible from the fragment shader only
+                                                               vk::ShaderStageFlagBits::eFragment
         };
 
         // Create the descriptor set layout
@@ -172,21 +166,16 @@ public:
         std::array<vk::DescriptorPoolSize, 2> descriptorPoolSizes;
 
         // Uniform buffers : 1 for scene and 1 per object (scene and local matrices)
-        descriptorPoolSizes[0] = vk::DescriptorPoolSize{
-            vk::DescriptorType::eUniformBuffer,
-            1 + static_cast<uint32_t>(cubes.size())
-        };
+        descriptorPoolSizes[0] = vk::DescriptorPoolSize{ vk::DescriptorType::eUniformBuffer, 1 + static_cast<uint32_t>(cubes.size()) };
 
         // Combined image samples : 1 per mesh texture
-        descriptorPoolSizes[1] = vk::DescriptorPoolSize{
-            vk::DescriptorType::eCombinedImageSampler,
-            static_cast<uint32_t>(cubes.size())
-        };
+        descriptorPoolSizes[1] = vk::DescriptorPoolSize{ vk::DescriptorType::eCombinedImageSampler, static_cast<uint32_t>(cubes.size()) };
 
         // Create the global descriptor pool
         // Max. number of descriptor sets that can be allocted from this pool (one per object)
-        descriptorPool = device.createDescriptorPool({ {}, static_cast<uint32_t>(descriptorPoolSizes.size()), static_cast<uint32_t>(descriptorPoolSizes.size()), descriptorPoolSizes.data() });
-        
+        descriptorPool = device.createDescriptorPool(
+            { {}, static_cast<uint32_t>(descriptorPoolSizes.size()), static_cast<uint32_t>(descriptorPoolSizes.size()), descriptorPoolSizes.data() });
+
         /*
 
             Descriptor sets
@@ -199,7 +188,7 @@ public:
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets;
 
-        for (auto &cube: cubes) {
+        for (auto& cube : cubes) {
             // Allocates an empty descriptor set without actual descriptors from the pool using the set layout
             cube.descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
 
@@ -213,15 +202,12 @@ public:
             */
             // Images use a different descriptor strucutre, so we use pImageInfo instead of pBufferInfo
             writeDescriptorSets.push_back({ cube.descriptorSet, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &cube.texture.descriptor });
-
-
         }
         // Execute the writes to update descriptors for ALL sets
         device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
-    void preparePipelines()
-    {
+    void preparePipelines() {
         /*
         [POI] Create a pipeline layout used for our graphics pipeline
         */
@@ -245,10 +231,9 @@ public:
         updateUniformBuffers();
     }
 
-    void updateUniformBuffers()
-    {
+    void updateUniformBuffers() {
         cubes[0].matrices.model = glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.0f, 0.0f));
-        cubes[1].matrices.model = glm::translate(glm::mat4(1.0f), glm::vec3( 1.5f, 0.5f, 0.0f));
+        cubes[1].matrices.model = glm::translate(glm::mat4(1.0f), glm::vec3(1.5f, 0.5f, 0.0f));
 
         for (auto& cube : cubes) {
             cube.matrices.projection = camera.matrices.perspective;
@@ -260,8 +245,7 @@ public:
         }
     }
 
-    void prepare() override
-    {
+    void prepare() override {
         ExampleBase::prepare();
         prepareUniformBuffers();
         setupDescriptors();
@@ -286,8 +270,7 @@ public:
 
     void viewChanged() override { updateUniformBuffers(); }
 
-    void OnUpdateUIOverlay() override
-    {
+    void OnUpdateUIOverlay() override {
         if (ui.header("Settings")) {
             ui.checkBox("Animate", &animate);
         }

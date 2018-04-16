@@ -84,6 +84,14 @@ void ExampleBase::run() {
 }
 
 void ExampleBase::initVulkan() {
+    // TODO make this less stupid
+    context.setDeviceFeaturesPicker([this](const vk::PhysicalDevice& device, const vk::PhysicalDeviceFeatures& features) -> vk::PhysicalDeviceFeatures {
+        vk::PhysicalDeviceFeatures result;
+        getEnabledFeatures();
+        result = context.enabledFeatures;
+        return result;
+    });
+
 #if defined(__ANDROID__)
     context.requireExtensions({ VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME });
 #else
@@ -97,6 +105,7 @@ void ExampleBase::initVulkan() {
 #else
     surface = glfw::Window::createWindowSurface(window, context.instance);
 #endif
+
     context.createDevice(surface);
 
     // Find a suitable depth format

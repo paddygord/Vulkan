@@ -25,6 +25,7 @@ using StringList = std::list<std::string>;
 using CStringVector = std::vector<const char*>;
 
 using DevicePickerFunction = std::function<vk::PhysicalDevice(const std::vector<vk::PhysicalDevice>&)>;
+using DeviceFeaturesPickerFunction = std::function<vk::PhysicalDeviceFeatures(const vk::PhysicalDevice&, const vk::PhysicalDeviceFeatures&)>;
 using DeviceExtensionsPickerFunction = std::function<std::set<std::string>(const vk::PhysicalDevice&)>;
 using InstanceExtensionsPickerFunction = std::function<std::set<std::string>()>;
 using InstanceExtensionsPickerFunctions = std::list<InstanceExtensionsPickerFunction>;
@@ -170,6 +171,8 @@ public:
 
     void setDevicePicker(const DevicePickerFunction& picker) { devicePicker = picker; }
 
+    void setDeviceFeaturesPicker(const DeviceFeaturesPickerFunction& picker) { deviceFeaturesPicker = picker; }
+
     void setDeviceExtensionsPicker(const DeviceExtensionsPickerFunction& picker) { deviceExtensionsPicker = picker; }
 
     void setValidationEnabled(bool enable) {
@@ -188,7 +191,7 @@ public:
         vk::ApplicationInfo appInfo;
         appInfo.pApplicationName = "VulkanExamples";
         appInfo.pEngineName = "VulkanExamples";
-        appInfo.apiVersion = VK_API_VERSION_1_0;
+        appInfo.apiVersion = VK_MAKE_VERSION(1, 1, 0);
 
         std::set<std::string> instanceExtensions;
         instanceExtensions.insert(requiredExtensions.begin(), requiredExtensions.end());
@@ -218,11 +221,13 @@ public:
         }
 
         instance = vk::createInstance(instanceCreateInfo);
+        dynamicDispatch.init(instance);
     }
 
     void createDevice(const vk::SurfaceKHR& surface = nullptr) {
         pickDevice(surface);
         buildDevice();
+        dynamicDispatch.init(instance, device);
 
         if (enableValidation) {
             debug::setupDebugging(instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning);
@@ -436,6 +441,9 @@ protected:
     void buildDevice() {
         // Vulkan device
         vks::queues::DeviceCreateInfo deviceCreateInfo;
+        enabledFeatures = deviceFeaturesPicker(physicalDevice, deviceFeatures);
+        deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
+
         deviceCreateInfo.addQueueFamily(queueIndices.graphics, queueFamilyProperties[queueIndices.graphics].queueCount);
         if (queueIndices.compute != VK_QUEUE_FAMILY_IGNORED && queueIndices.compute != queueIndices.graphics) {
             deviceCreateInfo.addQueueFamily(queueIndices.compute, queueFamilyProperties[queueIndices.compute].queueCount);
@@ -445,8 +453,6 @@ protected:
             deviceCreateInfo.addQueueFamily(queueIndices.transfer, queueFamilyProperties[queueIndices.transfer].queueCount);
         }
         deviceCreateInfo.update();
-
-        deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
         std::set<std::string> allDeviceExtensions = deviceExtensionsPicker(physicalDevice);
         allDeviceExtensions.insert(requiredDeviceExtensions.begin(), requiredDeviceExtensions.end());
@@ -492,6 +498,8 @@ public:
     vk::Device device;
     // vk::Pipeline cache object
     vk::PipelineCache pipelineCache;
+    // Helper for accessing functionality not available in the statically linked Vulkan library
+    vk::DispatchLoaderDynamic dynamicDispatch;
 
     struct QueueIndices {
         uint32_t graphics{ VK_QUEUE_FAMILY_IGNORED };
@@ -849,7 +857,7 @@ private:
     std::set<std::string> requiredDeviceExtensions;
 
     DevicePickerFunction devicePicker = [](const std::vector<vk::PhysicalDevice>& devices) -> vk::PhysicalDevice { return devices[0]; };
-
+    DeviceFeaturesPickerFunction deviceFeaturesPicker = [](const vk::PhysicalDevice& device, const vk::PhysicalDeviceFeatures& features) ->vk::PhysicalDeviceFeatures { return features; };
     DeviceExtensionsPickerFunction deviceExtensionsPicker = [](const vk::PhysicalDevice& device) -> std::set<std::string> { return {}; };
 
 #ifdef WIN32

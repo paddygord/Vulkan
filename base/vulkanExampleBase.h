@@ -225,7 +225,7 @@ protected:
     virtual void initVulkan();
     virtual void setupSwapchain();
     virtual void setupWindow();
-    virtual void getEnabledFeatures() {}
+    virtual void getEnabledFeatures() { }
     // A default draw implementation
     virtual void draw();
     // Basic render function
