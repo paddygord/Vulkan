@@ -132,6 +132,8 @@ protected:
     const vk::PhysicalDevice& physicalDevice{ context.physicalDevice };
     const vk::Device& device{ context.device };
     const vk::Queue& queue{ context.queue };
+    const vk::PhysicalDeviceFeatures& deviceFeatures{ context.deviceFeatures };
+    vk::PhysicalDeviceFeatures& enabledFeatures{ context.enabledFeatures };
     vkx::ui::UIOverlay ui{ context };
 
     vk::SurfaceKHR surface;

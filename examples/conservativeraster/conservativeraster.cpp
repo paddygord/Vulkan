@@ -332,34 +332,6 @@ public:
         drawCmdBuffer.draw(3, 1, 0, 0);
     }
 
-    //void buildCommandBuffers() {
-    //    VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
-
-    //    VkClearValue clearValues[2];
-    //    clearValues[0].color = { { 0.25f, 0.25f, 0.25f, 0.25f } };
-    //    clearValues[1].depthStencil = { 1.0f, 0 };
-
-    //    VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-    //    renderPassBeginInfo.renderPass = renderPass;
-    //    renderPassBeginInfo.renderArea.offset.x = 0;
-    //    renderPassBeginInfo.renderArea.offset.y = 0;
-    //    renderPassBeginInfo.renderArea.extent.width = width;
-    //    renderPassBeginInfo.renderArea.extent.height = height;
-    //    renderPassBeginInfo.clearValueCount = 2;
-    //    renderPassBeginInfo.pClearValues = clearValues;
-
-    //    for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-    //        renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-    //        VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
-    //        vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-    //        vkCmdEndRenderPass(drawCmdBuffers[i]);
-
-    //        VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
-    //    }
-    //}
-
     void loadAssets() override {
         // Create a single triangle
         struct Vertex {
