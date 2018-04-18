@@ -462,13 +462,11 @@ protected:
             enabledExtensions.push_back(extension.c_str());
         }
 
-#if 0
-            // enable the debug marker extension if it is present (likely meaning a debugging tool is present)
-            if (isDeviceExtensionPresent(physicalDevice, VK_EXT_DEBUG_MARKER_EXTENSION_NAME)) {
-                enabledExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
-                enableDebugMarkers = true;
-            }
-#endif
+        // enable the debug marker extension if it is present (likely meaning a debugging tool is present)
+        if (isDeviceExtensionPresent(physicalDevice, VK_EXT_DEBUG_MARKER_EXTENSION_NAME)) {
+            enabledExtensions.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+            enableDebugMarkers = true;
+        }
 
         if (!enabledExtensions.empty()) {
             deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();

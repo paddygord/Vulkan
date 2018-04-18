@@ -188,6 +188,9 @@ public:
     } demoTag;
 
     VulkanExample() {
+        // current debugging tools don't yet work with Vulkan 1.1, so target 1.0
+        // FIXME when RenderDoc works with 1.1, update this
+        version = VK_MAKE_VERSION(1, 0, 0);
         zoomSpeed = 2.5f;
         rotationSpeed = 0.5f;
         camera.setRotation({ -4.35f, 16.25f, 0.0f });

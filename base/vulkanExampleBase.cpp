@@ -112,7 +112,7 @@ void ExampleBase::initVulkan() {
     context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
 #endif
     context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
-    context.createInstance();
+    context.createInstance(version);
 
 #if defined(__ANDROID__)
     surface = context.instance.createAndroidSurfaceKHR({ {}, window });

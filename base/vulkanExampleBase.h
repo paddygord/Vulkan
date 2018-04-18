@@ -183,6 +183,7 @@ protected:
     vk::CommandPool cmdPool;
 
     bool prepared = false;
+    uint32_t version = VK_MAKE_VERSION(1, 1, 0);
     vk::Extent2D size{ 1280, 720 };
     uint32_t& width{ size.width };
     uint32_t& height{ size.height };
