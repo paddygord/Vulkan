@@ -12,10 +12,10 @@
 // Vertex layout for this example
 vks::model::VertexLayout vertexLayout =
 {
-    vks::model::Component::VERTEX_COMPONENT_POSITION,
-    vks::model::Component::VERTEX_COMPONENT_NORMAL,
-    vks::model::Component::VERTEX_COMPONENT_UV,
-    vks::model::Component::VERTEX_COMPONENT_COLOR,
+    vks::model::VERTEX_COMPONENT_POSITION,
+    vks::model::VERTEX_COMPONENT_NORMAL,
+    vks::model::VERTEX_COMPONENT_UV,
+    vks::model::VERTEX_COMPONENT_COLOR,
 };
 
 

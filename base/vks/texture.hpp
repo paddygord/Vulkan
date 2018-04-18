@@ -74,6 +74,7 @@ public:
                       vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
                       bool forceLinear = false) {
         this->imageLayout = imageLayout;
+        descriptor.imageLayout = imageLayout;
         std::shared_ptr<gli::texture2d> tex2Dptr;
         vks::file::withBinaryFileContents(filename, [&](size_t size, const void* data) {
             tex2Dptr = std::make_shared<gli::texture2d>(gli::load((const char*)data, size));
@@ -238,6 +239,8 @@ public:
                       vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled,
                       vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal) {
         this->device = device;
+        this->imageLayout = imageLayout;
+        descriptor.imageLayout = imageLayout;
 
         std::shared_ptr<gli::texture2d_array> texPtr;
         vks::file::withBinaryFileContents(filename, [&](size_t size, const void* data) {
@@ -351,6 +354,8 @@ public:
                       vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled,
                       vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal) {
         device = context.device;
+        this->imageLayout = imageLayout;
+        descriptor.imageLayout = imageLayout;
 
         std::shared_ptr<const gli::texture_cube> texPtr;
         vks::file::withBinaryFileContents(filename, [&](size_t size, const void* data) {
