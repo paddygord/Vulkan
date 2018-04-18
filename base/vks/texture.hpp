@@ -97,7 +97,7 @@ public:
         imageCreateInfo.extent = extent;
         imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
 
-        static_cast<vks::Image&>(*this) = context.stageToDeviceImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, tex2D);
+        static_cast<vks::Image&>(*this) = context.stageToDeviceImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, tex2D, imageLayout);
 
         // Create sampler
         vk::SamplerCreateInfo samplerCreateInfo;
@@ -113,15 +113,24 @@ public:
         sampler = device.createSampler(samplerCreateInfo);
 
         // Create image view
-        vk::ImageViewCreateInfo viewCreateInfo;
-        viewCreateInfo.viewType = vk::ImageViewType::e2D;
-        viewCreateInfo.image = image;
-        viewCreateInfo.format = format;
-        viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, layerCount };
-        view = context.device.createImageView(viewCreateInfo);
+        static const vk::ImageUsageFlags VIEW_USAGE_FLAGS =
+            vk::ImageUsageFlagBits::eSampled |
+            vk::ImageUsageFlagBits::eStorage |
+            vk::ImageUsageFlagBits::eColorAttachment |
+            vk::ImageUsageFlagBits::eDepthStencilAttachment |
+            vk::ImageUsageFlagBits::eInputAttachment;
 
-        // Update descriptor image info member that can be used for setting up descriptor sets
-        updateDescriptor();
+        if (imageUsageFlags & VIEW_USAGE_FLAGS) {
+            vk::ImageViewCreateInfo viewCreateInfo;
+            viewCreateInfo.viewType = vk::ImageViewType::e2D;
+            viewCreateInfo.image = image;
+            viewCreateInfo.format = format;
+            viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, layerCount };
+            view = context.device.createImageView(viewCreateInfo);
+
+            // Update descriptor image info member that can be used for setting up descriptor sets
+            updateDescriptor();
+        }
     }
 
     /**

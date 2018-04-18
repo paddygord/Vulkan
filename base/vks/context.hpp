@@ -587,7 +587,8 @@ public:
                              const vk::MemoryPropertyFlags& memoryPropertyFlags,
                              vk::DeviceSize size,
                              const void* data,
-                             const std::vector<MipData>& mipData = {}) const {
+                             const std::vector<MipData>& mipData = {},
+                             const vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal) const {
         Buffer staging = createStagingBuffer(size, data);
         imageCreateInfo.usage = imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferDst;
         Image result = createImage(imageCreateInfo, memoryPropertyFlags);
@@ -617,7 +618,7 @@ public:
             }
             copyCmd.copyBufferToImage(staging.buffer, result.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
             // Prepare for shader read
-            setImageLayout(copyCmd, result.image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, range);
+            setImageLayout(copyCmd, result.image, vk::ImageLayout::eTransferDstOptimal, layout, range);
         });
         staging.destroy();
         return result;
@@ -635,14 +636,15 @@ public:
 
     Image stageToDeviceImage(const vk::ImageCreateInfo& imageCreateInfo,
                              const vk::MemoryPropertyFlags& memoryPropertyFlags,
-                             const gli::texture2d& tex2D) const {
+                             const gli::texture2d& tex2D,
+                             const vk::ImageLayout& layout) const {
         std::vector<MipData> mips;
         for (size_t i = 0; i < imageCreateInfo.mipLevels; ++i) {
             const auto& mip = tex2D[i];
             const auto dims = mip.extent();
             mips.push_back({ vk::Extent3D{ (uint32_t)dims.x, (uint32_t)dims.y, 1 }, (uint32_t)mip.size() });
         }
-        return stageToDeviceImage(imageCreateInfo, memoryPropertyFlags, (vk::DeviceSize)tex2D.size(), tex2D.data(), mips);
+        return stageToDeviceImage(imageCreateInfo, memoryPropertyFlags, (vk::DeviceSize)tex2D.size(), tex2D.data(), mips, layout);
     }
 
     Buffer createBuffer(const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size) const {
@@ -857,7 +859,8 @@ private:
     std::set<std::string> requiredDeviceExtensions;
 
     DevicePickerFunction devicePicker = [](const std::vector<vk::PhysicalDevice>& devices) -> vk::PhysicalDevice { return devices[0]; };
-    DeviceFeaturesPickerFunction deviceFeaturesPicker = [](const vk::PhysicalDevice& device, const vk::PhysicalDeviceFeatures& features) ->vk::PhysicalDeviceFeatures { return features; };
+    DeviceFeaturesPickerFunction deviceFeaturesPicker = [](const vk::PhysicalDevice& device,
+                                                           const vk::PhysicalDeviceFeatures& features) -> vk::PhysicalDeviceFeatures { return features; };
     DeviceExtensionsPickerFunction deviceExtensionsPicker = [](const vk::PhysicalDevice& device) -> std::set<std::string> { return {}; };
 
 #ifdef WIN32

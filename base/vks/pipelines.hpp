@@ -131,6 +131,7 @@ public:
     vk::PipelineCache pipelineCache;
     vk::RenderPass& renderPass{ pipelineCreateInfo.renderPass };
     vk::PipelineLayout& layout{ pipelineCreateInfo.layout };
+    uint32_t& subpass{ pipelineCreateInfo.subpass };
     PipelineInputAssemblyStateCreateInfo inputAssemblyState;
     PipelineRasterizationStateCreateInfo rasterizationState;
     vk::PipelineMultisampleStateCreateInfo multisampleState;
