@@ -8,17 +8,14 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include "vulkanOffscreenExampleBase.hpp"
+#include <vulkanExampleBase.h>
 
-
-class VulkanExample : public vkx::ExampleBase
-{
+class VulkanExample : public vkx::ExampleBase {
 public:
     bool bloom = true;
     bool displaySkybox = true;
 
     // Vertex layout for the models
-
 
     struct {
         vks::texture::TextureCubeMap envmap;
@@ -96,8 +93,7 @@ public:
 
     std::vector<std::string> objectNames;
 
-    VulkanExample() 
-    {
+    VulkanExample() {
         title = "Hight dynamic range rendering";
         camera.type = Camera::CameraType::lookat;
         camera.setPosition(glm::vec3(0.0f, 0.0f, -4.0f));
@@ -106,8 +102,7 @@ public:
         settings.overlay = true;
     }
 
-    ~VulkanExample()
-    {
+    ~VulkanExample() {
         device.destroyPipeline(pipelines.skybox);
         device.destroyPipeline(pipelines.reflect);
         device.destroyPipeline(pipelines.composition);
@@ -130,7 +125,6 @@ public:
         device.destroyFramebuffer(offscreen.frameBuffer);
         device.destroyFramebuffer(filterPass.frameBuffer);
 
-
         vkDestroySampler(device, offscreen.sampler, nullptr);
         vkDestroySampler(device, filterPass.sampler, nullptr);
 
@@ -150,37 +144,39 @@ public:
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& commandBuffer) override {
-        vk::Viewport viewport;
-        vk::Rect2D scissor;
-
         // Bloom filter
-        viewport = vks::util::viewport(filterPass.extent);
-        scissor = vks::util::rect2D(filterPass.extent);
+        clearValues = {
+            vks::util::clearColor(glm::vec4(0.0f)),
+        };
         renderPassBeginInfo.framebuffer = filterPass.frameBuffer;
         renderPassBeginInfo.renderPass = filterPass.renderPass;
         renderPassBeginInfo.renderArea.extent = filterPass.extent;
+        renderPassBeginInfo.pClearValues = clearValues.data();
         renderPassBeginInfo.clearValueCount = 1;
+
         commandBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-        commandBuffer.setViewport(0, viewport);
-        commandBuffer.setScissor(0, scissor);
+        commandBuffer.setViewport(0, vks::util::viewport(filterPass.extent));
+        commandBuffer.setScissor(0, vks::util::rect2D(filterPass.extent));
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.bloomFilter, 0, descriptorSets.bloomFilter, nullptr);
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.bloom[1]);
         commandBuffer.draw(3, 1, 0, 0);
         commandBuffer.endRenderPass();
 
-
         // Final composition
-        viewport = vks::util::viewport(size);
-        scissor = vks::util::rect2D(size);
+        clearValues = {
+            vks::util::clearColor(glm::vec4(0.0f)),
+            defaultClearDepth,
+        };
         renderPassBeginInfo.framebuffer = framebuffers[currentBuffer];
         renderPassBeginInfo.renderPass = renderPass;
         renderPassBeginInfo.renderArea.extent = size;
+        renderPassBeginInfo.pClearValues = clearValues.data();
         renderPassBeginInfo.clearValueCount = 2;
 
         // Scene
         commandBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-        commandBuffer.setViewport(0, viewport);
-        commandBuffer.setScissor(0, scissor);
+        commandBuffer.setViewport(0, viewport());
+        commandBuffer.setScissor(0, scissor());
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.composition, 0, descriptorSets.composition, nullptr);
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.composition);
         commandBuffer.draw(3, 1, 0, 0);
@@ -209,7 +205,6 @@ public:
     vks::Image createAttachment(vk::Format format, vk::ImageUsageFlags usage) {
         vk::ImageAspectFlags aspectMask;
         vk::ImageLayout imageLayout;
-
 
         if (usage & vk::ImageUsageFlagBits::eColorAttachment) {
             aspectMask = vk::ImageAspectFlagBits::eColor;
@@ -251,8 +246,10 @@ public:
             offscreen.extent = size;
             // Color attachments
             // Two floating point color buffers
-            offscreen.color[0] = createAttachment(vk::Format::eR32G32B32A32Sfloat, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment);
-            offscreen.color[1] = createAttachment(vk::Format::eR32G32B32A32Sfloat, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment);
+            offscreen.color[0] =
+                createAttachment(vk::Format::eR32G32B32A32Sfloat, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment);
+            offscreen.color[1] =
+                createAttachment(vk::Format::eR32G32B32A32Sfloat, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment);
             // Depth attachment
             offscreen.depth = createAttachment(depthFormat, vk::ImageUsageFlagBits::eDepthStencilAttachment);
 
@@ -274,13 +271,12 @@ public:
                 attachmentDescs[i].stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
             }
 
-
             std::vector<vk::AttachmentReference> colorReferences{
                 { 0, vk::ImageLayout::eColorAttachmentOptimal },
                 { 1, vk::ImageLayout::eColorAttachmentOptimal },
             };
 
-            vk::AttachmentReference depthReference {2, vk::ImageLayout::eDepthStencilAttachmentOptimal };
+            vk::AttachmentReference depthReference{ 2, vk::ImageLayout::eDepthStencilAttachmentOptimal };
 
             vk::SubpassDescription subpass;
             subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
@@ -290,8 +286,12 @@ public:
 
             // Use subpass dependencies for attachment layput transitions
             std::array<vk::SubpassDependency, 2> dependencies{
-                vk::SubpassDependency{ VK_SUBPASS_EXTERNAL, 0, vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eMemoryRead, vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead, vk::DependencyFlagBits::eByRegion },
-                vk::SubpassDependency{ 0, VK_SUBPASS_EXTERNAL, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe, vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead, vk::AccessFlagBits::eMemoryRead, vk::DependencyFlagBits::eByRegion },
+                vk::SubpassDependency{ VK_SUBPASS_EXTERNAL, 0, vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                                       vk::AccessFlagBits::eMemoryRead, vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead,
+                                       vk::DependencyFlagBits::eByRegion },
+                vk::SubpassDependency{ 0, VK_SUBPASS_EXTERNAL, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
+                                       vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead, vk::AccessFlagBits::eMemoryRead,
+                                       vk::DependencyFlagBits::eByRegion },
             };
 
             vk::RenderPassCreateInfo renderPassInfo;
@@ -310,7 +310,13 @@ public:
                 offscreen.depth.view,
             };
 
-            offscreen.frameBuffer = device.createFramebuffer(vk::FramebufferCreateInfo{ {}, offscreen.renderPass, (uint32_t)attachments.size(), attachments.data(), offscreen.extent.width, offscreen.extent.height, 1 });
+            offscreen.frameBuffer = device.createFramebuffer(vk::FramebufferCreateInfo{ {},
+                                                                                        offscreen.renderPass,
+                                                                                        (uint32_t)attachments.size(),
+                                                                                        attachments.data(),
+                                                                                        offscreen.extent.width,
+                                                                                        offscreen.extent.height,
+                                                                                        1 });
 
             // Create sampler to sample from the color attachments
             vk::SamplerCreateInfo sampler;
@@ -343,9 +349,7 @@ public:
             attachmentDescs[0].finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
             attachmentDescs[0].format = filterPass.color[0].format;
 
-            std::vector<vk::AttachmentReference> colorReferences{
-                { 0, vk::ImageLayout::eGeneral }
-            };
+            std::vector<vk::AttachmentReference> colorReferences{ { 0, vk::ImageLayout::eGeneral } };
 
             vk::SubpassDescription subpass;
             subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
@@ -354,30 +358,26 @@ public:
 
             // Use subpass dependencies for attachment layput transitions
             std::array<vk::SubpassDependency, 2> dependencies{
-                vk::SubpassDependency{ 
-                    VK_SUBPASS_EXTERNAL, 0, 
-                    vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, 
-                    vk::AccessFlagBits::eMemoryRead, vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead, 
-                    vk::DependencyFlagBits::eByRegion 
-                },
-                vk::SubpassDependency{ 
-                    0, VK_SUBPASS_EXTERNAL, 
-                    vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe, 
-                    vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead, vk::AccessFlagBits::eMemoryRead, 
-                    vk::DependencyFlagBits::eByRegion 
-                },
+                vk::SubpassDependency{ VK_SUBPASS_EXTERNAL, 0, vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                                       vk::AccessFlagBits::eMemoryRead, vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead,
+                                       vk::DependencyFlagBits::eByRegion },
+                vk::SubpassDependency{ 0, VK_SUBPASS_EXTERNAL, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
+                                       vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead, vk::AccessFlagBits::eMemoryRead,
+                                       vk::DependencyFlagBits::eByRegion },
             };
 
-            filterPass.renderPass = device.createRenderPass(vk::RenderPassCreateInfo{ {}, 
-                (uint32_t)attachmentDescs.size(), attachmentDescs.data(), 
-                1, &subpass, 
-                (uint32_t)dependencies.size(), dependencies.data() });
+            filterPass.renderPass = device.createRenderPass(vk::RenderPassCreateInfo{ {},
+                                                                                      (uint32_t)attachmentDescs.size(),
+                                                                                      attachmentDescs.data(),
+                                                                                      1,
+                                                                                      &subpass,
+                                                                                      (uint32_t)dependencies.size(),
+                                                                                      dependencies.data() });
 
-            std::array<vk::ImageView, 1> attachments{
-                filterPass.color[0].view
-            };
-            
-            filterPass.frameBuffer = device.createFramebuffer({ {}, filterPass.renderPass, (uint32_t)attachments.size(), attachments.data(), offscreen.extent.width, offscreen.extent.height, 1 });
+            std::array<vk::ImageView, 1> attachments{ filterPass.color[0].view };
+
+            filterPass.frameBuffer = device.createFramebuffer(
+                { {}, filterPass.renderPass, (uint32_t)attachments.size(), attachments.data(), offscreen.extent.width, offscreen.extent.height, 1 });
 
             // Create sampler to sample from the color attachments
             vk::SamplerCreateInfo sampler;
@@ -465,7 +465,7 @@ public:
     void setupDescriptorPool() {
         std::vector<vk::DescriptorPoolSize> poolSizes = {
             { vk::DescriptorType::eUniformBuffer, 4 },
-            { vk::DescriptorType::eCombinedImageSampler, 6},
+            { vk::DescriptorType::eCombinedImageSampler, 6 },
         };
         descriptorPool = device.createDescriptorPool({ {}, 4, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
@@ -501,47 +501,33 @@ public:
 
     void setupDescriptorSets() {
         // 3D object descriptor set
-        descriptorSets.object = device.allocateDescriptorSets({ descriptorPool, 1,  &descriptorSetLayouts.models })[0];
+        descriptorSets.object = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.models })[0];
+        // Sky box descriptor set
+        descriptorSets.skybox = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.models })[0];
+        // Bloom filter
+        descriptorSets.bloomFilter = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.bloomFilter })[0];
+        // Composition descriptor set
+        descriptorSets.composition = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.composition })[0];
+
+        std::vector<vk::DescriptorImageInfo> colorDescriptors = {
+            { offscreen.sampler, offscreen.color[0].view, vk::ImageLayout::eShaderReadOnlyOptimal },
+            { offscreen.sampler, offscreen.color[1].view, vk::ImageLayout::eShaderReadOnlyOptimal },
+            { offscreen.sampler, filterPass.color[0].view, vk::ImageLayout::eShaderReadOnlyOptimal },
+        };
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets = {
             vk::WriteDescriptorSet{ descriptorSets.object, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.matrices.descriptor },
             vk::WriteDescriptorSet{ descriptorSets.object, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &textures.envmap.descriptor },
             vk::WriteDescriptorSet{ descriptorSets.object, 2, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.params.descriptor },
-        };
-        device.updateDescriptorSets(writeDescriptorSets, nullptr);
-
-        // Sky box descriptor set
-        descriptorSets.skybox = device.allocateDescriptorSets({ descriptorPool, 1,  &descriptorSetLayouts.models })[0];
-        writeDescriptorSets = {
             vk::WriteDescriptorSet{ descriptorSets.skybox, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.matrices.descriptor },
             vk::WriteDescriptorSet{ descriptorSets.skybox, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &textures.envmap.descriptor },
             vk::WriteDescriptorSet{ descriptorSets.skybox, 2, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.params.descriptor },
-        };
-        device.updateDescriptorSets(writeDescriptorSets, nullptr);
-
-        // Bloom filter 
-        descriptorSets.bloomFilter = device.allocateDescriptorSets({ descriptorPool, 1,  &descriptorSetLayouts.bloomFilter })[0];
-        std::vector<vk::DescriptorImageInfo> colorDescriptors = {
-            { offscreen.sampler, offscreen.color[0].view, vk::ImageLayout::eShaderReadOnlyOptimal },
-            { offscreen.sampler, offscreen.color[1].view, vk::ImageLayout::eShaderReadOnlyOptimal },
-        };
-        writeDescriptorSets = {
             vk::WriteDescriptorSet{ descriptorSets.bloomFilter, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &colorDescriptors[0] },
             vk::WriteDescriptorSet{ descriptorSets.bloomFilter, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &colorDescriptors[1] },
-        };
-        device.updateDescriptorSets(writeDescriptorSets, nullptr);
-
-        // Composition descriptor set
-        descriptorSets.composition = device.allocateDescriptorSets({ descriptorPool, 1,  &descriptorSetLayouts.composition })[0];
-        colorDescriptors = {
-            { offscreen.sampler, offscreen.color[0].view, vk::ImageLayout::eShaderReadOnlyOptimal },
-            { offscreen.sampler, offscreen.color[1].view, vk::ImageLayout::eShaderReadOnlyOptimal },
-        };
-
-        writeDescriptorSets = {
             vk::WriteDescriptorSet{ descriptorSets.composition, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &colorDescriptors[0] },
-            vk::WriteDescriptorSet{ descriptorSets.composition, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &colorDescriptors[1] },
+            vk::WriteDescriptorSet{ descriptorSets.composition, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &colorDescriptors[2] },
         };
+
         device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
@@ -549,6 +535,7 @@ public:
         // Final fullscreen composition pass pipeline
         vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayouts.composition, renderPass };
         pipelineBuilder.depthStencilState = { false };
+        pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eFront;
         // Empty vertex input state, full screen triangles are generated by the vertex shader
         pipelineBuilder.loadShader(getAssetPath() + "shaders/hdr/composition.vert.spv", vk::ShaderStageFlagBits::eVertex);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/hdr/composition.frag.spv", vk::ShaderStageFlagBits::eFragment);
@@ -564,10 +551,9 @@ public:
         blendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
         blendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eSrcAlpha;
         blendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eDstAlpha;
-        
+
         pipelineBuilder.loadShader(getAssetPath() + "shaders/hdr/bloom.vert.spv", vk::ShaderStageFlagBits::eVertex);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/hdr/bloom.frag.spv", vk::ShaderStageFlagBits::eFragment);
-
 
         // Set constant parameters via specialization constants
         uint32_t dir = 1;
@@ -581,13 +567,14 @@ public:
         pipelines.bloom[1] = pipelineBuilder.create(context.pipelineCache);
         pipelineBuilder.destroyShaderModules();
 
-        // Object rendering pipelines 
+        // Object rendering pipelines
         // Binding description
         pipelineBuilder.vertexInputState.appendVertexLayout(models.vertexLayout);
         pipelineBuilder.renderPass = renderPass;
 
         // Skybox pipeline (background cube)
         blendAttachmentState.blendEnable = VK_FALSE;
+        pipelineBuilder.rasterizationState.cullMode = vk::CullModeFlagBits::eBack;
         pipelineBuilder.layout = pipelineLayouts.models;
         pipelineBuilder.renderPass = offscreen.renderPass;
         pipelineBuilder.colorBlendState.blendAttachmentStates.resize(2);
@@ -626,26 +613,18 @@ public:
         memcpy(uniformBuffers.matrices.mapped, &uboVS, sizeof(uboVS));
     }
 
-    void updateParams() {
-        memcpy(uniformBuffers.params.mapped, &uboParams, sizeof(uboParams));
-    }
+    void updateParams() { memcpy(uniformBuffers.params.mapped, &uboParams, sizeof(uboParams)); }
 
     void draw() override {
         prepareFrame();
-
-        if (offscreen.active) {
-            context.submit(offscreen.cmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.renderComplete);
-            renderWaitSemaphores = { offscreen.renderComplete };
-        } else {
-            renderWaitSemaphores = { semaphores.acquireComplete };
-        }
-        ExampleBase::draw();
+        context.submit(offscreen.cmdBuffer, { { semaphores.acquireComplete, vk::PipelineStageFlagBits::eBottomOfPipe } }, offscreen.semaphore);
+        renderWaitSemaphores = { offscreen.semaphore };
+        drawCurrentCommandBuffer();
         submitFrame();
     }
 
     void prepare() override {
-        vkx::ExampleBase::prepare();
-        loadAssets();
+        ExampleBase::prepare();
         prepareUniformBuffers();
         prepareoffscreenfer();
         setupDescriptorSetLayout();
@@ -657,9 +636,7 @@ public:
         prepared = true;
     }
 
-    void viewChanged() override {
-        updateUniformBuffers();
-    }
+    void viewChanged() override { updateUniformBuffers(); }
 
     void OnUpdateUIOverlay() override {
         if (ui.header("Settings")) {

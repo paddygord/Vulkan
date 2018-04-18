@@ -182,7 +182,7 @@ public:
         enableValidation = enable;
     }
 
-    void createInstance() {
+    void createInstance(uint32_t version = VK_MAKE_VERSION(1, 1, 0)) {
         if (enableValidation) {
             requireExtensions({ (const char*)VK_EXT_DEBUG_REPORT_EXTENSION_NAME });
         }
@@ -191,7 +191,7 @@ public:
         vk::ApplicationInfo appInfo;
         appInfo.pApplicationName = "VulkanExamples";
         appInfo.pEngineName = "VulkanExamples";
-        appInfo.apiVersion = VK_MAKE_VERSION(1, 1, 0);
+        appInfo.apiVersion = version;
 
         std::set<std::string> instanceExtensions;
         instanceExtensions.insert(requiredExtensions.begin(), requiredExtensions.end());
