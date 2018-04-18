@@ -18,7 +18,26 @@ struct PipelineInputAssemblyStateCreateInfo : public vk::PipelineInputAssemblySt
 };
 
 struct PipelineColorBlendAttachmentState : public vk::PipelineColorBlendAttachmentState {
-    PipelineColorBlendAttachmentState() { colorWriteMask = vks::util::fullColorWriteMask(); }
+private:
+    using Parent = vk::PipelineColorBlendAttachmentState;
+
+public:
+    PipelineColorBlendAttachmentState(vk::Bool32 blendEnable_ = 0,
+                                      vk::BlendFactor srcColorBlendFactor_ = vk::BlendFactor::eZero,
+                                      vk::BlendFactor dstColorBlendFactor_ = vk::BlendFactor::eZero,
+                                      vk::BlendOp colorBlendOp_ = vk::BlendOp::eAdd,
+                                      vk::BlendFactor srcAlphaBlendFactor_ = vk::BlendFactor::eZero,
+                                      vk::BlendFactor dstAlphaBlendFactor_ = vk::BlendFactor::eZero,
+                                      vk::BlendOp alphaBlendOp_ = vk::BlendOp::eAdd,
+                                      vk::ColorComponentFlags colorWriteMask_ = vks::util::fullColorWriteMask())
+        : Parent(blendEnable_,
+                 srcColorBlendFactor_,
+                 dstColorBlendFactor_,
+                 colorBlendOp_,
+                 srcAlphaBlendFactor_,
+                 dstAlphaBlendFactor_,
+                 alphaBlendOp_,
+                 colorWriteMask_) {}
 };
 
 struct PipelineColorBlendStateCreateInfo : public vk::PipelineColorBlendStateCreateInfo {
