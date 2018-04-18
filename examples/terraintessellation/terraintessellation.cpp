@@ -271,10 +271,6 @@ public:
     }
 
     void setupDescriptorSetLayouts() {
-        vk::DescriptorSetLayoutCreateInfo descriptorLayout;
-        vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
-        ;
-
         // Terrain
         std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
             // Binding 0 : Shared Tessellation shader ubo
@@ -324,7 +320,7 @@ public:
             // Binding 1 : Fragment shader color map
             { descriptorSets.skysphere, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &textures.skySphere.descriptor },
         };
-        device.updateDescriptorSets(writeDescriptorSets, {});
+        device.updateDescriptorSets(writeDescriptorSets, nullptr);
     }
 
     void preparePipelines() {
