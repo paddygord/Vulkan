@@ -47,3 +47,11 @@ To avoid shadow artifacts the dynamic depth bias state ([vkCmdSetDepthBias](http
 
 <br><br>
 
+### [Omnidirectional shadow mapping](examples/shadowmappingomni/shadowmappingomni.cpp)
+<img src="./documentation/screenshots/shadow_omnidirectional.png" height="96px" align="right">
+
+Uses a dynamic 32 bit floating point cube map for a point light source that casts shadows in all directions (unlike projective shadow mapping).
+The cube map faces contain the distances from the light sources, which are then used in the scene rendering pass to determine if the fragment is shadowed or not.
+<br><br>
+
+
