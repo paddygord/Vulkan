@@ -93,33 +93,6 @@ public:
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
         commandBuffer.drawIndexed(scene.indexCount, 1, 0, 0, 0);
     }
-    /*
-    void buildCommandBuffers() override {
-
-        std::vector<vk::ClearValue> clearValues{
-            defaultClearColor,
-            defaultClearDepth,
-        };
-
-        vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = renderPass;
-        renderPassBeginInfo.renderArea.extent = size;
-        renderPassBeginInfo.clearValueCount = (uint32_t)clearValues.size();
-        renderPassBeginInfo.pClearValues = clearValues.data();
-
-        vk::CommandBufferBeginInfo cmdBufInfo{ vk::CommandBufferUsageFlagBits::eSimultaneousUse };
-        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
-            // Set target frame buffer
-            renderPassBeginInfo.framebuffer = framebuffers[i];
-            const auto& cmdBuf = drawCmdBuffers[i];
-            cmdBuf.begin(cmdBufInfo);
-            cmdBuf.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            updateDrawCommandBuffer(cmdBuf);
-            cmdBuf.endRenderPass();
-            cmdBuf.end();
-        }
-    }
-    */
 
     void loadAssets() override { scene.loadFromFile(context, getAssetPath() + "models/sampleroom.dae", VERTEX_LAYOUT, 0.25f); }
 

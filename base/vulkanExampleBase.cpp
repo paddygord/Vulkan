@@ -88,9 +88,7 @@ void ExampleBase::getEnabledFeatures() {
 
 void ExampleBase::initVulkan() {
     // TODO make this less stupid
-    context.setDeviceFeaturesPicker([this](const vk::PhysicalDevice& device, const vk::PhysicalDeviceFeatures& features) -> vk::PhysicalDeviceFeatures {
-        vk::PhysicalDeviceFeatures result;
-
+    context.setDeviceFeaturesPicker([this](const vk::PhysicalDevice& device, vk::PhysicalDeviceFeatures2& features){
         if (deviceFeatures.textureCompressionBC) {
             enabledFeatures.textureCompressionBC = VK_TRUE;
         } else if (context.deviceFeatures.textureCompressionASTC_LDR) {
@@ -102,8 +100,6 @@ void ExampleBase::initVulkan() {
             enabledFeatures.samplerAnisotropy = VK_TRUE;
         }
         getEnabledFeatures();
-        result = context.enabledFeatures;
-        return result;
     });
 
 #if defined(__ANDROID__)

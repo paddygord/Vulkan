@@ -25,7 +25,7 @@ using StringList = std::list<std::string>;
 using CStringVector = std::vector<const char*>;
 
 using DevicePickerFunction = std::function<vk::PhysicalDevice(const std::vector<vk::PhysicalDevice>&)>;
-using DeviceFeaturesPickerFunction = std::function<vk::PhysicalDeviceFeatures(const vk::PhysicalDevice&, const vk::PhysicalDeviceFeatures&)>;
+using DeviceFeaturesPickerFunction = std::function<void(const vk::PhysicalDevice&, vk::PhysicalDeviceFeatures2&)>;
 using DeviceExtensionsPickerFunction = std::function<std::set<std::string>(const vk::PhysicalDevice&)>;
 using InstanceExtensionsPickerFunction = std::function<std::set<std::string>()>;
 using InstanceExtensionsPickerFunctions = std::list<InstanceExtensionsPickerFunction>;
@@ -221,6 +221,11 @@ public:
         }
 
         instance = vk::createInstance(instanceCreateInfo);
+
+        if (enableValidation) {
+            debug::setupDebugging(instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning);
+        }
+
         dynamicDispatch.init(instance);
     }
 
@@ -229,9 +234,6 @@ public:
         buildDevice();
         dynamicDispatch.init(instance, device);
 
-        if (enableValidation) {
-            debug::setupDebugging(instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning);
-        }
 
         if (enableDebugMarkers) {
             debug::marker::setup(instance, device);
@@ -390,6 +392,14 @@ public:
 
     // Fixed sub resource on first mip level and layer
     void setImageLayout(vk::CommandBuffer cmdbuffer,
+        vk::Image image,
+        vk::ImageLayout oldImageLayout,
+        vk::ImageLayout newImageLayout) const {
+        setImageLayout(cmdbuffer, image, vk::ImageAspectFlagBits::eColor, oldImageLayout, newImageLayout);
+    }
+
+    // Fixed sub resource on first mip level and layer
+    void setImageLayout(vk::CommandBuffer cmdbuffer,
                         vk::Image image,
                         vk::ImageAspectFlags aspectMask,
                         vk::ImageLayout oldImageLayout,
@@ -441,8 +451,13 @@ protected:
     void buildDevice() {
         // Vulkan device
         vks::queues::DeviceCreateInfo deviceCreateInfo;
-        enabledFeatures = deviceFeaturesPicker(physicalDevice, deviceFeatures);
-        deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
+
+        deviceFeaturesPicker(physicalDevice, enabledFeatures2);
+        if (enabledFeatures2.pNext) {
+            deviceCreateInfo.pNext = &enabledFeatures2;
+        } else {
+            deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
+        }
 
         deviceCreateInfo.addQueueFamily(queueIndices.graphics, queueFamilyProperties[queueIndices.graphics].queueCount);
         if (queueIndices.compute != VK_QUEUE_FAMILY_IGNORED && queueIndices.compute != queueIndices.graphics) {
@@ -489,7 +504,8 @@ public:
     // Stores phyiscal device features (for e.g. checking if a feature is available)
     vk::PhysicalDeviceFeatures deviceFeatures;
 
-    vk::PhysicalDeviceFeatures enabledFeatures;
+    vk::PhysicalDeviceFeatures2 enabledFeatures2;
+    vk::PhysicalDeviceFeatures& enabledFeatures = enabledFeatures2.features;
     // Stores all available memory (type) properties for the physical device
     vk::PhysicalDeviceMemoryProperties deviceMemoryProperties;
     // Logical device, application's view of the physical device (GPU)
@@ -857,8 +873,7 @@ private:
     std::set<std::string> requiredDeviceExtensions;
 
     DevicePickerFunction devicePicker = [](const std::vector<vk::PhysicalDevice>& devices) -> vk::PhysicalDevice { return devices[0]; };
-    DeviceFeaturesPickerFunction deviceFeaturesPicker = [](const vk::PhysicalDevice& device,
-                                                           const vk::PhysicalDeviceFeatures& features) -> vk::PhysicalDeviceFeatures { return features; };
+    DeviceFeaturesPickerFunction deviceFeaturesPicker = [](const vk::PhysicalDevice& device, vk::PhysicalDeviceFeatures2& features) {};
     DeviceExtensionsPickerFunction deviceExtensionsPicker = [](const vk::PhysicalDevice& device) -> std::set<std::string> { return {}; };
 
 #ifdef WIN32
