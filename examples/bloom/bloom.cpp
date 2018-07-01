@@ -42,32 +42,31 @@ public:
     } meshes;
 
     struct {
-        vks::Buffer vsScene;
-        vks::Buffer vsFullScreen;
-        vks::Buffer vsSkyBox;
-        vks::Buffer fsVertBlur;
-        vks::Buffer fsHorzBlur;
-    } uniformData;
+        vks::Buffer scene;
+        vks::Buffer skyBox;
+        vks::Buffer blurParams;
+    } uniformBuffers;
 
     struct UBO {
         glm::mat4 projection;
+        glm::mat4 view;
         glm::mat4 model;
     };
 
-    struct UBOBlur {
+    struct UBOBlurParams {
         float blurScale = 1.0f;
         float blurStrength = 1.5f;
     };
 
     struct {
-        UBO scene, fullscreen, skyBox;
-        UBOBlur vertBlur, horzBlur;
+        UBO scene, skyBox;
+        UBOBlurParams blurParams;
     } ubos;
 
     struct {
         vk::Pipeline blurVert;
         vk::Pipeline blurHorz;
-        vk::Pipeline colorPass;
+        vk::Pipeline glowPass;
         vk::Pipeline phongPass;
         vk::Pipeline skyBox;
     } pipelines;
@@ -78,9 +77,9 @@ public:
     } pipelineLayouts;
 
     struct {
+        vk::DescriptorSet blurVert;
+        vk::DescriptorSet blurHorz;
         vk::DescriptorSet scene;
-        vk::DescriptorSet verticalBlur;
-        vk::DescriptorSet horizontalBlur;
         vk::DescriptorSet skyBox;
     } descriptorSets;
 
@@ -108,7 +107,7 @@ public:
         device.destroyPipeline(pipelines.blurVert);
         device.destroyPipeline(pipelines.blurHorz);
         device.destroyPipeline(pipelines.phongPass);
-        device.destroyPipeline(pipelines.colorPass);
+        device.destroyPipeline(pipelines.glowPass);
         device.destroyPipeline(pipelines.skyBox);
 
         device.destroyPipelineLayout(pipelineLayouts.blur);
@@ -117,18 +116,16 @@ public:
         device.destroyDescriptorSetLayout(descriptorSetLayouts.blur);
         device.destroyDescriptorSetLayout(descriptorSetLayouts.scene);
 
-        // Meshes
+        // Assets
         meshes.ufo.destroy();
         meshes.ufoGlow.destroy();
         meshes.skyBox.destroy();
+        textures.cubemap.destroy();
 
         // Uniform buffers
-        uniformData.vsScene.destroy();
-        uniformData.vsFullScreen.destroy();
-        uniformData.vsSkyBox.destroy();
-        uniformData.fsVertBlur.destroy();
-        uniformData.fsHorzBlur.destroy();
-        textures.cubemap.destroy();
+        uniformBuffers.scene.destroy();
+        uniformBuffers.skyBox.destroy();
+        uniformBuffers.blurParams.destroy();
     }
 
     // Render the 3D scene into a texture target
@@ -162,10 +159,13 @@ public:
             renderPassBeginInfo.pClearValues = clearValues;
             offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
             offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.scene, 0, descriptorSets.scene, nullptr);
-            offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.phongPass);
+            offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.glowPass);
             offscreen.cmdBuffer.bindVertexBuffers(0, meshes.ufoGlow.vertices.buffer, offset);
             offscreen.cmdBuffer.bindIndexBuffer(meshes.ufoGlow.indices.buffer, 0, vk::IndexType::eUint32);
-            offscreen.cmdBuffer.drawIndexed(meshes.ufoGlow.indexCount, 1, 0, 0, 0);
+
+            for (const auto& part : meshes.ufoGlow.parts) {
+                offscreen.cmdBuffer.drawIndexed(part.indexCount, 1, part.indexBase, 0, 0);
+            }
             offscreen.cmdBuffer.endRenderPass();
         }
 
@@ -179,7 +179,7 @@ public:
             renderPassBeginInfo.pClearValues = clearValues;
             // Draw a vertical blur pass from framebuffer 1's texture into framebuffer 2
             offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-            offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.blur, 0, descriptorSets.verticalBlur, nullptr);
+            offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.blur, 0, descriptorSets.blurVert, nullptr);
             offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blurVert);
             offscreen.cmdBuffer.draw(3, 1, 0, 0);
             offscreen.cmdBuffer.endRenderPass();
@@ -208,7 +208,7 @@ public:
 
         // Render vertical blurred scene applying a horizontal blur
         if (bloom) {
-            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.blur, 0, descriptorSets.horizontalBlur, nullptr);
+            cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.blur, 0, descriptorSets.blurHorz, nullptr);
             cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.blurHorz);
             cmdBuffer.draw(3, 1, 0, 0);
         }
@@ -243,65 +243,38 @@ public:
     }
 
     void setupDescriptorSet() {
-        // Full screen blur descriptor sets
-
-        // Vertical blur
-        descriptorSets.verticalBlur = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.blur })[0];
-
-        vk::DescriptorImageInfo texDescriptorVert{ offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view,
-                                                   vk::ImageLayout::eShaderReadOnlyOptimal };
-        device.updateDescriptorSets(
-            {
-                { descriptorSets.verticalBlur, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fsVertBlur.descriptor },
-                { descriptorSets.verticalBlur, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorVert },
-            },
-            {});
-
-        // Horizontal blur
-        descriptorSets.horizontalBlur = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.blur })[0];
-        vk::DescriptorImageInfo texDescriptorHorz{ offscreen.framebuffers[1].colors[0].sampler, offscreen.framebuffers[1].colors[0].view,
-                                                   vk::ImageLayout::eShaderReadOnlyOptimal };
-        device.updateDescriptorSets(
-            {
-                { descriptorSets.horizontalBlur, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.fsHorzBlur.descriptor },
-                { descriptorSets.horizontalBlur, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorHorz },
-            },
-            {});
-
-        // 3D scene
+        descriptorSets.blurVert = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.blur })[0];
+        descriptorSets.blurHorz = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.blur })[0];
         descriptorSets.scene = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.scene })[0];
-
-        device.updateDescriptorSets(
-            {
-                // Binding 0 : Vertex shader uniform buffer
-                vk::WriteDescriptorSet{ descriptorSets.scene, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsFullScreen.descriptor },
-            },
-            {});
-
-        // Skybox
         descriptorSets.skyBox = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayouts.scene })[0];
 
+        // Vertical blur
+        vk::DescriptorImageInfo texDescriptorVert{ offscreen.framebuffers[0].colors[0].sampler, offscreen.framebuffers[0].colors[0].view,
+                                                   vk::ImageLayout::eShaderReadOnlyOptimal };
+        // Horizontal blur
+        vk::DescriptorImageInfo texDescriptorHorz{ offscreen.framebuffers[1].colors[0].sampler, offscreen.framebuffers[1].colors[0].view,
+                                                   vk::ImageLayout::eShaderReadOnlyOptimal };
         // vk::Image descriptor for the cube map texture
         vk::DescriptorImageInfo cubeMapDescriptor{ textures.cubemap.sampler, textures.cubemap.view, vk::ImageLayout::eGeneral };
 
         device.updateDescriptorSets(
             {
-                // Binding 0 : Vertex shader uniform buffer
-                vk::WriteDescriptorSet{ descriptorSets.skyBox, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformData.vsSkyBox.descriptor },
-                // Binding 1 : Fragment shader texture sampler
-                vk::WriteDescriptorSet{ descriptorSets.skyBox, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &cubeMapDescriptor },
+                { descriptorSets.blurVert, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.blurParams.descriptor },
+                { descriptorSets.blurVert, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorVert },
+                { descriptorSets.blurHorz, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.blurParams.descriptor },
+                { descriptorSets.blurHorz, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorHorz },
+                // 3D scene
+                { descriptorSets.scene, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.scene.descriptor },
+                // Skybox
+                { descriptorSets.skyBox, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.skyBox.descriptor },
+                { descriptorSets.skyBox, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &cubeMapDescriptor },
             },
-            {});
+            nullptr);
     }
 
     void preparePipelines() {
         vks::pipelines::PipelineVertexInputStateCreateInfo vertexInputState;
-        vertexInputState.appendVertexLayout({ {
-            vks::model::VERTEX_COMPONENT_POSITION,
-            vks::model::VERTEX_COMPONENT_COLOR,
-            vks::model::VERTEX_COMPONENT_UV,
-            vks::model::VERTEX_COMPONENT_NORMAL,
-        } });
+        vertexInputState.appendVertexLayout(vertexLayout);
 
         {
             vks::pipelines::GraphicsPipelineBuilder pipelineBuilder{ device, pipelineLayouts.blur, offscreen.renderPass };
@@ -353,7 +326,7 @@ public:
             pipelineBuilder.vertexInputState = vertexInputState;
             pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/colorpass.vert.spv", vk::ShaderStageFlagBits::eVertex);
             pipelineBuilder.loadShader(getAssetPath() + "shaders/bloom/colorpass.frag.spv", vk::ShaderStageFlagBits::eFragment);
-            pipelines.colorPass = pipelineBuilder.create(context.pipelineCache);
+            pipelines.glowPass = pipelineBuilder.create(context.pipelineCache);
         }
 
         // Skybox (cubemap
@@ -370,59 +343,45 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Phong and color pass vertex shader uniform buffer
-        uniformData.vsScene = context.createUniformBuffer(ubos.scene);
-        // Fullscreen quad display vertex shader uniform buffer
-        uniformData.vsFullScreen = context.createUniformBuffer(ubos.fullscreen);
+        uniformBuffers.scene = context.createUniformBuffer(ubos.scene);
         // Fullscreen quad fragment shader uniform buffers
-        // Vertical blur
-        uniformData.fsVertBlur = context.createUniformBuffer(ubos.vertBlur);
-        // Horizontal blur
-        uniformData.fsHorzBlur = context.createUniformBuffer(ubos.horzBlur);
+        uniformBuffers.blurParams = context.createUniformBuffer(ubos.blurParams);
         // Skybox
-        uniformData.vsSkyBox = context.createUniformBuffer(ubos.skyBox);
+        uniformBuffers.skyBox = context.createUniformBuffer(ubos.skyBox);
 
         // Intialize uniform buffers
         updateUniformBuffersScene();
-        updateUniformBuffersScreen();
+        updateUniformBuffersBlur();
     }
 
     // Update uniform buffers for rendering the 3D scene
     void updateUniformBuffersScene() {
         // UFO
-        ubos.fullscreen.projection = camera.matrices.perspective;
-        ubos.fullscreen.model = camera.matrices.view * glm::translate(glm::mat4(), glm::vec3(sin(glm::radians(timer * 360.0f)) * 0.25f, 0.0f,
-                                                                                             cos(glm::radians(timer * 360.0f)) * 0.25f));
-        auto rotation = glm::angleAxis(-sinf(glm::radians(timer * 360.0f)) * 0.15f, glm::vec3(1.0f, 0.0f, 0.0f)) *
-                        glm::angleAxis(glm::radians(timer * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        ubos.fullscreen.model = ubos.fullscreen.model * glm::mat4_cast(rotation);
-        uniformData.vsFullScreen.copy(ubos.fullscreen);
+        ubos.scene.projection = camera.matrices.perspective;
+        ubos.scene.view = camera.matrices.view;
+
+        ubos.scene.model =
+            glm::translate(glm::mat4(1.0f), glm::vec3(sin(glm::radians(timer * 360.0f)) * 0.25f, -1.0f, cos(glm::radians(timer * 360.0f)) * 0.25f));
+        ubos.scene.model = glm::rotate(ubos.scene.model, -sinf(glm::radians(timer * 360.0f)) * 0.15f, glm::vec3(1.0f, 0.0f, 0.0f));
+        ubos.scene.model = glm::rotate(ubos.scene.model, glm::radians(timer * 360.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+        uniformBuffers.scene.copy(ubos.scene);
 
         // Skybox
         ubos.skyBox.projection = camera.matrices.perspective;
-        ubos.skyBox.model = camera.matrices.skyboxView;
-        uniformData.vsSkyBox.copy(ubos.skyBox);
+        ubos.skyBox.view = glm::mat4(glm::mat3(camera.matrices.view));
+        ubos.skyBox.model = glm::mat4(1.0f);
+        uniformBuffers.skyBox.copy(ubos.skyBox);
     }
 
     // Update uniform buffers for the fullscreen quad
-    void updateUniformBuffersScreen() {
-        // Vertex shader
-        ubos.scene.projection = glm::ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
-        ubos.scene.model = glm::mat4();
-
-        uniformData.vsScene.copy(ubos.scene);
-
-        // Fragment shader
-
-        // Vertical
-        uniformData.fsVertBlur.copy(ubos.vertBlur);
-
-        // Horizontal
-        uniformData.fsHorzBlur.copy(ubos.horzBlur);
+    void updateUniformBuffersBlur() {
+        uniformBuffers.blurParams.copy(ubos.blurParams);
     }
 
     void loadAssets() override {
-        meshes.ufo.loadFromFile(context, getAssetPath() + "models/retroufo.dae", vertexLayout, 0.05f);
         meshes.ufoGlow.loadFromFile(context, getAssetPath() + "models/retroufo_glow.dae", vertexLayout, 0.05f);
+        meshes.ufo.loadFromFile(context, getAssetPath() + "models/retroufo.dae", vertexLayout, 0.05f);
         meshes.skyBox.loadFromFile(context, getAssetPath() + "models/cube.obj", vertexLayout, 1.0f);
         textures.cubemap.loadFromFile(context, getAssetPath() + "textures/cubemap_space.ktx", vk::Format::eR8G8B8A8Unorm);
     }
@@ -466,39 +425,19 @@ public:
 
     void viewChanged() override {
         updateUniformBuffersScene();
-        updateUniformBuffersScreen();
     }
 
-    void keyPressed(uint32_t keyCode) override {
-        switch (keyCode) {
-            case KEY_KPADD:
-            case GAMEPAD_BUTTON_R1:
-                changeBlurScale(0.25f);
-                break;
-            case KEY_KPSUB:
-            case GAMEPAD_BUTTON_L1:
-                changeBlurScale(-0.25f);
-                break;
-            case KEY_B:
-            case GAMEPAD_BUTTON_A:
-                toggleBloom();
-                break;
+    void OnUpdateUIOverlay() override {
+        if (ui.header("Settings")) {
+            if (ui.checkBox("Bloom", &bloom)) {
+                buildCommandBuffers();
+            }
+            if (ui.inputFloat("Scale", &ubos.blurParams.blurScale, 0.1f, 2)) {
+                updateUniformBuffersBlur();
+            }
         }
     }
 
-    void changeBlurScale(float delta) {
-        ubos.vertBlur.blurScale += delta;
-        ubos.horzBlur.blurScale += delta;
-        updateUniformBuffersScreen();
-    }
-
-    void toggleBloom() {
-        bloom = !bloom;
-        buildCommandBuffers();
-        if (bloom) {
-            buildOffscreenCommandBuffer();
-        }
-    }
 };
 
 RUN_EXAMPLE(VulkanExample)
