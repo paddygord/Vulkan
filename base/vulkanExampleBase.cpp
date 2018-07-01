@@ -459,25 +459,36 @@ void ExampleBase::setupRenderPass() {
         colorAttachmentReferences.push_back(colorReference);
     }
 
-    std::vector<vk::SubpassDescription> subpasses;
-    std::vector<vk::SubpassDependency> subpassDependencies;
-    {
-        vk::SubpassDependency dependency;
-        dependency.srcSubpass = 0;
-        dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-        dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead;
-        dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-        dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
-        subpassDependencies.push_back(dependency);
 
-        vk::SubpassDescription subpass;
-        subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-        subpass.pDepthStencilAttachment = &depthReference;
-        subpass.colorAttachmentCount = (uint32_t)colorAttachmentReferences.size();
-        subpass.pColorAttachments = colorAttachmentReferences.data();
-        subpasses.push_back(subpass);
-    }
+    using vPSFB = vk::PipelineStageFlagBits;
+    using vAFB = vk::AccessFlagBits;
+    std::vector<vk::SubpassDependency> subpassDependencies{
+        {
+            0, VK_SUBPASS_EXTERNAL,
+            vPSFB::eColorAttachmentOutput, vPSFB::eBottomOfPipe,
+            vAFB::eColorAttachmentRead | vAFB::eColorAttachmentWrite, vAFB::eMemoryRead,
+            vk::DependencyFlagBits::eByRegion
+        },
+        {
+            VK_SUBPASS_EXTERNAL, 0,
+            vPSFB::eBottomOfPipe, vPSFB::eColorAttachmentOutput,
+            vAFB::eMemoryRead, vAFB::eColorAttachmentRead | vAFB::eColorAttachmentWrite,
+            vk::DependencyFlagBits::eByRegion
+        },
+    };
+    std::vector<vk::SubpassDescription> subpasses{
+        {
+            {}, vk::PipelineBindPoint::eGraphics,
+            // Input attachment references
+            0, nullptr,
+            // Color / resolve attachment references
+            (uint32_t)colorAttachmentReferences.size(), colorAttachmentReferences.data(), nullptr,
+            // Depth stecil attachment reference,
+            &depthReference,
+            // Preserve attachments
+            0, nullptr
+        },
+    };
 
     vk::RenderPassCreateInfo renderPassInfo;
     renderPassInfo.attachmentCount = (uint32_t)attachments.size();

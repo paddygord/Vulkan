@@ -151,20 +151,20 @@ protected:
 
                     dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
                     dependency.dstAccessMask = vks::util::accessFlagsForLayout(colorFinalLayout);
-                    dependency.dstStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+                    dependency.dstStageMask = vk::PipelineStageFlagBits::eFragmentShader;
                     subpassDependencies.push_back(dependency);
                 }
 
-                if ((depthFinalLayout != vk::ImageLayout::eColorAttachmentOptimal) && (depthFinalLayout != vk::ImageLayout::eUndefined)) {
+                if ((depthFinalLayout != vk::ImageLayout::eDepthStencilAttachmentOptimal) && (depthFinalLayout != vk::ImageLayout::eUndefined)) {
                     // Implicit transition
                     vk::SubpassDependency dependency;
                     dependency.srcSubpass = 0;
                     dependency.srcAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-                    dependency.srcStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+                    dependency.srcStageMask = vk::PipelineStageFlagBits::eLateFragmentTests;
 
                     dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
                     dependency.dstAccessMask = vks::util::accessFlagsForLayout(depthFinalLayout);
-                    dependency.dstStageMask = vk::PipelineStageFlagBits::eBottomOfPipe;
+                    dependency.dstStageMask = vk::PipelineStageFlagBits::eFragmentShader;
                     subpassDependencies.push_back(dependency);
                 }
             }
