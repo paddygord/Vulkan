@@ -175,7 +175,7 @@ struct Model {
     * @param copyQueue Queue used for the memory staging copy commands (must support transfer)
     * @param (Optional) flags ASSIMP model loading flags
     */
-    bool loadFromFile(const Context& context,
+    void loadFromFile(const Context& context,
                       const std::string& filename,
                       const VertexLayout& layout,
                       const ModelCreateInfo& createInfo,
@@ -191,7 +191,9 @@ struct Model {
     * @param copyQueue Queue used for the memory staging copy commands (must support transfer)
     * @param (Optional) flags ASSIMP model loading flags
     */
-    bool loadFromFile(const Context& context, const std::string& filename, const VertexLayout& layout, float scale = 1.0f, const int flags = defaultFlags);
+    void loadFromFile(const Context& context, const std::string& filename, const VertexLayout& layout, float scale = 1.0f, const int flags = defaultFlags) {
+        loadFromFile(context, filename, layout, ModelCreateInfo{ scale, 1.0f, 0.0f }, flags);
+    }
 
     virtual void onLoad(const Context& context, Assimp::Importer& importer, const aiScene* pScene) {}
 

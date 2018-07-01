@@ -21,7 +21,7 @@ using namespace vks::model;
 const int Model::defaultFlags =
     aiProcess_FlipWindingOrder | aiProcess_Triangulate | aiProcess_PreTransformVertices | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals;
 
-bool Model::loadFromFile(const Context& context, const std::string& filename, const VertexLayout& layout, const ModelCreateInfo& createInfo, const int flags) {
+void Model::loadFromFile(const Context& context, const std::string& filename, const VertexLayout& layout, const ModelCreateInfo& createInfo, const int flags) {
     this->layout = layout;
     scale = createInfo.scale;
     uvscale = createInfo.uvscale;
@@ -31,6 +31,7 @@ bool Model::loadFromFile(const Context& context, const std::string& filename, co
 
     Assimp::Importer importer;
     const aiScene* pScene;
+
 
     // Load file
     vks::file::withBinaryFileContents(filename, [&](const char* filename, size_t size, const void* data) {
@@ -44,8 +45,6 @@ bool Model::loadFromFile(const Context& context, const std::string& filename, co
             "\n\nThe file may be part of the additional asset pack.\n\nRun \"download_assets.py\" in the repository root to download the latest version.");
     }
 
-    vertexCount = 0;
-    indexCount = 0;
     parts.clear();
     parts.resize(pScene->mNumMeshes);
     for (unsigned int i = 0; i < pScene->mNumMeshes; i++) {
@@ -53,9 +52,8 @@ bool Model::loadFromFile(const Context& context, const std::string& filename, co
         parts[i] = {};
         parts[i].name = paiMesh->mName.C_Str();
         parts[i].vertexBase = vertexCount;
-        parts[i].indexBase = indexCount;
         parts[i].vertexCount = paiMesh->mNumVertices;
-        vertexCount += pScene->mMeshes[i]->mNumVertices;
+        vertexCount += paiMesh->mNumVertices;
     }
 
     onLoad(context, importer, pScene);
@@ -67,41 +65,41 @@ bool Model::loadFromFile(const Context& context, const std::string& filename, co
     indexCount = 0;
 
     // Load meshes
-    for (unsigned int i = 0; i < pScene->mNumMeshes; i++) {
-        const aiMesh* paiMesh = pScene->mMeshes[i];
-        for (unsigned int j = 0; j < pScene->mMeshes[i]->mNumVertices; j++) {
-            appendVertex(vertexBuffer, pScene, i, j);
+    for (unsigned int meshIndex = 0; meshIndex < pScene->mNumMeshes; meshIndex++) {
+        auto& part = parts[meshIndex];
+        const aiMesh* paiMesh = pScene->mMeshes[meshIndex];
+        const auto& numVertices = pScene->mMeshes[meshIndex]->mNumVertices;
+        for (unsigned int vertexIndex = 0; vertexIndex < numVertices; vertexIndex++) {
+            appendVertex(vertexBuffer, pScene, meshIndex, vertexIndex);
         }
 
         dim.size = dim.max - dim.min;
 
-        vertexCount += pScene->mMeshes[i]->mNumVertices;
-
-        uint32_t indexBase = static_cast<uint32_t>(indexBuffer.size());
+        vertexCount += numVertices;
+        part.indexBase = static_cast<uint32_t>(indexBuffer.size());
         for (unsigned int j = 0; j < paiMesh->mNumFaces; j++) {
             const aiFace& Face = paiMesh->mFaces[j];
             if (Face.mNumIndices != 3)
                 continue;
-            indexBuffer.push_back(indexBase + Face.mIndices[0]);
-            indexBuffer.push_back(indexBase + Face.mIndices[1]);
-            indexBuffer.push_back(indexBase + Face.mIndices[2]);
-            parts[i].indexCount += 3;
-            indexCount += 3;
+            indexBuffer.push_back(part.indexBase + Face.mIndices[0]);
+            indexBuffer.push_back(part.indexBase + Face.mIndices[1]);
+            indexBuffer.push_back(part.indexBase + Face.mIndices[2]);
+            part.indexCount += 3;
         }
+        indexCount += part.indexCount;
     }
+
 
     // Vertex buffer
     vertices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vertexBuffer);
     // Index buffer
     indices = context.stageToDeviceBuffer(vk::BufferUsageFlagBits::eIndexBuffer, indexBuffer);
-    return true;
 };
 
 void Model::appendVertex(std::vector<uint8_t>& outputBuffer, const aiScene* pScene, uint32_t meshIndex, uint32_t vertexIndex) {
-    const aiVector3D Zero3D(0.0f, 0.0f, 0.0f);
-    auto i = meshIndex;
-    auto j = vertexIndex;
-    const aiMesh* paiMesh = pScene->mMeshes[i];
+    static const aiVector3D Zero3D(0.0f, 0.0f, 0.0f);
+    const aiMesh* paiMesh = pScene->mMeshes[meshIndex];
+    const auto& j = vertexIndex;
     aiColor3D pColor(0.f, 0.f, 0.f);
     pScene->mMaterials[paiMesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE, pColor);
     const aiVector3D* pPos = &(paiMesh->mVertices[j]);
@@ -110,12 +108,18 @@ void Model::appendVertex(std::vector<uint8_t>& outputBuffer, const aiScene* pSce
     const aiVector3D* pTangent = (paiMesh->HasTangentsAndBitangents()) ? &(paiMesh->mTangents[j]) : &Zero3D;
     const aiVector3D* pBiTangent = (paiMesh->HasTangentsAndBitangents()) ? &(paiMesh->mBitangents[j]) : &Zero3D;
     std::vector<float> vertexBuffer;
+    glm::vec3 scaledPos{ pPos->x, -pPos->y, pPos->z };
+    scaledPos *= scale;
+    scaledPos += center;
+
+    // preallocate float buffer with approximate size
+    vertexBuffer.reserve(layout.components.size() * 4);
     for (auto& component : layout.components) {
         switch (component) {
             case VERTEX_COMPONENT_POSITION:
-                vertexBuffer.push_back(pPos->x * scale.x + center.x);
-                vertexBuffer.push_back(-pPos->y * scale.y + center.y);
-                vertexBuffer.push_back(pPos->z * scale.z + center.z);
+                vertexBuffer.push_back(scaledPos.x);
+                vertexBuffer.push_back(scaledPos.y);
+                vertexBuffer.push_back(scaledPos.z);
                 break;
             case VERTEX_COMPONENT_NORMAL:
                 vertexBuffer.push_back(pNormal->x);
@@ -156,18 +160,9 @@ void Model::appendVertex(std::vector<uint8_t>& outputBuffer, const aiScene* pSce
                 break;
         };
     }
-
-    dim.max.x = fmax(pPos->x, dim.max.x);
-    dim.max.y = fmax(pPos->y, dim.max.y);
-    dim.max.z = fmax(pPos->z, dim.max.z);
-
-    dim.min.x = fmin(pPos->x, dim.min.x);
-    dim.min.y = fmin(pPos->y, dim.min.y);
-    dim.min.z = fmin(pPos->z, dim.min.z);
-
     appendOutput(outputBuffer, vertexBuffer);
+
+    dim.max = glm::max(scaledPos, dim.max);
+    dim.min = glm::min(scaledPos, dim.min);
 }
 
-bool Model::loadFromFile(const Context& context, const std::string& filename, const VertexLayout& layout, float scale, int flags) {
-    return loadFromFile(context, filename, layout, ModelCreateInfo{ scale, 1.0f, 0.0f }, flags);
-}
