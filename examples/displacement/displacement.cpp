@@ -20,12 +20,12 @@ class VulkanExample : public vkx::ExampleBase {
 
 private:
     struct {
-        vks::texture::Texture2D colorMap;
-        vks::texture::Texture2D heightMap;
+        vks::texture::Texture2D colorHeightMap;
     } textures;
 
 public:
     bool splitScreen = true;
+    bool displacement = true;
 
     struct {
         vks::model::Model object;
@@ -33,17 +33,17 @@ public:
 
     vks::Buffer uniformDataTC, uniformDataTE;
 
-    struct UboTC {
-        float tessLevel = 8.0;
-    } uboTC;
+    struct UBOTessControl {
+        float tessLevel = 64.0f;
+    } uboTessControl;
 
-    struct UboTE {
+    struct UBOTessEval {
         glm::mat4 projection;
         glm::mat4 model;
         glm::vec4 lightPos = glm::vec4(0.0, -25.0, 0.0, 0.0);
-        float tessAlpha = 1.0;
-        float tessStrength = 1.0;
-    } uboTE;
+        float tessAlpha = 1.0f;
+        float tessStrength = 0.75f;
+    } uboTessEval;
 
     struct {
         vk::Pipeline solid;
@@ -91,13 +91,26 @@ public:
         device.destroyBuffer(uniformDataTE.buffer);
         device.freeMemory(uniformDataTE.memory);
 
-        textures.colorMap.destroy();
-        textures.heightMap.destroy();
+        textures.colorHeightMap.destroy();
     }
 
-    void loadTextures() {
-        textures.colorMap.loadFromFile(context, getAssetPath() + "textures/stonewall_colormap_bc3.dds", vk::Format::eBc3UnormBlock);
-        textures.heightMap.loadFromFile(context, getAssetPath() + "textures/stonewall_heightmap_rgba.dds", vk::Format::eR8G8B8A8Unorm);
+    void getEnabledFeatures() override {
+        Parent::getEnabledFeatures();
+        context.enabledFeatures.tessellationShader = VK_TRUE;
+        context.enabledFeatures.fillModeNonSolid = VK_TRUE;
+    }
+
+    void loadAssets() override {
+        meshes.object.loadFromFile(context, getAssetPath() + "models/torus.obj", vertexLayout, 0.25f);
+        if (context.deviceFeatures.textureCompressionBC) {
+            textures.colorHeightMap.loadFromFile(context, getAssetPath() + "textures/stonefloor03_color_bc3_unorm.ktx", vk::Format::eBc3UnormBlock);
+        } else if (context.deviceFeatures.textureCompressionASTC_LDR) {
+            textures.colorHeightMap.loadFromFile(context, getAssetPath() + "textures/stonefloor03_color_astc_8x8_unorm.ktx", vk::Format::eAstc8x8UnormBlock);
+        } else if (context.deviceFeatures.textureCompressionETC2) {
+            textures.colorHeightMap.loadFromFile(context, getAssetPath() + "textures/stonefloor03_color_etc2_unorm.ktx", vk::Format::eEtc2R8G8B8UnormBlock);
+        } else {
+            throw std::runtime_error("Device does not support any compressed texture format!");
+        }
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
@@ -121,14 +134,10 @@ public:
         cmdBuffer.drawIndexed(meshes.object.indexCount, 1, 0, 0, 0);
     }
 
-    void loadMeshes() { meshes.object.loadFromFile(context, getAssetPath() + "models/torus.obj", vertexLayout, 0.25f); }
-
-    void setupVertexDescriptions() {}
-
     void setupDescriptorPool() {
         // Example uses two ubos and two image samplers
         std::vector<vk::DescriptorPoolSize> poolSizes = { vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2),
-                                                          vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 2) };
+                                                          vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 1) };
 
         descriptorPool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
     }
@@ -140,9 +149,7 @@ public:
             // Binding 1 : Tessellation evaluation shader ubo
             { 1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eTessellationEvaluation },
             // Binding 2 : Tessellation evaluation shader displacement map image sampler
-            { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eTessellationEvaluation },
-            // Binding 3 : Fragment shader color map image sampler
-            { 3, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
+            { 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eTessellationEvaluation | vk::ShaderStageFlagBits::eFragment },
         };
 
         descriptorSetLayout = device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
@@ -151,23 +158,18 @@ public:
 
     void setupDescriptorSet() {
         descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
-        // Displacement map image descriptor
-        vk::DescriptorImageInfo texDescriptorDisplacementMap{ textures.heightMap.sampler, textures.heightMap.view, vk::ImageLayout::eGeneral };
-        // Color map image descriptor
-        vk::DescriptorImageInfo texDescriptorColorMap{ textures.colorMap.sampler, textures.colorMap.view, vk::ImageLayout::eGeneral };
+        vk::DescriptorImageInfo texDescriptor{ textures.colorHeightMap.sampler, textures.colorHeightMap.view, vk::ImageLayout::eGeneral };
 
-        std::vector<vk::WriteDescriptorSet> writeDescriptorSets{
-            // Binding 0 : Tessellation control shader ubo
-            { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataTC.descriptor },
-            // Binding 1 : Tessellation evaluation shader ubo
-            { descriptorSet, 1, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataTE.descriptor },
-            // Binding 2 : Displacement map
-            { descriptorSet, 2, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorDisplacementMap },
-            // Binding 3 : Color map
-            { descriptorSet, 3, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptorColorMap },
-        };
-
-        device.updateDescriptorSets(writeDescriptorSets, nullptr);
+        device.updateDescriptorSets(
+            {
+                // Binding 0 : Tessellation control shader ubo
+                { descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataTC.descriptor },
+                // Binding 1 : Tessellation evaluation shader ubo
+                { descriptorSet, 1, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformDataTE.descriptor },
+                // Binding 2 : Color and displacement map (alpha channel)
+                { descriptorSet, 2, 0, 1, vk::DescriptorType::eCombinedImageSampler, &texDescriptor },
+            },
+            nullptr);
     }
 
     void preparePipelines() {
@@ -213,27 +215,36 @@ public:
     // Prepare and initialize uniform buffer containing shader uniforms
     void prepareUniformBuffers() {
         // Tessellation evaluation shader uniform buffer
-        uniformDataTE = context.createUniformBuffer(uboTE);
+        uniformDataTE = context.createUniformBuffer(uboTessEval);
         // Tessellation control shader uniform buffer
-        uniformDataTC = context.createUniformBuffer(uboTC);
+        uniformDataTC = context.createUniformBuffer(uboTessControl);
         updateUniformBuffers();
     }
 
     void updateUniformBuffers() {
         // Tessellation eval
-        uboTE.projection = glm::perspective(glm::radians(45.0f), (float)(size.width * ((splitScreen) ? 0.5f : 1.0f)) / (float)size.height, 0.1f, 256.0f);
-        uboTE.model = camera.matrices.view;
-        uniformDataTE.copy(uboTE);
+        uboTessEval.projection = glm::perspective(glm::radians(45.0f), (float)(size.width * ((splitScreen) ? 0.5f : 1.0f)) / (float)size.height, 0.1f, 256.0f);
+        uboTessEval.model = camera.matrices.view;
+        //uboTessEval.lightPos.y = -0.5f - uboTessEval.tessStrength;
+        uniformDataTE.copy(uboTessEval);
+
+
 
         // Tessellation control
-        uniformDataTC.copy(uboTC);
+        float savedLevel = uboTessControl.tessLevel;
+        if (!displacement) {
+            uboTessControl.tessLevel = 1.0f;
+        }
+
+        uniformDataTC.copy(uboTessControl);
+
+        if (!displacement) {
+            uboTessControl.tessLevel = savedLevel;
+        }
     }
 
     void prepare() override {
         ExampleBase::prepare();
-        loadMeshes();
-        loadTextures();
-        setupVertexDescriptions();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
@@ -251,46 +262,24 @@ public:
 
     void viewChanged() override { updateUniformBuffers(); }
 
-    void changeTessellationLevel(float delta) {
-        uboTC.tessLevel += delta;
-        // Clamp
-        uboTC.tessLevel = fmax(1.0f, fmin(uboTC.tessLevel, 32.0f));
-        updateUniformBuffers();
-    }
+    void OnUpdateUIOverlay() override {
+        if (ui.header("Settings")) {
+            if (ui.checkBox("Tessellation displacement", &displacement)) {
+                updateUniformBuffers();
+            }
+            if (ui.inputFloat("Strength", &uboTessEval.tessStrength, 0.025f, 3)) {
+                updateUniformBuffers();
+            }
+            if (ui.inputFloat("Level", &uboTessControl.tessLevel, 0.5f, 2)) {
+                updateUniformBuffers();
+            }
+            if (deviceFeatures.fillModeNonSolid) {
+                if (ui.checkBox("Splitscreen", &splitScreen)) {
+                    buildCommandBuffers();
+                    updateUniformBuffers();
+                }
+            }
 
-    void togglePipelines() {
-        context.queue.waitIdle();
-        context.device.waitIdle();
-        if (pipelineRight == &pipelines.solid) {
-            pipelineRight = &pipelines.wire;
-            pipelineLeft = &pipelines.wirePassThrough;
-        } else {
-            pipelineRight = &pipelines.solid;
-            pipelineLeft = &pipelines.solidPassThrough;
-        }
-        buildCommandBuffers();
-    }
-
-    void toggleSplitScreen() {
-        splitScreen = !splitScreen;
-        buildCommandBuffers();
-        updateUniformBuffers();
-    }
-
-    void keyPressed(uint32_t key) override {
-        switch (key) {
-            case KEY_KPADD:
-                changeTessellationLevel(0.25);
-                break;
-            case KEY_KPSUB:
-                changeTessellationLevel(-0.25);
-                break;
-            case KEY_W:
-                togglePipelines();
-                break;
-            case KEY_S:
-                toggleSplitScreen();
-                break;
         }
     }
 };
