@@ -74,14 +74,26 @@ void gl::report() {
     std::cout << glGetString(GL_VENDOR) << std::endl;
     std::cout << glGetString(GL_RENDERER) << std::endl;
     std::cout << glGetString(GL_VERSION) << std::endl;
-    GLint n;
-    glGetIntegerv(GL_NUM_EXTENSIONS, &n);
-    if (n > 0) {
-        GLint i;
-        for (i = 0; i < n; i++) {
-            std::cout << "\t" << glGetStringi(GL_EXTENSIONS, i) << std::endl;
-        }
+    for (const auto& extension : getExtensions()) {
+        std::cout << "\t" << extension << std::endl;
     }
+}
+
+const std::set<std::string>& gl::getExtensions() {
+    static std::set<std::string> extensions;
+    static std::once_flag once;
+    std::call_once(once, [&]{
+        GLint n;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+        if (n > 0) {
+            GLint i;
+            for (i = 0; i < n; i++) {
+                extensions.insert((const char*)glGetStringi(GL_EXTENSIONS, i));
+            }
+        }
+    });
+    return extensions;
+
 }
 
 static void debugMessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
@@ -90,7 +102,7 @@ static void debugMessageCallback(GLenum source, GLenum type, GLuint id, GLenum s
     }
     // FIXME For high severity errors, force a sync to the log, since we might crash
     // before the log file was flushed otherwise.  Performance hit here
-    std::cout << "OpenGL: " << message;
+    std::cout << "OpenGL: " << message << std::endl;
 }
 
 void gl::setupDebugLogging() {

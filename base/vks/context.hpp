@@ -420,6 +420,10 @@ public:
         withPrimaryCommandBuffer([&](const auto& commandBuffer) { setImageLayout(commandBuffer, image, aspectMask, oldImageLayout, newImageLayout); });
     }
 
+    void setImageLayout(vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout) const {
+        withPrimaryCommandBuffer([&](const auto& commandBuffer) { setImageLayout(commandBuffer, image, oldImageLayout, newImageLayout); });
+    }
+
 protected:
     void pickDevice(const vk::SurfaceKHR& surface) {
         // Physical device
@@ -560,11 +564,16 @@ public:
         return cmdBuffer;
     }
 
-    void flushCommandBuffer(vk::CommandBuffer& commandBuffer) const {
+    void flushCommandBuffer(vk::CommandBuffer& commandBuffer, const vk::ArrayProxy<const vk::Semaphore>& signalSemaphores = {}) const {
         if (!commandBuffer) {
             return;
         }
-        queue.submit(vk::SubmitInfo{ 0, nullptr, nullptr, 1, &commandBuffer }, vk::Fence());
+        vk::SubmitInfo submitInfo{ 0, nullptr, nullptr, 1, &commandBuffer };
+        if (!signalSemaphores.empty()) {
+            submitInfo.pSignalSemaphores = signalSemaphores.data();
+            submitInfo.signalSemaphoreCount = signalSemaphores.size();
+        }
+        queue.submit(submitInfo, nullptr);
         queue.waitIdle();
         device.waitIdle();
     }
@@ -572,12 +581,13 @@ public:
     // Create a short lived command buffer which is immediately executed and released
     // This function is intended for initialization only.  It incurs a queue and device
     // flush and may impact performance if used in non-setup code
-    void withPrimaryCommandBuffer(const std::function<void(const vk::CommandBuffer& commandBuffer)>& f) const {
+    void withPrimaryCommandBuffer(const std::function<void(const vk::CommandBuffer& commandBuffer)>& f,
+                                  const vk::ArrayProxy<const vk::Semaphore>& signalSemaphores = {}) const {
         vk::CommandBuffer commandBuffer = createCommandBuffer(vk::CommandBufferLevel::ePrimary);
         commandBuffer.begin(vk::CommandBufferBeginInfo{ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
         f(commandBuffer);
         commandBuffer.end();
-        flushCommandBuffer(commandBuffer);
+        flushCommandBuffer(commandBuffer, signalSemaphores);
         device.freeCommandBuffers(getCommandPool(), commandBuffer);
     }
 
