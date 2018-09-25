@@ -443,7 +443,9 @@ public:
 
             {
                 using QueryChain = vk::StructureChain<vk::PhysicalDeviceImageFormatInfo2, vk::PhysicalDeviceExternalImageFormatInfo>;
-                QueryChain chain{ imageFormatInfo, { memoryHandleType } };
+                vk::PhysicalDeviceExternalImageFormatInfo formatInfo{ memoryHandleType };
+
+                QueryChain chain{ imageFormatInfo, formatInfo };
                 using ResultChain = vk::StructureChain<vk::ImageFormatProperties2, vk::ExternalImageFormatProperties>;
                 const auto& resolvedImageFormatInfo = chain.get<vk::PhysicalDeviceImageFormatInfo2>();
                 ResultChain result =
