@@ -10,7 +10,7 @@
 
 #if !defined(__ANDROID__)
 
-#define SHOW_GL_WINDOW 0
+#define SHOW_GL_WINDOW 1
 
 // Indices into the semaphores
 #define READY 0
@@ -34,16 +34,23 @@ namespace gl { namespace import {
 #endif
 
 std::set<vk::ImageTiling> getSupportedTiling() {
+    std::set<vk::ImageTiling> result;
+
     GLint numTilingTypes{ 0 };
 
     glGetInternalformativ(GL_TEXTURE_2D, GL_RGBA8, GL_NUM_TILING_TYPES_EXT, 1, &numTilingTypes);
+    // Broken tiling detection on AMD
+    if (0 == numTilingTypes) {
+        result.insert(vk::ImageTiling::eLinear);
+        return result;
+    }
+
     std::vector<GLint> glTilingTypes;
     {
         glTilingTypes.resize(numTilingTypes);
         glGetInternalformativ(GL_TEXTURE_2D, GL_RGBA8, GL_TILING_TYPES_EXT, numTilingTypes, glTilingTypes.data());
     }
 
-    std::set<vk::ImageTiling> result;
     for (const auto& glTilingType : glTilingTypes) {
         switch (glTilingType) {
             case GL_LINEAR_TILING_EXT:
@@ -79,7 +86,7 @@ struct Memory : public SharedHandle {
 #if WIN32
         glImportMemoryWin32HandleEXT(memory, size, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handle);
 #else
-        glImportMemoryFdEXT(memory, size, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handle);
+        glImportMemoryFdEXT(memory, size, GL_HANDLE_TYPE_OPAQUE_FD_EXT, handle);
 #endif
     }
     void destroy() {
@@ -138,7 +145,7 @@ struct Semaphore : public SharedHandle {
 #if WIN32
         glImportSemaphoreWin32HandleEXT(semaphore, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handle);
 #else
-        glImportSemaphoreFdEXT(semaphore, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT, handle)
+        glImportSemaphoreFdEXT(semaphore, GL_HANDLE_TYPE_OPAQUE_FD_EXT, handle)
 #endif
     }
 
@@ -399,7 +406,7 @@ struct Vertex {
 // shader to populate the texture.
 class OpenGLInteropExample : public vkx::ExampleBase {
     using Parent = ExampleBase;
-    static const uint32_t SHARED_TEXTURE_DIMENSION = 512;
+    static const uint32_t SHARED_TEXTURE_DIMENSION = 256;
     vk::DispatchLoaderDynamic dynamicLoader;
 
 public:
