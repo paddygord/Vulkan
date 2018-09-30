@@ -7,197 +7,162 @@
 */
 
 #include "debug.hpp"
+
+#include <functional>
 #include <iostream>
+#include <list>
+#include <string>
 #include <sstream>
 #include <mutex>
 
-#ifdef __ANDROID__
-#include <android/log.h>
-#define LOG_TAG "org.saintandreas.vulkan"
-#endif
-
-using namespace vks;
-
 namespace vks { namespace debug {
 
+const StringList& getDefaultValidationLayers() {
+    static const StringList validationLayerNames {
 #if defined(__ANDROID__)
-std::list<std::string> validationLayerNames = { "VK_LAYER_GOOGLE_threading",      "VK_LAYER_LUNARG_parameter_validation",
-                                                "VK_LAYER_LUNARG_object_tracker", "VK_LAYER_LUNARG_core_validation",
-                                                "VK_LAYER_LUNARG_swapchain",      "VK_LAYER_GOOGLE_unique_objects" };
+        "VK_LAYER_GOOGLE_threading", "VK_LAYER_LUNARG_parameter_validation", "VK_LAYER_LUNARG_object_tracker", "VK_LAYER_LUNARG_core_validation",
+            "VK_LAYER_LUNARG_swapchain", "VK_LAYER_GOOGLE_unique_objects",
 #else
-std::list<std::string> validationLayerNames = {
-    // This is a meta layer that enables all of the standard
-    // validation layers in the correct order :
-    // threading, parameter_validation, device_limits, object_tracker, image, core_validation, swapchain, and unique_objects
-    "VK_LAYER_LUNARG_assistant_layer", "VK_LAYER_LUNARG_standard_validation"
-};
+        "VK_LAYER_LUNARG_standard_validation",
 #endif
+    };
+    return validationLayerNames;
+}
 
-static std::once_flag dispatcherInitFlag;
-vk::DispatchLoaderDynamic dispatcher;
-vk::DebugReportCallbackEXT msgCallback;
-
-VkBool32 messageCallback(VkDebugReportFlagsEXT flags,
-                         VkDebugReportObjectTypeEXT objType,
-                         uint64_t srcObject,
-                         size_t location,
-                         int32_t msgCode,
-                         const char* pLayerPrefix,
-                         const char* pMsg,
-                         void* pUserData) {
-    std::string message;
-    {
-        std::stringstream buf;
-        if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
-            buf << "ERROR: ";
-        } else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) {
-            buf << "WARNING: ";
-        } else if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT) {
-            buf << "PERF: ";
-        } else {
-            return false;
-        }
-        buf << "[" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg;
-        message = buf.str();
-    }
-
-    std::cout << message << std::endl;
-
-#ifdef __ANDROID__
-    __android_log_write(ANDROID_LOG_DEBUG, LOG_TAG, message.c_str());
-#endif
+const Output DEFAULT_OUTPUT = [](const SevFlags& sevFlags, const std::string& message) {
 #ifdef _MSC_VER
     OutputDebugStringA(message.c_str());
     OutputDebugStringA("\n");
 #endif
-    return false;
+    std::stringstream buf;
+    if (sevFlags & SevBits::eError) {
+        std::cout << "ERROR: ";
+    } else if (sevFlags & SevBits::eWarning) {
+        std::cout << "WARNING: ";
+    } else if (sevFlags & SevBits::eInfo) {
+        std::cout << "INFO: ";
+    } else if (sevFlags & SevBits::eVerbose) {
+        std::cout << "VERBOSE: ";
+    } else {
+        std::cout << "Unknown sev: ";
+    }
+
+    std::cout << message << std::endl;
+};
+
+const MessageFormatter DEFAULT_MESSAGE_FORMATTER =
+    [](const SevFlags& sevFlags, const TypeFlags& typeFlags, const CallbackData* callbackData, void*) -> std::string {
+    // FIXME improve on this
+    return std::string(callbackData->pMessage);
+};
+
+MessageFormatter CURRENT_FORMATTER = DEFAULT_MESSAGE_FORMATTER;
+Output CURRENT_OUTPUT = DEFAULT_OUTPUT;
+
+Output setOutputFunction(const Output& function) {
+    Output result = function;
+    std::swap(result, CURRENT_OUTPUT);
+    return result;
 }
 
-void setupDebugging(const vk::Instance& instance, const vk::DebugReportFlagsEXT& flags, const MessageHandler& handler) {
-    std::call_once(dispatcherInitFlag, [&] { dispatcher.init(instance); });
-    vk::DebugReportCallbackCreateInfoEXT dbgCreateInfo = {};
-    dbgCreateInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)messageCallback;
-    dbgCreateInfo.flags = flags;
-    msgCallback = instance.createDebugReportCallbackEXT(dbgCreateInfo, nullptr, dispatcher);
+void setMessageFormatter(const MessageFormatter& function) {
+    CURRENT_FORMATTER = function;
 }
 
-void freeDebugCallback(const vk::Instance& instance) {
-    std::call_once(dispatcherInitFlag, [&] { dispatcher.init(instance); });
-    instance.destroyDebugReportCallbackEXT(msgCallback, nullptr, dispatcher);
+VkBool32 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                       VkDebugUtilsMessageTypeFlagsEXT messageType,
+                       const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+                       void* pUserData) {
+    SevFlags sevFlags;
+    reinterpret_cast<VkDebugUtilsMessageSeverityFlagBitsEXT&>(sevFlags) = messageSeverity;
+    TypeFlags typeFlags{ messageType };
+    auto callbackData = reinterpret_cast<const CallbackData*>(pCallbackData);
+    auto message = CURRENT_FORMATTER(sevFlags, typeFlags, callbackData, pUserData);
+    CURRENT_OUTPUT(sevFlags, message);
+    return VK_TRUE;
+}
+
+static vk::DebugUtilsMessengerEXT messenger{};
+
+const vk::DispatchLoaderDynamic& getInstanceDispatcher(const vk::Instance& instance = nullptr) {
+    static vk::DispatchLoaderDynamic dispatcher;
+    static std::once_flag once;
+    if (instance) {
+        std::call_once(once, [&] { dispatcher.init(instance); });
+    }
+    return dispatcher;
+}
+
+void setupDebugging(const vk::Instance& instance, const SevFlags& severityFlags, const TypeFlags& typeFlags, void* userData) {
+    vk::DebugUtilsMessengerCreateInfoEXT createInfo{ {}, severityFlags, typeFlags, debugCallback, userData };
+    messenger = instance.createDebugUtilsMessengerEXT(createInfo, nullptr, getInstanceDispatcher(instance));
+}
+
+void cleanupDebugging(const vk::Instance& instance) {
+    instance.destroyDebugUtilsMessengerEXT(messenger, nullptr, getInstanceDispatcher(instance));
 }
 
 namespace marker {
-bool active = false;
-static std::once_flag markerDispatcherInitFlag;
-vk::DispatchLoaderDynamic markerDispatcher;
 
-void setup(const vk::Instance& instance, const vk::Device& device) {
-    std::call_once(markerDispatcherInitFlag, [&] { markerDispatcher.init(instance, device); });
-    // Set flag if at least one function pointer is present
-    active = (markerDispatcher.vkDebugMarkerSetObjectNameEXT != VK_NULL_HANDLE);
+static bool active = false;
+
+void setup(const vk::Instance& instance) {
+    const auto& dispatcher = getInstanceDispatcher(instance);
+    active = (nullptr != dispatcher.vkSetDebugUtilsObjectTagEXT);
 }
 
-void setObjectName(const vk::Device& device, uint64_t object, vk::DebugReportObjectTypeEXT objectType, const char* name) {
-    // Check for valid function pointer (may not be present if not running in a debugging application)
-    if (markerDispatcher.vkDebugMarkerSetObjectNameEXT) {
-        device.debugMarkerSetObjectNameEXT({ objectType, object, name }, markerDispatcher);
+void setObjectName(const vk::Device& device, uint64_t object, vk::ObjectType objectType, const std::string& name) {
+    const auto& dispatcher = getInstanceDispatcher();
+    if (active) {
+        device.setDebugUtilsObjectNameEXT({ objectType, object, name.c_str() }, getInstanceDispatcher());
     }
 }
 
-void setObjectTag(const vk::Device& device, uint64_t object, vk::DebugReportObjectTypeEXT objectType, uint64_t name, size_t tagSize, const void* tag) {
+void beginRegion(const vk::CommandBuffer& cmdbuffer, const std::string& name, const glm::vec4& color) {
     // Check for valid function pointer (may not be present if not running in a debugging application)
-    if (markerDispatcher.vkDebugMarkerSetObjectTagEXT) {
-        device.debugMarkerSetObjectTagEXT({ objectType, object, name, tagSize, tag }, markerDispatcher);
+    if (active) {
+        cmdbuffer.beginDebugUtilsLabelEXT(vk::DebugUtilsLabelEXT{ name.c_str(), { { color.r, color.g, color.b, color.a } } }, getInstanceDispatcher());
     }
 }
 
-static std::array<float, 4> toFloatArray(const glm::vec4& color) {
-    return { color.r, color.g, color.b, color.a };
-}
-
-void beginRegion(const vk::CommandBuffer& cmdbuffer, const std::string& markerName, const glm::vec4& color) {
+void insert(const vk::CommandBuffer& cmdbuffer, const std::string& name, const glm::vec4& color) {
     // Check for valid function pointer (may not be present if not running in a debugging application)
-    if (markerDispatcher.vkCmdDebugMarkerBeginEXT) {
-        cmdbuffer.debugMarkerBeginEXT({ markerName.c_str(), toFloatArray(color) }, markerDispatcher);
-    }
-}
-
-void insert(const vk::CommandBuffer& cmdbuffer, const std::string& markerName, const glm::vec4& color) {
-    // Check for valid function pointer (may not be present if not running in a debugging application)
-    if (markerDispatcher.vkCmdDebugMarkerInsertEXT) {
-        cmdbuffer.debugMarkerInsertEXT({ markerName.c_str(), toFloatArray(color) }, markerDispatcher);
+    if (active) {
+        cmdbuffer.insertDebugUtilsLabelEXT(vk::DebugUtilsLabelEXT{ name.c_str(), { { color.r, color.g, color.b, color.a } } }, getInstanceDispatcher());
     }
 }
 
 void endRegion(const vk::CommandBuffer& cmdbuffer) {
-    // Check for valid function (may not be present if not runnin in a debugging application)
-    if (markerDispatcher.vkCmdDebugMarkerEndEXT) {
-        cmdbuffer.debugMarkerEndEXT(markerDispatcher);
+    // Check for valid function (may not be present if not running in a debugging application)
+    if (active) {
+        cmdbuffer.endDebugUtilsLabelEXT(getInstanceDispatcher());
     }
 }
 
-void setCommandBufferName(const vk::Device& device, const VkCommandBuffer& cmdBuffer, const char* name) {
-    setObjectName(device, (uint64_t)cmdBuffer, vk::DebugReportObjectTypeEXT::eCommandBuffer, name);
+void setName(const vk::Device& device, const vk::CommandBuffer& obj, const std::string& name) {
+    setObjectName(device, (uint64_t)obj.operator VkCommandBuffer(), vk::ObjectType::eCommandBuffer, name);
 }
 
-void setQueueName(const vk::Device& device, const VkQueue& queue, const char* name) {
-    setObjectName(device, (uint64_t)queue, vk::DebugReportObjectTypeEXT::eQueue, name);
+void setName(const vk::Device& device, const vk::Queue& obj, const std::string& name) {
+    setObjectName(device, (uint64_t)obj.operator VkQueue(), vk::ObjectType::eQueue, name);
 }
 
-void setImageName(const vk::Device& device, const VkImage& image, const char* name) {
-    setObjectName(device, (uint64_t)image, vk::DebugReportObjectTypeEXT::eImage, name);
+void setName(const vk::Device& device, const vk::Image& obj, const std::string& name) {
+    setObjectName(device, (uint64_t)obj.operator VkImage(), vk::ObjectType::eImage, name);
 }
 
-void setSamplerName(const vk::Device& device, const VkSampler& sampler, const char* name) {
-    setObjectName(device, (uint64_t)sampler, vk::DebugReportObjectTypeEXT::eSampler, name);
+void setName(const vk::Device& device, const vk::Buffer& obj, const std::string& name) {
+    setObjectName(device, (uint64_t)obj.operator VkBuffer(), vk::ObjectType::eBuffer, name);
 }
 
-void setBufferName(const vk::Device& device, const VkBuffer& buffer, const char* name) {
-    setObjectName(device, (uint64_t)buffer, vk::DebugReportObjectTypeEXT::eBuffer, name);
+void setName(const vk::Device& device, const vk::Framebuffer& obj, const std::string& name) {
+    setObjectName(device, (uint64_t)obj.operator VkFramebuffer(), vk::ObjectType::eFramebuffer, name);
 }
 
-void setDeviceMemoryName(const vk::Device& device, const VkDeviceMemory& memory, const char* name) {
-    setObjectName(device, (uint64_t)memory, vk::DebugReportObjectTypeEXT::eDeviceMemory, name);
+void setName(const vk::Device& device, const vk::Pipeline& obj, const std::string& name) {
+    setObjectName(device, (uint64_t)obj.operator VkPipeline(), vk::ObjectType::ePipeline, name);
 }
 
-void setShaderModuleName(const vk::Device& device, const VkShaderModule& shaderModule, const char* name) {
-    setObjectName(device, (uint64_t)shaderModule, vk::DebugReportObjectTypeEXT::eShaderModule, name);
-}
+}  // namespace marker
 
-void setPipelineName(const vk::Device& device, const VkPipeline& pipeline, const char* name) {
-    setObjectName(device, (uint64_t)pipeline, vk::DebugReportObjectTypeEXT::ePipeline, name);
-}
-
-void setPipelineLayoutName(const vk::Device& device, const VkPipelineLayout& pipelineLayout, const char* name) {
-    setObjectName(device, (uint64_t)pipelineLayout, vk::DebugReportObjectTypeEXT::ePipelineLayout, name);
-}
-
-void setRenderPassName(const vk::Device& device, const VkRenderPass& renderPass, const char* name) {
-    setObjectName(device, (uint64_t)renderPass, vk::DebugReportObjectTypeEXT::eRenderPass, name);
-}
-
-void setFramebufferName(const vk::Device& device, const VkFramebuffer& framebuffer, const char* name) {
-    setObjectName(device, (uint64_t)framebuffer, vk::DebugReportObjectTypeEXT::eFramebuffer, name);
-}
-
-void setDescriptorSetLayoutName(const vk::Device& device, const VkDescriptorSetLayout& descriptorSetLayout, const char* name) {
-    setObjectName(device, (uint64_t)descriptorSetLayout, vk::DebugReportObjectTypeEXT::eDescriptorSetLayout, name);
-}
-
-void setDescriptorSetName(const vk::Device& device, const VkDescriptorSet& descriptorSet, const char* name) {
-    setObjectName(device, (uint64_t)descriptorSet, vk::DebugReportObjectTypeEXT::eDescriptorSet, name);
-}
-
-void setSemaphoreName(const vk::Device& device, const VkSemaphore& semaphore, const char* name) {
-    setObjectName(device, (uint64_t)semaphore, vk::DebugReportObjectTypeEXT::eSemaphore, name);
-}
-
-void setFenceName(const vk::Device& device, const VkFence& fence, const char* name) {
-    setObjectName(device, (uint64_t)fence, vk::DebugReportObjectTypeEXT::eFence, name);
-}
-
-void setEventName(const vk::Device& device, const VkEvent& _event, const char* name) {
-    setObjectName(device, (uint64_t)_event, vk::DebugReportObjectTypeEXT::eEvent, name);
-}
-};  // namespace marker
 }}  // namespace vks::debug

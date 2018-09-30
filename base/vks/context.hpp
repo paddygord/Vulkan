@@ -215,16 +215,20 @@ public:
 
         CStringVector layers;
         if (enableValidation) {
-            layers = filterLayers(debug::validationLayerNames);
+            layers = filterLayers(debug::getDefaultValidationLayers());
             instanceCreateInfo.enabledLayerCount = (uint32_t)layers.size();
             instanceCreateInfo.ppEnabledLayerNames = layers.data();
         }
 
         instance = vk::createInstance(instanceCreateInfo);
 
+        // Setup the debug marker mechanism
+        debug::marker::setup(instance);
+
         if (enableValidation) {
-            debug::setupDebugging(instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning);
+            debug::setupDebugging(instance);
         }
+
 
         dynamicDispatch.init(instance);
     }
@@ -233,11 +237,6 @@ public:
         pickDevice(surface);
         buildDevice();
         dynamicDispatch.init(instance, device);
-
-
-        if (enableDebugMarkers) {
-            debug::marker::setup(instance, device);
-        }
 
         pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
         // Find a queue that supports graphics operations
@@ -263,7 +262,7 @@ public:
         device.destroyPipelineCache(pipelineCache);
         device.destroy();
         if (enableValidation) {
-            debug::freeDebugCallback(instance);
+            debug::cleanupDebugging(instance);
         }
         instance.destroy();
     }
