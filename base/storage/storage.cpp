@@ -13,7 +13,7 @@
 #include <Windows.h>
 #endif
 
-namespace vks { namespace storage {
+namespace storage {
 
 #if defined(__ANDROID__)
 AAssetManager* assetManager = nullptr;
@@ -157,4 +157,4 @@ StoragePointer Storage::readFile(const std::string& filename) {
     return std::make_shared<FileStorage>(filename);
 }
 
-}}  // namespace vks::storage
+}  // namespace vks::storage
