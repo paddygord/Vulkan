@@ -31,6 +31,8 @@
 #include <vulkan/vulkan.hpp>
 #include <mutex>
 
+
+
 @interface NativeMetalView : NSView
 @end
 
@@ -56,7 +58,26 @@ void DestroyMetalView(void* view) {
 }
 
 
-namespace vks { namespace gl { namespace impl {
+namespace vk {
+    namespace mvk {
+        static PFN_vkGetMTLDeviceMVK vkGetMTLDeviceMVK{nullptr};
+        static PFN_vkSetMTLTextureMVK vkSetMTLTextureMVK{nullptr};
+        static PFN_vkGetMTLTextureMVK vkGetMTLTextureMVK{nullptr};
+        
+        void init(const vk::Device& device) {
+            if (!vkGetMTLDeviceMVK) {
+                 vkGetMTLDeviceMVK = PFN_vkGetMTLDeviceMVK(device.getProcAddr("vkGetMTLDeviceMVK"));
+                vkSetMTLTextureMVK = PFN_vkSetMTLTextureMVK(device.getProcAddr("vkSetMTLTextureMVK"));
+                vkGetMTLTextureMVK = PFN_vkGetMTLTextureMVK(device.getProcAddr("vkGetMTLTextureMVK"));
+            }
+        }
+    }
+}
+//void* x = vkGetMTLDeviceMVK;
+
+//static PFN_vkGetMTLDeviceMVK vkGetMTLDeviceMVK = nullptr;
+
+//static PFN_vkGetMTLDeviceMVK vkGetMTLDeviceMVK = nullptr;
 
 
 struct AAPLTextureFormatInfo {
@@ -67,6 +88,9 @@ struct AAPLTextureFormatInfo {
     GLuint              glFormat;
     GLuint              glType;
     static const AAPLTextureFormatInfo*const findFormat(vk::Format format);
+    static const AAPLTextureFormatInfo*const findFormat(VkFormat format) {
+        return findFormat((vk::Format)format);
+    }
 };
 
 // Table of equivalent formats across CoreVideo, Metal, and OpenGL
@@ -89,45 +113,184 @@ const AAPLTextureFormatInfo*const AAPLTextureFormatInfo::findFormat(vk::Format f
     return nullptr;
 }
 
+@interface GLInterop : NSObject
+
+- (nonnull instancetype)initWithVulkanDevice:(VkPhysicalDevice) vkDevice
+                           vkPixelFormat:(VkFormat)vkPixelFormat
+                                       size:(CGSize)size;
+@property (readonly, nonnull, nonatomic) id<MTLDevice> metalDevice;
+@property (readonly, nonnull, nonatomic) id<MTLTexture> metalTexture;
+@property (readonly, nonnull, nonatomic) NSOpenGLContext *openGLContext;
+@property (readonly, nonatomic) GLuint openGLTexture;
+@property (readonly, nonatomic) CGSize size;
+@end
+
+@implementation GLInterop
+{
+    const AAPLTextureFormatInfo *_formatInfo;
+    CVPixelBufferRef _CVPixelBuffer;
+    CVMetalTextureRef _CVMTLTexture;
+    CVOpenGLTextureCacheRef _CVGLTextureCache;
+    CVOpenGLTextureRef _CVGLTexture;
+    CGLPixelFormatObj _CGLPixelFormat;
+    // Metal
+    CVMetalTextureCacheRef _CVMTLTextureCache;
+    CGSize _size;
+}
+
+- (nonnull instancetype)initWithVulkanDevice:(VkPhysicalDevice) vkDevice
+                           vkPixelFormat:(VkFormat)vkFormat
+                                       size:(CGSize)size
+{
+    self = [super init];
+    if(self)
+    {
+        _formatInfo = AAPLTextureFormatInfo::findFormat(vkFormat);
+        
+        if(!_formatInfo)
+        {
+            assert(!"Metal Format supplied not supported in this sample");
+            return nil;
+        }
+        
+        _size = size;
+        vk::mvk::vkGetMTLDeviceMVK(vkDevice, &_metalDevice);
+        _openGLContext = [NSOpenGLContext currentContext];
+        _CGLPixelFormat = _openGLContext.pixelFormat.CGLPixelFormatObj;
+        
+        NSDictionary* cvBufferProperties = @{
+                                             (__bridge NSString*)kCVPixelBufferOpenGLCompatibilityKey : @YES,
+                                             (__bridge NSString*)kCVPixelBufferMetalCompatibilityKey : @YES,
+                                             };
+        CVReturn cvret = CVPixelBufferCreate(kCFAllocatorDefault,
+                                             size.width, size.height,
+                                             _formatInfo->cvPixelFormat,
+                                             (__bridge CFDictionaryRef)cvBufferProperties,
+                                             &_CVPixelBuffer);
+        
+        if(cvret != kCVReturnSuccess)
+        {
+            assert(!"Failed to create CVPixelBufferf");
+            return nil;
+        }
+        
+        [self createGLTexture];
+        [self createMetalTexture];
+    }
+    return self;
+}
+
+- (BOOL)createGLTexture
+{
+    CVReturn cvret;
+    // 1. Create an OpenGL CoreVideo texture cache from the pixel buffer.
+    cvret  = CVOpenGLTextureCacheCreate(
+                                        kCFAllocatorDefault,
+                                        nil,
+                                        _openGLContext.CGLContextObj,
+                                        _CGLPixelFormat,
+                                        nil,
+                                        &_CVGLTextureCache);
+    if(cvret != kCVReturnSuccess)
+    {
+        assert(!"Failed to create OpenGL Texture Cache");
+        return NO;
+    }
+    // 2. Create a CVPixelBuffer-backed OpenGL texture image from the texture cache.
+    cvret = CVOpenGLTextureCacheCreateTextureFromImage(
+                                                       kCFAllocatorDefault,
+                                                       _CVGLTextureCache,
+                                                       _CVPixelBuffer,
+                                                       nil,
+                                                       &_CVGLTexture);
+    if(cvret != kCVReturnSuccess)
+    {
+        assert(!"Failed to create OpenGL Texture From Image");
+        return NO;
+    }
+    // 3. Get an OpenGL texture name from the CVPixelBuffer-backed OpenGL texture image.
+    _openGLTexture = CVOpenGLTextureGetName(_CVGLTexture);
+    
+    return YES;
+}
+
+- (BOOL)createMetalTexture
+{
+    CVReturn cvret;
+    // 1. Create a Metal Core Video texture cache from the pixel buffer.
+    cvret = CVMetalTextureCacheCreate(
+                                      kCFAllocatorDefault,
+                                      nil,
+                                      _metalDevice,
+                                      nil,
+                                      &_CVMTLTextureCache);
+    if(cvret != kCVReturnSuccess)
+    {
+        return NO;
+    }
+    // 2. Create a CoreVideo pixel buffer backed Metal texture image from the texture cache.
+    cvret = CVMetalTextureCacheCreateTextureFromImage(
+                                                      kCFAllocatorDefault,
+                                                      _CVMTLTextureCache,
+                                                      _CVPixelBuffer, nil,
+                                                      _formatInfo->mtlFormat,
+                                                      _size.width, _size.height,
+                                                      0,
+                                                      &_CVMTLTexture);
+    if(cvret != kCVReturnSuccess)
+    {
+        assert(!"Failed to create Metal texture cache");
+        return NO;
+    }
+    // 3. Get a Metal texture using the CoreVideo Metal texture reference.
+    _metalTexture = CVMetalTextureGetTexture(_CVMTLTexture);
+    // Get a Metal texture object from the Core Video pixel buffer backed Metal texture image
+    if(!_metalTexture)
+    {
+        assert(!"Failed to get metal texture from CVMetalTextureRef");
+        return NO;
+    };
+    
+    return YES;
+}
+
+@end
+
+namespace vks { namespace gl { namespace impl {
+
 struct SharedTextureImpl : public SharedTexture {
     static void init(const vks::Context& context);
     SharedTextureImpl(const vks::Context& context, const glm::uvec2& size, vk::Format format);
     ~SharedTextureImpl();
     void destroy() override;
-    void createPixelBuffer();
-    void createGLTexture();
-    void createMTLTexture();
-    void createVKImage();
+//    void createPixelBuffer();
+//    void createGLTexture();
+//    void createMTLTexture();
+//    void createVKImage();
 
     const glm::uvec2 _size;
-    const AAPLTextureFormatInfo* _formatInfo;
-    CVOpenGLTextureCacheRef _CVGLTextureCache;
-    CVMetalTextureCacheRef _CVMTLTextureCache;
-    CVPixelBufferRef _CVPixelBuffer;
-    CVMetalTextureRef _CVMTLTexture;
-    CVOpenGLTextureRef _CVGLTexture;
-    id<MTLTexture> _metalTexture{ nil };
     const vks::Context& _vkContext;
-    const NSOpenGLContext* _openGLContext { nullptr };
-    CGLPixelFormatObj _CGLPixelFormat{ nullptr };
-    id<MTLDevice> _metalDevice{ nil };
+    GLInterop* _interopTexture { nullptr };
+//    const AAPLTextureFormatInfo* _formatInfo;
+//    CVOpenGLTextureCacheRef _CVGLTextureCache;
+//    CVMetalTextureCacheRef _CVMTLTextureCache;
+//    CVPixelBufferRef _CVPixelBuffer;
+//    CVMetalTextureRef _CVMTLTexture;
+//    CVOpenGLTextureRef _CVGLTexture;
+//    id<MTLTexture> _metalTexture{ nil };
+//    const NSOpenGLContext* _openGLContext { nullptr };
+//    CGLPixelFormatObj _CGLPixelFormat{ nullptr };
+//    MTLDevice* _metalDevice{ nil };
     static std::once_flag setupFlag;
-    static PFN_vkGetMTLDeviceMVK vkGetMTLDeviceMVK;
     static PFN_vkSetMTLTextureMVK vkSetMTLTextureMVK;
     static PFN_vkGetMTLTextureMVK vkGetMTLTextureMVK;
 };
     
 std::once_flag SharedTextureImpl::setupFlag;
 
-PFN_vkGetMTLDeviceMVK SharedTextureImpl::vkGetMTLDeviceMVK{nullptr};
-PFN_vkSetMTLTextureMVK SharedTextureImpl::vkSetMTLTextureMVK{nullptr};
-PFN_vkGetMTLTextureMVK SharedTextureImpl::vkGetMTLTextureMVK{nullptr};
-
 } } }
 
-
 using namespace vks::gl;
-using namespace vks::gl::impl;
 
 vks::gl::SharedTexture::Pointer vks::gl::SharedTexture::create(const vks::Context& context, const glm::uvec2& size, vk::Format format) {
     using namespace vks::gl::impl;
@@ -140,15 +303,35 @@ vks::gl::SharedTexture::~SharedTexture() {
     assert(!vkImage);
 }
 
+using namespace vks::gl::impl;
+
 void SharedTextureImpl::init(const vks::Context& context) {
-    std::call_once(setupFlag, [&]{
-        // Initialize the function pointers
-        vkGetMTLDeviceMVK = PFN_vkGetMTLDeviceMVK(context.device.getProcAddr("vkGetMTLDeviceMVK"));
-        vkSetMTLTextureMVK = PFN_vkSetMTLTextureMVK(context.device.getProcAddr("vkSetMTLTextureMVK"));
-        vkGetMTLTextureMVK = PFN_vkGetMTLTextureMVK(context.device.getProcAddr("vkGetMTLTextureMVK"));
-    });
+
 }
 
+SharedTextureImpl::SharedTextureImpl(const vks::Context& context, const glm::uvec2& size, vk::Format format)
+    : _size(size)
+    , _vkContext(context) {
+    static std::once_flag once;
+    std::call_once(setupFlag, [&]{
+        vk::mvk::init(context.device);
+    });
+    CGSize cgsize{ (float)size.x, (float)size.y };
+    VkFormat vkFormat = (VkFormat)(format);
+    _interopTexture = [[GLInterop alloc] initWithVulkanDevice:context.physicalDevice
+                                                vkPixelFormat:vkFormat
+                                                         size:cgsize];
+    //createVKImage();
+}
+
+SharedTextureImpl::~SharedTextureImpl() {
+    destroy();
+}
+
+void SharedTextureImpl::destroy() {
+}
+
+#if 0
 void SharedTextureImpl::createPixelBuffer() {
     // Create the CoreVideo pixel buffer
     NSDictionary* cvBufferProperties = @{
@@ -250,31 +433,6 @@ void SharedTextureImpl::createVKImage() {
         vkSetMTLTextureMVK(vkImage, _metalTexture);
     }
 }
-
-SharedTextureImpl::SharedTextureImpl(const vks::Context& context, const glm::uvec2& size, vk::Format format) : _size(size), _formatInfo(AAPLTextureFormatInfo::findFormat(format)), _vkContext(context) {
-    init(context);
-    if(!_formatInfo) {
-        throw std::runtime_error("Metal Format supplied not supported in this sample");
-    }
-    
-    vkGetMTLDeviceMVK(_vkContext.physicalDevice, &_metalDevice);
-    // Hack since the above call crashes when I try to create a CV Metal Texture Cache
-    //_metalDevice = MTLCreateSystemDefaultDevice();
-    //CFRetain(_metalDevice);
-    _openGLContext = [NSOpenGLContext currentContext];
-    _CGLPixelFormat = _openGLContext.pixelFormat.CGLPixelFormatObj;
-
-    createPixelBuffer();
-    createGLTexture();
-    createMTLTexture();
-    createVKImage();
-}
-
-SharedTextureImpl::~SharedTextureImpl() {
-    destroy();
-}
-
-void SharedTextureImpl::destroy() {
-}
+#endif
 
 

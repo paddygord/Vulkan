@@ -235,8 +235,8 @@ class OpenGLInteropExample : public vkx::ExampleBase {
     vk::DispatchLoaderDynamic dynamicLoader;
 
 public:
-    PFN_vkGetMoltenVKConfigurationMVK vkGetMoltenVKConfigurationMVK{ nullptr };
-    PFN_vkSetMoltenVKConfigurationMVK vkSetMoltenVKConfigurationMVK{ nullptr };
+//    PFN_vkGetMoltenVKConfigurationMVK vkGetMoltenVKConfigurationMVK{ nullptr };
+//    PFN_vkSetMoltenVKConfigurationMVK vkSetMoltenVKConfigurationMVK{ nullptr };
 
     TextureGenerator texGenerator;
     vks::gl::SharedTexture::Pointer sharedTexture;
@@ -287,13 +287,13 @@ public:
     }
 
     void buildExportableImage() {
-        vkGetMoltenVKConfigurationMVK = (PFN_vkGetMoltenVKConfigurationMVK)context.device.getProcAddr("vkGetMoltenVKConfigurationMVK");
-        vkSetMoltenVKConfigurationMVK = (PFN_vkSetMoltenVKConfigurationMVK)context.device.getProcAddr("vkSetMoltenVKConfigurationMVK");
+//        vkGetMoltenVKConfigurationMVK = (PFN_vkGetMoltenVKConfigurationMVK)context.device.getProcAddr("vkGetMoltenVKConfigurationMVK");
+ //       vkSetMoltenVKConfigurationMVK = (PFN_vkSetMoltenVKConfigurationMVK)context.device.getProcAddr("vkSetMoltenVKConfigurationMVK");
 
-        MVKConfiguration mvkConfig{};
-        vkGetMoltenVKConfigurationMVK(context.device, &mvkConfig);
-        mvkConfig.synchronousQueueSubmits = VK_TRUE;
-        vkSetMoltenVKConfigurationMVK(context.device, &mvkConfig);
+//        MVKConfiguration mvkConfig{};
+//        vkGetMoltenVKConfigurationMVK(context.device, &mvkConfig);
+//        mvkConfig.synchronousQueueSubmits = VK_TRUE;
+//        vkSetMoltenVKConfigurationMVK(context.device, &mvkConfig);
         dynamicLoader.init(context.instance, device);
         texGenerator.init({ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION });
         sharedTexture = vks::gl::SharedTexture::create(context, { SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION });
