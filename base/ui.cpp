@@ -387,7 +387,6 @@ void UIOverlay::update() {
     }
 
     // Index buffer
-    vk::DeviceSize indexSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
     if (!indexBuffer || (indexCount < imDrawData->TotalIdxCount)) {
         indexCount = imDrawData->TotalIdxCount;
         if (indexBuffer) {

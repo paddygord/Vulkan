@@ -21,15 +21,27 @@
 #ifndef metal_view_h
 #define metal_view_h
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "../vks/context.hpp"
 
-void* CreateMetalView(uint32_t width, uint32_t height);
+void* CreateMetalView(glm::uvec2& size);
 void DestroyMetalView(void* view);
 
-#ifdef __cplusplus
-}
-#endif
+namespace vks { namespace gl {
 
-#endif /* metal_view_h */
+struct SharedTexture {
+    using Pointer = std::shared_ptr<SharedTexture>;
+    uint32_t glTexture{ 0 };
+    vk::Image vkImage;
+    
+    virtual ~SharedTexture();
+    virtual void destroy() = 0;
+
+    static Pointer create(const vks::Context& context, const glm::uvec2& size, vk::Format format = vk::Format::eB8G8R8A8Unorm);
+
+protected:
+    SharedTexture() {}
+};
+
+} }
+
+#endif

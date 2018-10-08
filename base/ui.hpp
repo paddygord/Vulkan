@@ -42,7 +42,6 @@ private:
     vk::DescriptorSetLayout descriptorSetLayout;
     vk::DescriptorSet descriptorSet;
     vk::PipelineLayout pipelineLayout;
-    const vk::PipelineCache& pipelineCache{ context.pipelineCache };
     vk::Pipeline pipeline;
     vk::RenderPass renderPass;
     vk::CommandPool commandPool;

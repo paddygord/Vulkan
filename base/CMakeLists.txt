@@ -24,7 +24,8 @@ set_target_properties(shaders PROPERTIES FOLDER "common")
 file(GLOB_RECURSE COMMON_SOURCE *.c *.cpp *.h *.hpp)
 
 if (APPLE)
-    list(APPEND COMMON_SOURCE macos/metal_view.m)
+    file(GLOB COMMON_SOURCE_OSX macos/*.m macos/*.mm macos/*.h)
+    list(APPEND COMMON_SOURCE ${COMMON_SOURCE_OSX})
 endif()
 
 add_library(${TARGET_NAME} STATIC ${COMMON_SOURCE})

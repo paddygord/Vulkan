@@ -5,10 +5,14 @@
 */
 
 #include <vulkanExampleBase.h>
+
+#if __APPLE__
+
 #include <vks/texture.hpp>
 #include <unordered_map>
-#include <vulkan/
-#if __APPLE__
+#include <macos/macos.h>
+#include <MoltenVK/vk_mvk_moltenvk.h>
+
 
 #define SHOW_GL_WINDOW 1
 
@@ -16,22 +20,6 @@
 #define READY 0
 #define COMPLETE 1
 #define SEMAPHORE_COUNT 2
-
-
-namespace gl { namespace import {
-
-struct Texture {
-    GLuint texture{ 0 };
-    void destroy() {
-        
-    }
-    
-    void import() {
-        
-    }
-};
-
-}}  // namespace gl::import
 
 class TextureGenerator {
 public:
@@ -42,8 +30,6 @@ public:
     }
 
     void init(const glm::uvec2& dimensions) {
-        
-
         if (!glfw::Window::init()) {
             throw std::runtime_error("Could not initialize GLFW");
         }
@@ -65,6 +51,8 @@ public:
 #if !SHOW_GL_WINDOW
         window.showWindow(false);
 #endif
+        
+        
 
         // The remaining initialization code is all standard OpenGL
         glDisable(GL_DEPTH_TEST);
@@ -90,7 +78,6 @@ public:
     void destroy() {
         glBindVertexArray(0);
         glUseProgram(0);
-        texture.destroy();
 
         glDeleteFramebuffers(1, &fbo);
         glDeleteVertexArrays(1, &vao);
@@ -140,8 +127,7 @@ public:
         window.present();
 #endif
     }
-
-    gl::import::Texture texture;
+    
 
 private:
     GLuint fbo = 0;
@@ -249,22 +235,11 @@ class OpenGLInteropExample : public vkx::ExampleBase {
     vk::DispatchLoaderDynamic dynamicLoader;
 
 public:
-    struct SharedResources {
-        vks::Image image;
-        bool dedicated{ false };
-        vk::ImageTiling tiling = vk::ImageTiling::eLinear;
-        vk::Device device;
-
-        void init(const vks::Context& context, const vk::DispatchLoaderDynamic& dynamicLoader) {
-            device = context.device;
-        }
-
-        void destroy() {
-            image.destroy();
-        }
-    } shared;
+    PFN_vkGetMoltenVKConfigurationMVK vkGetMoltenVKConfigurationMVK{ nullptr };
+    PFN_vkSetMoltenVKConfigurationMVK vkSetMoltenVKConfigurationMVK{ nullptr };
 
     TextureGenerator texGenerator;
+    vks::gl::SharedTexture::Pointer sharedTexture;
 
     struct Geometry {
         uint32_t count{ 0 };
@@ -298,8 +273,8 @@ public:
     }
 
     ~OpenGLInteropExample() {
-        shared.destroy();
-
+        sharedTexture.reset();
+        
         device.destroyPipeline(pipelines.solid);
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
@@ -312,13 +287,16 @@ public:
     }
 
     void buildExportableImage() {
+        vkGetMoltenVKConfigurationMVK = (PFN_vkGetMoltenVKConfigurationMVK)context.device.getProcAddr("vkGetMoltenVKConfigurationMVK");
+        vkSetMoltenVKConfigurationMVK = (PFN_vkSetMoltenVKConfigurationMVK)context.device.getProcAddr("vkSetMoltenVKConfigurationMVK");
+
+        MVKConfiguration mvkConfig{};
+        vkGetMoltenVKConfigurationMVK(context.device, &mvkConfig);
+        mvkConfig.synchronousQueueSubmits = VK_TRUE;
+        vkSetMoltenVKConfigurationMVK(context.device, &mvkConfig);
         dynamicLoader.init(context.instance, device);
         texGenerator.init({ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION });
-        shared.init(context, dynamicLoader);
-
-        {
-            texGenerator.texture.import();
-        }
+        sharedTexture = vks::gl::SharedTexture::create(context, { SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION });
 
         {
             vk::ImageCreateInfo imageCreateInfo;
@@ -331,7 +309,6 @@ public:
             imageCreateInfo.extent.height = SHARED_TEXTURE_DIMENSION;
             imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
             texture = context.createImage(imageCreateInfo);
-            vkGetM
         }
 
         {
@@ -363,24 +340,24 @@ public:
     }
 
     void updateCommandBufferPreDraw(const vk::CommandBuffer& cmdBuffer) override {
-//        context.setImageLayout(cmdBuffer, shared.image.image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal);
-//        context.setImageLayout(cmdBuffer, texture.image, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferDstOptimal);
-//        vk::ImageCopy imageCopy{ vk::ImageSubresourceLayers{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-//                                 {},
-//                                 vk::ImageSubresourceLayers{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
-//                                 {},
-//                                 shared.image.extent };
-//        cmdBuffer.copyImage(shared.image.image, vk::ImageLayout::eTransferSrcOptimal, texture.image, vk::ImageLayout::eTransferDstOptimal, imageCopy);
-//        context.setImageLayout(cmdBuffer, texture.image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
-//        context.setImageLayout(cmdBuffer, shared.image.image, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eColorAttachmentOptimal);
+        context.setImageLayout(cmdBuffer, sharedTexture->vkImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal);
+        context.setImageLayout(cmdBuffer, texture.image, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferDstOptimal);
+        vk::ImageCopy imageCopy{ vk::ImageSubresourceLayers{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                                 {},
+                                 vk::ImageSubresourceLayers{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
+                                 {},
+                                 vk::Extent3D{ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, 1} };
+        //cmdBuffer.copyImage(sharedTexture->vkImage, vk::ImageLayout::eTransferSrcOptimal, texture.image, vk::ImageLayout::eTransferDstOptimal, imageCopy);
+        context.setImageLayout(cmdBuffer, texture.image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+        context.setImageLayout(cmdBuffer, sharedTexture->vkImage, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eTransferDstOptimal);
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
-//        cmdBuffer.setViewport(0, vks::util::viewport(size));
-//        cmdBuffer.setScissor(0, vks::util::rect2D(size));
-//        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
+        cmdBuffer.setViewport(0, vks::util::viewport(size));
+        cmdBuffer.setScissor(0, vks::util::rect2D(size));
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
 //        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
-//        vk::DeviceSize offsets = 0;
+        vk::DeviceSize offsets = 0;
 //        cmdBuffer.bindVertexBuffers(0, geometry.vertices.buffer, offsets);
 //        cmdBuffer.bindIndexBuffer(geometry.indices.buffer, 0, vk::IndexType::eUint32);
 //        cmdBuffer.drawIndexed(geometry.count, 1, 0, 0, 0);

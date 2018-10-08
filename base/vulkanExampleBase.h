@@ -78,8 +78,6 @@ public:
     void windowResize(const glm::uvec2& newSize);
 
 private:
-    // Set to true when the debug marker extension is detected
-    bool enableDebugMarkers{ false };
     // fps timer (one second interval)
     float fpsTimer = 0.0f;
     // Get window title with example name, device, et.

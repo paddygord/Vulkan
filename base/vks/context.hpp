@@ -676,6 +676,7 @@ public:
         Buffer result;
         result.device = device;
         result.size = size;
+        result.usageFlags = usageFlags;
         result.descriptor.range = VK_WHOLE_SIZE;
         result.descriptor.offset = 0;
 

@@ -75,14 +75,14 @@ void vkx::pbr::generateBRDFLUT(const vks::Context& context, vks::texture::Textur
         subpassDescription.pColorAttachments = &colorReference;
 
         // Use subpass dependencies for layout transitions
-        std::array<vk::SubpassDependency, 2> dependencies{
+        std::array<vk::SubpassDependency, 2> dependencies{ {
             vk::SubpassDependency{ VK_SUBPASS_EXTERNAL, 0, vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
                                    vk::AccessFlagBits::eMemoryRead, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
                                    vk::DependencyFlagBits::eByRegion },
             vk::SubpassDependency{ 0, VK_SUBPASS_EXTERNAL, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
                                    vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eMemoryRead,
                                    vk::DependencyFlagBits::eByRegion },
-        };
+        }};
 
         // Create the actual renderpass
         vk::RenderPassCreateInfo renderPassCI;
@@ -113,9 +113,6 @@ void vkx::pbr::generateBRDFLUT(const vks::Context& context, vks::texture::Textur
     // Descriptor Pool
     std::vector<vk::DescriptorPoolSize> poolSizes{ { vk::DescriptorType::eCombinedImageSampler, 1 } };
     vk::DescriptorPool descriptorpool = device.createDescriptorPool({ {}, 2, (uint32_t)poolSizes.size(), poolSizes.data() });
-
-    // Descriptor sets
-    vk::DescriptorSet descriptorset = device.allocateDescriptorSets({ descriptorpool, 1, &descriptorsetlayout })[0];
 
     // Pipeline layout
     vk::PipelineLayout pipelinelayout = device.createPipelineLayout({ {}, 1, &descriptorsetlayout });
@@ -237,14 +234,14 @@ void vkx::pbr::generateIrradianceCube(const vks::Context& context,
         vk::SubpassDescription subpassDescription{ {}, vk::PipelineBindPoint::eGraphics, 0, nullptr, 1, &colorReference };
 
         // Use subpass dependencies for layout transitions
-        std::array<vk::SubpassDependency, 2> dependencies{
+        std::array<vk::SubpassDependency, 2> dependencies{{
             vk::SubpassDependency{ VK_SUBPASS_EXTERNAL, 0, vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
                                    vk::AccessFlagBits::eMemoryRead, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
                                    vk::DependencyFlagBits::eByRegion },
             vk::SubpassDependency{ 0, VK_SUBPASS_EXTERNAL, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
                                    vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eMemoryRead,
                                    vk::DependencyFlagBits::eByRegion },
-        };
+        }};
 
         // Renderpass
         vk::RenderPassCreateInfo renderPassCI;
@@ -515,14 +512,14 @@ void vkx::pbr::generatePrefilteredCube(const vks::Context& context,
         subpassDescription.pColorAttachments = &colorReference;
 
         // Use subpass dependencies for layout transitions
-        std::array<vk::SubpassDependency, 2> dependencies{
+        std::array<vk::SubpassDependency, 2> dependencies{{
             vk::SubpassDependency{ VK_SUBPASS_EXTERNAL, 0, vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput,
                                    vk::AccessFlagBits::eMemoryRead, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite,
                                    vk::DependencyFlagBits::eByRegion },
             vk::SubpassDependency{ 0, VK_SUBPASS_EXTERNAL, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe,
                                    vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eMemoryRead,
                                    vk::DependencyFlagBits::eByRegion },
-        };
+        }};
 
         // Renderpass
         renderpass = device.createRenderPass({ {}, 1, &attDesc, 1, &subpassDescription, (uint32_t)dependencies.size(), dependencies.data() });
