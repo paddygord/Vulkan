@@ -6,7 +6,10 @@ vk::ShaderModule vks::shaders::loadShaderModule(const vk::Device& device, const 
     vk::ShaderModule result;
     {
         auto storage = storage::Storage::readFile(filename);
-        result = device.createShaderModule({ {}, storage->size(), (const uint32_t*)storage->data() });
+        vk::ShaderModuleCreateInfo createInfo;
+        createInfo.codeSize = (uint32_t)storage->size();
+        createInfo.pCode = (const uint32_t*)storage->data();
+        result = device.createShaderModule(createInfo);
     }
     return result;
 }

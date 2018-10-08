@@ -112,7 +112,7 @@ void setObjectTag(const vk::Device& device, uint64_t object, vk::DebugReportObje
 }
 
 static std::array<float, 4> toFloatArray(const glm::vec4& color) {
-    return { color.r, color.g, color.b, color.a };
+    return { { color.r, color.g, color.b, color.a } };
 }
 
 void beginRegion(const vk::CommandBuffer& cmdbuffer, const std::string& markerName, const glm::vec4& color) {

@@ -104,6 +104,8 @@ void ExampleBase::initVulkan() {
 
 #if defined(__ANDROID__)
     context.requireExtensions({ VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME });
+#elif (__APPLE__)
+    context.requireExtensions({ VK_KHR_SURFACE_EXTENSION_NAME, VK_MVK_MACOS_SURFACE_EXTENSION_NAME });
 #else
     context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
 #endif

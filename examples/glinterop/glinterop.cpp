@@ -31,6 +31,7 @@ namespace gl { namespace import {
     using HandleType = HANDLE;
 #else
     using HandleType = int;
+#define INVALID_HANDLE_VALUE 0
 #endif
 
 std::set<vk::ImageTiling> getSupportedTiling() {

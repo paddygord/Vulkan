@@ -16,3 +16,8 @@ if (WIN32)
     endif()
 endif()
 
+if (APPLE)
+    set(CMAKE_INSTALL_RPATH /Users/bdavis/VulkanSDK/1.1.85.0/macOS/lib/)
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+endif()
+

@@ -1,5 +1,8 @@
 #include <common.hpp>
 #include <vulkan/vulkan.hpp>
+
+#include <macos/metal_view.h>
+
 #include <vks/version.hpp>
 #include <vector>
 #include <strstream>
@@ -34,6 +37,11 @@ public:
     vks::Version driverVersion;
 
     void createContext() {
+        std::vector<const char*> requiredExtensions;
+        requiredExtensions.push_back("VK_KHR_surface");
+        requiredExtensions.push_back("VK_MVK_macos_surface");
+        requiredExtensions.push_back("VK_EXT_debug_utils");
+        requiredExtensions.push_back("VK_KHR_get_physical_device_properties2");
         {
             // Vulkan instance
             vk::ApplicationInfo appInfo;
@@ -42,6 +50,8 @@ public:
             appInfo.apiVersion = VK_API_VERSION_1_0;
 
             vk::InstanceCreateInfo instanceCreateInfo;
+            instanceCreateInfo.ppEnabledExtensionNames = requiredExtensions.data();
+            instanceCreateInfo.enabledExtensionCount = (uint32_t)requiredExtensions.size();
             instanceCreateInfo.pApplicationInfo = &appInfo;
             instance = vk::createInstance(instanceCreateInfo);
         }
@@ -86,15 +96,61 @@ std::string toHumanSize(size_t size) {
     return buffer.str();
 }
 
+
+static void AppCreateMacOSWindow(void*& window, const glm::uvec2& size = { 256, 256 }) {
+    window = CreateMetalView(size.x, size.y);
+    if (window == NULL) {
+        fprintf(stderr, "Could not create a native Metal view.\nExiting...\n");
+        exit(1);
+    }
+}
+
+//static void AppCreateMacOSSurface(struct AppInstance *inst) {
+//    VkResult err = VK_SUCCESS;
+//    VkMacOSSurfaceCreateInfoMVK surface;
+//    surface.sType = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK;
+//    surface.pNext = NULL;
+//    surface.flags = 0;
+//    surface.pView = inst->window;
+//    err = vkCreateMacOSSurfaceMVK(inst->instance, &surface, NULL, &inst->surface);
+//    assert(!err);
+//}
+
+static void AppDestroyMacOSWindow(void*&window) {
+    DestroyMetalView(window);
+}
+
 class InitContextExample {
     vkx::Context context;
-
+    void* window{ nullptr };
 public:
-    InitContextExample() { context.createContext(); }
+    InitContextExample() {
+        AppCreateMacOSWindow(window);
+        context.createContext();
+    }
 
-    ~InitContextExample() { context.destroyContext(); }
+    ~InitContextExample() {
+        context.destroyContext();
+        AppDestroyMacOSWindow(window);
+    }
 
     void run() {
+//        VkInstance instance;
+//        VkResult result;
+//        VkApplicationInfo appInfo{};
+//        appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 0);
+//        appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+//        appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+//        appInfo.pEngineName = "Engine";
+//        appInfo.pApplicationName = "App";
+//        VkInstanceCreateInfo info = {};
+//        info.pApplicationInfo = &appInfo;
+//
+//        result = vkCreateInstance(&info, NULL, &instance);
+//        std::cout << "vkCreateInstance result: " << result  << "\n";
+        
+//        vkDestroyInstance(instance, nullptr);
+
         std::cout << "Vulkan Context Created" << std::endl;
         std::cout << "API Version:    " << context.version.toString() << std::endl;
         std::cout << "Driver Version: " << context.driverVersion.toString() << std::endl;

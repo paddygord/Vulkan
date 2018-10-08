@@ -185,6 +185,7 @@ public:
     void createInstance(uint32_t version = VK_MAKE_VERSION(1, 1, 0)) {
         if (enableValidation) {
             requireExtensions({ (const char*)VK_EXT_DEBUG_REPORT_EXTENSION_NAME });
+            requireExtensions({ (const char*)VK_EXT_DEBUG_UTILS_EXTENSION_NAME });
         }
 
         // Vulkan instance

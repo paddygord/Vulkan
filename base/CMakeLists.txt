@@ -22,6 +22,11 @@ add_custom_target(shaders SOURCES ${SHADERS} ${COMPILED_SHADERS})
 set_target_properties(shaders PROPERTIES FOLDER "common")
 
 file(GLOB_RECURSE COMMON_SOURCE *.c *.cpp *.h *.hpp)
+
+if (APPLE)
+    list(APPEND COMMON_SOURCE macos/metal_view.m)
+endif()
+
 add_library(${TARGET_NAME} STATIC ${COMMON_SOURCE})
 set_target_properties(${TARGET_NAME} PROPERTIES FOLDER "common")
 add_dependencies(${TARGET_NAME} shaders)

@@ -19,9 +19,9 @@ namespace vks {
 // while the maximum possible patch version is 2048
 struct Version {
     Version()
-        : vulkan_major(0)
+        : vulkan_patch(0)
         , vulkan_minor(0)
-        , vulkan_patch(0) {}
+        , vulkan_major(0) {}
     Version(uint32_t version)
         : Version() {
         *this = version;

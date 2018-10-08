@@ -8,6 +8,7 @@
 
 #include "storage.hpp"
 #include <string>
+#include <fstream>
 
 #if defined(WIN32)
 #include <Windows.h>
@@ -124,18 +125,17 @@ FileStorage::FileStorage(const std::string& filename) {
     file.unsetf(std::ios::skipws);
 
     // get its size:
-    std::streampos fileSize;
-
     file.seekg(0, std::ios::end);
-    fileSize = file.tellg();
+    _size = file.tellg();
     file.seekg(0, std::ios::beg);
 
     // reserve capacity
-    _data.reserve(fileSize);
+    _data.reserve(_size);
 
     // read the data:
-    _data.insert(vec.begin(), std::istream_iterator<uint8_t>(file), std::istream_iterator<uint8_t>());
+    _data.insert(_data.begin(), std::istream_iterator<uint8_t>(file), std::istream_iterator<uint8_t>());
     file.close();
+    _mapped = _data.data();
 #endif
 }
 

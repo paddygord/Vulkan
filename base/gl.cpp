@@ -3,6 +3,7 @@
 #if !defined(__ANDROID__)
 #include <mutex>
 
+#if defined(WIN32)
 typedef PROC(APIENTRYP PFNWGLGETPROCADDRESS)(LPCSTR);
 PFNWGLGETPROCADDRESS glad_wglGetProcAddress;
 #define wglGetProcAddress glad_wglGetProcAddress
@@ -24,6 +25,7 @@ static void* getGlProcessAddress(const char* namez) {
     }
     return (void*)result;
 }
+#endif
 
 void gl::init() {
     static std::once_flag once;
@@ -106,7 +108,9 @@ static void debugMessageCallback(GLenum source, GLenum type, GLuint id, GLenum s
 }
 
 void gl::setupDebugLogging() {
-    glDebugMessageCallback(debugMessageCallback, NULL);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+    if (glDebugMessageCallback) {
+        glDebugMessageCallback(debugMessageCallback, NULL);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+    }
 }
 #endif
