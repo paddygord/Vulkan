@@ -1,7 +1,4 @@
 /*
- * Copyright (c) 2018 The Khronos Group Inc.
- * Copyright (c) 2018 Valve Corporation
- * Copyright (c) 2018 LunarG, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +12,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Author: Jeremy Kniager <jeremyk@lunarg.com>
+ * Based on code from the Apple Metal/OpenGL interop example:
+ * https://developer.apple.com/documentation/metal/mixing_metal_and_opengl_rendering_in_a_view
+ *
  */
 
-#ifndef metal_view_h
-#define metal_view_h
+#ifndef vks_macos_h
+#define vks_macos_h
 
 #include <vulkan/vulkan.h>
-
-void* CreateMetalView(uint32_t width, uint32_t height);
-void DestroyMetalView(void* view);
 
 void InitSharedTextures(VkInstance instance, VkPhysicalDevice vkPhysicalDevice);
 void* CreateSharedTexture(VkDevice vkDevice, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_B8G8R8A8_UNORM);

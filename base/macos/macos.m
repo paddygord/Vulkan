@@ -1,7 +1,4 @@
 /*
- * Copyright (c) 2018 The Khronos Group Inc.
- * Copyright (c) 2018 Valve Corporation
- * Copyright (c) 2018 LunarG, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +12,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Author: Jeremy Kniager <jeremyk@lunarg.com>
+ * Based on code from the Apple Metal/OpenGL interop example:
+ * https://developer.apple.com/documentation/metal/mixing_metal_and_opengl_rendering_in_a_view
+ *
  */
 
 #include "macos.h"
@@ -26,32 +25,7 @@
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <CoreVideo/CoreVideo.h>
-
-#include <MoltenVK/vk_mvk_moltenvk.h>
-
-@interface NativeMetalView : NSView
-@end
-
-@implementation NativeMetalView
-- (id)initWithFrame:(NSRect) frame {
-    if(self = [super initWithFrame: frame]){
-        self.wantsLayer = YES;
-    }
-    return self;
-}
-
-- (CALayer*)makeBackingLayer {
-    return [CAMetalLayer layer];
-}
-@end
-
-void* CreateMetalView(uint32_t width, uint32_t height) {
-    return [[NativeMetalView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
-}
-
-void DestroyMetalView(void* view) {
-    [(NativeMetalView*)view dealloc];
-}
+#import <MoltenVK/vk_mvk_moltenvk.h>
 
 static PFN_vkGetMTLDeviceMVK lvkGetMTLDeviceMVK = nullptr;
 static PFN_vkSetMTLTextureMVK lvkSetMTLTextureMVK = nullptr;
@@ -129,6 +103,8 @@ static const AAPLTextureFormatInfo*const findFormat(VkFormat format) {
     self = [super init];
     if(self)
     {
+        _width = width;
+        _height = height;
         _vkDevice = vkDevice;
         _formatInfo = findFormat(vkFormat);
         if(!_formatInfo)
@@ -137,9 +113,8 @@ static const AAPLTextureFormatInfo*const findFormat(VkFormat format) {
             return nil;
         }
         
-        _width = width;
-        _height = height;
-        _size = { (float)width, (float)height };
+
+        _size = { (float)_width, (float)_height };
         _GLContext = [NSOpenGLContext currentContext];
         _CGLPixelFormat = _GLContext.pixelFormat.CGLPixelFormatObj;
         
@@ -148,7 +123,7 @@ static const AAPLTextureFormatInfo*const findFormat(VkFormat format) {
                                              (__bridge NSString*)kCVPixelBufferMetalCompatibilityKey : @YES,
                                              };
         CVReturn cvret = CVPixelBufferCreate(kCFAllocatorDefault,
-                                             width, height,
+                                             _width, _height,
                                              _formatInfo->cvPixelFormat,
                                              (__bridge CFDictionaryRef)cvBufferProperties,
                                              &_CVPixelBuffer);
