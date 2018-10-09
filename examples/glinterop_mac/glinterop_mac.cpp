@@ -87,16 +87,20 @@ public:
         window.destroyWindow();
     }
 
-    void render(const glm::uvec2& dimensions) {
+    void render(const glm::uvec2& dimensions, GLuint targetTexture) {
         // Basic GL rendering code to render animated noise to a texture
         auto time = (float)(glfwGetTime() - startTime);
         glUseProgram(program);
         glProgramUniform1f(program, locations.time, time);
         glProgramUniform3f(program, locations.rez, (float)dimensions.x, (float)dimensions.y, 0.0f);
-//        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
         glViewport(0, 0, dimensions.x, dimensions.y);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-//        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, targetTexture, 0);
+        glBlitFramebuffer(0, 0, dimensions.x, dimensions.y, 0, 0, dimensions.x, dimensions.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, 0, 0);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
 
         // Wait (on the GPU side) for the Vulkan semaphore to be signaled
@@ -286,10 +290,10 @@ public:
         device.freeMemory(uniformDataVS.memory);
     }
 
+    
     void buildExportableImage() {
 //        vkGetMoltenVKConfigurationMVK = (PFN_vkGetMoltenVKConfigurationMVK)context.device.getProcAddr("vkGetMoltenVKConfigurationMVK");
- //       vkSetMoltenVKConfigurationMVK = (PFN_vkSetMoltenVKConfigurationMVK)context.device.getProcAddr("vkSetMoltenVKConfigurationMVK");
-
+//        vkSetMoltenVKConfigurationMVK = (PFN_vkSetMoltenVKConfigurationMVK)context.device.getProcAddr("vkSetMoltenVKConfigurationMVK");
 //        MVKConfiguration mvkConfig{};
 //        vkGetMoltenVKConfigurationMVK(context.device, &mvkConfig);
 //        mvkConfig.synchronousQueueSubmits = VK_TRUE;
@@ -297,11 +301,11 @@ public:
         dynamicLoader.init(context.instance, device);
         texGenerator.init({ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION });
         sharedTexture = vks::gl::SharedTexture::create(context, { SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION });
-
+        
         {
             vk::ImageCreateInfo imageCreateInfo;
             imageCreateInfo.imageType = vk::ImageType::e2D;
-            imageCreateInfo.format = vk::Format::eR8G8B8A8Unorm;
+            imageCreateInfo.format = vk::Format::eB8G8R8A8Unorm;
             imageCreateInfo.mipLevels = 1;
             imageCreateInfo.arrayLayers = 1;
             imageCreateInfo.extent.depth = 1;
@@ -338,7 +342,7 @@ public:
 
         context.setImageLayout(texture.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
     }
-
+    
     void updateCommandBufferPreDraw(const vk::CommandBuffer& cmdBuffer) override {
         context.setImageLayout(cmdBuffer, sharedTexture->vkImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal);
         context.setImageLayout(cmdBuffer, texture.image, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferDstOptimal);
@@ -347,7 +351,7 @@ public:
                                  vk::ImageSubresourceLayers{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
                                  {},
                                  vk::Extent3D{ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, 1} };
-        //cmdBuffer.copyImage(sharedTexture->vkImage, vk::ImageLayout::eTransferSrcOptimal, texture.image, vk::ImageLayout::eTransferDstOptimal, imageCopy);
+        cmdBuffer.copyImage(sharedTexture->vkImage, vk::ImageLayout::eTransferSrcOptimal, texture.image, vk::ImageLayout::eTransferDstOptimal, imageCopy);
         context.setImageLayout(cmdBuffer, texture.image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
         context.setImageLayout(cmdBuffer, sharedTexture->vkImage, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eTransferDstOptimal);
     }
@@ -356,11 +360,11 @@ public:
         cmdBuffer.setViewport(0, vks::util::viewport(size));
         cmdBuffer.setScissor(0, vks::util::rect2D(size));
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, nullptr);
-//        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
+        cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.solid);
         vk::DeviceSize offsets = 0;
-//        cmdBuffer.bindVertexBuffers(0, geometry.vertices.buffer, offsets);
-//        cmdBuffer.bindIndexBuffer(geometry.indices.buffer, 0, vk::IndexType::eUint32);
-//        cmdBuffer.drawIndexed(geometry.count, 1, 0, 0, 0);
+        cmdBuffer.bindVertexBuffers(0, geometry.vertices.buffer, offsets);
+        cmdBuffer.bindIndexBuffer(geometry.indices.buffer, 0, vk::IndexType::eUint32);
+        cmdBuffer.drawIndexed(geometry.count, 1, 0, 0, 0);
     }
 
     void generateQuad() {
@@ -455,12 +459,14 @@ public:
         setupDescriptorSet();
         buildCommandBuffers();
         prepared = true;
+        usleep(500 * 1000);
+        
     }
 
     void viewChanged() override { updateUniformBuffers(); }
 
     void draw() override {
-        texGenerator.render({ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION });
+        texGenerator.render({ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION }, sharedTexture->glTexture);
 
         prepareFrame();
         drawCurrentCommandBuffer();
