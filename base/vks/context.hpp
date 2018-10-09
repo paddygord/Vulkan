@@ -24,7 +24,7 @@ namespace vks {
 using StringList = std::list<std::string>;
 using CStringVector = std::vector<const char*>;
 
-using DevicePickerFunction = std::function<vk::PhysicalDevice(const std::vector<vk::PhysicalDevice>&)>;
+using DevicePickerFunction = std::function<vk::PhysicalDevice(const vk::Instance&, const std::vector<vk::PhysicalDevice>&)>;
 using DeviceFeaturesPickerFunction = std::function<void(const vk::PhysicalDevice&, vk::PhysicalDeviceFeatures2&)>;
 using DeviceExtensionsPickerFunction = std::function<std::set<std::string>(const vk::PhysicalDevice&)>;
 using InstanceExtensionsPickerFunction = std::function<std::set<std::string>()>;
@@ -434,7 +434,9 @@ protected:
         // This example will always use the first physical device reported,
         // change the vector index if you have multiple Vulkan devices installed
         // and want to use another one
-        physicalDevice = devicePicker(physicalDevices);
+        physicalDevice = devicePicker(instance, physicalDevices);
+
+        
         struct Version {
             uint32_t patch : 12;
             uint32_t minor : 10;
@@ -884,7 +886,7 @@ private:
     std::set<std::string> requiredExtensions;
     std::set<std::string> requiredDeviceExtensions;
 
-    DevicePickerFunction devicePicker = [](const std::vector<vk::PhysicalDevice>& devices) -> vk::PhysicalDevice { return devices[0]; };
+    DevicePickerFunction devicePicker = [](const vk::Instance&, const std::vector<vk::PhysicalDevice>& devices) -> vk::PhysicalDevice { return devices[0]; };
     DeviceFeaturesPickerFunction deviceFeaturesPicker = [](const vk::PhysicalDevice& device, vk::PhysicalDeviceFeatures2& features) {};
     DeviceExtensionsPickerFunction deviceExtensionsPicker = [](const vk::PhysicalDevice& device) -> std::set<std::string> { return {}; };
 

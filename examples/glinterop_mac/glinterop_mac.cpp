@@ -11,8 +11,6 @@
 #include <vks/texture.hpp>
 #include <unordered_map>
 #include <macos/macos.h>
-#include <MoltenVK/vk_mvk_moltenvk.h>
-
 
 #define SHOW_GL_WINDOW 1
 
@@ -42,6 +40,7 @@ public:
 
         // Window doesn't need to be large, it only exists to give us a GL context
         window.createWindow(dimensions);
+        window.setTitle("OpenGL 4.1");
         window.makeCurrent();
 
         startTime = glfwGetTime();
@@ -96,39 +95,17 @@ public:
         glViewport(0, 0, dimensions.x, dimensions.y);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
+        // Blit from the draw framebuffer to the shared surface
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, targetTexture, 0);
         glBlitFramebuffer(0, 0, dimensions.x, dimensions.y, 0, 0, dimensions.x, dimensions.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, 0, 0);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
-
-        // Wait (on the GPU side) for the Vulkan semaphore to be signaled
-        // Tell OpenGL what Vulkan layout to expect the image to be in at
-        // signal time, so that it can internally transition to the appropriate
-        // GL state
-        //semaphores[READY].wait(nullptr, texture, GL_LAYOUT_COLOR_ATTACHMENT_EXT);
-        // Once the semaphore is signaled, copy the GL texture to the shared texture
-        // glCopyImageSubData(color, GL_TEXTURE_2D, 0, 0, 0, 0, texture.texture, GL_TEXTURE_2D, 0, 0, 0, 0, dimensions.x, dimensions.y, 1);
-        // Once the copy is complete, signal Vulkan that the image can be used again
-        //semaphores[COMPLETE].signal(nullptr, texture, GL_LAYOUT_COLOR_ATTACHMENT_EXT);
-
-        // When using synchronization across multiple GL context, or in this case
-        // across OpenGL and another API, it's critical that an operation on a
-        // synchronization object that will be waited on in another context or API
-        // is flushed to the GL server.
-        //
-        // Failure to flush the operation can cause the GL driver to sit and wait for
-        // sufficient additional commands in the buffer before it flushes automatically
-        // but depending on how the waits and signals are structured, this may never
-        // occur.
-        glFlush();
-
 #if SHOW_GL_WINDOW
-//        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-//        glBlitFramebuffer(0, 0, dimensions.x, dimensions.y, 0, 0, dimensions.x, dimensions.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-//        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
         window.present();
+#else
+        glFlush();
 #endif
     }
     
@@ -230,20 +207,20 @@ struct Vertex {
     float normal[3];
 };
 
+// If set then we will blit from the shared texture to a normal Vulkan texture and draw using the latter
+// Otherwise we will
+#define USE_SEPARATE_VK_DRAW_TEXTURE
+
+
 // The bulk of this example is the same as the existing texture example.
 // However, instead of loading a texture from a file, it relies on an OpenGL
 // shader to populate the texture.
 class OpenGLInteropExample : public vkx::ExampleBase {
     using Parent = ExampleBase;
     static const uint32_t SHARED_TEXTURE_DIMENSION = 256;
-    vk::DispatchLoaderDynamic dynamicLoader;
 
 public:
-//    PFN_vkGetMoltenVKConfigurationMVK vkGetMoltenVKConfigurationMVK{ nullptr };
-//    PFN_vkSetMoltenVKConfigurationMVK vkSetMoltenVKConfigurationMVK{ nullptr };
-
     TextureGenerator texGenerator;
-    vks::gl::SharedTexture::Pointer sharedTexture;
 
     struct Geometry {
         uint32_t count{ 0 };
@@ -264,6 +241,10 @@ public:
         vk::Pipeline solid;
     } pipelines;
 
+    void* sharedTexture{ nullptr };
+    vk::Image sharedVkImage;
+    uint32_t sharedGlTexture{ 0 };
+    
     vks::Image texture;
     vk::PipelineLayout pipelineLayout;
     vk::DescriptorSet descriptorSet;
@@ -274,11 +255,12 @@ public:
         camera.setRotation({ 0.0f, 15.0f, 0.0f });
         camera.dolly(-2.5f);
         title = "Vulkan Example - Texturing";
+//        context.setDevicePicker(vks::mvk::getMoltenVKDevicePicker());
     }
 
     ~OpenGLInteropExample() {
-        sharedTexture.reset();
-        
+        DestroySharedTexture(sharedTexture);
+        sharedTexture= nullptr;
         device.destroyPipeline(pipelines.solid);
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyDescriptorSetLayout(descriptorSetLayout);
@@ -289,19 +271,19 @@ public:
         device.destroyBuffer(uniformDataVS.buffer);
         device.freeMemory(uniformDataVS.memory);
     }
-
     
+
     void buildExportableImage() {
-//        vkGetMoltenVKConfigurationMVK = (PFN_vkGetMoltenVKConfigurationMVK)context.device.getProcAddr("vkGetMoltenVKConfigurationMVK");
-//        vkSetMoltenVKConfigurationMVK = (PFN_vkSetMoltenVKConfigurationMVK)context.device.getProcAddr("vkSetMoltenVKConfigurationMVK");
-//        MVKConfiguration mvkConfig{};
-//        vkGetMoltenVKConfigurationMVK(context.device, &mvkConfig);
-//        mvkConfig.synchronousQueueSubmits = VK_TRUE;
-//        vkSetMoltenVKConfigurationMVK(context.device, &mvkConfig);
-        dynamicLoader.init(context.instance, device);
+        std::cout << context.deviceProperties.deviceName << std::endl;
         texGenerator.init({ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION });
-        sharedTexture = vks::gl::SharedTexture::create(context, { SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION });
+        InitSharedTextures(context.instance, context.physicalDevice);
+        sharedTexture = CreateSharedTexture(context.device, SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, VK_FORMAT_B8G8R8A8_UNORM);
+        sharedVkImage = GetSharedVkImage(sharedTexture);
+        sharedGlTexture = GetSharedGLTexture(sharedTexture);
         
+
+        
+#ifdef USE_SEPARATE_VK_DRAW_TEXTURE
         {
             vk::ImageCreateInfo imageCreateInfo;
             imageCreateInfo.imageType = vk::ImageType::e2D;
@@ -314,7 +296,11 @@ public:
             imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
             texture = context.createImage(imageCreateInfo);
         }
-
+#else
+        texture.image = sharedVkImage;
+        texture.format = vk::Format::eB8G8R8A8Unorm;
+#endif
+        
         {
             // Create sampler
             vk::SamplerCreateInfo samplerCreateInfo;
@@ -344,16 +330,18 @@ public:
     }
     
     void updateCommandBufferPreDraw(const vk::CommandBuffer& cmdBuffer) override {
-        context.setImageLayout(cmdBuffer, sharedTexture->vkImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal);
+#ifdef USE_SEPARATE_VK_DRAW_TEXTURE
+        context.setImageLayout(cmdBuffer, sharedVkImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal);
         context.setImageLayout(cmdBuffer, texture.image, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferDstOptimal);
         vk::ImageCopy imageCopy{ vk::ImageSubresourceLayers{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
                                  {},
                                  vk::ImageSubresourceLayers{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 },
                                  {},
                                  vk::Extent3D{ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, 1} };
-        cmdBuffer.copyImage(sharedTexture->vkImage, vk::ImageLayout::eTransferSrcOptimal, texture.image, vk::ImageLayout::eTransferDstOptimal, imageCopy);
+        cmdBuffer.copyImage(sharedVkImage, vk::ImageLayout::eTransferSrcOptimal, texture.image, vk::ImageLayout::eTransferDstOptimal, imageCopy);
         context.setImageLayout(cmdBuffer, texture.image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
-        context.setImageLayout(cmdBuffer, sharedTexture->vkImage, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eTransferDstOptimal);
+        context.setImageLayout(cmdBuffer, sharedVkImage, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eTransferDstOptimal);
+#endif
     }
 
     void updateDrawCommandBuffer(const vk::CommandBuffer& cmdBuffer) override {
@@ -458,15 +446,13 @@ public:
         setupDescriptorPool();
         setupDescriptorSet();
         buildCommandBuffers();
-        prepared = true;
-        usleep(500 * 1000);
-        
+        prepared = true;        
     }
 
     void viewChanged() override { updateUniformBuffers(); }
 
     void draw() override {
-        texGenerator.render({ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION }, sharedTexture->glTexture);
+        texGenerator.render({ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION }, sharedGlTexture);
 
         prepareFrame();
         drawCurrentCommandBuffer();

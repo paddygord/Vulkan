@@ -21,27 +21,15 @@
 #ifndef metal_view_h
 #define metal_view_h
 
-#include "../vks/context.hpp"
+#include <vulkan/vulkan.h>
 
-void* CreateMetalView(glm::uvec2& size);
+void* CreateMetalView(uint32_t width, uint32_t height);
 void DestroyMetalView(void* view);
 
-namespace vks { namespace gl {
-
-struct SharedTexture {
-    using Pointer = std::shared_ptr<SharedTexture>;
-    uint32_t glTexture{ 0 };
-    vk::Image vkImage;
-    
-    virtual ~SharedTexture();
-    virtual void destroy() = 0;
-
-    static Pointer create(const vks::Context& context, const glm::uvec2& size, vk::Format format = vk::Format::eB8G8R8A8Unorm);
-
-protected:
-    SharedTexture() {}
-};
-
-} }
+void InitSharedTextures(VkInstance instance, VkPhysicalDevice vkPhysicalDevice);
+void* CreateSharedTexture(VkDevice vkDevice, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_B8G8R8A8_UNORM);
+uint32_t GetSharedGLTexture(void* sharedTexture);
+VkImage GetSharedVkImage(void* sharedTexture);
+void DestroySharedTexture(void* sharedTexture);
 
 #endif
