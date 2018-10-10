@@ -55,6 +55,8 @@ public:
         }
     }
 
+    void setSize(const glm::uvec2& size) { glfwSetWindowSize(window, size.x, size.y); }
+
     void setTitle(const std::string& title) { glfwSetWindowTitle(window, title.c_str()); }
 
     void setSizeLimits(const glm::uvec2& minSize, const glm::uvec2& maxSize = {}) {

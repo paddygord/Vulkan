@@ -10,6 +10,7 @@
 
 #include <vks/texture.hpp>
 #include <unordered_map>
+#include <glExampleRenderer.hpp>
 #include <macos/macos.h>
 
 #define SHOW_GL_WINDOW 1
@@ -18,187 +19,6 @@
 #define READY 0
 #define COMPLETE 1
 #define SEMAPHORE_COUNT 2
-
-class TextureGenerator {
-public:
-    static const std::string VERTEX_SHADER;
-    static const std::string FRAGMENT_SHADER;
-    static void glfwErrorCallback(int, const char* message) {
-        std::cerr << message << std::endl;
-    }
-
-    void init(const glm::uvec2& dimensions) {
-        if (!glfw::Window::init()) {
-            throw std::runtime_error("Could not initialize GLFW");
-        }
-        glfwSetErrorCallback(glfwErrorCallback);
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-
-        // Window doesn't need to be large, it only exists to give us a GL context
-        window.createWindow(dimensions);
-        window.setTitle("OpenGL 4.1");
-        window.makeCurrent();
-
-        startTime = glfwGetTime();
-
-        gl::init();
-        gl::setupDebugLogging();
-#if !SHOW_GL_WINDOW
-        window.showWindow(false);
-#endif
-        
-        
-
-        // The remaining initialization code is all standard OpenGL
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_SCISSOR_TEST);
-        glGenFramebuffers(1, &fbo);
-
-        glGenTextures(1, &color);
-        glBindTexture(GL_TEXTURE_2D, color);
-        glTexStorage2D(GL_TEXTURE_RECTANGLE, 1, GL_RGBA8, dimensions.x, dimensions.y);
-
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
-        glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, color, 0);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        
-        glGenVertexArrays(1, &vao);
-        glBindVertexArray(vao);
-        program = gl::buildProgram(VERTEX_SHADER, FRAGMENT_SHADER);
-        locations.rez = glGetUniformLocation(program, "iResolution");
-        locations.time = glGetUniformLocation(program, "iTime");
-        
-    }
-
-    void destroy() {
-        glBindVertexArray(0);
-        glUseProgram(0);
-
-        glDeleteFramebuffers(1, &fbo);
-        glDeleteVertexArrays(1, &vao);
-        glDeleteProgram(program);
-        glFlush();
-        glFinish();
-        window.destroyWindow();
-    }
-
-    void render(const glm::uvec2& dimensions, GLuint targetTexture) {
-        // Basic GL rendering code to render animated noise to a texture
-        auto time = (float)(glfwGetTime() - startTime);
-        glUseProgram(program);
-        glProgramUniform1f(program, locations.time, time);
-        glProgramUniform3f(program, locations.rez, (float)dimensions.x, (float)dimensions.y, 0.0f);
-        glViewport(0, 0, dimensions.x, dimensions.y);
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-        // Blit from the draw framebuffer to the shared surface
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, targetTexture, 0);
-        glBlitFramebuffer(0, 0, dimensions.x, dimensions.y, 0, 0, dimensions.x, dimensions.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, 0, 0);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-
-#if SHOW_GL_WINDOW
-        window.present();
-#else
-        glFlush();
-#endif
-    }
-    
-
-private:
-    GLuint fbo = 0;
-    GLuint color = 0;
-    GLuint vao = 0;
-    GLuint program = 0;
-    struct Locations {
-        GLint rez{ -1 };
-        GLint time{ -1 };
-    } locations;
-    double startTime;
-    glfw::Window window;
-};
-
-const std::string TextureGenerator::VERTEX_SHADER = R"SHADER(
-#version 410 core
-
-const vec4 VERTICES[] = vec4[](
-    vec4(-1.0, -1.0, 0.0, 1.0), 
-    vec4( 1.0, -1.0, 0.0, 1.0),    
-    vec4(-1.0,  1.0, 0.0, 1.0),
-    vec4( 1.0,  1.0, 0.0, 1.0)
-);   
-
-void main() { gl_Position = VERTICES[gl_VertexID]; }
-
-)SHADER";
-
-const std::string TextureGenerator::FRAGMENT_SHADER = R"SHADER(
-#version 410 core
-
-const vec4 iMouse = vec4(0.0); 
-
-layout(location = 0) out vec4 outColor;
-
-uniform vec3 iResolution;
-uniform float iTime;
-
-vec3 hash3( vec2 p )
-{
-    vec3 q = vec3( dot(p,vec2(127.1,311.7)), 
-                   dot(p,vec2(269.5,183.3)), 
-                   dot(p,vec2(419.2,371.9)) );
-    return fract(sin(q)*43758.5453);
-}
-
-float iqnoise( in vec2 x, float u, float v )
-{
-    vec2 p = floor(x);
-    vec2 f = fract(x);
-        
-    float k = 1.0+63.0*pow(1.0-v,4.0);
-    
-    float va = 0.0;
-    float wt = 0.0;
-    for( int j=-2; j<=2; j++ )
-    for( int i=-2; i<=2; i++ )
-    {
-        vec2 g = vec2( float(i),float(j) );
-        vec3 o = hash3( p + g )*vec3(u,u,1.0);
-        vec2 r = g - f + o.xy;
-        float d = dot(r,r);
-        float ww = pow( 1.0-smoothstep(0.0,1.414,sqrt(d)), k );
-        va += o.z*ww;
-        wt += ww;
-    }
-    
-    return va/wt;
-}
-
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
-{
-    vec2 uv = fragCoord.xy / iResolution.xx;
-
-    vec2 p = 0.5 - 0.5*sin( iTime*vec2(1.01,1.71) );
-    
-    if( iMouse.w>0.001 ) p = vec2(0.0,1.0) + vec2(1.0,-1.0)*iMouse.xy/iResolution.xy;
-    
-    p = p*p*(3.0-2.0*p);
-    p = p*p*(3.0-2.0*p);
-    p = p*p*(3.0-2.0*p);
-    
-    float f = iqnoise( 24.0*uv, p.x, p.y );
-    
-    fragColor = vec4( f, f, f, 1.0 );
-}
-
-void main() { mainImage(outColor, gl_FragCoord.xy); }
-
-)SHADER";
 
 // Vertex layout for this example
 struct Vertex {
@@ -220,7 +40,7 @@ class OpenGLInteropExample : public vkx::ExampleBase {
     static const uint32_t SHARED_TEXTURE_DIMENSION = 256;
 
 public:
-    TextureGenerator texGenerator;
+    gl::TextureGenerator texGenerator;
 
     struct Geometry {
         uint32_t count{ 0 };
@@ -275,7 +95,7 @@ public:
 
     void buildExportableImage() {
         std::cout << context.deviceProperties.deviceName << std::endl;
-        texGenerator.init({ SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION });
+        texGenerator.create();
         InitSharedTextures(context.instance, context.physicalDevice);
         sharedTexture = CreateSharedTexture(context.device, SHARED_TEXTURE_DIMENSION, SHARED_TEXTURE_DIMENSION, VK_FORMAT_B8G8R8A8_UNORM);
         sharedVkImage = GetSharedVkImage(sharedTexture);
