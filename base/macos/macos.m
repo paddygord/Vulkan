@@ -63,10 +63,10 @@ struct AAPLTextureFormatInfo {
 static const AAPLTextureFormatInfo AAPLInteropFormatTable[] =
 {
     // Core Video Pixel Format,               Metal Pixel Format,            Vulkan Format                        GL internalformat, GL format,   GL type
-    { kCVPixelFormatType_32BGRA,              MTLPixelFormatBGRA8Unorm,      VK_FORMAT_B8G8R8A8_UNORM,            GL_RGBA,           GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV },
-//    { kCVPixelFormatType_ARGB2101010LEPacked, MTLPixelFormatBGR10A2Unorm,    vk::Format::eA2R10G10B10UnormPack32,   GL_RGB10_A2,       GL_BGRA,     GL_UNSIGNED_INT_2_10_10_10_REV },
-//    { kCVPixelFormatType_32BGRA,              MTLPixelFormatBGRA8Unorm_sRGB, vk::Format::eA8B8G8R8SrgbPack32,       0,                 GL_BGRA,     GL_UNSIGNED_INT_8_8_8_8_REV },
-//    { kCVPixelFormatType_64RGBAHalf,          MTLPixelFormatRGBA16Float,     vk::Format::eR16G16B16A16Sfloat,       0,                 GL_RGBA,     GL_HALF_FLOAT },
+    { kCVPixelFormatType_32BGRA,              MTLPixelFormatBGRA8Unorm,      VK_FORMAT_B8G8R8A8_UNORM,            GL_RGBA,           GL_BGRA,     GL_UNSIGNED_INT_8_8_8_8_REV },
+    { kCVPixelFormatType_ARGB2101010LEPacked, MTLPixelFormatBGR10A2Unorm,    VK_FORMAT_A2R10G10B10_UNORM_PACK32,  GL_RGB10_A2,       GL_BGRA,     GL_UNSIGNED_INT_2_10_10_10_REV },
+    { kCVPixelFormatType_32BGRA,              MTLPixelFormatBGRA8Unorm_sRGB, VK_FORMAT_A8B8G8R8_SRGB_PACK32,      GL_SRGB8_ALPHA8,   GL_BGRA,     GL_UNSIGNED_INT_8_8_8_8_REV },
+    { kCVPixelFormatType_64RGBAHalf,          MTLPixelFormatRGBA16Float,     VK_FORMAT_R16G16B16A16_SFLOAT,       GL_RGBA,           GL_RGBA,     GL_HALF_FLOAT },
 };
 
 static const AAPLTextureFormatInfo*const findFormat(VkFormat format) {
