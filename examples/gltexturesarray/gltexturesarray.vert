@@ -1,4 +1,4 @@
-#version 450 core
+#version 410 core
 
 const vec4 VERTICES[] = vec4[](  //
     vec4(-1.0, -1.0, 0.0, 1.0),

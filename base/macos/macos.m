@@ -27,9 +27,9 @@
 #import <CoreVideo/CoreVideo.h>
 #import <MoltenVK/vk_mvk_moltenvk.h>
 
-static PFN_vkGetMTLDeviceMVK lvkGetMTLDeviceMVK = nullptr;
-static PFN_vkSetMTLTextureMVK lvkSetMTLTextureMVK = nullptr;
-static id<MTLDevice> _MTLDevice{ nil };
+static PFN_vkGetMTLDeviceMVK lvkGetMTLDeviceMVK = NULL;
+static PFN_vkSetMTLTextureMVK lvkSetMTLTextureMVK = NULL;
+static id<MTLDevice> _MTLDevice = nil;
 
 void InitSharedTextures(VkInstance instance, VkPhysicalDevice device) {
     if (!lvkGetMTLDeviceMVK) {
@@ -50,14 +50,14 @@ void InitSharedTextures(VkInstance instance, VkPhysicalDevice device) {
 @property (readonly, nonatomic) uint32_t width;
 @end
 
-struct AAPLTextureFormatInfo {
+typedef struct {
     int                 cvPixelFormat;
     MTLPixelFormat      mtlFormat;
     VkFormat            vkFormat;
     GLuint              glInternalFormat;
     GLuint              glFormat;
     GLuint              glType;
-};
+} AAPLTextureFormatInfo;
 
 // Table of equivalent formats across CoreVideo, Metal, Vulkan and OpenGL
 static const AAPLTextureFormatInfo AAPLInteropFormatTable[] =
@@ -76,7 +76,7 @@ static const AAPLTextureFormatInfo*const findFormat(VkFormat format) {
             return &AAPLInteropFormatTable[i];
         }
     }
-    return nullptr;
+    return NULL;
 }
 
 
@@ -114,7 +114,8 @@ static const AAPLTextureFormatInfo*const findFormat(VkFormat format) {
         }
         
 
-        _size = { (float)_width, (float)_height };
+        _size.width = (float)_width;
+        _size.height = (float)_height;
         _GLContext = [NSOpenGLContext currentContext];
         _CGLPixelFormat = _GLContext.pixelFormat.CGLPixelFormatObj;
         
@@ -219,9 +220,9 @@ static const AAPLTextureFormatInfo*const findFormat(VkFormat format) {
 
 - (BOOL)createVkImage
 {
-    VkImageCreateInfo imageCreateInfo{
+    VkImageCreateInfo imageCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = nullptr,
+        .pNext = NULL,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = _formatInfo->vkFormat,
         .mipLevels = 1,
@@ -233,7 +234,7 @@ static const AAPLTextureFormatInfo*const findFormat(VkFormat format) {
         .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
     };
 
-    VkResult result = vkCreateImage(_vkDevice, &imageCreateInfo, nullptr, &_vkImage);
+    VkResult result = vkCreateImage(_vkDevice, &imageCreateInfo, NULL, &_vkImage);
     if ((result != VK_SUCCESS) || _vkImage == VK_NULL_HANDLE) {
         return NO;
     }

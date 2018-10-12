@@ -43,7 +43,7 @@ void gl::shaderCompileCheck(GLuint shader) {
         // The maxLength includes the NULL character
         glGetShaderInfoLog(shader, 8192, &maxLength, log.data());
         std::string strError;
-        strError.insert(strError.end(), log.begin(), log.end());
+        strError.insert(strError.end(), log.begin(), log.begin() + maxLength - 1);
 
         // Provide the infolog in whatever manor you deem best.
         // Exit with failure.
@@ -89,6 +89,7 @@ GLuint gl::loadShader(const std::string& shaderSource, GLenum shaderType) {
     const GLchar* strings = shaderSource.c_str();
     glShaderSource(shader, 1, &strings, &sizes);
     glCompileShader(shader);
+    gl::shaderCompileCheck(shader);
     return shader;
 }
 

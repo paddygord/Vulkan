@@ -1,11 +1,24 @@
-#version 460 core
+#version 410 core
+
+
+#define SPARSE_2D_ARRAYS
+//#define BINDLESS
+
+
+#if __VERSION__ == 410
+#define LAYOUT(x)
+#define LAYOUT_STD140(x) layout(std140)
+#else
 #extension GL_EXT_nonuniform_qualifier : enable
+#define LAYOUT(x) layout(x)
+#define LAYOUT_STD140(x) layout(std140, x)
+#endif
 
 const vec4 iMouse = vec4(0.0);
 
 layout(location = 0) out vec4 outColor;
 
-layout(std140, binding= 1) uniform paramsBuffer {
+LAYOUT_STD140(binding = 0) uniform paramsBuffer {
     vec4 params;
 };
 
@@ -13,15 +26,13 @@ layout(std140, binding= 1) uniform paramsBuffer {
 #define iTime params.w
 #define textureIndex params.z
 
-#define SPARSE_2D_ARRAYS
-//#define BINDLESS
 
 #ifdef SPARSE_2D_ARRAYS
-layout(binding = 0) uniform sampler2DArray textures;
+LAYOUT(binding = 0) uniform sampler2DArray textures;
 #endif
 
 #ifdef BINDLESS
-layout(std140, binding = 0) uniform bindlessTextureBuffer {
+LAYOUT_STD140(binding = 0) uniform bindlessTextureBuffer {
     sampler2D textures[]
 }
 #endif
@@ -56,7 +67,7 @@ float iqnoise(in vec2 x, float u, float v) {
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord.xy / iResolution.xx;
-
+    fragColor = vec4(uv, 1.0, 1.0);
     vec2 p = 0.5 - 0.5 * sin(iTime * vec2(1.01, 1.71));
 
     if (iMouse.w > 0.001)

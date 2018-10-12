@@ -9,7 +9,6 @@
 #include <glad/glad.h>
 #include <utils.hpp>
 #include <vks/filesystem.hpp>
-
 #include "csscolors.hpp"
 
 #define SPARSE_2D_ARRAY
@@ -56,6 +55,17 @@ static void glfwErrorCallback(int, const char* message) {
     std::cerr << message << std::endl;
 }
 
+static const std::string& localPath() {
+    static std::string result;
+    static std::once_flag once;
+    std::call_once(once, [&]{
+        result = __FILE__;
+        auto pos = result.rfind('/');
+        result = result.substr(0, pos);
+    });
+    return result;
+}
+static bool SPARSE_SUPPORT = false;
 
 void GLTexturesArrayTest::init() {
     if (!glfw::Window::init()) {
@@ -65,7 +75,7 @@ void GLTexturesArrayTest::init() {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
     // 4.1 to ensure mac compatibility
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
@@ -87,6 +97,8 @@ void GLTexturesArrayTest::init() {
     gl::setupDebugLogging();
     glfwSetErrorCallback(glfwErrorCallback);
 
+    SPARSE_SUPPORT = glTexturePageCommitmentEXT != nullptr;
+    
     glGenSamplers(1, &sampler);
     glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -119,10 +131,17 @@ void GLTexturesArrayTest::init() {
 #endif
 
 #ifdef SPARSE_2D_ARRAY
-    glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &colorTexturesArray);
-    glTextureParameteri(colorTexturesArray, GL_TEXTURE_SPARSE_ARB, GL_TRUE);
-    glTextureParameteri(colorTexturesArray, GL_VIRTUAL_PAGE_SIZE_INDEX_ARB, 0);
-    glTextureStorage3D(colorTexturesArray, 1, TEXTURE_INTERNAL_FORMAT, 1, 1, 512);
+    if (SPARSE_SUPPORT) {
+        glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &colorTexturesArray);
+        glTextureParameteri(colorTexturesArray, GL_TEXTURE_SPARSE_ARB, GL_TRUE);
+        glTextureParameteri(colorTexturesArray, GL_VIRTUAL_PAGE_SIZE_INDEX_ARB, 0);
+        glTextureStorage3D(colorTexturesArray, 1, TEXTURE_INTERNAL_FORMAT, 1, 1, 512);
+    } else {
+        glGenTextures(1,&colorTexturesArray);
+        glBindTexture(GL_TEXTURE_2D_ARRAY,colorTexturesArray);
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, 1, 1, 512, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    }
+
 #endif
 
     {
@@ -134,7 +153,6 @@ void GLTexturesArrayTest::init() {
 #endif
 
         for (size_t i = 0; i < count; ++i) {
-            const auto& colorName = CSS_COLORS[i].first;
             const auto& colorHex = CSS_COLORS[i].second;
             vec4 color{ 255.0f };
             for (size_t o = 0; o < 3; ++o) {
@@ -152,8 +170,13 @@ void GLTexturesArrayTest::init() {
             const GLint mip = 0;
             const glm::ivec3 offset{ 0, 0, i };
             const glm::uvec3 size{ 1 };
-            glTexturePageCommitmentEXT(colorTexturesArray, mip, offset.x, offset.y, offset.z, size.x, size.y, size.z, GL_TRUE);
-            glTextureSubImage3D(colorTexturesArray, mip, offset.x, offset.y, offset.z, size.x, size.y, size.z, GL_RGBA, GL_FLOAT, &color);
+            if (SPARSE_SUPPORT){
+                
+                glTexturePageCommitmentEXT(colorTexturesArray, mip, offset.x, offset.y, offset.z, size.x, size.y, size.z, GL_TRUE);
+                glTextureSubImage3D(colorTexturesArray, mip, offset.x, offset.y, offset.z, size.x, size.y, size.z, GL_RGBA, GL_FLOAT, &color);
+            } else {
+                glTexSubImage3D(GL_TEXTURE_2D_ARRAY, mip, offset.x, offset.y, offset.z, size.x, size.y, size.z, GL_RGBA, GL_FLOAT, &color);
+            }
 #endif
         }
     }
@@ -173,9 +196,15 @@ void GLTexturesArrayTest::init() {
     }
 #endif
 
+#ifdef __APPLE__
+    glGenBuffers(1, &paramsBuffer);
+    glBindBuffer(GL_UNIFORM_BUFFER, paramsBuffer);
+    glBufferData(GL_UNIFORM_BUFFER, PARAMS_SIZE, nullptr, GL_DYNAMIC_DRAW);
+#else
     glCreateBuffers(1, &paramsBuffer);
     glNamedBufferStorage(paramsBuffer, PARAMS_SIZE, nullptr, GL_DYNAMIC_STORAGE_BIT);
-    glBindBufferRange(GL_UNIFORM_BUFFER, 1, paramsBuffer, 0, PARAMS_SIZE);
+#endif
+    glBindBufferRange(GL_UNIFORM_BUFFER, 0, paramsBuffer, 0, PARAMS_SIZE);
 
     // The remaining initialization code is all standard OpenGL
     glDisable(GL_DEPTH_TEST);
@@ -183,12 +212,19 @@ void GLTexturesArrayTest::init() {
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
-    
-    auto vertexSpirv = vks::file::readSpirvFile("c:/Users/bdavi/git/Vulkan/examples/gltexturesarray/gltexturesarray.vert.spv");
+#ifdef __APPLE__
+    auto vertexSource = vks::file::readTextFile(localPath() + "/gltexturesarray.vert");
+    auto vertexShader = gl::loadShader(vertexSource, GL_VERTEX_SHADER);
+    auto fragmentSource = vks::file::readTextFile(localPath() + "/gltexturesarray.frag");
+    auto fragmentShader = gl::loadShader(fragmentSource, GL_FRAGMENT_SHADER);
+    program = gl::buildProgram(vertexShader, fragmentShader);
+#else
+    auto vertexSpirv = vks::file::readSpirvFile(localPath() + "/gltexturesarray.vert.spv");
     auto vertexShader = gl::loadSpirvShader(vertexSpirv, GL_VERTEX_SHADER);
-    auto fragmentSpirv = vks::file::readSpirvFile("c:/Users/bdavi/git/Vulkan/examples/gltexturesarray/gltexturesarray.frag.spv");
+    auto fragmentSpirv = vks::file::readSpirvFile(localPath() + "/gltexturesarray.frag.spv");
     auto fragmentShader = gl::loadSpirvShader(fragmentSpirv, GL_FRAGMENT_SHADER);
     program = gl::buildProgram(vertexShader, fragmentShader);
+#endif
 }
 
 void GLTexturesArrayTest::destroy() {
@@ -207,9 +243,13 @@ void GLTexturesArrayTest::draw() {
     glViewport(0, 0, dimensions.x, dimensions.y);
 
     static uint32_t  textureIndex = 0;
-    textureIndex = ((textureIndex + 1) % 32);
+    textureIndex = ((textureIndex + 1) % COLOR_COUNT);
     glm::vec4 params{ dimensions, (float)(textureIndex), (float)(glfwGetTime() - startTime) };
+#ifdef __APPLE__
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::vec4), &params);
+#else
     glNamedBufferSubData(paramsBuffer, 0, sizeof(glm::vec4), &params);
+#endif
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     window.present();
 }

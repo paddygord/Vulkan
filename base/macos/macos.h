@@ -23,7 +23,7 @@
 #include <vulkan/vulkan.h>
 
 void InitSharedTextures(VkInstance instance, VkPhysicalDevice vkPhysicalDevice);
-void* CreateSharedTexture(VkDevice vkDevice, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_B8G8R8A8_UNORM);
+void* CreateSharedTexture(VkDevice vkDevice, uint32_t width, uint32_t height, VkFormat format);
 uint32_t GetSharedGLTexture(void* sharedTexture);
 VkImage GetSharedVkImage(void* sharedTexture);
 void DestroySharedTexture(void* sharedTexture);
