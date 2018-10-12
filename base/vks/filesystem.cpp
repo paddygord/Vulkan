@@ -27,6 +27,15 @@ std::vector<uint8_t> readBinaryFile(const std::string& filename) {
     return result;
 }
 
+std::vector<uint32_t> readSpirvFile(const std::string& filename) {
+    std::vector<uint32_t> result;
+    withBinaryFileContents(filename, [&](size_t size, const void* data) {
+        result.resize(size / sizeof(uint32_t));
+        memcpy(result.data(), data, size);
+    });
+    return result;
+}
+
 std::string readTextFile(const std::string& fileName) {
     std::string fileContent;
     std::ifstream fileStream(fileName, std::ios::in);

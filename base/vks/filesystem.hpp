@@ -12,5 +12,7 @@ void withBinaryFileContents(const std::string& filename, std::function<void(cons
 void withBinaryFileContents(const std::string& filename, std::function<void(size_t size, const void* data)> handler);
 
 std::string readTextFile(const std::string& fileName);
+std::vector<uint8_t> readBinaryFile(const std::string& filename);
+std::vector<uint32_t> readSpirvFile(const std::string& filename);
 
 }}  // namespace vks::file

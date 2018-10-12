@@ -32,41 +32,80 @@ void gl::init() {
     std::call_once(once, [] { gladLoadGL(); });
 }
 
-GLuint gl::loadShader(const std::string& shaderSource, GLenum shaderType) {
-    GLuint shader = glCreateShader(shaderType);
-    int sizes = (int)shaderSource.size();
-    const GLchar* strings = shaderSource.c_str();
-    glShaderSource(shader, 1, &strings, &sizes);
-    glCompileShader(shader);
-
+void gl::shaderCompileCheck(GLuint shader) {
     GLint isCompiled = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
     if (isCompiled == GL_FALSE) {
         GLint maxLength = 0;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
+        std::array<GLchar, 8192> log;
+        //glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
 
         // The maxLength includes the NULL character
-        std::vector<GLchar> errorLog(maxLength);
-        glGetShaderInfoLog(shader, maxLength, &maxLength, &errorLog[0]);
+        glGetShaderInfoLog(shader, 8192, &maxLength, log.data());
         std::string strError;
-        strError.insert(strError.end(), errorLog.begin(), errorLog.end());
+        strError.insert(strError.end(), log.begin(), log.end());
 
         // Provide the infolog in whatever manor you deem best.
         // Exit with failure.
         glDeleteShader(shader);  // Don't leak the shader.
         throw std::runtime_error("Shader compiled failed");
     }
+}
+
+void gl::programLinkCheck(GLuint program) {
+    GLint isLinked = 0;
+    glGetProgramiv(program, GL_LINK_STATUS, &isLinked);
+    if (isLinked == GL_FALSE) {
+        GLint maxLength = 0;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &maxLength);
+
+        // The maxLength includes the NULL character
+        std::vector<GLchar> errorLog(maxLength);
+        glGetProgramInfoLog(program, maxLength, &maxLength, &errorLog[0]);
+        std::string strError;
+        strError.insert(strError.end(), errorLog.begin(), errorLog.end());
+        glDeleteProgram(program);  // Don't leak the shader.
+        throw std::runtime_error("Shader compiled failed");
+    }
+}
+
+
+GLuint gl::loadSpirvShader(const std::vector<uint32_t>& spirv, GLenum shaderType) {
+    // Create the shader object.
+    GLuint shader = glCreateShader(shaderType);
+    // Load the SPIR-V module into the shader object
+    glShaderBinary(1, &shader, GL_SHADER_BINARY_FORMAT_SPIR_V_ARB, spirv.data(), (GLsizei)(spirv.size() * sizeof(uint32_t)));
+    GLuint constantIndex = 0;
+    GLuint constantValue = 0;
+    glSpecializeShaderARB(shader, "main", 0, &constantIndex, &constantValue);
+    gl::shaderCompileCheck(shader);
     return shader;
 }
 
-GLuint gl::buildProgram(const std::string& vertexShaderSource, const std::string& fragmentShaderSource) {
+
+GLuint gl::loadShader(const std::string& shaderSource, GLenum shaderType) {
+    GLuint shader = glCreateShader(shaderType);
+    int sizes = (int)shaderSource.size();
+    const GLchar* strings = shaderSource.c_str();
+    glShaderSource(shader, 1, &strings, &sizes);
+    glCompileShader(shader);
+    return shader;
+}
+
+GLuint gl::buildProgram(GLuint vertexShader, GLuint fragmentShader) {
     GLuint program = glCreateProgram();
-    GLuint vs = loadShader(vertexShaderSource, GL_VERTEX_SHADER);
-    GLuint fs = loadShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
-    glAttachShader(program, vs);
-    glAttachShader(program, fs);
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
     glLinkProgram(program);
     // fixme error checking
+    return program;
+
+}
+
+GLuint gl::buildProgram(const std::string& vertexShaderSource, const std::string& fragmentShaderSource) {
+    GLuint vs = loadShader(vertexShaderSource, GL_VERTEX_SHADER);
+    GLuint fs = loadShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
+    GLuint program = buildProgram(vs, fs);
     glDeleteShader(vs);
     glDeleteShader(fs);
     return program;
@@ -84,7 +123,7 @@ void gl::report() {
 const std::set<std::string>& gl::getExtensions() {
     static std::set<std::string> extensions;
     static std::once_flag once;
-    std::call_once(once, [&]{
+    std::call_once(once, [&] {
         GLint n;
         glGetIntegerv(GL_NUM_EXTENSIONS, &n);
         if (n > 0) {
@@ -95,7 +134,6 @@ const std::set<std::string>& gl::getExtensions() {
         }
     });
     return extensions;
-
 }
 
 static void debugMessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
