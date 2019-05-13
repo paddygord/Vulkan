@@ -49,5 +49,5 @@ add_custom_command(
 
 include(SelectLibraryConfigurations)
 select_library_configurations(${EXTERNAL_NAME_UPPER})
-set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${${EXTERNAL_NAME_UPPER}_LIBRARY} CACHE TYPE INTERNAL)
+set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${${EXTERNAL_NAME_UPPER}_LIBRARY} CACHE INTERNAL "")
 

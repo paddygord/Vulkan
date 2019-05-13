@@ -19,17 +19,17 @@ set_target_properties(${EXTERNAL_NAME} PROPERTIES FOLDER "externals")
 
 ExternalProject_Get_Property(${EXTERNAL_NAME} SOURCE_DIR)
 
-set(${EXTERNAL_NAME_UPPER}_INCLUDE_DIRS ${SOURCE_DIR}/headers CACHE TYPE INTERNAL)
+set(${EXTERNAL_NAME_UPPER}_INCLUDE_DIRS ${SOURCE_DIR}/headers CACHE INTERNAL "")
 
 if (WIN32)
 
   # FIXME need to account for different architectures
   if ("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
-    set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${SOURCE_DIR}/lib/win64/openvr_api.lib CACHE TYPE INTERNAL)
+    set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${SOURCE_DIR}/lib/win64/openvr_api.lib CACHE INTERNAL "")
     add_custom_command(TARGET ${EXTERNAL_NAME} POST_BUILD COMMAND if 1==$<CONFIG:Release> ${CMAKE_COMMAND} -E copy ${SOURCE_DIR}/bin/win64/openvr_api.dll ${CMAKE_SOURCE_DIR}/bin )
     add_custom_command(TARGET ${EXTERNAL_NAME} POST_BUILD COMMAND if 1==$<CONFIG:Debug> ${CMAKE_COMMAND} -E copy ${SOURCE_DIR}/bin/win64/openvr_api.dll ${CMAKE_SOURCE_DIR}/bin_debug )
   else()
-    set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${SOURCE_DIR}/lib/win32/openvr_api.lib CACHE TYPE INTERNAL)
+    set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${SOURCE_DIR}/lib/win32/openvr_api.lib CACHE INTERNAL "")
     add_paths_to_fixup_libs(${SOURCE_DIR}/bin/win32)
     add_custom_command(TARGET ${EXTERNAL_NAME} POST_BUILD COMMAND if 1==$<CONFIG:Release> ${CMAKE_COMMAND} -E copy ${SOURCE_DIR}/bin/win32/openvr_api.dll ${CMAKE_SOURCE_DIR}/bin )
     add_custom_command(TARGET ${EXTERNAL_NAME} POST_BUILD COMMAND if 1==$<CONFIG:Debug> ${CMAKE_COMMAND} -E copy ${SOURCE_DIR}/bin/win32/openvr_api.dll ${CMAKE_SOURCE_DIR}/bin_debug )
@@ -39,13 +39,13 @@ if (WIN32)
 elseif(APPLE)
 
   # FIXME need to account for different architectures 
-  set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${SOURCE_DIR}/lib/osx32/libopenvr_api.dylib CACHE TYPE INTERNAL)
+  set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${SOURCE_DIR}/lib/osx32/libopenvr_api.dylib CACHE INTERNAL "")
   add_paths_to_fixup_libs(${SOURCE_DIR}/bin/osx32)
 
 elseif(NOT ANDROID)
 
   # FIXME need to account for different architectures 
-  set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${SOURCE_DIR}/lib/linux64/libopenvr_api.so CACHE TYPE INTERNAL)
+  set(${EXTERNAL_NAME_UPPER}_LIBRARIES ${SOURCE_DIR}/lib/linux64/libopenvr_api.so CACHE INTERNAL "")
   add_paths_to_fixup_libs(${SOURCE_DIR}/bin/linux64)
   
 endif()
