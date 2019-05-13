@@ -233,7 +233,7 @@ public:
 
         void init(const vks::Context& context) {
             device = context.device;
-            vk::DispatchLoaderDynamic dynamicLoader{ context.instance, device };
+            vk::DispatchLoaderDynamic dynamicLoader{ context.instance, &vkGetInstanceProcAddr, device, &vkGetDeviceProcAddr };
             {
                 auto handleType = vk::ExternalSemaphoreHandleTypeFlagBits::eOpaqueWin32;
                 {

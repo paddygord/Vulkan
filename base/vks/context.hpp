@@ -226,13 +226,13 @@ public:
             debug::setupDebugging(instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning);
         }
 
-        dynamicDispatch.init(instance);
+        dynamicDispatch.init(instance, &vkGetInstanceProcAddr);
     }
 
     void createDevice(const vk::SurfaceKHR& surface = nullptr) {
         pickDevice(surface);
         buildDevice();
-        dynamicDispatch.init(instance, device);
+        dynamicDispatch.init(instance, &vkGetInstanceProcAddr, device, &vkGetDeviceProcAddr);
 
 
         if (enableDebugMarkers) {

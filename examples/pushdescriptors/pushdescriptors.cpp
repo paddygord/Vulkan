@@ -214,7 +214,7 @@ public:
         // The DispatchLoaderDynamic class exposes all known extensions (to the current SDK version)
         // and handles dynamic loading.  It must be initialized with an instance in order to fetch 
         // instance-level extensions and with an instance and device to expose device level extensions.  
-        dispatcher.init(context.instance, context.device);
+        dispatcher.init(context.instance, &vkGetInstanceProcAddr, context.device, &vkGetDeviceProcAddr);
 
         // Get device push descriptor properties (to display them)
         if (context.deviceProperties.apiVersion >= VK_MAKE_VERSION(1, 1, 0)) {

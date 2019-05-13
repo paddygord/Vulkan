@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <vector>
 #include <memory>
+#include <string>
+#include <stdexcept>
 
 #if defined(__ANDROID__)
 #include <android/asset_manager.h>

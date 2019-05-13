@@ -74,7 +74,7 @@ VkBool32 messageCallback(VkDebugReportFlagsEXT flags,
 }
 
 void setupDebugging(const vk::Instance& instance, const vk::DebugReportFlagsEXT& flags, const MessageHandler& handler) {
-    std::call_once(dispatcherInitFlag, [&] { dispatcher.init(instance); });
+    std::call_once(dispatcherInitFlag, [&] { dispatcher.init(instance, &vkGetInstanceProcAddr); });
     vk::DebugReportCallbackCreateInfoEXT dbgCreateInfo = {};
     dbgCreateInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)messageCallback;
     dbgCreateInfo.flags = flags;
@@ -82,7 +82,7 @@ void setupDebugging(const vk::Instance& instance, const vk::DebugReportFlagsEXT&
 }
 
 void freeDebugCallback(const vk::Instance& instance) {
-    std::call_once(dispatcherInitFlag, [&] { dispatcher.init(instance); });
+    std::call_once(dispatcherInitFlag, [&] { dispatcher.init(instance, &vkGetInstanceProcAddr); });
     instance.destroyDebugReportCallbackEXT(msgCallback, nullptr, dispatcher);
 }
 
@@ -92,7 +92,7 @@ static std::once_flag markerDispatcherInitFlag;
 vk::DispatchLoaderDynamic markerDispatcher;
 
 void setup(const vk::Instance& instance, const vk::Device& device) {
-    std::call_once(markerDispatcherInitFlag, [&] { markerDispatcher.init(instance, device); });
+    std::call_once(markerDispatcherInitFlag, [&] { markerDispatcher.init(instance, &vkGetInstanceProcAddr, device, &vkGetDeviceProcAddr); });
     // Set flag if at least one function pointer is present
     active = (markerDispatcher.vkDebugMarkerSetObjectNameEXT != VK_NULL_HANDLE);
 }
