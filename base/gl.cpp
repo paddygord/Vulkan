@@ -1,6 +1,6 @@
 #include "gl.hpp"
 
-#if !defined(__ANDROID__)
+#if defined(WIN32)
 #include <mutex>
 
 typedef PROC(APIENTRYP PFNWGLGETPROCADDRESS)(LPCSTR);

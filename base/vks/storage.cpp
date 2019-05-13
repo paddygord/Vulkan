@@ -8,6 +8,11 @@
 
 #include "storage.hpp"
 #include <string>
+#include <cstring>
+#include <istream>
+#include <fstream>
+#include <iterator>
+
 
 #if defined(WIN32)
 #include <Windows.h>
@@ -134,7 +139,7 @@ FileStorage::FileStorage(const std::string& filename) {
     _data.reserve(fileSize);
 
     // read the data:
-    _data.insert(vec.begin(), std::istream_iterator<uint8_t>(file), std::istream_iterator<uint8_t>());
+    _data.insert(_data.begin(), std::istream_iterator<uint8_t>(file), std::istream_iterator<uint8_t>());
     file.close();
 #endif
 }

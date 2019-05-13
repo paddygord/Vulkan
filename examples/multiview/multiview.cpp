@@ -258,8 +258,8 @@ public:
         for (auto& blit : compositeBlits) {
             blit.dstSubresource.aspectMask = blit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
             blit.dstSubresource.layerCount = blit.srcSubresource.layerCount = 1;
-            blit.srcOffsets[1] = { (int32_t)offscreen.size.width, (int32_t)offscreen.size.height, 1 };
-            blit.dstOffsets[1] = { (int32_t)offscreen.size.width, (int32_t)offscreen.size.height, 1 };
+            blit.srcOffsets[1] = vk::Offset3D{ (int32_t)offscreen.size.width, (int32_t)offscreen.size.height, 1 };
+            blit.dstOffsets[1] = vk::Offset3D{ (int32_t)offscreen.size.width, (int32_t)offscreen.size.height, 1 };
         }
         compositeBlits[1].srcSubresource.baseArrayLayer = 1;
         compositeBlits[1].dstOffsets[0].x += offscreen.size.width;

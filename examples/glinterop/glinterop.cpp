@@ -7,8 +7,8 @@
 #include <vulkanExampleBase.h>
 #include <vks/texture.hpp>
 
-#if !defined(__ANDROID__)
 // FIXME make work on non-Win32 platforms
+#if defined(WIN32)
 struct ShareHandles {
     HANDLE memory{ INVALID_HANDLE_VALUE };
     HANDLE glReady{ INVALID_HANDLE_VALUE };

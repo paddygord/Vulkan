@@ -260,7 +260,7 @@ public:
         sparseImageCreateInfo.tiling = vk::ImageTiling::eOptimal;
         sparseImageCreateInfo.sharingMode = vk::SharingMode::eExclusive;
         sparseImageCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
-        sparseImageCreateInfo.extent = { texture.width, texture.height, 1 };
+        sparseImageCreateInfo.extent = vk::Extent3D{ texture.width, texture.height, 1 };
         sparseImageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
         sparseImageCreateInfo.flags = vk::ImageCreateFlagBits::eSparseBinding | vk::ImageCreateFlagBits::eSparseResidency;
         texture.image = device.createImage(sparseImageCreateInfo);
@@ -436,8 +436,8 @@ public:
                 blit.srcSubresource.baseArrayLayer = 0;
                 blit.srcSubresource.layerCount = 1;
                 blit.srcSubresource.mipLevel = 0;
-                blit.srcOffsets[0] = { 0, 0, 0 };
-                blit.srcOffsets[1] = { static_cast<int32_t>(textures.source.extent.width), static_cast<int32_t>(textures.source.extent.height), 1 };
+                blit.srcOffsets[0] = vk::Offset3D{ 0, 0, 0 };
+                blit.srcOffsets[1] = vk::Offset3D{ static_cast<int32_t>(textures.source.extent.width), static_cast<int32_t>(textures.source.extent.height), 1 };
                 // Dest
                 blit.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
                 blit.dstSubresource.baseArrayLayer = 0;
@@ -657,8 +657,8 @@ public:
                         blit.srcSubresource.baseArrayLayer = 0;
                         blit.srcSubresource.layerCount = 1;
                         blit.srcSubresource.mipLevel = 0;
-                        blit.srcOffsets[0] = { 0, 0, 0 };
-                        blit.srcOffsets[1] = { static_cast<int32_t>(textures.source.extent.width), static_cast<int32_t>(textures.source.extent.height), 1 };
+                        blit.srcOffsets[0] = vk::Offset3D{ 0, 0, 0 };
+                        blit.srcOffsets[1] = vk::Offset3D{ static_cast<int32_t>(textures.source.extent.width), static_cast<int32_t>(textures.source.extent.height), 1 };
                         // Dest
                         blit.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
                         blit.dstSubresource.baseArrayLayer = 0;
