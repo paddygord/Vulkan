@@ -72,6 +72,14 @@ private:
     std::vector<uint8_t> _data;
 };
 
+#if defined(__ANDROID__) || defined(WIN32)
+#define MAPPED_FILES 1
+#else
+#define MAPPED_FILES 0
+#endif
+
+#if MAPPED_FILES
+
 class FileStorage : public Storage {
 public:
     static StoragePointer create(const std::string& filename, size_t size, const uint8_t* data);
@@ -121,6 +129,27 @@ FileStorage::FileStorage(const std::string& filename) {
         throw std::runtime_error("Failed to create mapping");
     }
     _mapped = (uint8_t*)MapViewOfFile(_mapFile, FILE_MAP_READ, 0, 0, 0);
+#endif
+}
+
+FileStorage::~FileStorage() {
+#if defined(__ANDROID__)
+    AAsset_close(_asset);
+#elif (WIN32)
+    UnmapViewOfFile(_mapped);
+    CloseHandle(_mapFile);
+    CloseHandle(_file);
+#endif
+}
+
+#endif
+
+StoragePointer Storage::create(size_t size, uint8_t* data) {
+    return std::make_shared<MemoryStorage>(size, data);
+}
+StoragePointer Storage::readFile(const std::string& filename) {
+#if MAPPED_FILES
+    return std::make_shared<FileStorage>(filename);
 #else
     // FIXME move to posix memory mapped files
     // open the file:
@@ -135,32 +164,15 @@ FileStorage::FileStorage(const std::string& filename) {
     fileSize = file.tellg();
     file.seekg(0, std::ios::beg);
 
+
+	std::vector<uint8_t> fileData;
     // reserve capacity
-    _data.reserve(fileSize);
-
+    fileData.reserve(fileSize);
     // read the data:
-    _data.insert(_data.begin(), std::istream_iterator<uint8_t>(file), std::istream_iterator<uint8_t>());
-    _size = _data.size();
+    fileData.insert(fileData.begin(), std::istream_iterator<uint8_t>(file), std::istream_iterator<uint8_t>());
     file.close();
+	return std::make_shared<MemoryStorage>(fileData.size(), fileData.data());
 #endif
-}
-
-FileStorage::~FileStorage() {
-#if defined(__ANDROID__)
-    AAsset_close(_asset);
-#elif (WIN32)
-    UnmapViewOfFile(_mapped);
-    CloseHandle(_mapFile);
-    CloseHandle(_file);
-#else
-#endif
-}
-
-StoragePointer Storage::create(size_t size, uint8_t* data) {
-    return std::make_shared<MemoryStorage>(size, data);
-}
-StoragePointer Storage::readFile(const std::string& filename) {
-    return std::make_shared<FileStorage>(filename);
 }
 
 }}  // namespace vks::storage
