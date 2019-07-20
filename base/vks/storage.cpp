@@ -140,6 +140,7 @@ FileStorage::FileStorage(const std::string& filename) {
 
     // read the data:
     _data.insert(_data.begin(), std::istream_iterator<uint8_t>(file), std::istream_iterator<uint8_t>());
+    _size = _data.size();
     file.close();
 #endif
 }
