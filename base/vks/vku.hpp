@@ -39,7 +39,7 @@ std::string format(const char* fmt, Args... args) {
     int n = snprintf(nullptr, 0, fmt, args...);
     std::string result(n, '\0');
     snprintf(&*result.begin(), n + 1, fmt, args...);
-    return std::move(result);
+    return result;
 }
 
 /// Utility function for finding memory types for uniforms and images.
@@ -88,7 +88,7 @@ inline std::vector<uint8_t> loadFile(const std::string& filename) {
         bytes.resize(size);
         is.read((char*)bytes.data(), size);
     }
-    return std::move(bytes);
+    return bytes;
 }
 
 /// Description of blocks for compressed formats.
