@@ -67,20 +67,24 @@ ExampleBase::~ExampleBase() {
 }
 
 void ExampleBase::run() {
+    try {
 // Android initialization is handled in APP_CMD_INIT_WINDOW event
 #if !defined(__ANDROID__)
-    glfwInit();
-    setupWindow();
-    initVulkan();
-    setupSwapchain();
-    prepare();
+        glfwInit();
+        setupWindow();
+        initVulkan();
+        setupSwapchain();
+        prepare();
 #endif
 
-    renderLoop();
+        renderLoop();
 
-    // Once we exit the render loop, wait for everything to become idle before proceeding to the descructor.
-    context.queue.waitIdle();
-    context.device.waitIdle();
+        // Once we exit the render loop, wait for everything to become idle before proceeding to the descructor.
+        context.queue.waitIdle();
+        context.device.waitIdle();
+    } catch(const std::system_error& err) {
+        std::cerr << err.what() << std::endl;
+    }
 }
 
 void ExampleBase::getEnabledFeatures() {
@@ -258,6 +262,8 @@ void ExampleBase::setupUi() {
     overlayCreateInfo.depthformat = depthFormat;
     overlayCreateInfo.size = size;
 
+    ImGui::SetCurrentContext(ImGui::CreateContext());
+
     // Virtual function call for example to customize overlay creation
     OnSetupUIOverlay(overlayCreateInfo);
     ui.create(overlayCreateInfo);
@@ -350,7 +356,7 @@ void ExampleBase::prepareFrame() {
 }
 
 void ExampleBase::submitFrame() {
-    bool submitOverlay = settings.overlay && ui.visible;
+    bool submitOverlay = settings.overlay && ui.visible && (ui.cmdBuffers.size() > currentBuffer);
     if (submitOverlay) {
         vk::SubmitInfo submitInfo;
         // Wait for color attachment output to finish before rendering the text overlay

@@ -1,5 +1,2 @@
 macro(TARGET_GLI)
-    add_dependency_external_projects(gli)
-    add_dependencies(${TARGET_NAME} gli)
-    target_include_directories(${TARGET_NAME} PUBLIC ${GLI_INCLUDE_DIRS})
 endmacro()

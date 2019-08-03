@@ -381,9 +381,11 @@ void UIOverlay::update() {
             context.trash<vks::Buffer>(vertexBuffer);
             vertexBuffer = vks::Buffer();
         }
-        vertexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eHostVisible, vertexBufferSize);
-        vertexBuffer.map();
-        updateCmdBuffers = true;
+		if (vertexCount) {
+			vertexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eHostVisible, vertexBufferSize);
+			vertexBuffer.map();
+			updateCmdBuffers = true;
+		}
     }
 
     // Index buffer
@@ -394,9 +396,11 @@ void UIOverlay::update() {
             indexBuffer.unmap();
             indexBuffer.destroy();
         }
-        indexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eHostVisible, indexBufferSize);
-        indexBuffer.map();
-        updateCmdBuffers = true;
+		if (indexCount) {
+			indexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eHostVisible, indexBufferSize);
+			indexBuffer.map();
+			updateCmdBuffers = true;
+		}
     }
 
     // Upload data
@@ -412,8 +416,12 @@ void UIOverlay::update() {
     }
 
     // Flush to make writes visible to GPU
-    vertexBuffer.flush();
-    indexBuffer.flush();
+	if (vertexBuffer) {
+		vertexBuffer.flush();
+    }
+	if (indexBuffer) {
+		indexBuffer.flush();
+	}
 
     if (updateCmdBuffers) {
         updateCommandBuffers();

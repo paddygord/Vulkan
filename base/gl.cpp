@@ -95,6 +95,6 @@ static void debugMessageCallback(GLenum source, GLenum type, GLuint id, GLenum s
 
 void gl::setupDebugLogging() {
     glDebugMessageCallback(debugMessageCallback, NULL);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 }
 #endif

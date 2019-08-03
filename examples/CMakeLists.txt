@@ -15,10 +15,8 @@ endmacro()
 
 macro(BUILD_EXAMPLES)
     foreach(_FOLDER_NAME ${ARGN})
-        #if (NOT ("${_FOLDER_NAME}" STREQUAL "gears") AND (ANDROID))
-        #    continue()
-        #endif()
-        if (ANDROID OR (NOT WIN32))
+        # disabling vr examples for now
+        if (TRUE)
             if ("${_FOLDER_NAME}" STREQUAL "vr_oculus")
                 continue()
             endif()

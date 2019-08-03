@@ -3,6 +3,12 @@ cmake_policy(VERSION 3.6)
 include("cmake/defaults.cmake")
 set(NAME VulkanCppExamples)
 
+include("cmake/ezvcpkg.cmake")
+
+ezvcpkg_fetch(
+    PACKAGES assimp basisu imgui glad glfw3 gli glm vulkan 
+    UPDATE_TOOLCHAIN
+)
 
 project(${NAME})
 
