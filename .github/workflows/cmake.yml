@@ -1,0 +1,16 @@
+name: CMake CI
+
+on: [push]
+
+jobs:
+  build:
+    name: Test on node ${{ matrix.node_version }} and ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v1
+      with: 
+        submodules: true
+    - name: cmake configure
+      run: cmake .
+    - name: build
+      run: cmake --build .
