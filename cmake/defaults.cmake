@@ -19,11 +19,8 @@ endforeach()
 
 set(EXTERNAL_PROJECT_PREFIX "project")
 set_property(DIRECTORY PROPERTY EP_PREFIX ${EXTERNAL_PROJECT_PREFIX})
-setup_externals_binary_dir()
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_definitions(-DNOMINMAX)
-add_definitions(-D_USE_MATH_DEFINES)
 add_definitions(-DGLM_FORCE_RADIANS)
 add_definitions(-DGLM_FORCE_DEPTH_ZERO_TO_ONE)

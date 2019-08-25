@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.6 FATAL_ERROR)
-cmake_policy(VERSION 3.6)
+cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
+
 include("cmake/defaults.cmake")
 set(NAME VulkanCppExamples)
 
-include("cmake/ezvcpkg.cmake")
+include(${CMAKE_SOURCE_DIR}/cmake/ezvcpkg/ezvcpkg.cmake)
 
 ezvcpkg_fetch(
     PACKAGES assimp basisu imgui glad glfw3 gli glm vulkan 
