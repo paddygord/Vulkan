@@ -23,6 +23,10 @@ public:
         return createWindowSurface(window, instance, pAllocator);
     }
 
+    void swapBuffers() const {
+        glfwSwapBuffers(window);
+    }
+
     void createWindow(const glm::uvec2& size, const glm::ivec2& position = { INT_MIN, INT_MIN }) {
         // Disable window resize
         window = glfwCreateWindow(size.x, size.y, "Window Title", nullptr, nullptr);
