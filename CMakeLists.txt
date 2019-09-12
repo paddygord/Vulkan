@@ -6,8 +6,10 @@ set(NAME VulkanCppExamples)
 include(${CMAKE_SOURCE_DIR}/cmake/ezvcpkg/ezvcpkg.cmake)
 
 ezvcpkg_fetch(
-    PACKAGES assimp basisu imgui glad glfw3 gli glm vulkan 
+    COMMIT 1e7303d4c52468fbb24a0d3418ff033d2585d18d
+    PACKAGES assimp basisu imgui glad glfw3 gli glm openxr-loader vulkan 
     UPDATE_TOOLCHAIN
+    USE_HOST_VCPKG
 )
 
 project(${NAME})

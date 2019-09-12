@@ -37,6 +37,7 @@ public:
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         createWindow(size);
         context.requireExtensions(glfw::Window::getRequiredInstanceExtensions());
+        context.requireDeviceExtensions({ VK_KHR_SWAPCHAIN_EXTENSION_NAME });
     }
 
     void prepareVulkan() {

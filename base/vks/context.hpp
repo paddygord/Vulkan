@@ -184,7 +184,7 @@ public:
 
     void createInstance(uint32_t version = VK_MAKE_VERSION(1, 1, 0)) {
         if (enableValidation) {
-            requireExtensions({ (const char*)VK_EXT_DEBUG_REPORT_EXTENSION_NAME });
+            requireExtensions({ (const char*)VK_EXT_DEBUG_UTILS_EXTENSION_NAME });
         }
 
         // Vulkan instance
@@ -214,16 +214,22 @@ public:
         }
 
         CStringVector layers;
+        vk::DebugUtilsMessengerCreateInfoEXT messengerCreateInfo;
         if (enableValidation) {
-            layers = filterLayers(debug::validationLayerNames);
+            layers = filterLayers(Debug::getDefaultValidationLayers());
             instanceCreateInfo.enabledLayerCount = (uint32_t)layers.size();
             instanceCreateInfo.ppEnabledLayerNames = layers.data();
+            messengerCreateInfo.pfnUserCallback = vks::Debug::debugCallback;
+            messengerCreateInfo.messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+            messengerCreateInfo.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance;
+            messengerCreateInfo.pUserData = this;
+            instanceCreateInfo.pNext = &messengerCreateInfo.operator const VkDebugUtilsMessengerCreateInfoEXT&();
         }
 
         instance = vk::createInstance(instanceCreateInfo);
 
         if (enableValidation) {
-            debug::setupDebugging(instance, vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning);
+            Debug::startup(instance);
         }
 
         dynamicDispatch.init(instance, &vkGetInstanceProcAddr);
@@ -236,7 +242,7 @@ public:
 
 
         if (enableDebugMarkers) {
-            debug::marker::setup(instance, device);
+            DebugMarker::setup(instance);
         }
 
         pipelineCache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
@@ -263,7 +269,7 @@ public:
         device.destroyPipelineCache(pipelineCache);
         device.destroy();
         if (enableValidation) {
-            debug::freeDebugCallback(instance);
+            Debug::shutdown(instance);
         }
         instance.destroy();
     }

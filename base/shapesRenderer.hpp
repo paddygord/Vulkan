@@ -243,6 +243,7 @@ public:
         builder.vertexInputState.bindingDescriptions = { { 0, sizeof(Vertex), vk::VertexInputRate::eVertex },
                                                          { 1, sizeof(InstanceData), vk::VertexInputRate::eInstance } };
 
+        builder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
         // Attribute descriptions
         // Describes memory layout and shader positions
         auto& attributes = builder.vertexInputState.attributeDescriptions;

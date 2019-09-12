@@ -1,103 +1,198 @@
 #pragma once
 
-#include <algorithm>
-#include <functional>
-#include <list>
-#include <string>
+#pragma once
 
 #include <vulkan/vulkan.hpp>
-#include <glm/glm.hpp>
 
-namespace vks { namespace debug {
-// Default validation layers
-extern std::list<std::string> validationLayerNames;
+#include <functional>
+#include <iostream>
+#include <list>
+#include <mutex>
+#include <sstream>
 
-struct Message {
-    vk::DebugReportFlagsEXT flags;
-    vk::DebugReportObjectTypeEXT objType;
-    uint64_t srcObject;
-    size_t location;
-    int32_t msgCode;
-    const char* pLayerPrefix;
-    const char* pMsg;
-    void* pUserData;
+namespace vks {
+
+class Debug {
+public:
+    using StringList = std::list<std::string>;
+    using SevBits = vk::DebugUtilsMessageSeverityFlagBitsEXT;
+    using TypeBits = vk::DebugUtilsMessageTypeFlagBitsEXT;
+    using SevFlags = vk::DebugUtilsMessageSeverityFlagsEXT;
+    using TypeFlags = vk::DebugUtilsMessageTypeFlagsEXT;
+    using CallbackData = vk::DebugUtilsMessengerCallbackDataEXT;
+    using Output = std::function<void(const SevFlags&, const std::string&)>;
+    using MessageFormatter = std::function<std::string(const SevFlags&, const TypeFlags&, const CallbackData*, void*)>;
+
+    static const StringList& getDefaultValidationLayers() {
+        static const StringList validationLayerNames {
+#if defined(__ANDROID__)
+            "VK_LAYER_GOOGLE_threading", "VK_LAYER_LUNARG_parameter_validation", "VK_LAYER_LUNARG_object_tracker", "VK_LAYER_LUNARG_core_validation",
+                "VK_LAYER_LUNARG_swapchain", "VK_LAYER_GOOGLE_unique_objects",
+#else
+            "VK_LAYER_KHRONOS_validation",
+#endif
+        };
+        return validationLayerNames;
+    }
+
+    static Output setOutputHandler(const Output& function) {
+        Output result = function;
+        std::swap(result, currentOutput());
+        return result;
+    }
+
+    static void setMessageFormatter(const MessageFormatter& function) { currentMessageFormatter() = function; }
+
+    static void startup(const vk::Instance& instance,
+                        const SevFlags& severityFlags = SevBits::eError | SevBits::eWarning,
+                        const TypeFlags& typeFlags = TypeBits::eGeneral | TypeBits::eValidation | TypeBits::ePerformance,
+                        void* userData = nullptr) {
+        vk::DebugUtilsMessengerCreateInfoEXT createInfo{ {}, severityFlags, typeFlags, debugCallback, userData };
+        currentMessenger() = instance.createDebugUtilsMessengerEXT(createInfo, nullptr, getInstanceDispatcher(instance));
+    }
+
+    // Clear debug callback
+    static void shutdown(const vk::Instance& instance) { instance.destroyDebugUtilsMessengerEXT(currentMessenger(), nullptr, getInstanceDispatcher(instance)); }
+
+private:
+    friend struct Context;
+    static VkBool32 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                                  VkDebugUtilsMessageTypeFlagsEXT messageType,
+                                  const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+                                  void* pUserData) {
+        SevFlags sevFlags;
+        reinterpret_cast<VkDebugUtilsMessageSeverityFlagBitsEXT&>(sevFlags) = messageSeverity;
+        TypeFlags typeFlags{ messageType };
+        auto callbackData = reinterpret_cast<const CallbackData*>(pCallbackData);
+        auto message = currentMessageFormatter()(sevFlags, typeFlags, callbackData, pUserData);
+        currentOutput()(sevFlags, message);
+        return VK_TRUE;
+    }
+    static Output& currentOutput() {
+        static Output output = [](const SevFlags& sevFlags, const std::string& message) {
+#ifdef _MSC_VER
+        //OutputDebugStringA(message.c_str());
+        //OutputDebugStringA("\n");
+#endif
+            std::stringstream buf;
+            if (sevFlags & SevBits::eError) {
+                std::cout << "ERROR: ";
+            } else if (sevFlags & SevBits::eWarning) {
+                std::cout << "WARNING: ";
+            } else if (sevFlags & SevBits::eInfo) {
+                std::cout << "INFO: ";
+            } else if (sevFlags & SevBits::eVerbose) {
+                std::cout << "VERBOSE: ";
+            } else {
+                std::cout << "Unknown sev: ";
+            }
+
+            std::cout << message << std::endl;
+        };
+        return output;
+    }
+
+    static MessageFormatter& currentMessageFormatter() {
+        static MessageFormatter formatter = [](const SevFlags& sevFlags, const TypeFlags& typeFlags, const CallbackData* callbackData, void*) -> std::string {
+            // FIXME improve on this
+            return std::string(callbackData->pMessage);
+        };
+        return formatter;
+    }
+
+    static vk::DebugUtilsMessengerEXT& currentMessenger() {
+        static vk::DebugUtilsMessengerEXT messenger{};
+        return messenger;
+    }
+
+    static const vk::DispatchLoaderDynamic& getInstanceDispatcher(const vk::Instance& instance = nullptr) {
+        static vk::DispatchLoaderDynamic dispatcher;
+        static std::once_flag once;
+        if (instance) {
+            std::call_once(once, [&] { dispatcher.init(instance, vkGetInstanceProcAddr); });
+        }
+        return dispatcher;
+    }
+
+    friend class DebugMarker;
 };
 
-using MessageHandler = std::function<VkBool32(const Message& message)>;
-
-// Load debug function pointers and set debug callback
-// if callBack is NULL, default message callback will be used
-void setupDebugging(const vk::Instance& instance, const vk::DebugReportFlagsEXT& flags, const MessageHandler& handler = [](const Message& m) {
-    return VK_TRUE;
-});
-
-// Clear debug callback
-void freeDebugCallback(const vk::Instance& instance);
-
-// Setup and functions for the VK_EXT_debug_marker_extension
-// Extension spec can be found at https://github.com/KhronosGroup/Vulkan-Docs/blob/1.0-VK_EXT_debug_marker/doc/specs/vulkan/appendices/VK_EXT_debug_marker.txt
 // Note that the extension will only be present if run from an offline debugging application
 // The actual check for extension presence and enabling it on the device is done in the example base class
 // See ExampleBase::createInstance and ExampleBase::createDevice (base/vkx::ExampleBase.cpp)
-
-namespace marker {
-// Set to true if function pointer for the debug marker are available
-extern bool active;
-
-// Get function pointers for the debug report extensions from the device
-void setup(const vk::Instance& instance, const vk::Device& device);
-
-// Sets the debug name of an object
-// All Objects in Vulkan are represented by their 64-bit handles which are passed into this function
-// along with the object type
-void setObjectName(const vk::Device& device, uint64_t object, vk::DebugReportObjectTypeEXT objectType, const char* name);
-
-// Set the tag for an object
-void setObjectTag(const vk::Device& device, uint64_t object, vk::DebugReportObjectTypeEXT objectType, uint64_t name, size_t tagSize, const void* tag);
-
-// Start a new debug marker region
-void beginRegion(const vk::CommandBuffer& cmdbuffer, const std::string& pMarkerName, const glm::vec4& color);
-
-// Insert a new debug marker into the command buffer
-void insert(const vk::CommandBuffer& cmdbuffer, const std::string& markerName, const glm::vec4& color);
-
-// End the current debug marker region
-void endRegion(const vk::CommandBuffer& cmdBuffer);
-
-// Object specific naming functions
-void setCommandBufferName(const vk::Device& device, const VkCommandBuffer& cmdBuffer, const char* name);
-void setQueueName(const vk::Device& device, const VkQueue& queue, const char* name);
-void setImageName(const vk::Device& device, const VkImage& image, const char* name);
-void setSamplerName(const vk::Device& device, const VkSampler& sampler, const char* name);
-void setBufferName(const vk::Device& device, const VkBuffer& buffer, const char* name);
-void setDeviceMemoryName(const vk::Device& device, const VkDeviceMemory& memory, const char* name);
-void setShaderModuleName(const vk::Device& device, const VkShaderModule& shaderModule, const char* name);
-void setPipelineName(const vk::Device& device, const VkPipeline& pipeline, const char* name);
-void setPipelineLayoutName(const vk::Device& device, const VkPipelineLayout& pipelineLayout, const char* name);
-void setRenderPassName(const vk::Device& device, const VkRenderPass& renderPass, const char* name);
-void setFramebufferName(const vk::Device& device, const VkFramebuffer& framebuffer, const char* name);
-void setDescriptorSetLayoutName(const vk::Device& device, const VkDescriptorSetLayout& descriptorSetLayout, const char* name);
-void setDescriptorSetName(const vk::Device& device, const VkDescriptorSet& descriptorSet, const char* name);
-void setSemaphoreName(const vk::Device& device, const VkSemaphore& semaphore, const char* name);
-void setFenceName(const vk::Device& device, const VkFence& fence, const char* name);
-void setEventName(const vk::Device& device, const VkEvent& _event, const char* name);
-
-class Marker {
+class DebugMarker {
 public:
-    Marker(const vk::CommandBuffer& cmdBuffer, const std::string& name, const glm::vec4& color = glm::vec4(0.8f))
-        : cmdBuffer(cmdBuffer) {
-        if (active) {
-            beginRegion(cmdBuffer, name, color);
+    // Get function pointers for the debug report extensions from the device
+    static void setup(const vk::Instance& instance) {
+        const auto& dispatcher = Debug::getInstanceDispatcher(instance);
+        active() = (nullptr != dispatcher.vkSetDebugUtilsObjectTagEXT);
+    }
+
+    // Start a new debug marker region
+    static void beginRegion(const vk::CommandBuffer& cmdbuffer, const std::string& name, const std::array<float, 4>& color) {
+        // Check for valid function pointer (may not be present if not running in a debugging application)
+        if (isActive()) {
+            cmdbuffer.beginDebugUtilsLabelEXT(vk::DebugUtilsLabelEXT{ name.c_str(), color }, Debug::getInstanceDispatcher());
         }
     }
-    ~Marker() {
-        if (active) {
-            endRegion(cmdBuffer);
+
+    // Insert a new debug marker into the command buffer
+    static void insert(const vk::CommandBuffer& cmdbuffer, const std::string& name, const std::array<float, 4>& color) {
+        // Check for valid function pointer (may not be present if not running in a debugging application)
+        if (isActive()) {
+            cmdbuffer.insertDebugUtilsLabelEXT(vk::DebugUtilsLabelEXT{ name.c_str(), color }, Debug::getInstanceDispatcher());
         }
     }
+
+    // End the current debug marker region
+    static void endRegion(const vk::CommandBuffer& cmdbuffer) {
+        // Check for valid function (may not be present if not running in a debugging application)
+        if (isActive()) {
+            cmdbuffer.endDebugUtilsLabelEXT(Debug::getInstanceDispatcher());
+        }
+    }
+
+    // Sets the debug name of an object
+    // All Objects in Vulkan are represented by their 64-bit handles which are passed into this function
+    // along with the object type
+    static void setObjectName(const vk::Device& device, uint64_t object, vk::ObjectType objectType, const std::string& name) {
+        if (isActive()) {
+            const auto& dispatcher = Debug::getInstanceDispatcher();
+            device.setDebugUtilsObjectNameEXT({ objectType, object, name.c_str() }, dispatcher);
+        }
+    }
+
+    // Object specific naming functions
+    static void setName(const vk::Device& device, const vk::CommandBuffer& obj, const std::string& name) {
+        setObjectName(device, (uint64_t)obj.operator VkCommandBuffer(), vk::ObjectType::eCommandBuffer, name);
+    }
+
+    static void setName(const vk::Device& device, const vk::Queue& obj, const std::string& name) {
+        setObjectName(device, (uint64_t)obj.operator VkQueue(), vk::ObjectType::eQueue, name);
+    }
+
+    static void setName(const vk::Device& device, const vk::Image& obj, const std::string& name) {
+        setObjectName(device, (uint64_t)obj.operator VkImage(), vk::ObjectType::eImage, name);
+    }
+
+    static void setName(const vk::Device& device, const vk::Buffer& obj, const std::string& name) {
+        setObjectName(device, (uint64_t)obj.operator VkBuffer(), vk::ObjectType::eBuffer, name);
+    }
+
+    static void setName(const vk::Device& device, const vk::Framebuffer& obj, const std::string& name) {
+        setObjectName(device, (uint64_t)obj.operator VkFramebuffer(), vk::ObjectType::eFramebuffer, name);
+    }
+
+    static void setName(const vk::Device& device, const vk::Pipeline& obj, const std::string& name) {
+        setObjectName(device, (uint64_t)obj.operator VkPipeline(), vk::ObjectType::ePipeline, name);
+    }
+    static bool isActive() { return active(); }
 
 private:
-    const vk::CommandBuffer& cmdBuffer;
+    static bool& active() {
+        static bool active{ false };
+        return active;
+    }
 };
-}  // namespace marker
-}}  // namespace vks::debug
+
+}  // namespace vks
