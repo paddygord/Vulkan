@@ -1,21 +1,33 @@
 #include <vr/vr_common.hpp>
 #include <math.h>
-#include "openxr.hpp"
+#include <openxr/openxr.hpp>
+#include <unordered_map>
 
 namespace xrs {
 
-// Convenience method for looping over each eye with a lambda
-template <typename Function>
-inline void for_each_eye(Function function) {
-    for (size_t eye = 0; eye < 2; ++eye) {
-        function(eye);
+template <typename T>
+std::vector<std::string> splitCharBuffer(const T& buffer) {
+    std::vector<std::string> result;
+    std::string curString;
+    for (const auto c : buffer) {
+        if (c == 0 || c == ' ') {
+            if (!curString.empty()) {
+                result.push_back(curString);
+                curString.clear();
+            }
+            if (c == 0) {
+                break;
+            }
+            continue;
+        }
+        curString.push_back(c);
     }
+    return result;
 }
 
 inline XrFovf toTanFovf(const XrFovf& fov) {
-    return  { tanf(fov.angleLeft), tanf(fov.angleRight), tanf(fov.angleUp), tanf(fov.angleDown) };
+    return { tanf(fov.angleLeft), tanf(fov.angleRight), tanf(fov.angleUp), tanf(fov.angleDown) };
 }
-
 
 inline mat4 toGlm(const XrFovf& fov, float nearZ = 0.01f, float farZ = 10000.0f) {
     auto tanFov = toTanFovf(fov);
@@ -73,150 +85,554 @@ inline ivec2 toGlm(const XrExtent2Di& e) {
     return { e.width, e.height };
 }
 
-}  // namespace xrs
+// Oculus runtime current reports the XR_EXT_debug_utils is supported, but fails when you request it
+#define SUPPRESS_DEBUG_UTILS 1
 
-template <typename T>
-std::vector<std::string> splitCharBuffer(const T& buffer) {
-    std::vector<std::string> result;
-    std::string curString;
-    for (const auto c : buffer) {
-        if (c == 0 || c == ' ') {
-            if (!curString.empty()) {
-                result.push_back(curString);
-                curString.clear();
-            }
-            if (c == 0) {
-                break;
-            }
-            continue;
-        }
-        curString.push_back(c);
-    }
-    return result;
-}
+struct Context {
+    using InteractionProfileChangedHandler = std::function<void(const xr::EventDataInteractionProfileChanged&)>;
 
-class OpenXrExample : public VrExample {
-    using Parent = VrExample;
+    // Interaction with non-core (KHR, EXT, etc) functions requires a dispatch instance
+    xr::DispatchLoaderDynamic dispatch;
+    bool enableDebug{ true };
+    std::unordered_map<std::string, xr::ExtensionProperties> extensions;
+    xr::Instance instance;
+    xr::SystemId systemId;
+    xr::Session session;
+    xr::InstanceProperties instanceProperties;
+    xr::SystemProperties systemProperties;
 
-public:
-    struct XrStuff {
-        xr::DispatchLoaderDynamic dispatch;
-        xr::Instance instance;
-        xr::Session session;
-        xr::Space space;
-        xr::Swapchain swapchain;
-        XrSystemId systemId;
-        XrExtent2Df bounds;
-        xr::SessionState state{ xr::SessionState::Idle };
-        XrFrameState frameState{ XR_TYPE_FRAME_STATE, nullptr };
-        xr::Result beginFrameResult{ xr::Result::FrameDiscarded };
+    xr::Swapchain swapchain;
+    xr::Extent2Df bounds;
+    xr::SessionState state{ xr::SessionState::Idle };
+    xr::FrameState frameState;
+    xr::Result beginFrameResult{ xr::Result::FrameDiscarded };
+    xr::ViewConfigurationType viewConfigType;
+    xr::ViewConfigurationProperties viewConfigProperties;
+    std::vector<xr::ViewConfigurationView> viewConfigViews;
+    std::vector<xr::View> eyeViewStates;
 
-        std::array<XrView, 2> eyeViewStates;
-        std::vector<XrSwapchainImageVulkanKHR> swapchainImages;
+    std::array<xr::CompositionLayerProjectionView, 2> projectionLayerViews;
+    xr::CompositionLayerProjection projectionLayer{ {}, {}, 2, (xr::CompositionLayerProjectionView*)projectionLayerViews.data() };
+    xr::Space& space{ projectionLayer.space };
+    std::vector<xr::CompositionLayerBaseHeader*> layersPointers;
 
-        XrCompositionLayerProjection projectionLayer;
-        std::array<XrCompositionLayerProjectionView, 2> projectionLayerViews;
-        std::vector<XrCompositionLayerBaseHeader*> layersPointers;
-
-        bool shouldRender() const { return beginFrameResult == xr::Result::Success && frameState.shouldRender; }
-    } _xr;
-
-    vk::Semaphore blitComplete;
-    std::vector<vk::CommandBuffer> openxrBlitCommands;
-    std::vector<vk::CommandBuffer> mirrorBlitCommands;
+    InteractionProfileChangedHandler interactionProfileChangedHandler{ [](const xr::EventDataInteractionProfileChanged&) {} };
 
     static XrBool32 debugCallback(XrDebugUtilsMessageSeverityFlagsEXT messageSeverity,
                                   XrDebugUtilsMessageTypeFlagsEXT messageTypes,
                                   const XrDebugUtilsMessengerCallbackDataEXT* callbackData,
                                   void* userData) {
-        return static_cast<OpenXrExample*>(userData)->onValidationMessage(messageSeverity, messageTypes, callbackData);
+        return static_cast<Context*>(userData)->onValidationMessage(messageSeverity, messageTypes, callbackData);
     }
 
     XrBool32 onValidationMessage(XrDebugUtilsMessageSeverityFlagsEXT messageSeverity,
                                  XrDebugUtilsMessageTypeFlagsEXT messageTypes,
                                  const XrDebugUtilsMessengerCallbackDataEXT* callbackData) {
+#ifdef WIN32
         OutputDebugStringA(callbackData->message);
         OutputDebugStringA("\n");
+#endif
+        std::cout << callbackData->message << std::endl;
         return XR_TRUE;
     }
 
-    OpenXrExample() {
-        auto layersProperties = xr::enumerateApiLayerProperties();
-        for (const auto& layerProperties : layersProperties) {
-            std::cout << layerProperties.layerName << std::endl;
-            auto extensionsProperties = xr::enumerateInstanceExtensionProperties(layerProperties.layerName);
-            for (const auto& extensionProperties : extensionsProperties) {
-                std::cout << "\t" << extensionProperties.extensionName << std::endl;
+    void create() {
+        for (const auto& extensionProperties : xr::enumerateInstanceExtensionProperties(nullptr)) {
+            extensions.insert({ extensionProperties.extensionName, extensionProperties });
+        }
+
+        if (0 == extensions.count(XR_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
+            enableDebug = false;
+        }
+
+        vks::CStringVector requestedExtensions;
+#if defined(XR_USE_GRAPHICS_API_VULKAN)
+        if (0 == extensions.count(XR_KHR_VULKAN_ENABLE_EXTENSION_NAME)) {
+            throw std::runtime_error("Vulkan XR extension not available");
+        }
+        requestedExtensions.push_back(XR_KHR_VULKAN_ENABLE_EXTENSION_NAME);
+#endif
+
+#if !SUPPRESS_DEBUG_UTILS
+        if (enableDebug) {
+            extensions.push_back(XR_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+#endif
+
+        {
+            xr::InstanceCreateInfo ici{ {},
+                                        { "vr_openxr", 0, "vulkan_cpp_examples", 0, XR_CURRENT_API_VERSION },
+                                        0,
+                                        nullptr,
+                                        (uint32_t)requestedExtensions.size(),
+                                        requestedExtensions.data() };
+
+            xr::DebugUtilsMessengerCreateInfoEXT dumci;
+            static constexpr auto XR_ALL_TYPES = XR_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                                                 XR_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_TYPE_CONFORMANCE_BIT_EXT;
+            dumci.messageSeverities = xr::DebugUtilsMessageSeverityFlagBitsEXT::AllBits;
+            dumci.messageTypes = xr::DebugUtilsMessageTypeFlagBitsEXT::AllBits;
+            dumci.userData = this;
+            dumci.userCallback = &Context::debugCallback;
+
+#if !SUPPRESS_DEBUG_UTILS
+            if (enableDebug) {
+                ici.next = &dumci;
+            }
+#endif
+            instance = xr::createInstance(ici);
+        }
+        instanceProperties = instance.getInstanceProperties();
+
+        // Having created the isntance, the very first thing to do is populate the dynamic dispatch, loading
+        // all the available functions from the runtime
+        dispatch = xr::DispatchLoaderDynamic::createFullyPopulated(instance, &xrGetInstanceProcAddr);
+
+        // We want to create an HMD example
+        systemId = instance.getSystem(xr::SystemGetInfo{ xr::FormFactor::HeadMountedDisplay });
+        systemProperties = instance.getSystemProperties(systemId);
+
+        // Find out what view configurations we have available
+        {
+            auto viewConfigTypes = instance.enumerateViewConfigurations(systemId);
+            viewConfigType = viewConfigTypes[0];
+            if (viewConfigType != xr::ViewConfigurationType::PrimaryStereo) {
+                throw std::runtime_error("Example only supports stereo-based HMD rendering");
+            }
+            viewConfigProperties = instance.getViewConfigurationProperties(systemId, viewConfigType);
+        }
+
+        viewConfigViews = instance.enumerateViewConfigurationViews(systemId, viewConfigType);
+    }
+
+    void destroy() {
+        destroySession();
+        if (instance) {
+            instance.destroy();
+            instance = nullptr;
+        }
+    }
+
+    void destroySwapchain() {
+        if (swapchain) {
+            swapchain.destroy();
+            swapchain = nullptr;
+        }
+
+#if defined(XR_USE_GRAPHICS_API_VULKAN)
+        vulkanSwapchainImages.clear();
+#endif
+    }
+
+#if defined(XR_USE_GRAPHICS_API_VULKAN)
+    std::vector<xr::SwapchainImageVulkanKHR> vulkanSwapchainImages;
+    std::vector<std::string> getVulkanInstanceExtensions() { return splitCharBuffer<>(instance.getVulkanInstanceExtensionsKHR(systemId, dispatch)); }
+    std::vector<std::string> getVulkanDeviceExtensions() { return splitCharBuffer<>(instance.getVulkanDeviceExtensionsKHR(systemId, dispatch)); }
+    std::vector<vk::Format> getVulkanSwapchainFormats() {
+        std::vector<vk::Format> swapchainFormats;
+        auto swapchainFormatsRaw = session.enumerateSwapchainFormats();
+        swapchainFormats.reserve(swapchainFormatsRaw.size());
+        for (const auto& format : swapchainFormatsRaw) {
+            swapchainFormats.push_back((vk::Format)format);
+        }
+        return swapchainFormats;
+    }
+
+    void createVulkanSwapchain(const uvec2& size,
+                               vk::Format format = vk::Format::eB8G8R8A8Srgb,
+                               xr::SwapchainUsageFlags usageFlags = xr::SwapchainUsageFlagBits::TransferDst,
+                               uint32_t samples = 1,
+                               uint32_t arrayCount = 1,
+                               uint32_t faceCount = 1,
+                               uint32_t mipCount = 1) {
+        createVulkanSwapchain(xr::SwapchainCreateInfo{ {}, usageFlags, (VkFormat)format, samples, size.x, size.y, faceCount, arrayCount, mipCount });
+    }
+
+    void createVulkanSwapchain(const xr::SwapchainCreateInfo& createInfo) {
+        swapchain = session.createSwapchain(createInfo);
+        vulkanSwapchainImages = swapchain.enumerateSwapchainImages<xr::SwapchainImageVulkanKHR>();
+    }
+#endif
+
+    void destroySession() {
+        destroySwapchain();
+        if (session) {
+            session.destroy();
+            session = nullptr;
+        }
+    }
+
+    template <typename T>
+    void createSession(const T& graphicsBinding) {
+        // Create the session bound to the vulkan device and queue
+        {
+            //auto graphicsRequirements = xr::getVulkanGraphicsRequirementsKHR(_xr.instance, _xr.systemId);
+            xr::SessionCreateInfo sci{ {}, systemId };
+            sci.next = &graphicsBinding;
+            session = instance.createSession(sci);
+        }
+
+        auto referenceSpaces = session.enumerateReferenceSpaces();
+        space = session.createReferenceSpace(xr::ReferenceSpaceCreateInfo{ xr::ReferenceSpaceType::Local });
+        session.getReferenceSpaceBoundsRect(xr::ReferenceSpaceType::Local, bounds);
+        projectionLayer.space = space;
+        projectionLayer.viewCount = 2;
+        projectionLayer.views = projectionLayerViews.data();
+        layersPointers.push_back((xr::CompositionLayerBaseHeader*)&projectionLayer);
+    }
+
+    void pollEvents() {
+        while (true) {
+            xr::EventDataBuffer eventBuffer;
+            auto pollResult = instance.pollEvent(eventBuffer);
+            if (pollResult == xr::Result::EventUnavailable) {
+                break;
+            }
+
+            switch (eventBuffer.type) {
+                case xr::StructureType::EventDataSessionStateChanged: {
+                    onSessionStateChanged(reinterpret_cast<xr::EventDataSessionStateChanged&>(eventBuffer));
+                    break;
+                }
+                case xr::StructureType::EventDataInstanceLossPending: {
+                    onInstanceLossPending(reinterpret_cast<xr::EventDataInstanceLossPending&>(eventBuffer));
+                    break;
+                }
+                case xr::StructureType::EventDataInteractionProfileChanged: {
+                    onInteractionprofileChanged(reinterpret_cast<xr::EventDataInteractionProfileChanged&>(eventBuffer));
+                    break;
+                }
+                case xr::StructureType::EventDataReferenceSpaceChangePending: {
+                    onReferenceSpaceChangePending(reinterpret_cast<xr::EventDataReferenceSpaceChangePending&>(eventBuffer));
+                    break;
+                }
             }
         }
-        auto extensionsProperties = xr::enumerateInstanceExtensionProperties(nullptr);
-        for (const auto& extensionProperties : extensionsProperties) {
-            std::cout << "\t" << extensionProperties.extensionName << std::endl;
+    }
+
+    void onSessionStateChanged(const xr::EventDataSessionStateChanged& sessionStateChangedEvent) {
+        state = sessionStateChangedEvent.state;
+        std::cout << "Session state " << (uint32_t)state << std::endl;
+        switch (state) {
+            case xr::SessionState::Ready: {
+                std::cout << "Starting session" << std::endl;
+                session.beginSession(xr::SessionBeginInfo{ viewConfigType });
+            } break;
+
+            case xr::SessionState::Stopping: {
+                std::cout << "Stopping session" << std::endl;
+                session.endSession();
+            } break;
+
+            case xr::SessionState::Exiting:
+            case xr::SessionState::LossPending: {
+                std::cout << "Destroying session" << std::endl;
+                destroySession();
+            } break;
+
+            default:
+                break;
         }
+    }
+    void onInstanceLossPending(const xr::EventDataInstanceLossPending&) {}
+    void onEventsLost(const xr::EventDataEventsLost&) {}
 
-        vks::CStringVector extensions;
-        //extensions.push_back(XR_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        //extensions.push_back(XR_KHR_VULKAN_SWAPCHAIN_FORMAT_LIST_EXTENSION_NAME);
-        extensions.push_back(XR_KHR_VULKAN_ENABLE_EXTENSION_NAME);
+    void onReferenceSpaceChangePending(const xr::EventDataReferenceSpaceChangePending& event) { int i = 0; }
 
+    void onInteractionprofileChanged(const xr::EventDataInteractionProfileChanged& event) { interactionProfileChangedHandler(event); }
+
+    void onFrameStart() {
+        beginFrameResult = xr::Result::FrameDiscarded;
+        switch (state) {
+            case xr::SessionState::Focused: {
+                //XrActionsSyncInfo actionsSyncInfo{ XR_TYPE_ACTIONS_SYNC_INFO, nullptr, 0, nullptr };
+                //_xr.session.syncActions(&actionsSyncInfo);
+            }
+                // fallthough
+            case xr::SessionState::Synchronized:
+            case xr::SessionState::Visible: {
+                session.waitFrame(xr::FrameWaitInfo{}, frameState);
+                beginFrameResult = session.beginFrame(xr::FrameBeginInfo{});
+                switch (beginFrameResult) {
+                    case xr::Result::SessionLossPending:
+                        std::cout << "Session loss pending" << std::endl;
+                        return;
+
+                    case xr::Result::FrameDiscarded:
+                        std::cout << "Frame discarded" << std::endl;
+                        return;
+
+                    default:
+                        break;
+                }
+            } break;
+
+            default:
+                beginFrameResult = xr::Result::FrameDiscarded;
+                Sleep(100);
+        }
+    }
+
+    bool shouldRender() const { return beginFrameResult == xr::Result::Success && frameState.shouldRender; }
+};
+
+const std::array<std::string, 2> HAND_PATHS{ {
+    "/user/hand/left",
+    "/user/hand/right",
+} };
+
+}  // namespace xrs
+
+struct InputState {
+    xr::ActionSet actionSet;
+    xr::Action grabAction;
+    xr::Action moveXAction;
+    xr::Action moveYAction;
+    //xr::Action moveAction;
+    xr::Action poseAction;
+    xr::Action vibrateAction;
+    xr::Action quitAction;
+    std::array<xr::Path, 2> handSubactionPath;
+    std::array<xr::Space, 2> handSpace;
+    std::array<float, 2> handScale;
+    std::array<xr::Bool32, 2> renderHand;
+    glm::vec2 moveAmount;
+
+    static xr::BilateralPaths makeHandSubpaths(const xr::Instance& instance, const std::string& subpath = "") {
+        xr::BilateralPaths result;
+        // Create subactions for left and right hands.
+        xr::for_each_side_index([&](uint32_t side) {
+            std::string fullPath = xrs::HAND_PATHS[side] + subpath;
+            result[side] = instance.stringToPath(fullPath.c_str());
+        });
+        return result;
+    }
+
+    void initialize(const xr::Instance& instance) {
+        // Create an action set.
+        actionSet = instance.createActionSet(xr::ActionSetCreateInfo{ "gameplay", "Gameplay" });
+
+        // Create subactions for left and right hands.
+        handSubactionPath = makeHandSubpaths(instance);
+
+        // Create actions.
+        // Create an input action for grabbing objects with the left and right hands.
+        grabAction = actionSet.createAction({ "grab_object", xr::ActionType::FloatInput, 2, handSubactionPath.data(), "Grab Object" });
+        // Create an input action getting the left and right hand poses.
+        poseAction = actionSet.createAction({ "hand_pose", xr::ActionType::PoseInput, 2, handSubactionPath.data(), "Hand Pose" });
+        // Create output actions for vibrating the left and right controller.
+        vibrateAction = actionSet.createAction({ "hand_vibrate_handpose", xr::ActionType::VibrationOutput, 2, handSubactionPath.data(), "Vibrate Hand" });
+        // Create input actions for quitting the session using the left and right controller.
+        quitAction = actionSet.createAction({ "quit_session", xr::ActionType::BooleanInput, 2, handSubactionPath.data(), "Quit Session" });
+
+        auto selectPath = makeHandSubpaths(instance, "/input/select/click");
+        auto squeezeValuePath = makeHandSubpaths(instance, "/input/squeeze/value");
+        auto squeezeClickPath = makeHandSubpaths(instance, "/input/squeeze/click");
+        auto posePath = makeHandSubpaths(instance, "/input/grip/pose");
+        auto hapticPath = makeHandSubpaths(instance, "/output/haptic");
+        auto menuClickPath = makeHandSubpaths(instance, "/input/menu/click");
+
+        moveXAction = actionSet.createAction({ "move_player_x", xr::ActionType::FloatInput, 2, handSubactionPath.data(), "Move Player X" });
+        auto moveXValuePath = makeHandSubpaths(instance, "/input/thumbstick/x");
+        moveYAction = actionSet.createAction({ "move_player_y", xr::ActionType::FloatInput, 2, handSubactionPath.data(), "Move Player Y" });
+        auto moveYValuePath = makeHandSubpaths(instance, "/input/thumbstick/y");
+        //moveAction = actionSet.createAction({ "move_player", xr::ActionType::Vector2FInput, 2, handSubactionPath.data(), "Move Player" });
+        //auto moveValuePath = makeHandSubpaths(instance, "/input/thumbstick/value");
+
+        // Suggest bindings for KHR Simple.
         {
-            XrInstanceCreateInfo ici{ XR_TYPE_INSTANCE_CREATE_INFO, nullptr };
-            ici.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
-            strcpy(ici.applicationInfo.applicationName, "vr_openxr");
-            ici.applicationInfo.applicationVersion = 0;
-            strcpy(ici.applicationInfo.engineName, "jherico");
-            ici.applicationInfo.engineVersion = 0;
-            ici.enabledExtensionCount = (uint32_t)extensions.size();
-            ici.enabledExtensionNames = extensions.data();
-
-            //static constexpr auto XR_ALL_SEVERITIES = XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-            //                                          XR_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-            //static constexpr auto XR_ALL_TYPES = XR_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-            //                                     XR_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_TYPE_CONFORMANCE_BIT_EXT;
-            //XrDebugUtilsMessengerCreateInfoEXT dumci{ XR_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT };
-            //dumci.messageSeverities = XR_ALL_SEVERITIES;
-            //dumci.messageTypes = XR_ALL_TYPES;
-            //dumci.userData = this;
-            //dumci.userCallback = &OpenXrExample::debugCallback;
-            //ici.next = &dumci;
-
-            _xr.instance = xr::createInstance(&ici);
-            _xr.dispatch = xr::DispatchLoaderDynamic::createFullyPopulated(_xr.instance, &xrGetInstanceProcAddr);
+            std::vector<xr::ActionSuggestedBinding> bindings{ { // Fall back to a click input for the grab action.
+                                                                { grabAction, selectPath[xr::Side::Left] },
+                                                                { grabAction, selectPath[xr::Side::Right] },
+                                                                { poseAction, posePath[xr::Side::Left] },
+                                                                { poseAction, posePath[xr::Side::Right] },
+                                                                { quitAction, menuClickPath[xr::Side::Left] },
+                                                                { quitAction, menuClickPath[xr::Side::Right] },
+                                                                { vibrateAction, hapticPath[xr::Side::Left] },
+                                                                { vibrateAction, hapticPath[xr::Side::Right] } } };
+            auto interactionProfilePath = instance.stringToPath("/interaction_profiles/khr/simple_controller");
+            instance.suggestInteractionProfileBindings({ interactionProfilePath, (uint32_t)bindings.size(), bindings.data() });
         }
 
+        // Suggest bindings for the Oculus Touch.
         {
-            XrSystemGetInfo sgi{ XR_TYPE_SYSTEM_GET_INFO, nullptr, XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY };
-            _xr.instance.getSystem(&sgi, &_xr.systemId);
+            std::vector<xr::ActionSuggestedBinding> bindings{ { { grabAction, squeezeValuePath[xr::Side::Left] },
+                                                                { grabAction, squeezeValuePath[xr::Side::Right] },
+                                                                { moveXAction, moveXValuePath[xr::Side::Left] },
+                                                                { moveXAction, moveXValuePath[xr::Side::Right] },
+//                                                              { moveYAction, moveYValuePath[xr::Side::Left] },
+                                                                { moveYAction, moveYValuePath[xr::Side::Right] },
+                                                                { poseAction, posePath[xr::Side::Left] },
+                                                                { poseAction, posePath[xr::Side::Right] },
+                                                                { quitAction, menuClickPath[xr::Side::Left] },
+                                                                { vibrateAction, hapticPath[xr::Side::Left] },
+                                                                { vibrateAction, hapticPath[xr::Side::Right] } } };
+            auto interactionProfilePath = instance.stringToPath("/interaction_profiles/oculus/touch_controller");
+            instance.suggestInteractionProfileBindings({ interactionProfilePath, (uint32_t)bindings.size(), bindings.data() });
         }
 
+        // Suggest bindings for the Vive Controller.
         {
-            XrInstanceProperties ip{ XR_TYPE_INSTANCE_PROPERTIES };
-            _xr.instance.getInstanceProperties(&ip);
-            XrSystemProperties sp{ XR_TYPE_SYSTEM_PROPERTIES };
-            _xr.instance.getSystemProperties(_xr.systemId, &sp);
-
-            uint32_t count;
-            std::vector<xr::ViewConfigurationType> viewConfigTypes;
-            xrEnumerateViewConfigurations(_xr.instance, _xr.systemId, 0, &count, nullptr);
-            viewConfigTypes.resize(count);
-            xrEnumerateViewConfigurations(_xr.instance, _xr.systemId, count, &count, (XrViewConfigurationType*)viewConfigTypes.data());
-
-            XrViewConfigurationProperties vp{ XR_TYPE_VIEW_CONFIGURATION_PROPERTIES };
-            _xr.instance.getViewConfigurationProperties(_xr.systemId, viewConfigTypes[0], &vp);
-            auto views = _xr.instance.enumerateViewConfigurationViews(_xr.systemId, viewConfigTypes[0]);
-
-            const auto& viewConfig = views[0];
-            renderTargetSize = { viewConfig.recommendedImageRectWidth * 2, viewConfig.recommendedImageRectHeight };
+            std::vector<xr::ActionSuggestedBinding> bindings{ { { grabAction, squeezeClickPath[xr::Side::Left] },
+                                                                { grabAction, squeezeClickPath[xr::Side::Right] },
+                                                                { poseAction, posePath[xr::Side::Left] },
+                                                                { poseAction, posePath[xr::Side::Right] },
+                                                                { quitAction, menuClickPath[xr::Side::Left] },
+                                                                { quitAction, menuClickPath[xr::Side::Right] },
+                                                                { vibrateAction, hapticPath[xr::Side::Left] },
+                                                                { vibrateAction, hapticPath[xr::Side::Right] } } };
+            auto interactionProfilePath = instance.stringToPath("/interaction_profiles/htc/vive_controller");
+            instance.suggestInteractionProfileBindings({ interactionProfilePath, (uint32_t)bindings.size(), bindings.data() });
         }
 
-        // Find out the Vulkan interaction requirements (instance and device extensions required)
+        // Suggest bindings for the Microsoft Mixed Reality Motion Controller.
         {
-            auto instanceExtensions = splitCharBuffer<>(_xr.instance.getVulkanInstanceExtensionsKHR(_xr.systemId, _xr.dispatch));
-            context.requireExtensions(instanceExtensions);
-            auto deviceExtensions = splitCharBuffer<>(_xr.instance.getVulkanDeviceExtensionsKHR(_xr.systemId, _xr.dispatch));
-            context.requireDeviceExtensions(deviceExtensions);
+            std::vector<xr::ActionSuggestedBinding> bindings{ { { grabAction, squeezeClickPath[xr::Side::Left] },
+                                                                { grabAction, squeezeClickPath[xr::Side::Right] },
+                                                                { poseAction, posePath[xr::Side::Left] },
+                                                                { poseAction, posePath[xr::Side::Right] },
+                                                                { quitAction, menuClickPath[xr::Side::Left] },
+                                                                { quitAction, menuClickPath[xr::Side::Right] },
+                                                                { vibrateAction, hapticPath[xr::Side::Left] },
+                                                                { vibrateAction, hapticPath[xr::Side::Right] } } };
+            auto interactionProfilePath = instance.stringToPath("/interaction_profiles/microsoft/motion_controller");
+            instance.suggestInteractionProfileBindings({ interactionProfilePath, (uint32_t)bindings.size(), bindings.data() });
+        }
+    }
+
+    void attach(const xr::Session& session) {
+        xr::for_each_side_index([&](uint32_t side) { handSpace[side] = session.createActionSpace({ poseAction, handSubactionPath[side], {} }); });
+        session.attachSessionActionSets(xr::SessionActionSetsAttachInfo{ 1, &actionSet });
+    }
+
+    void pollActions(xr::SessionState state, const xr::Session& session) {
+        renderHand = { XR_FALSE, XR_FALSE };
+        if (state != xr::SessionState::Focused) {
+            return;
         }
 
+        // Sync actions
+        const xr::ActiveActionSet activeActionSet{ actionSet, XR_NULL_PATH };
+
+        session.syncActions({ 1, &activeActionSet });
+
+        // Get pose and grab action state and start haptic vibrate when hand is 90% squeezed.
+        xr::for_each_side_index([&](uint32_t hand) {
+            auto moveXValue = session.getActionStateFloat({ moveXAction, handSubactionPath[hand] });
+            auto moveYValue = session.getActionStateFloat({ moveYAction, handSubactionPath[hand] });
+            if (moveXValue.isActive && moveYValue.isActive) {
+                moveAmount = { moveXValue.currentState, moveYValue.currentState };
+            } else {
+                moveAmount = {};
+            }
+
+            auto grabValue = session.getActionStateFloat({ grabAction, handSubactionPath[hand] });
+
+            if (grabValue.isActive) {
+                // Scale the rendered hand by 1.0f (open) to 0.5f (fully squeezed).
+                handScale[hand] = 1.0f - 0.5f * grabValue.currentState;
+                if (grabValue.currentState > 0.9f) {
+                    xr::HapticVibration vibration{ XR_MIN_HAPTIC_DURATION, XR_FREQUENCY_UNSPECIFIED, 0.5f };
+                    XrHapticActionInfo hapticActionInfo{ XR_TYPE_HAPTIC_ACTION_INFO };
+                    session.applyHapticFeedback({ vibrateAction, handSubactionPath[hand] }, (xr::HapticBaseHeader&)vibration);
+                }
+            }
+
+            auto quitValue = session.getActionStateBoolean({ quitAction, handSubactionPath[hand] });
+            if (quitValue.isActive && quitValue.changedSinceLastSync && quitValue.currentState) {
+                session.requestExitSession();
+            }
+
+            auto poseState = session.getActionStatePose({ poseAction, handSubactionPath[hand] });
+            renderHand[hand] = poseState.isActive;
+        });
+    }
+
+    std::array<mat4, 2> getHandPoses(xr::Space appSpace, xr::Time displayTime) {
+        std::array<mat4, 2> result;
+        xr::for_each_side_index([&](uint32_t hand) {
+            auto spaceLocation = handSpace[hand].locateSpace(appSpace, displayTime);
+            auto requiredBits = xr::SpaceLocationFlagBits::PositionValid;
+            const xr::SpaceLocationFlags requiredFlags =
+                xr::SpaceLocationFlags{ xr::SpaceLocationFlagBits::PositionValid } | xr::SpaceLocationFlags{ xr::SpaceLocationFlagBits::OrientationValid };
+            if (spaceLocation.locationFlags & requiredFlags) {
+                result[hand] = xrs::toGlm(spaceLocation.pose);
+            }
+        });
+        return result;
+    }
+
+#if 0 
+    void CreateVisualizedSpaces() {
+        CHECK(m_session != XR_NULL_HANDLE);
+
+        std::string visualizedSpaces[] = { "ViewFront", "Local", "Stage", "StageLeft", "StageRight", "StageLeftRotated", "StageRightRotated" };
+
+        for (auto visualizedSpace : visualizedSpaces) {
+            XrReferenceSpaceCreateInfo referenceSpaceCreateInfo = GetXrReferenceSpaceCreateInfo(visualizedSpace);
+            XrSpace space;
+            XrResult res = xrCreateReferenceSpace(m_session, &referenceSpaceCreateInfo, &space);
+            if (XR_SUCCEEDED(res)) {
+                m_visualizedSpaces.push_back(space);
+            } else {
+                Log::Write(Log::Level::Warning, Fmt("Failed to create reference space %s with error %d", visualizedSpace.c_str(), res));
+            }
+        }
+    }
+#endif
+};
+
+class OpenXrExample : public VrExample {
+    using Parent = VrExample;
+
+public:
+    xrs::Context _xr;
+    InputState _xrInput;
+
+    vk::Semaphore blitComplete;
+    std::vector<vk::CommandBuffer> openxrBlitCommands;
+    std::vector<vk::CommandBuffer> mirrorBlitCommands;
+
+    void logActionSourceName(const xr::Action& action, const std::string& actionName) {
+        std::vector<xr::Path> paths = _xr.session.enumerateBoundSourcesForAction({ action });
+
+        std::string sourceName;
+        for (const auto& path : paths) {
+            sourceName += _xr.session.getInputSourceLocalizedName({ path, xr::InputSourceLocalizedNameFlagBits::AllBits });
+        }
+
+        auto message = FORMAT("{} action is bound to {}", actionName.c_str(), ((sourceName.size() > 0) ? sourceName.c_str() : " nothing"));
+        OutputDebugString(message.c_str());
+        OutputDebugString("\n");
+    }
+
+    OpenXrExample() {
+        // Startup the OpenXR instance and get a system ID and view configuration
+        // All of this is independent of the interaction between Xr and the
+        // eventual Graphics API used for rendering
+        _xr.create();
+
+        _xr.interactionProfileChangedHandler = [this](const xr::EventDataInteractionProfileChanged& event) {
+            logActionSourceName(_xrInput.grabAction, "Grab");
+            logActionSourceName(_xrInput.quitAction, "Quit");
+            logActionSourceName(_xrInput.poseAction, "Pose");
+            logActionSourceName(_xrInput.vibrateAction, "Vibrate");
+            logActionSourceName(_xrInput.moveXAction, "MoveX");
+            logActionSourceName(_xrInput.moveYAction, "MoveY");
+        };
+
+        // Set up interaction between OpenXR and Vulkan
+        // This work MUST happen before you create a Vulkan instance, since
+        // OpenXR may require specific Vulkan instance and device extensions
+        context.requireExtensions(_xr.getVulkanInstanceExtensions());
+        context.requireDeviceExtensions(_xr.getVulkanDeviceExtensions());
+
+        // Our example Vulkan abstraction allows a client to select a specific vk::PhysicalDevice via a DevicePicker callback
+        // This is critical because the HMD will ultimately be dependent on the specific GPU to which it is
+        // attached
+        // Note that we don't and can't actually determine the target vk::PhysicalDevice right now because
+        // vk::Instance::getVulkanGraphicsDeviceKHR depends on a passed VkInstance, hence the use of a callback which will be executed
+        // later, once the
         context.setDevicePicker([this](const std::vector<vk::PhysicalDevice>& availableDevices) -> vk::PhysicalDevice {
             vk::PhysicalDevice targetDevice;
             {
@@ -231,85 +647,23 @@ public:
             }
             throw std::runtime_error("Requested device not found");
         });
+
+        // The initialization of the parent class depends on the renderTargetSize so it can create a desktop window with the same aspect ratio
+        // as the offscreen framebuffer
+        renderTargetSize = { _xr.viewConfigViews[0].recommendedImageRectWidth * 2, _xr.viewConfigViews[0].recommendedImageRectHeight };
     }
 
-    ~OpenXrExample() { shutdownOpenXr(); }
+    ~OpenXrExample() { _xr.destroy(); }
 
     void recenter() override {}
 
-    void shutdownOpenXrSession() {
-        if (_xr.swapchain) {
-            _xr.swapchain.destroy();
-            _xr.swapchain = nullptr;
-        }
-        if (_xr.session) {
-            _xr.session.destroy();
-            _xr.session = nullptr;
-        }
-    }
-
-    void shutdownOpenXr() {
-        shutdownOpenXrSession();
-        if (_xr.instance) {
-            _xr.instance.destroy();
-            _xr.instance = nullptr;
-        }
-    }
-
     void prepareOpenXrSession() {
-        {
-            //auto graphicsRequirements = xr::getVulkanGraphicsRequirementsKHR(_xr.instance, _xr.systemId);
+        _xr.createSession(xr::GraphicsBindingVulkanKHR{ context.instance, context.physicalDevice, context.device, context.queueIndices.graphics, 0 });
+        _xrInput.initialize(_xr.instance);
+        _xrInput.attach(_xr.session);
+        _xr.createVulkanSwapchain(renderTargetSize);
 
-            XrGraphicsBindingVulkanKHR gbv{ XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR, nullptr };
-            gbv.instance = context.instance;
-            gbv.physicalDevice = context.physicalDevice;
-            gbv.device = context.device;
-            gbv.queueFamilyIndex = context.queueIndices.graphics;
-            gbv.queueIndex = 0;
-
-            XrSessionCreateInfo sci{ XR_TYPE_SESSION_CREATE_INFO, &gbv, 0, _xr.systemId };
-            _xr.session = _xr.instance.createSession(&sci);
-        }
-
-        auto referenceSpaces = _xr.session.enumerateReferenceSpaces().value;
-        auto referenceSpace = xr::ReferenceSpaceType::Local;
-        XrReferenceSpaceCreateInfo referenceSpaceCreateInfo{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO, nullptr, (XrReferenceSpaceType)referenceSpace };
-        referenceSpaceCreateInfo.poseInReferenceSpace.orientation = { 0, 0, 0, 1 };
-        _xr.space = _xr.session.createReferenceSpace(&referenceSpaceCreateInfo).value;
-        _xr.session.getReferenceSpaceBoundsRect(referenceSpace, &_xr.bounds);
-        _xr.projectionLayer = { XR_TYPE_COMPOSITION_LAYER_PROJECTION, nullptr, 0, _xr.space, 2, _xr.projectionLayerViews.data() };
-        _xr.layersPointers.push_back((XrCompositionLayerBaseHeader*)&_xr.projectionLayer);
-
-        std::vector<vk::Format> swapchainFormats;
-        {
-            auto swapchainFormatsRaw = _xr.session.enumerateSwapchainFormats().value;
-            swapchainFormats.reserve(swapchainFormatsRaw.size());
-            for (const auto& format : swapchainFormatsRaw) {
-                swapchainFormats.push_back((vk::Format)format);
-            }
-        }
-
-        {
-            XrSwapchainCreateInfo scci{ XR_TYPE_SWAPCHAIN_CREATE_INFO };
-            scci.format = (VkFormat)vk::Format::eB8G8R8A8Srgb;
-            scci.arraySize = 1;
-            scci.faceCount = 1;
-            scci.width = renderTargetSize.x;
-            scci.height = renderTargetSize.y;
-            scci.usageFlags = XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
-            scci.sampleCount = 1;
-            scci.mipCount = 1;
-            _xr.swapchain = _xr.session.createSwapchain(&scci).value;
-        }
-
-        {
-            uint32_t count = 0;
-            xrEnumerateSwapchainImages(_xr.swapchain, 0, &count, nullptr);
-            _xr.swapchainImages.resize(count, { XR_TYPE_SWAPCHAIN_IMAGE_VULKAN_KHR });
-            xrEnumerateSwapchainImages(_xr.swapchain, count, &count, (XrSwapchainImageBaseHeader*)_xr.swapchainImages.data());
-        }
-
-        auto swapchainLength = (uint32_t)_xr.swapchainImages.size();
+        auto swapchainLength = (uint32_t)_xr.vulkanSwapchainImages.size();
         // Submission command buffers
         if (openxrBlitCommands.empty()) {
             vk::CommandBufferAllocateInfo cmdBufAllocateInfo;
@@ -318,11 +672,10 @@ public:
             openxrBlitCommands = context.device.allocateCommandBuffers(cmdBufAllocateInfo);
         }
 
-        xrs::for_each_eye([&](size_t eyeIndex) {
+        xr::for_each_side_index([&](uint32_t eyeIndex) {
             auto& layerView = _xr.projectionLayerViews[eyeIndex];
-            layerView = { XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
             layerView.subImage.swapchain = _xr.swapchain;
-            layerView.subImage.imageRect = { { 0, 0 }, { (int32_t)renderTargetSize.x / 2, (int32_t)renderTargetSize.y } };
+            layerView.subImage.imageRect.extent = { (int32_t)renderTargetSize.x / 2, (int32_t)renderTargetSize.y };
             if (eyeIndex == 1) {
                 layerView.subImage.imageRect.offset.x = layerView.subImage.imageRect.extent.width;
             }
@@ -334,7 +687,7 @@ public:
         sceneBlit.dstOffsets[1] = sceneBlit.srcOffsets[1] = vk::Offset3D{ (int32_t)renderTargetSize.x, (int32_t)renderTargetSize.y, 1 };
         for (uint32_t i = 0; i < swapchainLength; ++i) {
             vk::CommandBuffer& cmdBuffer = openxrBlitCommands[i];
-            VkImage swapchainImage = _xr.swapchainImages[i].image;
+            VkImage swapchainImage = _xr.vulkanSwapchainImages[i].image;
             cmdBuffer.reset(vk::CommandBufferResetFlagBits::eReleaseResources);
             cmdBuffer.begin(vk::CommandBufferBeginInfo{});
             context.setImageLayout(cmdBuffer, swapchainImage, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
@@ -383,100 +736,28 @@ public:
         blitComplete = context.device.createSemaphore({});
     }
 
-    void onSessionStateChanged(const XrEventDataSessionStateChanged& sessionStateChangedEvent) {
-        _xr.state = (xr::SessionState)sessionStateChangedEvent.state;
-        std::cout << "Session state " << (uint32_t)_xr.state << std::endl;
-        switch (_xr.state) {
-            case xr::SessionState::Ready: {
-                XrSessionBeginInfo beginInfo{ XR_TYPE_SESSION_BEGIN_INFO, nullptr };
-                beginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
-                std::cout << "Starting session" << std::endl;
-                _xr.session.beginSession(&beginInfo);
-            } break;
-
-            case xr::SessionState::Stopping: {
-                std::cout << "Stopping session" << std::endl;
-                _xr.session.endSession();
-            } break;
-
-            case xr::SessionState::Exiting:
-            case xr::SessionState::LossPending: {
-                std::cout << "Destroying session" << std::endl;
-                _xr.session.destroy();
-                _xr.session = nullptr;
-            } break;
-
-            default:
-                break;
-        }
-    }
-
-    void onInstanceLossPending(const XrEventDataInstanceLossPending& instanceLossPendingEvent) {}
+    glm::vec3 translation;
 
     void update(float delta) {
-        while (true) {
-            XrEventDataBuffer eventBuffer{ XR_TYPE_EVENT_DATA_BUFFER, nullptr };
-            auto pollResult = _xr.instance.pollEvent(&eventBuffer);
-            if (pollResult == xr::Result::EventUnavailable) {
-                break;
-            }
+        _xr.pollEvents();
 
-            switch (eventBuffer.type) {
-                case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED: {
-                    onSessionStateChanged(reinterpret_cast<XrEventDataSessionStateChanged&>(eventBuffer));
-                    break;
-                }
-                case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING: {
-                    onInstanceLossPending(reinterpret_cast<XrEventDataInstanceLossPending&>(eventBuffer));
-                    break;
-                }
-            }
-        }
+        _xrInput.pollActions(_xr.state, _xr.session);
 
-        _xr.beginFrameResult = xr::Result::FrameDiscarded;
-        switch (_xr.state) {
-            case xr::SessionState::Focused: {
-                //XrActionsSyncInfo actionsSyncInfo{ XR_TYPE_ACTIONS_SYNC_INFO, nullptr, 0, nullptr };
-                //_xr.session.syncActions(&actionsSyncInfo);
-            }
-                // fallthough
-            case xr::SessionState::Synchronized:
-            case xr::SessionState::Visible: {
-                XrFrameWaitInfo frameWaitInfo{ XR_TYPE_FRAME_WAIT_INFO, nullptr };
-                if (xr::Result::SessionLossPending == _xr.session.waitFrame(&frameWaitInfo, &_xr.frameState)) {
-                    std::cout << "Session loss pending" << std::endl;
-                    return;
-                }
-                XrFrameBeginInfo frameBeginInfo{ XR_TYPE_FRAME_BEGIN_INFO, nullptr };
-                _xr.beginFrameResult = _xr.session.beginFrame(&frameBeginInfo);
-                switch (_xr.beginFrameResult) {
-                    case xr::Result::SessionLossPending:
-                        std::cout << "Session loss pending" << std::endl;
-                        return;
+        translation += glm::vec3(-_xrInput.moveAmount.x, 0.0f, _xrInput.moveAmount.y) * 0.01f;
 
-                    case xr::Result::FrameDiscarded:
-                        std::cout << "Frame discarded" << std::endl;
-                        return;
-
-                    default:
-                        break;
-                }
-            } break;
-
-            default:
-                _xr.beginFrameResult = xr::Result::FrameDiscarded;
-                Sleep(100);
-        }
+        _xr.onFrameStart();
 
         if (_xr.shouldRender()) {
-            XrViewState vs{ XR_TYPE_VIEW_STATE };
-            XrViewLocateInfo vi{ XR_TYPE_VIEW_LOCATE_INFO, nullptr, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, _xr.frameState.predictedDisplayTime, _xr.space };
-            std::vector<XrView> viewStates = _xr.session.locateViews(&vi, &vs).value;
+            _xrInput.getHandPoses(_xr.space, _xr.frameState.predictedDisplayTime);
 
-            xrs::for_each_eye([&](size_t eyeIndex) {
-                const auto& viewState = _xr.eyeViewStates[eyeIndex] = viewStates[eyeIndex];
+            xr::ViewState vs;
+            xr::ViewLocateInfo vi{ xr::ViewConfigurationType::PrimaryStereo, _xr.frameState.predictedDisplayTime, _xr.space };
+            _xr.eyeViewStates = _xr.session.locateViews(vi, &(vs.operator XrViewState&()));
+
+            xr::for_each_side_index([&](size_t eyeIndex) {
+                const auto& viewState = _xr.eyeViewStates[eyeIndex];
                 eyeProjections[eyeIndex] = xrs::toGlm(viewState.fov);
-                eyeViews[eyeIndex] = glm::inverse(xrs::toGlm(viewState.pose));
+                eyeViews[eyeIndex] = glm::inverse(xrs::toGlm(viewState.pose)) * glm::translate({}, translation);
             });
             //XrSpaceLocation spaceLocation{ XR_TYPE_SPACE_LOCATION };
             //_xr.space.locateSpace({}, _xr.frameState.predictedDisplayTime, &spaceLocation);
@@ -488,39 +769,32 @@ public:
     void render() {
         if (!_xr.shouldRender()) {
             if (_xr.beginFrameResult == xr::Result::Success) {
-                XrFrameEndInfo frameEndInfo{ XR_TYPE_FRAME_END_INFO, nullptr, _xr.frameState.predictedDisplayTime,  XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
-                _xr.session.endFrame(&frameEndInfo);
+                _xr.session.endFrame(xr::FrameEndInfo{ _xr.frameState.predictedDisplayTime, xr::EnvironmentBlendMode::Opaque });
             }
             return;
         }
 
         uint32_t swapchainIndex = (uint32_t)-1;
-        static const XrSwapchainImageAcquireInfo ai{ XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
-        _xr.swapchain.acquireSwapchainImage(&ai, &swapchainIndex);
-
-        static const XrSwapchainImageWaitInfo wi{ XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO, nullptr, XR_INFINITE_DURATION };
-        _xr.swapchain.waitSwapchainImage(&wi);
+        _xr.swapchain.acquireSwapchainImage(xr::SwapchainImageAcquireInfo{}, &swapchainIndex);
+        _xr.swapchain.waitSwapchainImage(xr::SwapchainImageWaitInfo{ XR_INFINITE_DURATION });
 
         shapesRenderer->render();
 
         // Blit from our framebuffer to the OpenXR swapchain image (pre-recorded command buffer)
         context.submit(openxrBlitCommands[swapchainIndex],
-                        { { shapesRenderer->semaphores.renderComplete, vk::PipelineStageFlagBits::eColorAttachmentOutput } });
-        static const XrSwapchainImageReleaseInfo ri{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
-        _xr.swapchain.releaseSwapchainImage(&ri);
+                       { { shapesRenderer->semaphores.renderComplete, vk::PipelineStageFlagBits::eColorAttachmentOutput } });
+        _xr.swapchain.releaseSwapchainImage(xr::SwapchainImageReleaseInfo{});
 
         uint32_t layerFlags = 0;
-        xrs::for_each_eye([&](size_t eyeIndex) {
+        xr::for_each_side_index([&](size_t eyeIndex) {
             auto& layerView = _xr.projectionLayerViews[eyeIndex];
             const auto& eyeView = _xr.eyeViewStates[eyeIndex];
             layerView.fov = eyeView.fov;
             layerView.pose = eyeView.pose;
         });
 
-        XrFrameEndInfo frameEndInfo{ XR_TYPE_FRAME_END_INFO, nullptr, _xr.frameState.predictedDisplayTime, XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
-        frameEndInfo.layerCount = (uint32_t)_xr.layersPointers.size();
-        frameEndInfo.layers = _xr.layersPointers.data();
-        _xr.session.endFrame(&frameEndInfo);
+        _xr.session.endFrame(xr::FrameEndInfo{ _xr.frameState.predictedDisplayTime, xr::EnvironmentBlendMode::Opaque, (uint32_t)_xr.layersPointers.size(),
+                                               (const xr::CompositionLayerBaseHeader* const*)_xr.layersPointers.data() });
 
         vk::Fence submitFence = swapchain.getSubmitFence(true);
         auto swapchainAcquireResult = swapchain.acquireNextImage(shapesRenderer->semaphores.renderStart);

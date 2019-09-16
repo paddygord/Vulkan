@@ -31,7 +31,7 @@ public:
     void prepareWindow() {
         // Make the on screen window 1/4 the resolution of the render target
         size = renderTargetSize;
-        size /= 4;
+        size /= 2;
 
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);

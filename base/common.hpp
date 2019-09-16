@@ -30,6 +30,18 @@
 #include <thread>
 #include <vector>
 
+
+#if defined(HAVE_STD_FORMAT)
+#include <format>
+#define FORMAT(s, ...) std::format(s, __VA_ARGS__)
+#elif defined(HAVE_FMT_FORMAT)
+#include <fmt/format.h>
+#define FORMAT(s, ...) fmt::format(s, __VA_ARGS__)
+#else
+#define FORMAT(s, ...) std::string(s)
+#endif
+
+
 #if defined(__ANDROID__)
 #include <android/native_activity.h>
 #include <android/asset_manager.h>
