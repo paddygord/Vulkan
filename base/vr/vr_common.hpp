@@ -4,7 +4,7 @@
 #include "../shapes.h"
 #include "../shapesRenderer.hpp"
 
-class VrExample : glfw::Window {
+class VrExample : public glfw::Window {
     using Parent = glfw::Window;
 
 public:

@@ -64,7 +64,6 @@ inline mat4 toGlm(const XrFovf& fov, float nearZ = 0.01f, float farZ = 10000.0f)
     result[15] = 0;
 
     return resultm;
-    //    return glm::frustumLH_ZO(fabs(fov.angleLeft), fabs(fov.angleRight), fabs(fov.angleDown), fabs(fov.angleUp), zNear, zFar);
 }
 
 inline quat toGlm(const XrQuaternionf& q) {
@@ -94,12 +93,13 @@ struct Context {
     // Interaction with non-core (KHR, EXT, etc) functions requires a dispatch instance
     xr::DispatchLoaderDynamic dispatch;
     bool enableDebug{ true };
-    std::unordered_map<std::string, xr::ExtensionProperties> extensions;
+    std::unordered_map<std::string, xr::ExtensionProperties> discoveredExtensions;
     xr::Instance instance;
     xr::SystemId systemId;
     xr::Session session;
     xr::InstanceProperties instanceProperties;
     xr::SystemProperties systemProperties;
+    bool stopped{ false };
 
     xr::Swapchain swapchain;
     xr::Extent2Df bounds;
@@ -112,7 +112,8 @@ struct Context {
     std::vector<xr::View> eyeViewStates;
 
     std::array<xr::CompositionLayerProjectionView, 2> projectionLayerViews;
-    xr::CompositionLayerProjection projectionLayer{ {}, {}, 2, (xr::CompositionLayerProjectionView*)projectionLayerViews.data() };
+    
+    xr::CompositionLayerProjection projectionLayer{ {}, {}, 2, projectionLayerViews.data() };
     xr::Space& space{ projectionLayer.space };
     std::vector<xr::CompositionLayerBaseHeader*> layersPointers;
 
@@ -138,16 +139,16 @@ struct Context {
 
     void create() {
         for (const auto& extensionProperties : xr::enumerateInstanceExtensionProperties(nullptr)) {
-            extensions.insert({ extensionProperties.extensionName, extensionProperties });
+            discoveredExtensions.insert({ extensionProperties.extensionName, extensionProperties });
         }
 
-        if (0 == extensions.count(XR_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
+        if (0 == discoveredExtensions.count(XR_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
             enableDebug = false;
         }
 
         vks::CStringVector requestedExtensions;
 #if defined(XR_USE_GRAPHICS_API_VULKAN)
-        if (0 == extensions.count(XR_KHR_VULKAN_ENABLE_EXTENSION_NAME)) {
+        if (0 == discoveredExtensions.count(XR_KHR_VULKAN_ENABLE_EXTENSION_NAME)) {
             throw std::runtime_error("Vulkan XR extension not available");
         }
         requestedExtensions.push_back(XR_KHR_VULKAN_ENABLE_EXTENSION_NAME);
@@ -155,7 +156,7 @@ struct Context {
 
 #if !SUPPRESS_DEBUG_UTILS
         if (enableDebug) {
-            extensions.push_back(XR_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            requestedExtensions.push_back(XR_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
 #endif
 
@@ -316,12 +317,15 @@ struct Context {
         switch (state) {
             case xr::SessionState::Ready: {
                 std::cout << "Starting session" << std::endl;
-                session.beginSession(xr::SessionBeginInfo{ viewConfigType });
+                if (!stopped) {
+                    session.beginSession(xr::SessionBeginInfo{ viewConfigType });
+                }
             } break;
 
             case xr::SessionState::Stopping: {
                 std::cout << "Stopping session" << std::endl;
                 session.endSession();
+                stopped = true;
             } break;
 
             case xr::SessionState::Exiting:
@@ -386,9 +390,7 @@ const std::array<std::string, 2> HAND_PATHS{ {
 struct InputState {
     xr::ActionSet actionSet;
     xr::Action grabAction;
-    xr::Action moveXAction;
-    xr::Action moveYAction;
-    //xr::Action moveAction;
+    xr::Action moveAction;
     xr::Action poseAction;
     xr::Action vibrateAction;
     xr::Action quitAction;
@@ -424,6 +426,8 @@ struct InputState {
         vibrateAction = actionSet.createAction({ "hand_vibrate_handpose", xr::ActionType::VibrationOutput, 2, handSubactionPath.data(), "Vibrate Hand" });
         // Create input actions for quitting the session using the left and right controller.
         quitAction = actionSet.createAction({ "quit_session", xr::ActionType::BooleanInput, 2, handSubactionPath.data(), "Quit Session" });
+        // An action for moving in the X/Z plane
+        moveAction = actionSet.createAction({ "move_player", xr::ActionType::Vector2FInput, 2, handSubactionPath.data(), "Move Player" });
 
         auto selectPath = makeHandSubpaths(instance, "/input/select/click");
         auto squeezeValuePath = makeHandSubpaths(instance, "/input/squeeze/value");
@@ -431,70 +435,58 @@ struct InputState {
         auto posePath = makeHandSubpaths(instance, "/input/grip/pose");
         auto hapticPath = makeHandSubpaths(instance, "/output/haptic");
         auto menuClickPath = makeHandSubpaths(instance, "/input/menu/click");
+        auto moveValuePath = makeHandSubpaths(instance, "/input/thumbstick");
 
-        moveXAction = actionSet.createAction({ "move_player_x", xr::ActionType::FloatInput, 2, handSubactionPath.data(), "Move Player X" });
-        auto moveXValuePath = makeHandSubpaths(instance, "/input/thumbstick/x");
-        moveYAction = actionSet.createAction({ "move_player_y", xr::ActionType::FloatInput, 2, handSubactionPath.data(), "Move Player Y" });
-        auto moveYValuePath = makeHandSubpaths(instance, "/input/thumbstick/y");
-        //moveAction = actionSet.createAction({ "move_player", xr::ActionType::Vector2FInput, 2, handSubactionPath.data(), "Move Player" });
-        //auto moveValuePath = makeHandSubpaths(instance, "/input/thumbstick/value");
+        std::vector<xr::ActionSuggestedBinding> commonBindings{ { { poseAction, posePath[xr::Side::Left] },
+                                                                  { poseAction, posePath[xr::Side::Right] },
+                                                                  { quitAction, menuClickPath[xr::Side::Left] },
+                                                                  { quitAction, menuClickPath[xr::Side::Right] },
+                                                                  { vibrateAction, hapticPath[xr::Side::Left] },
+                                                                  { vibrateAction, hapticPath[xr::Side::Right] } } };
 
         // Suggest bindings for KHR Simple.
         {
-            std::vector<xr::ActionSuggestedBinding> bindings{ { // Fall back to a click input for the grab action.
-                                                                { grabAction, selectPath[xr::Side::Left] },
-                                                                { grabAction, selectPath[xr::Side::Right] },
-                                                                { poseAction, posePath[xr::Side::Left] },
-                                                                { poseAction, posePath[xr::Side::Right] },
-                                                                { quitAction, menuClickPath[xr::Side::Left] },
-                                                                { quitAction, menuClickPath[xr::Side::Right] },
-                                                                { vibrateAction, hapticPath[xr::Side::Left] },
-                                                                { vibrateAction, hapticPath[xr::Side::Right] } } };
+            std::vector<xr::ActionSuggestedBinding> bindings{ {
+                // Fall back to a click input for the grab action.
+                { grabAction, selectPath[xr::Side::Left] },
+                { grabAction, selectPath[xr::Side::Right] },
+            } };
+            bindings.insert(bindings.end(), commonBindings.begin(), commonBindings.end());
             auto interactionProfilePath = instance.stringToPath("/interaction_profiles/khr/simple_controller");
             instance.suggestInteractionProfileBindings({ interactionProfilePath, (uint32_t)bindings.size(), bindings.data() });
         }
 
         // Suggest bindings for the Oculus Touch.
         {
-            std::vector<xr::ActionSuggestedBinding> bindings{ { { grabAction, squeezeValuePath[xr::Side::Left] },
-                                                                { grabAction, squeezeValuePath[xr::Side::Right] },
-                                                                { moveXAction, moveXValuePath[xr::Side::Left] },
-                                                                { moveXAction, moveXValuePath[xr::Side::Right] },
-//                                                              { moveYAction, moveYValuePath[xr::Side::Left] },
-                                                                { moveYAction, moveYValuePath[xr::Side::Right] },
-                                                                { poseAction, posePath[xr::Side::Left] },
-                                                                { poseAction, posePath[xr::Side::Right] },
-                                                                { quitAction, menuClickPath[xr::Side::Left] },
-                                                                { vibrateAction, hapticPath[xr::Side::Left] },
-                                                                { vibrateAction, hapticPath[xr::Side::Right] } } };
+            std::vector<xr::ActionSuggestedBinding> bindings{ {
+                { grabAction, squeezeValuePath[xr::Side::Left] },
+                { grabAction, squeezeValuePath[xr::Side::Right] },
+                { moveAction, moveValuePath[xr::Side::Left] },
+                { moveAction, moveValuePath[xr::Side::Right] },
+            } };
+            bindings.insert(bindings.end(), commonBindings.begin(), commonBindings.end());
             auto interactionProfilePath = instance.stringToPath("/interaction_profiles/oculus/touch_controller");
             instance.suggestInteractionProfileBindings({ interactionProfilePath, (uint32_t)bindings.size(), bindings.data() });
         }
 
         // Suggest bindings for the Vive Controller.
         {
-            std::vector<xr::ActionSuggestedBinding> bindings{ { { grabAction, squeezeClickPath[xr::Side::Left] },
-                                                                { grabAction, squeezeClickPath[xr::Side::Right] },
-                                                                { poseAction, posePath[xr::Side::Left] },
-                                                                { poseAction, posePath[xr::Side::Right] },
-                                                                { quitAction, menuClickPath[xr::Side::Left] },
-                                                                { quitAction, menuClickPath[xr::Side::Right] },
-                                                                { vibrateAction, hapticPath[xr::Side::Left] },
-                                                                { vibrateAction, hapticPath[xr::Side::Right] } } };
+            std::vector<xr::ActionSuggestedBinding> bindings{ {
+                { grabAction, squeezeClickPath[xr::Side::Left] },
+                { grabAction, squeezeClickPath[xr::Side::Right] },
+            } };
+            bindings.insert(bindings.end(), commonBindings.begin(), commonBindings.end());
             auto interactionProfilePath = instance.stringToPath("/interaction_profiles/htc/vive_controller");
             instance.suggestInteractionProfileBindings({ interactionProfilePath, (uint32_t)bindings.size(), bindings.data() });
         }
 
         // Suggest bindings for the Microsoft Mixed Reality Motion Controller.
         {
-            std::vector<xr::ActionSuggestedBinding> bindings{ { { grabAction, squeezeClickPath[xr::Side::Left] },
-                                                                { grabAction, squeezeClickPath[xr::Side::Right] },
-                                                                { poseAction, posePath[xr::Side::Left] },
-                                                                { poseAction, posePath[xr::Side::Right] },
-                                                                { quitAction, menuClickPath[xr::Side::Left] },
-                                                                { quitAction, menuClickPath[xr::Side::Right] },
-                                                                { vibrateAction, hapticPath[xr::Side::Left] },
-                                                                { vibrateAction, hapticPath[xr::Side::Right] } } };
+            std::vector<xr::ActionSuggestedBinding> bindings{ {
+                { grabAction, squeezeClickPath[xr::Side::Left] },
+                { grabAction, squeezeClickPath[xr::Side::Right] },
+            } };
+            bindings.insert(bindings.end(), commonBindings.begin(), commonBindings.end());
             auto interactionProfilePath = instance.stringToPath("/interaction_profiles/microsoft/motion_controller");
             instance.suggestInteractionProfileBindings({ interactionProfilePath, (uint32_t)bindings.size(), bindings.data() });
         }
@@ -518,23 +510,19 @@ struct InputState {
 
         // Get pose and grab action state and start haptic vibrate when hand is 90% squeezed.
         xr::for_each_side_index([&](uint32_t hand) {
-            auto moveXValue = session.getActionStateFloat({ moveXAction, handSubactionPath[hand] });
-            auto moveYValue = session.getActionStateFloat({ moveYAction, handSubactionPath[hand] });
-            if (moveXValue.isActive && moveYValue.isActive) {
-                moveAmount = { moveXValue.currentState, moveYValue.currentState };
-            } else {
-                moveAmount = {};
-            }
-
+            moveAmount = {};
+            xr::ActionStateVector2f moveValue = session.getActionStateVector2f({ moveAction, handSubactionPath[hand] });
+            if (moveValue.isActive) {
+                moveAmount += glm::vec2{ moveValue.currentState.x, moveValue.currentState.y };
+            } 
             auto grabValue = session.getActionStateFloat({ grabAction, handSubactionPath[hand] });
 
             if (grabValue.isActive) {
                 // Scale the rendered hand by 1.0f (open) to 0.5f (fully squeezed).
                 handScale[hand] = 1.0f - 0.5f * grabValue.currentState;
                 if (grabValue.currentState > 0.9f) {
-                    xr::HapticVibration vibration{ XR_MIN_HAPTIC_DURATION, XR_FREQUENCY_UNSPECIFIED, 0.5f };
-                    XrHapticActionInfo hapticActionInfo{ XR_TYPE_HAPTIC_ACTION_INFO };
-                    session.applyHapticFeedback({ vibrateAction, handSubactionPath[hand] }, (xr::HapticBaseHeader&)vibration);
+                    xr::HapticVibration vibration{ xr::Duration::minHaptic(), XR_FREQUENCY_UNSPECIFIED, 0.5f };
+                    session.applyHapticFeedback({ vibrateAction, handSubactionPath[hand] }, (XrHapticBaseHeader*)&vibration);
                 }
             }
 
@@ -561,25 +549,6 @@ struct InputState {
         });
         return result;
     }
-
-#if 0 
-    void CreateVisualizedSpaces() {
-        CHECK(m_session != XR_NULL_HANDLE);
-
-        std::string visualizedSpaces[] = { "ViewFront", "Local", "Stage", "StageLeft", "StageRight", "StageLeftRotated", "StageRightRotated" };
-
-        for (auto visualizedSpace : visualizedSpaces) {
-            XrReferenceSpaceCreateInfo referenceSpaceCreateInfo = GetXrReferenceSpaceCreateInfo(visualizedSpace);
-            XrSpace space;
-            XrResult res = xrCreateReferenceSpace(m_session, &referenceSpaceCreateInfo, &space);
-            if (XR_SUCCEEDED(res)) {
-                m_visualizedSpaces.push_back(space);
-            } else {
-                Log::Write(Log::Level::Warning, Fmt("Failed to create reference space %s with error %d", visualizedSpace.c_str(), res));
-            }
-        }
-    }
-#endif
 };
 
 class OpenXrExample : public VrExample {
@@ -612,13 +581,13 @@ public:
         // eventual Graphics API used for rendering
         _xr.create();
 
+        _xrInput.initialize(_xr.instance);
         _xr.interactionProfileChangedHandler = [this](const xr::EventDataInteractionProfileChanged& event) {
             logActionSourceName(_xrInput.grabAction, "Grab");
             logActionSourceName(_xrInput.quitAction, "Quit");
             logActionSourceName(_xrInput.poseAction, "Pose");
             logActionSourceName(_xrInput.vibrateAction, "Vibrate");
-            logActionSourceName(_xrInput.moveXAction, "MoveX");
-            logActionSourceName(_xrInput.moveYAction, "MoveY");
+            logActionSourceName(_xrInput.moveAction, "Move");
         };
 
         // Set up interaction between OpenXR and Vulkan
@@ -659,7 +628,6 @@ public:
 
     void prepareOpenXrSession() {
         _xr.createSession(xr::GraphicsBindingVulkanKHR{ context.instance, context.physicalDevice, context.device, context.queueIndices.graphics, 0 });
-        _xrInput.initialize(_xr.instance);
         _xrInput.attach(_xr.session);
         _xr.createVulkanSwapchain(renderTargetSize);
 
@@ -739,6 +707,9 @@ public:
     glm::vec3 translation;
 
     void update(float delta) {
+        if (_xr.stopped) {
+            requestClose();
+        }
         _xr.pollEvents();
 
         _xrInput.pollActions(_xr.state, _xr.session);
@@ -776,7 +747,7 @@ public:
 
         uint32_t swapchainIndex = (uint32_t)-1;
         _xr.swapchain.acquireSwapchainImage(xr::SwapchainImageAcquireInfo{}, &swapchainIndex);
-        _xr.swapchain.waitSwapchainImage(xr::SwapchainImageWaitInfo{ XR_INFINITE_DURATION });
+        _xr.swapchain.waitSwapchainImage(xr::SwapchainImageWaitInfo{ xr::Duration::infinite() });
 
         shapesRenderer->render();
 

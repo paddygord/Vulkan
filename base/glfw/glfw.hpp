@@ -27,6 +27,10 @@ public:
         glfwSwapBuffers(window);
     }
 
+    void requestClose() {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+
     void createWindow(const glm::uvec2& size, const glm::ivec2& position = { INT_MIN, INT_MIN }) {
         // Disable window resize
         window = glfwCreateWindow(size.x, size.y, "Window Title", nullptr, nullptr);
