@@ -112,7 +112,7 @@ struct Context {
     std::vector<xr::View> eyeViewStates;
 
     std::array<xr::CompositionLayerProjectionView, 2> projectionLayerViews;
-    
+
     xr::CompositionLayerProjection projectionLayer{ {}, {}, 2, projectionLayerViews.data() };
     xr::Space& space{ projectionLayer.space };
     std::vector<xr::CompositionLayerBaseHeader*> layersPointers;
@@ -161,16 +161,18 @@ struct Context {
 #endif
 
         {
+            xr::ApplicationInfo appInfo;
+            strcpy(appInfo.applicationName, "vr_openxr");
+            strcpy(appInfo.engineName, "vulkan_cpp_examples");
+            appInfo.apiVersion = xr::Version::current();
             xr::InstanceCreateInfo ici{ {},
-                                        { "vr_openxr", 0, "vulkan_cpp_examples", 0, XR_CURRENT_API_VERSION },
+                                        appInfo,
                                         0,
                                         nullptr,
                                         (uint32_t)requestedExtensions.size(),
                                         requestedExtensions.data() };
 
             xr::DebugUtilsMessengerCreateInfoEXT dumci;
-            static constexpr auto XR_ALL_TYPES = XR_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                                                 XR_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_TYPE_CONFORMANCE_BIT_EXT;
             dumci.messageSeverities = xr::DebugUtilsMessageSeverityFlagBitsEXT::AllBits;
             dumci.messageTypes = xr::DebugUtilsMessageTypeFlagBitsEXT::AllBits;
             dumci.userData = this;
@@ -279,7 +281,7 @@ struct Context {
         projectionLayer.space = space;
         projectionLayer.viewCount = 2;
         projectionLayer.views = projectionLayerViews.data();
-        layersPointers.push_back((xr::CompositionLayerBaseHeader*)&projectionLayer);
+        layersPointers.push_back(&projectionLayer);
     }
 
     void pollEvents() {
@@ -439,6 +441,8 @@ struct InputState {
 
         std::vector<xr::ActionSuggestedBinding> commonBindings{ { { poseAction, posePath[xr::Side::Left] },
                                                                   { poseAction, posePath[xr::Side::Right] },
+                                                                  { moveAction, moveValuePath[xr::Side::Left] },
+                                                                  { moveAction, moveValuePath[xr::Side::Right] },
                                                                   { quitAction, menuClickPath[xr::Side::Left] },
                                                                   { quitAction, menuClickPath[xr::Side::Right] },
                                                                   { vibrateAction, hapticPath[xr::Side::Left] },
@@ -461,8 +465,6 @@ struct InputState {
             std::vector<xr::ActionSuggestedBinding> bindings{ {
                 { grabAction, squeezeValuePath[xr::Side::Left] },
                 { grabAction, squeezeValuePath[xr::Side::Right] },
-                { moveAction, moveValuePath[xr::Side::Left] },
-                { moveAction, moveValuePath[xr::Side::Right] },
             } };
             bindings.insert(bindings.end(), commonBindings.begin(), commonBindings.end());
             auto interactionProfilePath = instance.stringToPath("/interaction_profiles/oculus/touch_controller");
@@ -504,7 +506,7 @@ struct InputState {
         }
 
         // Sync actions
-        const xr::ActiveActionSet activeActionSet{ actionSet, XR_NULL_PATH };
+        const xr::ActiveActionSet activeActionSet{ actionSet, xr::Path{} };
 
         session.syncActions({ 1, &activeActionSet });
 
@@ -514,7 +516,7 @@ struct InputState {
             xr::ActionStateVector2f moveValue = session.getActionStateVector2f({ moveAction, handSubactionPath[hand] });
             if (moveValue.isActive) {
                 moveAmount += glm::vec2{ moveValue.currentState.x, moveValue.currentState.y };
-            } 
+            }
             auto grabValue = session.getActionStateFloat({ grabAction, handSubactionPath[hand] });
 
             if (grabValue.isActive) {
@@ -596,12 +598,12 @@ public:
         context.requireExtensions(_xr.getVulkanInstanceExtensions());
         context.requireDeviceExtensions(_xr.getVulkanDeviceExtensions());
 
-        // Our example Vulkan abstraction allows a client to select a specific vk::PhysicalDevice via a DevicePicker callback
+        // Our example Vulkan abstraction allows a client to select a specific vk::PhysicalDevice via 
+        // a `DevicePicker` callback
         // This is critical because the HMD will ultimately be dependent on the specific GPU to which it is
         // attached
-        // Note that we don't and can't actually determine the target vk::PhysicalDevice right now because
-        // vk::Instance::getVulkanGraphicsDeviceKHR depends on a passed VkInstance, hence the use of a callback which will be executed
-        // later, once the
+        // Note that we don't and can't actually determine the target vk::PhysicalDevice *right now* because
+        // vk::Instance::getVulkanGraphicsDeviceKHR depends on a passed VkInstance, which hasn't been created yet.
         context.setDevicePicker([this](const std::vector<vk::PhysicalDevice>& availableDevices) -> vk::PhysicalDevice {
             vk::PhysicalDevice targetDevice;
             {
@@ -617,8 +619,12 @@ public:
             throw std::runtime_error("Requested device not found");
         });
 
-        // The initialization of the parent class depends on the renderTargetSize so it can create a desktop window with the same aspect ratio
-        // as the offscreen framebuffer
+        // The initialization of the parent class depends on the renderTargetSize so it can create a desktop window with the same 
+        // aspect ratio as the offscreen framebuffer
+        // Instead of createing a swapchain per-eye, we create a single swapchain of double width.
+        // Even preferable would be to create a swapchain texture array with one layer per eye, so that we could use the 
+        // VK_KHR_multiview to render both eyes with a single set of draws, but sadly the Oculus runtime doesn't currently
+        // support texture array swapchains
         renderTargetSize = { _xr.viewConfigViews[0].recommendedImageRectWidth * 2, _xr.viewConfigViews[0].recommendedImageRectHeight };
     }
 
@@ -627,10 +633,13 @@ public:
     void recenter() override {}
 
     void prepareOpenXrSession() {
+        // This function is called after we've created our Vulkan instance, chosen the device (using the callback which queries OpenXR for the right target)
+        // The xr::GraphicsBindingVulkanKHR contains all the information the runtime will need to interact with the Vulkan backend
+        // FIXME determine the consequences for using a different queue index than the primary one we use for rendering
         _xr.createSession(xr::GraphicsBindingVulkanKHR{ context.instance, context.physicalDevice, context.device, context.queueIndices.graphics, 0 });
-        _xrInput.attach(_xr.session);
         _xr.createVulkanSwapchain(renderTargetSize);
 
+        _xrInput.attach(_xr.session);
         auto swapchainLength = (uint32_t)_xr.vulkanSwapchainImages.size();
         // Submission command buffers
         if (openxrBlitCommands.empty()) {

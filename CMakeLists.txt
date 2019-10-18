@@ -6,7 +6,8 @@ set(NAME VulkanCppExamples)
 include(${CMAKE_SOURCE_DIR}/cmake/ezvcpkg/ezvcpkg.cmake)
 
 ezvcpkg_fetch(
-    COMMIT 1e7303d4c52468fbb24a0d3418ff033d2585d18d
+    COMMIT 06809940ac1dc02fedfa9f2d54ec03287d6c42d3
+    REPO jherico/vcpkg
     PACKAGES assimp basisu fmt imgui glad glfw3 gli glm openxr-loader vulkan
     UPDATE_TOOLCHAIN
     USE_HOST_VCPKG
