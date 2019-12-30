@@ -40,1017 +40,859 @@ todos:
 
 // Vertex layout for this example
 struct Vertex {
-	float pos[3];
-	float normal[3];
-	float uv[2];
+    float pos[3];
+    float normal[3];
+    float uv[2];
 };
 
 // Virtual texture page as a part of the partially resident texture
 // Contains memory bindings, offsets and status information
-struct VirtualTexturePage
-{	
-	VkOffset3D offset;
-	VkExtent3D extent;
-	VkSparseImageMemoryBind imageMemoryBind;							// Sparse image memory bind for this page
-	VkDeviceSize size;													// Page (memory) size in bytes
-	uint32_t mipLevel;													// Mip level that this page belongs to
-	uint32_t layer;														// Array layer that this page belongs to
-	uint32_t index;	
+struct VirtualTexturePage {
+    vk::Offset3D offset;
+    vk::Extent3D extent;
+    vk::SparseImageMemoryBind imageMemoryBind;  // Sparse image memory bind for this page
+    vk::DeviceSize size;                        // Page (memory) size in bytes
+    uint32_t mipLevel;                          // Mip level that this page belongs to
+    uint32_t layer;                             // Array layer that this page belongs to
+    uint32_t index;
 
-	VirtualTexturePage()
-	{
-		imageMemoryBind.memory = VK_NULL_HANDLE;						// Page initially not backed up by memory
-	}
+    VirtualTexturePage() {
+        imageMemoryBind.memory = VK_NULL_HANDLE;  // Page initially not backed up by memory
+    }
 
-	// Allocate Vulkan memory for the virtual page
-	void allocate(VkDevice device, uint32_t memoryTypeIndex)
-	{
-		if (imageMemoryBind.memory != VK_NULL_HANDLE)
-		{
-			//std::cout << "Page " << index << " already allocated" << std::endl;
-			return;
-		};
+    // Allocate Vulkan memory for the virtual page
+    void allocate(vk::Device device, uint32_t memoryTypeIndex) {
+        if (imageMemoryBind.memory != VK_NULL_HANDLE) {
+            //std::cout << "Page " << index << " already allocated" << std::endl;
+            return;
+        };
 
-		imageMemoryBind = {};
+        imageMemoryBind = {};
 
-		VkMemoryAllocateInfo allocInfo = vks::initializers::memoryAllocateInfo();
-		allocInfo.allocationSize = size;
-		allocInfo.memoryTypeIndex = memoryTypeIndex;
-		VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &imageMemoryBind.memory));
+        vk::MemoryAllocateInfo allocInfo;
+        allocInfo.allocationSize = size;
+        allocInfo.memoryTypeIndex = memoryTypeIndex;
+        VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &imageMemoryBind.memory));
 
-		VkImageSubresource subResource{};
-		subResource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		subResource.mipLevel = mipLevel;
-		subResource.arrayLayer = layer;
+        vk::ImageSubresource subResource{};
+        subResource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        subResource.mipLevel = mipLevel;
+        subResource.arrayLayer = layer;
 
-		// Sparse image memory binding
-		imageMemoryBind.subresource = subResource;
-		imageMemoryBind.extent = extent;
-		imageMemoryBind.offset = offset;
-	}
+        // Sparse image memory binding
+        imageMemoryBind.subresource = subResource;
+        imageMemoryBind.extent = extent;
+        imageMemoryBind.offset = offset;
+    }
 
-	// Release Vulkan memory allocated for this page
-	void release(VkDevice device)
-	{
-		if (imageMemoryBind.memory != VK_NULL_HANDLE)
-		{
-			vkFreeMemory(device, imageMemoryBind.memory, nullptr);
-			imageMemoryBind.memory = VK_NULL_HANDLE;
-			//std::cout << "Page " << index << " released" << std::endl;
-		}
-	}
+    // Release Vulkan memory allocated for this page
+    void release(vk::Device device) {
+        if (imageMemoryBind.memory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, imageMemoryBind.memory, nullptr);
+            imageMemoryBind.memory = VK_NULL_HANDLE;
+            //std::cout << "Page " << index << " released" << std::endl;
+        }
+    }
 };
 
-// Virtual texture object containing all pages 
-struct VirtualTexture
-{
-	VkDevice device;
-	VkImage image;														// Texture image handle
-	VkBindSparseInfo bindSparseInfo;									// Sparse queue binding information
-	std::vector<VirtualTexturePage> pages;								// Contains all virtual pages of the texture
-	std::vector<VkSparseImageMemoryBind> sparseImageMemoryBinds;		// Sparse image memory bindings of all memory-backed virtual tables
-	std::vector<VkSparseMemoryBind>	opaqueMemoryBinds;					// Sparse ópaque memory bindings for the mip tail (if present)
-	VkSparseImageMemoryBindInfo imageMemoryBindInfo;					// Sparse image memory bind info 
-	VkSparseImageOpaqueMemoryBindInfo opaqueMemoryBindInfo;				// Sparse image opaque memory bind info (mip tail)
-	uint32_t mipTailStart;												// First mip level in mip tail
-	
-	VirtualTexturePage* addPage(VkOffset3D offset, VkExtent3D extent, const VkDeviceSize size, const uint32_t mipLevel, uint32_t layer)
-	{
-		VirtualTexturePage newPage;
-		newPage.offset = offset;
-		newPage.extent = extent;
-		newPage.size = size;
-		newPage.mipLevel = mipLevel;
-		newPage.layer = layer;
-		newPage.index = static_cast<uint32_t>(pages.size());
-		newPage.imageMemoryBind.offset = offset;
-		newPage.imageMemoryBind.extent = extent;
-		pages.push_back(newPage);
-		return &pages.back();
-	}
+// Virtual texture object containing all pages
+struct VirtualTexture {
+    vk::Device device;
+    vk::Image image;                                                // Texture image handle
+    vk::BindSparseInfo bindSparseInfo;                              // Sparse queue binding information
+    std::vector<VirtualTexturePage> pages;                          // Contains all virtual pages of the texture
+    std::vector<vk::SparseImageMemoryBind> sparseImageMemoryBinds;  // Sparse image memory bindings of all memory-backed virtual tables
+    std::vector<vk::SparseMemoryBind> opaqueMemoryBinds;            // Sparse ópaque memory bindings for the mip tail (if present)
+    vk::SparseImageMemoryBindInfo imageMemoryBindInfo;              // Sparse image memory bind info
+    vk::SparseImageOpaqueMemoryBindInfo opaqueMemoryBindInfo;       // Sparse image opaque memory bind info (mip tail)
+    uint32_t mipTailStart;                                          // First mip level in mip tail
 
-	// Call before sparse binding to update memory bind list etc.
-	void updateSparseBindInfo()
-	{
-		// Update list of memory-backed sparse image memory binds
-		sparseImageMemoryBinds.resize(pages.size());
-		uint32_t index = 0;
-		for (auto page : pages)
-		{
-			sparseImageMemoryBinds[index] = page.imageMemoryBind;
-			index++;
-		}
-		// Update sparse bind info
-		bindSparseInfo = vks::initializers::bindSparseInfo();
-		// todo: Semaphore for queue submission
-		// bindSparseInfo.signalSemaphoreCount = 1;
-		// bindSparseInfo.pSignalSemaphores = &bindSparseSemaphore;
+    VirtualTexturePage* addPage(vk::Offset3D offset, vk::Extent3D extent, const vk::DeviceSize size, const uint32_t mipLevel, uint32_t layer) {
+        VirtualTexturePage newPage;
+        newPage.offset = offset;
+        newPage.extent = extent;
+        newPage.size = size;
+        newPage.mipLevel = mipLevel;
+        newPage.layer = layer;
+        newPage.index = static_cast<uint32_t>(pages.size());
+        newPage.imageMemoryBind.offset = offset;
+        newPage.imageMemoryBind.extent = extent;
+        pages.push_back(newPage);
+        return &pages.back();
+    }
 
-		// Image memory binds
-		imageMemoryBindInfo.image = image;
-		imageMemoryBindInfo.bindCount = static_cast<uint32_t>(sparseImageMemoryBinds.size());
-		imageMemoryBindInfo.pBinds = sparseImageMemoryBinds.data();
-		bindSparseInfo.imageBindCount = (imageMemoryBindInfo.bindCount > 0) ? 1 : 0;
-		bindSparseInfo.pImageBinds = &imageMemoryBindInfo;
+    // Call before sparse binding to update memory bind list etc.
+    void updateSparseBindInfo() {
+        // Update list of memory-backed sparse image memory binds
+        sparseImageMemoryBinds.resize(pages.size());
+        uint32_t index = 0;
+        for (auto page : pages) {
+            sparseImageMemoryBinds[index] = page.imageMemoryBind;
+            index++;
+        }
+        // Update sparse bind info
+        bindSparseInfo;
+        // todo: Semaphore for queue submission
+        // bindSparseInfo.signalSemaphoreCount = 1;
+        // bindSparseInfo.pSignalSemaphores = &bindSparseSemaphore;
 
-		// Opaque image memory binds (mip tail)
-		opaqueMemoryBindInfo.image = image;
-		opaqueMemoryBindInfo.bindCount = static_cast<uint32_t>(opaqueMemoryBinds.size());
-		opaqueMemoryBindInfo.pBinds = opaqueMemoryBinds.data();
-		bindSparseInfo.imageOpaqueBindCount = (opaqueMemoryBindInfo.bindCount > 0) ? 1 : 0;
-		bindSparseInfo.pImageOpaqueBinds = &opaqueMemoryBindInfo;
-	}
+        // Image memory binds
+        imageMemoryBindInfo.image = image;
+        imageMemoryBindInfo.bindCount = static_cast<uint32_t>(sparseImageMemoryBinds.size());
+        imageMemoryBindInfo.pBinds = sparseImageMemoryBinds.data();
+        bindSparseInfo.imageBindCount = (imageMemoryBindInfo.bindCount > 0) ? 1 : 0;
+        bindSparseInfo.pImageBinds = &imageMemoryBindInfo;
 
-	// Release all Vulkan resources
-	void destroy()
-	{
-		for (auto page : pages)
-		{
-			page.release(device);
-		}
-		for (auto bind : opaqueMemoryBinds)
-		{
-			vkFreeMemory(device, bind.memory, nullptr);
-		}
-	}
+        // Opaque image memory binds (mip tail)
+        opaqueMemoryBindInfo.image = image;
+        opaqueMemoryBindInfo.bindCount = static_cast<uint32_t>(opaqueMemoryBinds.size());
+        opaqueMemoryBindInfo.pBinds = opaqueMemoryBinds.data();
+        bindSparseInfo.imageOpaqueBindCount = (opaqueMemoryBindInfo.bindCount > 0) ? 1 : 0;
+        bindSparseInfo.pImageOpaqueBinds = &opaqueMemoryBindInfo;
+    }
+
+    // Release all Vulkan resources
+    void destroy() {
+        for (auto page : pages) {
+            page.release(device);
+        }
+        for (auto bind : opaqueMemoryBinds) {
+            vkFreeMemory(device, bind.memory, nullptr);
+        }
+    }
 };
 
 uint32_t memoryTypeIndex;
 int32_t lastFilledMip = 0;
 
-class VulkanExample : public VulkanExampleBase
-{
+class VulkanExample : public VulkanExampleBase {
 public:
-	//todo: comments
-	struct SparseTexture : VirtualTexture {
-		VkSampler sampler;
-		VkImageLayout imageLayout;
-		VkImageView view;
-		VkDescriptorImageInfo descriptor;
-		VkFormat format;
-		uint32_t width, height;
-		uint32_t mipLevels;
-		uint32_t layerCount;
-	} texture;
+    //todo: comments
+    struct SparseTexture : VirtualTexture {
+        vk::Sampler sampler;
+        vk::ImageLayout imageLayout;
+        vk::ImageView view;
+        vk::DescriptorImageInfo descriptor;
+        vk::Format format;
+        uint32_t width, height;
+        uint32_t mipLevels;
+        uint32_t layerCount;
+    } texture;
 
-	struct {
-		vks::Texture2D source;
-	} textures;
+    struct {
+        vkx::texture::Texture2D source;
+    } textures;
 
-	vks::HeightMap *heightMap = nullptr;
+    vks::HeightMap* heightMap = nullptr;
 
-	struct {
-		VkPipelineVertexInputStateCreateInfo inputState;
-		std::vector<VkVertexInputBindingDescription> bindingDescriptions;
-		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
-	} vertices;
+    struct {
+        vk::PipelineVertexInputStateCreateInfo inputState;
+        std::vector<vk::VertexInputBindingDescription> bindingDescriptions;
+        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
+    } vertices;
 
-	uint32_t indexCount;
+    uint32_t indexCount;
 
-	vks::Buffer uniformBufferVS;
+    vks::Buffer uniformBufferVS;
 
-	struct UboVS {
-		glm::mat4 projection;
-		glm::mat4 model;
-		glm::vec4 viewPos;
-		float lodBias = 0.0f;
-	} uboVS;
+    struct UboVS {
+        glm::mat4 projection;
+        glm::mat4 model;
+        glm::vec4 viewPos;
+        float lodBias = 0.0f;
+    } uboVS;
 
-	struct {
-		VkPipeline solid;
-	} pipelines;
+    struct {
+        vk::Pipeline solid;
+    } pipelines;
 
-	VkPipelineLayout pipelineLayout;
-	VkDescriptorSet descriptorSet;
-	VkDescriptorSetLayout descriptorSetLayout;
+    vk::PipelineLayout pipelineLayout;
+    vk::DescriptorSet descriptorSet;
+    vk::DescriptorSetLayout descriptorSetLayout;
 
-	//todo: comment
-	VkSemaphore bindSparseSemaphore = VK_NULL_HANDLE;
+    //todo: comment
+    vk::Semaphore bindSparseSemaphore = VK_NULL_HANDLE;
 
-	VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
-	{
-		title = "Sparse texture residency";
-		std::cout.imbue(std::locale(""));
-		camera.type = Camera::CameraType::firstperson;
-		camera.movementSpeed = 50.0f;
+    VulkanExample()
+        : VulkanExampleBase(ENABLE_VALIDATION) {
+        title = "Sparse texture residency";
+        std::cout.imbue(std::locale(""));
+        camera.type = Camera::CameraType::firstperson;
+        camera.movementSpeed = 50.0f;
 #ifndef __ANDROID__
-		camera.rotationSpeed = 0.25f;
+        camera.rotationSpeed = 0.25f;
 #endif
-		camera.position = { 84.5f, 40.5f, 225.0f };
-		camera.setRotation(glm::vec3(-8.5f, -200.0f, 0.0f));
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 1024.0f);
-		settings.overlay = true;
-		// Device features to be enabled for this example 
-		enabledFeatures.shaderResourceResidency = VK_TRUE;
-		enabledFeatures.shaderResourceMinLod = VK_TRUE;
-	}
-
-	~VulkanExample()
-	{
-		// Clean up used Vulkan resources 
-		// Note : Inherited destructor cleans up resources stored in base class
-
-		if (heightMap)
-			delete heightMap;
-
-		destroyTextureImage(texture);
-
-		vkDestroySemaphore(device, bindSparseSemaphore, nullptr);
-
-		vkDestroyPipeline(device, pipelines.solid, nullptr);
-
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-
-		uniformBufferVS.destroy();
-	}
-
-	virtual void getEnabledFeatures()
-	{
-		if (deviceFeatures.sparseBinding && deviceFeatures.sparseResidencyImage2D) {
-			enabledFeatures.sparseBinding = VK_TRUE;
-			enabledFeatures.sparseResidencyImage2D = VK_TRUE;
-		}
-		else {
-			std::cout << "Sparse binding not supported" << std::endl;
-		}
-	}
-
-	glm::uvec3 alignedDivision(const VkExtent3D& extent, const VkExtent3D& granularity)
-	{
-		glm::uvec3 res;
-		res.x = extent.width / granularity.width + ((extent.width  % granularity.width) ? 1u : 0u);
-		res.y = extent.height / granularity.height + ((extent.height % granularity.height) ? 1u : 0u);
-		res.z = extent.depth / granularity.depth + ((extent.depth  % granularity.depth) ? 1u : 0u);
-		return res;
-	}
-
-	void prepareSparseTexture(uint32_t width, uint32_t height, uint32_t layerCount, VkFormat format)
-	{
-		texture.device = vulkanDevice->logicalDevice;
-		texture.width = width;
-		texture.height = height;
-		texture.mipLevels = floor(log2(std::max(width, height))) + 1; 
-		texture.layerCount = layerCount;
-		texture.format = format;
-
-		// Get device properites for the requested texture format
-		VkFormatProperties formatProperties;
-		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProperties);
-
-		// Get sparse image properties
-		std::vector<VkSparseImageFormatProperties> sparseProperties;
-		// Sparse properties count for the desired format
-		uint32_t sparsePropertiesCount;
-		vkGetPhysicalDeviceSparseImageFormatProperties(
-			physicalDevice,
-			format,
-			VK_IMAGE_TYPE_2D,
-			VK_SAMPLE_COUNT_1_BIT,
-			VK_IMAGE_USAGE_SAMPLED_BIT,
-			VK_IMAGE_TILING_OPTIMAL,
-			&sparsePropertiesCount,
-			nullptr);
-		// Check if sparse is supported for this format
-		if (sparsePropertiesCount == 0)
-		{
-			std::cout << "Error: Requested format does not support sparse features!" << std::endl;
-			return;
-		}
-
-		// Get actual image format properties
-		sparseProperties.resize(sparsePropertiesCount);
-		vkGetPhysicalDeviceSparseImageFormatProperties(
-			physicalDevice,
-			format,
-			VK_IMAGE_TYPE_2D,
-			VK_SAMPLE_COUNT_1_BIT,
-			VK_IMAGE_USAGE_SAMPLED_BIT,
-			VK_IMAGE_TILING_OPTIMAL,
-			&sparsePropertiesCount,
-			sparseProperties.data());
-
-		std::cout << "Sparse image format properties: " << sparsePropertiesCount << std::endl;
-		for (auto props : sparseProperties)
-		{
-			std::cout << "\t Image granularity: w = " << props.imageGranularity.width << " h = " << props.imageGranularity.height << " d = " << props.imageGranularity.depth << std::endl;
-			std::cout << "\t Aspect mask: " << props.aspectMask << std::endl;
-			std::cout << "\t Flags: " << props.flags << std::endl;
-		}
-
-		// Create sparse image
-		VkImageCreateInfo sparseImageCreateInfo = vks::initializers::imageCreateInfo();
-		sparseImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		sparseImageCreateInfo.format = texture.format;
-		sparseImageCreateInfo.mipLevels = texture.mipLevels;
-		sparseImageCreateInfo.arrayLayers = texture.layerCount;
-		sparseImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		sparseImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		sparseImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		sparseImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		sparseImageCreateInfo.extent = { texture.width, texture.height, 1 };
-		sparseImageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		sparseImageCreateInfo.flags = VK_IMAGE_CREATE_SPARSE_BINDING_BIT | VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT;
-		VK_CHECK_RESULT(vkCreateImage(device, &sparseImageCreateInfo, nullptr, &texture.image));
-
-		// Get memory requirements
-		VkMemoryRequirements sparseImageMemoryReqs;
-		// Sparse image memory requirement counts
-		vkGetImageMemoryRequirements(device, texture.image, &sparseImageMemoryReqs);
-
-		std::cout << "Image memory requirements:" << std::endl;
-		std::cout << "\t Size: " << sparseImageMemoryReqs.size << std::endl;
-		std::cout << "\t Alignment: " << sparseImageMemoryReqs.alignment << std::endl;
-
-		// Check requested image size against hardware sparse limit
-		if (sparseImageMemoryReqs.size > vulkanDevice->properties.limits.sparseAddressSpaceSize)
-		{
-			std::cout << "Error: Requested sparse image size exceeds supportes sparse address space size!" << std::endl;
-			return;
-		};
-
-		// Get sparse memory requirements
-		// Count
-		uint32_t sparseMemoryReqsCount = 32;
-		std::vector<VkSparseImageMemoryRequirements> sparseMemoryReqs(sparseMemoryReqsCount);
-		vkGetImageSparseMemoryRequirements(device, texture.image, &sparseMemoryReqsCount, sparseMemoryReqs.data());
-		if (sparseMemoryReqsCount == 0)
-		{
-			std::cout << "Error: No memory requirements for the sparse image!" << std::endl;
-			return;
-		}
-		sparseMemoryReqs.resize(sparseMemoryReqsCount);
-		// Get actual requirements
-		vkGetImageSparseMemoryRequirements(device, texture.image, &sparseMemoryReqsCount, sparseMemoryReqs.data());
-
-		std::cout << "Sparse image memory requirements: " << sparseMemoryReqsCount << std::endl;
-		for (auto reqs : sparseMemoryReqs)
-		{
-			std::cout << "\t Image granularity: w = " << reqs.formatProperties.imageGranularity.width << " h = " << reqs.formatProperties.imageGranularity.height << " d = " << reqs.formatProperties.imageGranularity.depth << std::endl;
-			std::cout << "\t Mip tail first LOD: " << reqs.imageMipTailFirstLod << std::endl;
-			std::cout << "\t Mip tail size: " << reqs.imageMipTailSize << std::endl;
-			std::cout << "\t Mip tail offset: " << reqs.imageMipTailOffset << std::endl;
-			std::cout << "\t Mip tail stride: " << reqs.imageMipTailStride << std::endl;
-			//todo:multiple reqs
-			texture.mipTailStart = reqs.imageMipTailFirstLod;
-		}
-		
-		lastFilledMip = texture.mipTailStart - 1;
-
-		// Get sparse image requirements for the color aspect
-		VkSparseImageMemoryRequirements sparseMemoryReq;
-		bool colorAspectFound = false;
-		for (auto reqs : sparseMemoryReqs)
-		{
-			if (reqs.formatProperties.aspectMask & VK_IMAGE_ASPECT_COLOR_BIT)
-			{
-				sparseMemoryReq = reqs;
-				colorAspectFound = true;
-				break;
-			}
-		}
-		if (!colorAspectFound)
-		{
-			std::cout << "Error: Could not find sparse image memory requirements for color aspect bit!" << std::endl;
-			return;
-		}
-
-		// todo:
-		// Calculate number of required sparse memory bindings by alignment
-		assert((sparseImageMemoryReqs.size % sparseImageMemoryReqs.alignment) == 0);
-		memoryTypeIndex = vulkanDevice->getMemoryType(sparseImageMemoryReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		// Get sparse bindings
-		uint32_t sparseBindsCount = static_cast<uint32_t>(sparseImageMemoryReqs.size / sparseImageMemoryReqs.alignment);		
-		std::vector<VkSparseMemoryBind>	sparseMemoryBinds(sparseBindsCount);
-
-		// Check if the format has a single mip tail for all layers or one mip tail for each layer
-		// The mip tail contains all mip levels > sparseMemoryReq.imageMipTailFirstLod
-		bool singleMipTail = sparseMemoryReq.formatProperties.flags & VK_SPARSE_IMAGE_FORMAT_SINGLE_MIPTAIL_BIT;
-
-		// Sparse bindings for each mip level of all layers outside of the mip tail
-		for (uint32_t layer = 0; layer < texture.layerCount; layer++)
-		{
-			// sparseMemoryReq.imageMipTailFirstLod is the first mip level that's stored inside the mip tail
-			for (uint32_t mipLevel = 0; mipLevel < sparseMemoryReq.imageMipTailFirstLod; mipLevel++)
-			{
-				VkExtent3D extent;
-				extent.width = std::max(sparseImageCreateInfo.extent.width >> mipLevel, 1u);
-				extent.height = std::max(sparseImageCreateInfo.extent.height >> mipLevel, 1u);
-				extent.depth = std::max(sparseImageCreateInfo.extent.depth >> mipLevel, 1u);
-
-				VkImageSubresource subResource{};
-				subResource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				subResource.mipLevel = mipLevel;
-				subResource.arrayLayer = layer;
-
-				// Aligned sizes by image granularity
-				VkExtent3D imageGranularity = sparseMemoryReq.formatProperties.imageGranularity;
-				glm::uvec3 sparseBindCounts = alignedDivision(extent, imageGranularity);
-				glm::uvec3 lastBlockExtent;
-				lastBlockExtent.x = (extent.width % imageGranularity.width) ? extent.width % imageGranularity.width : imageGranularity.width;
-				lastBlockExtent.y = (extent.height % imageGranularity.height) ? extent.height % imageGranularity.height : imageGranularity.height;
-				lastBlockExtent.z = (extent.depth % imageGranularity.depth) ? extent.depth % imageGranularity.depth : imageGranularity.depth;
-
-				// Alllocate memory for some blocks
-				uint32_t index = 0;
-				for (uint32_t z = 0; z < sparseBindCounts.z; z++)
-				{
-					for (uint32_t y = 0; y < sparseBindCounts.y; y++)
-					{
-						for (uint32_t x = 0; x < sparseBindCounts.x; x++)
-						{
-							// Offset 
-							VkOffset3D offset;
-							offset.x = x * imageGranularity.width;
-							offset.y = y * imageGranularity.height;
-							offset.z = z * imageGranularity.depth;
-							// Size of the page
-							VkExtent3D extent;
-							extent.width = (x == sparseBindCounts.x - 1) ? lastBlockExtent.x : imageGranularity.width;
-							extent.height = (y == sparseBindCounts.y - 1) ? lastBlockExtent.y : imageGranularity.height;
-							extent.depth = (z == sparseBindCounts.z - 1) ? lastBlockExtent.z : imageGranularity.depth;
-
-							// Add new virtual page
-							VirtualTexturePage *newPage = texture.addPage(offset, extent, sparseImageMemoryReqs.alignment, mipLevel, layer);
-							newPage->imageMemoryBind.subresource = subResource;
-
-							if ((x % 2 == 1) || (y % 2 == 1))
-							{
-								// Allocate memory for this virtual page
-								//newPage->allocate(device, memoryTypeIndex);
-							}
-
-							index++;
-						}
-					}
-				}
-			}
-
-			// Check if format has one mip tail per layer
-			if ((!singleMipTail) && (sparseMemoryReq.imageMipTailFirstLod < texture.mipLevels))
-			{
-				// Allocate memory for the mip tail
-				VkMemoryAllocateInfo allocInfo = vks::initializers::memoryAllocateInfo();
-				allocInfo.allocationSize = sparseMemoryReq.imageMipTailSize;
-				allocInfo.memoryTypeIndex = memoryTypeIndex;
-
-				VkDeviceMemory deviceMemory;
-				VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &deviceMemory));
-
-				// (Opaque) sparse memory binding
-				VkSparseMemoryBind sparseMemoryBind{};
-				sparseMemoryBind.resourceOffset = sparseMemoryReq.imageMipTailOffset + layer * sparseMemoryReq.imageMipTailStride;
-				sparseMemoryBind.size = sparseMemoryReq.imageMipTailSize;
-				sparseMemoryBind.memory = deviceMemory;
-
-				texture.opaqueMemoryBinds.push_back(sparseMemoryBind);
-			}
-		} // end layers and mips
-
-		std::cout << "Texture info:" << std::endl;
-		std::cout << "\tDim: " << texture.width << " x " << texture.height << std::endl;
-		std::cout << "\tVirtual pages: " << texture.pages.size() << std::endl;
-
-		// Check if format has one mip tail for all layers
-		if ((sparseMemoryReq.formatProperties.flags & VK_SPARSE_IMAGE_FORMAT_SINGLE_MIPTAIL_BIT) && (sparseMemoryReq.imageMipTailFirstLod < texture.mipLevels))
-		{
-			// Allocate memory for the mip tail
-			VkMemoryAllocateInfo allocInfo = vks::initializers::memoryAllocateInfo();
-			allocInfo.allocationSize = sparseMemoryReq.imageMipTailSize;
-			allocInfo.memoryTypeIndex = memoryTypeIndex;
-
-			VkDeviceMemory deviceMemory;
-			VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &deviceMemory));
-
-			// (Opaque) sparse memory binding
-			VkSparseMemoryBind sparseMemoryBind{};
-			sparseMemoryBind.resourceOffset = sparseMemoryReq.imageMipTailOffset;
-			sparseMemoryBind.size = sparseMemoryReq.imageMipTailSize;
-			sparseMemoryBind.memory = deviceMemory;
-
-			texture.opaqueMemoryBinds.push_back(sparseMemoryBind);
-		}
-
-		// Create signal semaphore for sparse binding
-		VkSemaphoreCreateInfo semaphoreCreateInfo = vks::initializers::semaphoreCreateInfo();
-		VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &bindSparseSemaphore));
-
-		// Prepare bind sparse info for reuse in queue submission
-		texture.updateSparseBindInfo();
-
-		// Bind to queue
-		// todo: in draw?
-		vkQueueBindSparse(queue, 1, &texture.bindSparseInfo, VK_NULL_HANDLE);
-		//todo: use sparse bind semaphore
-		vkQueueWaitIdle(queue);
-
-		// Create sampler
-		VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
-		sampler.magFilter = VK_FILTER_LINEAR;
-		sampler.minFilter = VK_FILTER_LINEAR;
-		sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		sampler.mipLodBias = 0.0f;
-		sampler.compareOp = VK_COMPARE_OP_NEVER;
-		sampler.minLod = 0.0f;
-		sampler.maxLod = static_cast<float>(texture.mipLevels);
-		sampler.maxAnisotropy = vulkanDevice->features.samplerAnisotropy ? vulkanDevice->properties.limits.maxSamplerAnisotropy : 1.0f;
-		sampler.anisotropyEnable = false;
-		sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK_RESULT(vkCreateSampler(device, &sampler, nullptr, &texture.sampler));
-
-		// Create image view
-		VkImageViewCreateInfo view = vks::initializers::imageViewCreateInfo();
-		view.image = VK_NULL_HANDLE;
-		view.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		view.format = format;
-		view.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
-		view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		view.subresourceRange.baseMipLevel = 0;
-		view.subresourceRange.baseArrayLayer = 0;
-		view.subresourceRange.layerCount = 1;
-		view.subresourceRange.levelCount = texture.mipLevels;
-		view.image = texture.image;
-		VK_CHECK_RESULT(vkCreateImageView(device, &view, nullptr, &texture.view));
-
-		// Fill image descriptor image info that can be used during the descriptor set setup
-		texture.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		texture.descriptor.imageView = texture.view;
-		texture.descriptor.sampler = texture.sampler;
-
-		// Fill smallest (non-tail) mip map leve
-		fillVirtualTexture(lastFilledMip);
-	}
-
-	// Free all Vulkan resources used a texture object
-	void destroyTextureImage(SparseTexture texture)
-	{
-		vkDestroyImageView(device, texture.view, nullptr);
-		vkDestroyImage(device, texture.image, nullptr);
-		vkDestroySampler(device, texture.sampler, nullptr);
-		texture.destroy();
-	}
-
-	void buildCommandBuffers()
-	{
-		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
-
-		VkClearValue clearValues[2];
-		clearValues[0].color = { { 0.0f, 0.0f, 0.2f, 1.0f } };
-		clearValues[1].depthStencil = { 1.0f, 0 };
-
-		VkRenderPassBeginInfo renderPassBeginInfo = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass = renderPass;
-		renderPassBeginInfo.renderArea.offset.x = 0;
-		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent.width = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
-		renderPassBeginInfo.clearValueCount = 2;
-		renderPassBeginInfo.pClearValues = clearValues;
-
-		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
-		{
-			// Set target frame buffer
-			renderPassBeginInfo.framebuffer = frameBuffers[i];
-
-			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
-
-			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-			VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-
-			VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
-
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.solid);
-
-			VkDeviceSize offsets[1] = { 0 };
-			vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &heightMap->vertexBuffer.buffer, offsets);
-			vkCmdBindIndexBuffer(drawCmdBuffers[i], heightMap->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(drawCmdBuffers[i], heightMap->indexCount, 1, 0, 0, 0);
-
-			drawUI(drawCmdBuffers[i]);
-
-			vkCmdEndRenderPass(drawCmdBuffers[i]);
-
-			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
-		}
-	}
-
-	void draw()
-	{
-		VulkanExampleBase::prepareFrame();
-
-		// Sparse bindings
-//		vkQueueBindSparse(queue, 1, &bindSparseInfo, VK_NULL_HANDLE);
-		//todo: use sparse bind semaphore
-//		vkQueueWaitIdle(queue);
-
-		// Command buffer to be sumitted to the queue
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-
-		// Submit to queue
-		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-
-		VulkanExampleBase::submitFrame();
-	}
-
-	void loadAssets()
-	{
-		textures.source.loadFromFile(getAssetPath() + "textures/ground_dry_bc3_unorm.ktx", VK_FORMAT_BC3_UNORM_BLOCK, vulkanDevice, queue, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-	}
-
-	// Generate a terrain quad patch for feeding to the tessellation control shader
-	void generateTerrain()
-	{
-		heightMap = new vks::HeightMap(vulkanDevice, queue);
+        camera.position = { 84.5f, 40.5f, 225.0f };
+        camera.setRotation(glm::vec3(-8.5f, -200.0f, 0.0f));
+        camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 1024.0f);
+        settings.overlay = true;
+        // Device features to be enabled for this example
+        enabledFeatures.shaderResourceResidency = VK_TRUE;
+        enabledFeatures.shaderResourceMinLod = VK_TRUE;
+    }
+
+    ~VulkanExample() {
+        // Clean up used Vulkan resources
+        // Note : Inherited destructor cleans up resources stored in base class
+
+        if (heightMap)
+            delete heightMap;
+
+        destroyTextureImage(texture);
+
+        vkDestroySemaphore(device, bindSparseSemaphore, nullptr);
+
+        vkDestroyPipeline(device, pipelines.solid, nullptr);
+
+        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
+        uniformBufferVS.destroy();
+    }
+
+    virtual void getEnabledFeatures() {
+        if (deviceFeatures.sparseBinding && deviceFeatures.sparseResidencyImage2D) {
+            enabledFeatures.sparseBinding = VK_TRUE;
+            enabledFeatures.sparseResidencyImage2D = VK_TRUE;
+        } else {
+            std::cout << "Sparse binding not supported" << std::endl;
+        }
+    }
+
+    glm::uvec3 alignedDivision(const vk::Extent3D& extent, const vk::Extent3D& granularity) {
+        glm::uvec3 res;
+        res.x = extent.width / granularity.width + ((extent.width % granularity.width) ? 1u : 0u);
+        res.y = extent.height / granularity.height + ((extent.height % granularity.height) ? 1u : 0u);
+        res.z = extent.depth / granularity.depth + ((extent.depth % granularity.depth) ? 1u : 0u);
+        return res;
+    }
+
+    void prepareSparseTexture(uint32_t width, uint32_t height, uint32_t layerCount, vk::Format format) {
+        texture.device = vulkanDevice->logicalDevice;
+        texture.width = width;
+        texture.height = height;
+        texture.mipLevels = floor(log2(std::max(width, height))) + 1;
+        texture.layerCount = layerCount;
+        texture.format = format;
+
+        // Get device properites for the requested texture format
+        vk::FormatProperties formatProperties;
+        vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProperties);
+
+        // Get sparse image properties
+        std::vector<vk::SparseImageFormatProperties> sparseProperties;
+        // Sparse properties count for the desired format
+        uint32_t sparsePropertiesCount;
+        vkGetPhysicalDeviceSparseImageFormatProperties(physicalDevice, format, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_SAMPLED_BIT,
+                                                       VK_IMAGE_TILING_OPTIMAL, &sparsePropertiesCount, nullptr);
+        // Check if sparse is supported for this format
+        if (sparsePropertiesCount == 0) {
+            std::cout << "Error: Requested format does not support sparse features!" << std::endl;
+            return;
+        }
+
+        // Get actual image format properties
+        sparseProperties.resize(sparsePropertiesCount);
+        vkGetPhysicalDeviceSparseImageFormatProperties(physicalDevice, format, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_SAMPLED_BIT,
+                                                       VK_IMAGE_TILING_OPTIMAL, &sparsePropertiesCount, sparseProperties.data());
+
+        std::cout << "Sparse image format properties: " << sparsePropertiesCount << std::endl;
+        for (auto props : sparseProperties) {
+            std::cout << "\t Image granularity: w = " << props.imageGranularity.width << " h = " << props.imageGranularity.height
+                      << " d = " << props.imageGranularity.depth << std::endl;
+            std::cout << "\t Aspect mask: " << props.aspectMask << std::endl;
+            std::cout << "\t Flags: " << props.flags << std::endl;
+        }
+
+        // Create sparse image
+        vk::ImageCreateInfo sparseImageCreateInfo;
+        sparseImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+        sparseImageCreateInfo.format = texture.format;
+        sparseImageCreateInfo.mipLevels = texture.mipLevels;
+        sparseImageCreateInfo.arrayLayers = texture.layerCount;
+        sparseImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        sparseImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        sparseImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        sparseImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        sparseImageCreateInfo.extent = { texture.width, texture.height, 1 };
+        sparseImageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        sparseImageCreateInfo.flags = VK_IMAGE_CREATE_SPARSE_BINDING_BIT | VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT;
+        VK_CHECK_RESULT(vkCreateImage(device, &sparseImageCreateInfo, nullptr, &texture.image));
+
+        // Get memory requirements
+        vk::MemoryRequirements sparseImageMemoryReqs;
+        // Sparse image memory requirement counts
+        vkGetImageMemoryRequirements(device, texture.image, &sparseImageMemoryReqs);
+
+        std::cout << "Image memory requirements:" << std::endl;
+        std::cout << "\t Size: " << sparseImageMemoryReqs.size << std::endl;
+        std::cout << "\t Alignment: " << sparseImageMemoryReqs.alignment << std::endl;
+
+        // Check requested image size against hardware sparse limit
+        if (sparseImageMemoryReqs.size > vulkanDevice->properties.limits.sparseAddressSpaceSize) {
+            std::cout << "Error: Requested sparse image size exceeds supportes sparse address space size!" << std::endl;
+            return;
+        };
+
+        // Get sparse memory requirements
+        // Count
+        uint32_t sparseMemoryReqsCount = 32;
+        std::vector<vk::SparseImageMemoryRequirements> sparseMemoryReqs(sparseMemoryReqsCount);
+        vkGetImageSparseMemoryRequirements(device, texture.image, &sparseMemoryReqsCount, sparseMemoryReqs.data());
+        if (sparseMemoryReqsCount == 0) {
+            std::cout << "Error: No memory requirements for the sparse image!" << std::endl;
+            return;
+        }
+        sparseMemoryReqs.resize(sparseMemoryReqsCount);
+        // Get actual requirements
+        vkGetImageSparseMemoryRequirements(device, texture.image, &sparseMemoryReqsCount, sparseMemoryReqs.data());
+
+        std::cout << "Sparse image memory requirements: " << sparseMemoryReqsCount << std::endl;
+        for (auto reqs : sparseMemoryReqs) {
+            std::cout << "\t Image granularity: w = " << reqs.formatProperties.imageGranularity.width
+                      << " h = " << reqs.formatProperties.imageGranularity.height << " d = " << reqs.formatProperties.imageGranularity.depth << std::endl;
+            std::cout << "\t Mip tail first LOD: " << reqs.imageMipTailFirstLod << std::endl;
+            std::cout << "\t Mip tail size: " << reqs.imageMipTailSize << std::endl;
+            std::cout << "\t Mip tail offset: " << reqs.imageMipTailOffset << std::endl;
+            std::cout << "\t Mip tail stride: " << reqs.imageMipTailStride << std::endl;
+            //todo:multiple reqs
+            texture.mipTailStart = reqs.imageMipTailFirstLod;
+        }
+
+        lastFilledMip = texture.mipTailStart - 1;
+
+        // Get sparse image requirements for the color aspect
+        vk::SparseImageMemoryRequirements sparseMemoryReq;
+        bool colorAspectFound = false;
+        for (auto reqs : sparseMemoryReqs) {
+            if (reqs.formatProperties.aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) {
+                sparseMemoryReq = reqs;
+                colorAspectFound = true;
+                break;
+            }
+        }
+        if (!colorAspectFound) {
+            std::cout << "Error: Could not find sparse image memory requirements for color aspect bit!" << std::endl;
+            return;
+        }
+
+        // todo:
+        // Calculate number of required sparse memory bindings by alignment
+        assert((sparseImageMemoryReqs.size % sparseImageMemoryReqs.alignment) == 0);
+        memoryTypeIndex = vulkanDevice->getMemoryType(sparseImageMemoryReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        // Get sparse bindings
+        uint32_t sparseBindsCount = static_cast<uint32_t>(sparseImageMemoryReqs.size / sparseImageMemoryReqs.alignment);
+        std::vector<vk::SparseMemoryBind> sparseMemoryBinds(sparseBindsCount);
+
+        // Check if the format has a single mip tail for all layers or one mip tail for each layer
+        // The mip tail contains all mip levels > sparseMemoryReq.imageMipTailFirstLod
+        bool singleMipTail = sparseMemoryReq.formatProperties.flags & VK_SPARSE_IMAGE_FORMAT_SINGLE_MIPTAIL_BIT;
+
+        // Sparse bindings for each mip level of all layers outside of the mip tail
+        for (uint32_t layer = 0; layer < texture.layerCount; layer++) {
+            // sparseMemoryReq.imageMipTailFirstLod is the first mip level that's stored inside the mip tail
+            for (uint32_t mipLevel = 0; mipLevel < sparseMemoryReq.imageMipTailFirstLod; mipLevel++) {
+                vk::Extent3D extent;
+                extent.width = std::max(sparseImageCreateInfo.extent.width >> mipLevel, 1u);
+                extent.height = std::max(sparseImageCreateInfo.extent.height >> mipLevel, 1u);
+                extent.depth = std::max(sparseImageCreateInfo.extent.depth >> mipLevel, 1u);
+
+                vk::ImageSubresource subResource{};
+                subResource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                subResource.mipLevel = mipLevel;
+                subResource.arrayLayer = layer;
+
+                // Aligned sizes by image granularity
+                vk::Extent3D imageGranularity = sparseMemoryReq.formatProperties.imageGranularity;
+                glm::uvec3 sparseBindCounts = alignedDivision(extent, imageGranularity);
+                glm::uvec3 lastBlockExtent;
+                lastBlockExtent.x = (extent.width % imageGranularity.width) ? extent.width % imageGranularity.width : imageGranularity.width;
+                lastBlockExtent.y = (extent.height % imageGranularity.height) ? extent.height % imageGranularity.height : imageGranularity.height;
+                lastBlockExtent.z = (extent.depth % imageGranularity.depth) ? extent.depth % imageGranularity.depth : imageGranularity.depth;
+
+                // Alllocate memory for some blocks
+                uint32_t index = 0;
+                for (uint32_t z = 0; z < sparseBindCounts.z; z++) {
+                    for (uint32_t y = 0; y < sparseBindCounts.y; y++) {
+                        for (uint32_t x = 0; x < sparseBindCounts.x; x++) {
+                            // Offset
+                            vk::Offset3D offset;
+                            offset.x = x * imageGranularity.width;
+                            offset.y = y * imageGranularity.height;
+                            offset.z = z * imageGranularity.depth;
+                            // Size of the page
+                            vk::Extent3D extent;
+                            extent.width = (x == sparseBindCounts.x - 1) ? lastBlockExtent.x : imageGranularity.width;
+                            extent.height = (y == sparseBindCounts.y - 1) ? lastBlockExtent.y : imageGranularity.height;
+                            extent.depth = (z == sparseBindCounts.z - 1) ? lastBlockExtent.z : imageGranularity.depth;
+
+                            // Add new virtual page
+                            VirtualTexturePage* newPage = texture.addPage(offset, extent, sparseImageMemoryReqs.alignment, mipLevel, layer);
+                            newPage->imageMemoryBind.subresource = subResource;
+
+                            if ((x % 2 == 1) || (y % 2 == 1)) {
+                                // Allocate memory for this virtual page
+                                //newPage->allocate(device, memoryTypeIndex);
+                            }
+
+                            index++;
+                        }
+                    }
+                }
+            }
+
+            // Check if format has one mip tail per layer
+            if ((!singleMipTail) && (sparseMemoryReq.imageMipTailFirstLod < texture.mipLevels)) {
+                // Allocate memory for the mip tail
+                vk::MemoryAllocateInfo allocInfo;
+                allocInfo.allocationSize = sparseMemoryReq.imageMipTailSize;
+                allocInfo.memoryTypeIndex = memoryTypeIndex;
+
+                vk::DeviceMemory deviceMemory;
+                VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &deviceMemory));
+
+                // (Opaque) sparse memory binding
+                vk::SparseMemoryBind sparseMemoryBind{};
+                sparseMemoryBind.resourceOffset = sparseMemoryReq.imageMipTailOffset + layer * sparseMemoryReq.imageMipTailStride;
+                sparseMemoryBind.size = sparseMemoryReq.imageMipTailSize;
+                sparseMemoryBind.memory = deviceMemory;
+
+                texture.opaqueMemoryBinds.push_back(sparseMemoryBind);
+            }
+        }  // end layers and mips
+
+        std::cout << "Texture info:" << std::endl;
+        std::cout << "\tDim: " << texture.width << " x " << texture.height << std::endl;
+        std::cout << "\tVirtual pages: " << texture.pages.size() << std::endl;
+
+        // Check if format has one mip tail for all layers
+        if ((sparseMemoryReq.formatProperties.flags & VK_SPARSE_IMAGE_FORMAT_SINGLE_MIPTAIL_BIT) &&
+            (sparseMemoryReq.imageMipTailFirstLod < texture.mipLevels)) {
+            // Allocate memory for the mip tail
+            vk::MemoryAllocateInfo allocInfo;
+            allocInfo.allocationSize = sparseMemoryReq.imageMipTailSize;
+            allocInfo.memoryTypeIndex = memoryTypeIndex;
+
+            vk::DeviceMemory deviceMemory;
+            VK_CHECK_RESULT(vkAllocateMemory(device, &allocInfo, nullptr, &deviceMemory));
+
+            // (Opaque) sparse memory binding
+            vk::SparseMemoryBind sparseMemoryBind{};
+            sparseMemoryBind.resourceOffset = sparseMemoryReq.imageMipTailOffset;
+            sparseMemoryBind.size = sparseMemoryReq.imageMipTailSize;
+            sparseMemoryBind.memory = deviceMemory;
+
+            texture.opaqueMemoryBinds.push_back(sparseMemoryBind);
+        }
+
+        // Create signal semaphore for sparse binding
+        vk::SemaphoreCreateInfo semaphoreCreateInfo;
+        VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &bindSparseSemaphore));
+
+        // Prepare bind sparse info for reuse in queue submission
+        texture.updateSparseBindInfo();
+
+        // Bind to queue
+        // todo: in draw?
+        vkQueueBindSparse(queue, 1, &texture.bindSparseInfo, VK_NULL_HANDLE);
+        //todo: use sparse bind semaphore
+        vkQueueWaitIdle(queue);
+
+        // Create sampler
+        vk::SamplerCreateInfo sampler;
+        sampler.magFilter = VK_FILTER_LINEAR;
+        sampler.minFilter = VK_FILTER_LINEAR;
+        sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler.mipLodBias = 0.0f;
+        sampler.compareOp = VK_COMPARE_OP_NEVER;
+        sampler.minLod = 0.0f;
+        sampler.maxLod = static_cast<float>(texture.mipLevels);
+        sampler.maxAnisotropy = vulkanDevice->features.samplerAnisotropy ? vulkanDevice->properties.limits.maxSamplerAnisotropy : 1.0f;
+        sampler.anisotropyEnable = false;
+        sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        VK_CHECK_RESULT(vkCreateSampler(device, &sampler, nullptr, &texture.sampler));
+
+        // Create image view
+        vk::ImageViewCreateInfo view;
+        view.image = VK_NULL_HANDLE;
+        view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        view.format = format;
+        view.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+        view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        view.subresourceRange.baseMipLevel = 0;
+        view.subresourceRange.baseArrayLayer = 0;
+        view.subresourceRange.layerCount = 1;
+        view.subresourceRange.levelCount = texture.mipLevels;
+        view.image = texture.image;
+        VK_CHECK_RESULT(vkCreateImageView(device, &view, nullptr, &texture.view));
+
+        // Fill image descriptor image info that can be used during the descriptor set setup
+        texture.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        texture.descriptor.imageView = texture.view;
+        texture.descriptor.sampler = texture.sampler;
+
+        // Fill smallest (non-tail) mip map leve
+        fillVirtualTexture(lastFilledMip);
+    }
+
+    // Free all Vulkan resources used a texture object
+    void destroyTextureImage(SparseTexture texture) {
+        vkDestroyImageView(device, texture.view, nullptr);
+        vkDestroyImage(device, texture.image, nullptr);
+        vkDestroySampler(device, texture.sampler, nullptr);
+        texture.destroy();
+    }
+
+    void buildCommandBuffers() {
+        vk::CommandBufferBeginInfo cmdBufInfo;
+
+        vk::ClearValue clearValues[2];
+        clearValues[0].color = { { 0.0f, 0.0f, 0.2f, 1.0f } };
+        clearValues[1].depthStencil = { 1.0f, 0 };
+
+        vk::RenderPassBeginInfo renderPassBeginInfo;
+        renderPassBeginInfo.renderPass = renderPass;
+        renderPassBeginInfo.renderArea.offset.x = 0;
+        renderPassBeginInfo.renderArea.offset.y = 0;
+        renderPassBeginInfo.renderArea.extent.width = width;
+        renderPassBeginInfo.renderArea.extent.height = height;
+        renderPassBeginInfo.clearValueCount = 2;
+        renderPassBeginInfo.pClearValues = clearValues;
+
+        for (int32_t i = 0; i < drawCmdBuffers.size(); ++i) {
+            // Set target frame buffer
+            renderPassBeginInfo.framebuffer = frameBuffers[i];
+
+            VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
+
+            vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            vk::Viewport viewport{ (float)width, (float)height, 0.0f, 1.0f };
+            vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+
+            vk::Rect2D scissor{ width, height, 0, 0 };
+            vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
+
+            vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
+            vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.solid);
+
+            vk::DeviceSize offsets[1] = { 0 };
+            vkCmdBindVertexBuffers(drawCmdBuffers[i], VERTEX_BUFFER_BIND_ID, 1, &heightMap->vertexBuffer.buffer, offsets);
+            vkCmdBindIndexBuffer(drawCmdBuffers[i], heightMap->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdDrawIndexed(drawCmdBuffers[i], heightMap->indexCount, 1, 0, 0, 0);
+
+            drawUI(drawCmdBuffers[i]);
+
+            vkCmdEndRenderPass(drawCmdBuffers[i]);
+
+            VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
+        }
+    }
+
+    void draw() {
+        VulkanExampleBase::prepareFrame();
+
+        // Sparse bindings
+        //		vkQueueBindSparse(queue, 1, &bindSparseInfo, VK_NULL_HANDLE);
+        //todo: use sparse bind semaphore
+        //		vkQueueWaitIdle(queue);
+
+        // Command buffer to be sumitted to the queue
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
+
+        // Submit to queue
+        VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+
+        VulkanExampleBase::submitFrame();
+    }
+
+    void loadAssets() {
+        textures.source.loadFromFile(getAssetPath() + "textures/ground_dry_bc3_unorm.ktx", vk::Format::eBC3_UNORM_BLOCK, vulkanDevice, queue,
+                                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+    }
+
+    // Generate a terrain quad patch for feeding to the tessellation control shader
+    void generateTerrain() {
+        heightMap = new vks::HeightMap(vulkanDevice, queue);
 #if defined(__ANDROID__)
-		heightMap->loadFromFile(getAssetPath() + "textures/terrain_heightmap_r16.ktx", 128, glm::vec3(2.0f, 48.0f, 2.0f), vks::HeightMap::topologyTriangles, androidApp->activity->assetManager);
+        heightMap->loadFromFile(getAssetPath() + "textures/terrain_heightmap_r16.ktx", 128, glm::vec3(2.0f, 48.0f, 2.0f), vks::HeightMap::topologyTriangles,
+                                androidApp->activity->assetManager);
 #else
-		heightMap->loadFromFile(getAssetPath() + "textures/terrain_heightmap_r16.ktx", 128, glm::vec3(2.0f, 48.0f, 2.0f), vks::HeightMap::topologyTriangles);
+        heightMap->loadFromFile(getAssetPath() + "textures/terrain_heightmap_r16.ktx", 128, glm::vec3(2.0f, 48.0f, 2.0f), vks::HeightMap::topologyTriangles);
 #endif
-	}
+    }
 
-	void setupVertexDescriptions()
-	{
-		// Binding description
-		vertices.bindingDescriptions.resize(1);
-		vertices.bindingDescriptions[0] =
-			vks::initializers::vertexInputBindingDescription(
-				VERTEX_BUFFER_BIND_ID, 
-				sizeof(Vertex), 
-				VK_VERTEX_INPUT_RATE_VERTEX);
+    void setupVertexDescriptions() {
+        // Binding description
+        vertices.bindingDescriptions.resize(1);
+        vertices.bindingDescriptions[0] = vk::vertexInputBindingDescription{VERTEX_BUFFER_BIND_ID, sizeof(Vertex), vk::VertexInputRate::eVertex};
 
-		// Attribute descriptions
-		// Describes memory layout and shader positions
-		vertices.attributeDescriptions.resize(3);
-		// Location 0 : Position
-		vertices.attributeDescriptions[0] =
-			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				0,
-				VK_FORMAT_R32G32B32_SFLOAT,
-				offsetof(Vertex, pos));			
-		// Location 1 : Vertex normal
-		vertices.attributeDescriptions[1] =
-			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				1,
-				VK_FORMAT_R32G32B32_SFLOAT,
-				offsetof(Vertex, normal));
-		// Location 1 : Texture coordinates
-		vertices.attributeDescriptions[2] =
-			vks::initializers::vertexInputAttributeDescription(
-				VERTEX_BUFFER_BIND_ID,
-				2,
-				VK_FORMAT_R32G32_SFLOAT,
-				offsetof(Vertex, uv));
+        // Attribute descriptions
+        // Describes memory layout and shader positions
+        vertices.attributeDescriptions.resize(3);
+        // Location 0 : Position
+        vertices.attributeDescriptions[0] =
+            vk::vertexInputAttributeDescription{VERTEX_BUFFER_BIND_ID, 0, vk::Format::eR32G32B32sFloat, offsetof(Vertex, pos)};
+        // Location 1 : Vertex normal
+        vertices.attributeDescriptions[1] =
+            vk::vertexInputAttributeDescription{VERTEX_BUFFER_BIND_ID, 1, vk::Format::eR32G32B32sFloat, offsetof(Vertex, normal)};
+        // Location 1 : Texture coordinates
+        vertices.attributeDescriptions[2] =
+            vk::vertexInputAttributeDescription{VERTEX_BUFFER_BIND_ID, 2, vk::Format::eR32G32sFloat, offsetof(Vertex, uv)};
 
-		vertices.inputState = vks::initializers::pipelineVertexInputStateCreateInfo();
-		vertices.inputState.vertexBindingDescriptionCount = static_cast<uint32_t>(vertices.bindingDescriptions.size());
-		vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
-		vertices.inputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertices.attributeDescriptions.size());
-		vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
-	}
+        vertices.inputState;
+        vertices.inputState.vertexBindingDescriptionCount = static_cast<uint32_t>(vertices.bindingDescriptions.size());
+        vertices.inputState.pVertexBindingDescriptions = vertices.bindingDescriptions.data();
+        vertices.inputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertices.attributeDescriptions.size());
+        vertices.inputState.pVertexAttributeDescriptions = vertices.attributeDescriptions.data();
+    }
 
-	void setupDescriptorPool()
-	{
-		// Example uses one ubo and one image sampler
-		std::vector<VkDescriptorPoolSize> poolSizes =
-		{
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
-		};
+    void setupDescriptorPool() {
+        // Example uses one ubo and one image sampler
+        std::vector<vk::DescriptorPoolSize> poolSizes = { { vk::DescriptorType::eUniformBuffer, 1 }, { vk::DescriptorType::eCombinedImageSampler, 1 } };
 
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = 
-			vks::initializers::descriptorPoolCreateInfo(
-				static_cast<uint32_t>(poolSizes.size()),
-				poolSizes.data(),
-				2);
+        vk::DescriptorPoolCreateInfo descriptorPoolInfo =
+            vk::descriptorPoolCreateInfo{static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), 2};
 
-		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
-	}
+        VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
+    }
 
-	void setupDescriptorSetLayout()
-	{
-		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = 
-		{
-			// Binding 0 : Vertex shader uniform buffer
-			vks::initializers::descriptorSetLayoutBinding(
-				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 
-				VK_SHADER_STAGE_VERTEX_BIT, 
-				0),
-			// Binding 1 : Fragment shader image sampler
-			vks::initializers::descriptorSetLayoutBinding(
-				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 
-				VK_SHADER_STAGE_FRAGMENT_BIT, 
-				1)
-		};
+    void setupDescriptorSetLayout() {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings = {
+            // Binding 0 : Vertex shader uniform buffer
+            vk::descriptorSetLayoutBinding{vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex, 0},
+            // Binding 1 : Fragment shader image sampler
+            vk::descriptorSetLayoutBinding{vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment, 1}
+        };
 
-		VkDescriptorSetLayoutCreateInfo descriptorLayout = 
-			vks::initializers::descriptorSetLayoutCreateInfo(
-				setLayoutBindings.data(),
-				static_cast<uint32_t>(setLayoutBindings.size()));
+        vk::DescriptorSetLayoutCreateInfo descriptorLayout =
+            vk::descriptorSetLayoutCreateInfo{setLayoutBindings.data(), static_cast<uint32_t>(setLayoutBindings.size())};
 
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
+        VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
 
-		VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-			vks::initializers::pipelineLayoutCreateInfo(
-				&descriptorSetLayout,
-				1);
+        vk::PipelineLayoutCreateInfo pPipelineLayoutCreateInfo = vk::pipelineLayoutCreateInfo{&descriptorSetLayout, 1};
 
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
-	}
+        VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+    }
 
-	void setupDescriptorSet()
-	{
-		VkDescriptorSetAllocateInfo allocInfo = 
-			vks::initializers::descriptorSetAllocateInfo(
-				descriptorPool,
-				&descriptorSetLayout,
-				1);
+    void setupDescriptorSet() {
+        vk::DescriptorSetAllocateInfo allocInfo = vk::descriptorSetAllocateInfo{descriptorPool, &descriptorSetLayout, 1};
 
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
+        VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
 
-		std::vector<VkWriteDescriptorSet> writeDescriptorSets =
-		{
-			// Binding 0 : Vertex shader uniform buffer
-			vks::initializers::writeDescriptorSet(
-				descriptorSet, 
-				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 
-				0, 
-				&uniformBufferVS.descriptor),
-			// Binding 1 : Fragment shader texture sampler
-			vks::initializers::writeDescriptorSet(
-				descriptorSet, 
-				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 
-				1, 
-				&texture.descriptor)
-		};
+        std::vector<vk::WriteDescriptorSet> writeDescriptorSets = {
+            // Binding 0 : Vertex shader uniform buffer
+            vk::writeDescriptorSet{descriptorSet, vk::DescriptorType::eUniformBuffer, 0, &uniformBufferVS.descriptor},
+            // Binding 1 : Fragment shader texture sampler
+            vk::writeDescriptorSet{descriptorSet, vk::DescriptorType::eCombinedImageSampler, 1, &texture.descriptor}
+        };
 
-		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, NULL);
-	}
+        vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, NULL);
+    }
 
-	void preparePipelines()
-	{
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
-			vks::initializers::pipelineInputAssemblyStateCreateInfo(
-				VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-				0,
-				VK_FALSE);
+    void preparePipelines() {
+        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState =
+            vk::pipelineInputAssemblyStateCreateInfo{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE};
 
-		VkPipelineRasterizationStateCreateInfo rasterizationState =
-			vks::initializers::pipelineRasterizationStateCreateInfo(
-				VK_POLYGON_MODE_FILL,
-				VK_CULL_MODE_BACK_BIT,
-				VK_FRONT_FACE_COUNTER_CLOCKWISE,
-				0);
+        vk::PipelineRasterizationStateCreateInfo rasterizationState =
+            vk::pipelineRasterizationStateCreateInfo{VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE, 0};
 
-		VkPipelineColorBlendAttachmentState blendAttachmentState =
-			vks::initializers::pipelineColorBlendAttachmentState(
-				0xf,
-				VK_FALSE);
+        vk::PipelineColorBlendAttachmentState blendAttachmentState = vk::pipelineColorBlendAttachmentState{0xf, VK_FALSE};
 
-		VkPipelineColorBlendStateCreateInfo colorBlendState =
-			vks::initializers::pipelineColorBlendStateCreateInfo(
-				1, 
-				&blendAttachmentState);
+        vk::PipelineColorBlendStateCreateInfo colorBlendState = vk::pipelineColorBlendStateCreateInfo{1, &blendAttachmentState};
 
-		VkPipelineDepthStencilStateCreateInfo depthStencilState =
-			vks::initializers::pipelineDepthStencilStateCreateInfo(
-				VK_TRUE,
-				VK_TRUE,
-				VK_COMPARE_OP_LESS_OR_EQUAL);
+        vk::PipelineDepthStencilStateCreateInfo depthStencilState =
+            vk::pipelineDepthStencilStateCreateInfo{VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL};
 
-		VkPipelineViewportStateCreateInfo viewportState =
-			vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
+        vk::PipelineViewportStateCreateInfo viewportState = { 1, 1, 0 };
 
-		VkPipelineMultisampleStateCreateInfo multisampleState =
-			vks::initializers::pipelineMultisampleStateCreateInfo(
-				VK_SAMPLE_COUNT_1_BIT,
-				0);
+        vk::PipelineMultisampleStateCreateInfo multisampleState = vk::pipelineMultisampleStateCreateInfo{VK_SAMPLE_COUNT_1_BIT, 0};
 
-		std::vector<VkDynamicState> dynamicStateEnables = {
-			VK_DYNAMIC_STATE_VIEWPORT,
-			VK_DYNAMIC_STATE_SCISSOR
-		};
-		VkPipelineDynamicStateCreateInfo dynamicState =
-			vks::initializers::pipelineDynamicStateCreateInfo(
-				dynamicStateEnables.data(),
-				static_cast<uint32_t>(dynamicStateEnables.size()),
-				0);
+        std::vector<vk::DynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+        vk::PipelineDynamicStateCreateInfo dynamicState =
+            vk::pipelineDynamicStateCreateInfo{dynamicStateEnables.data(), static_cast<uint32_t>(dynamicStateEnables.size()), 0};
 
-		// Load shaders
-		std::array<VkPipelineShaderStageCreateInfo,2> shaderStages;
+        // Load shaders
+        std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages;
 
-		shaderStages[0] = loadShader(getAssetPath() + "shaders/texturesparseresidency/sparseresidency.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shaderStages[1] = loadShader(getAssetPath() + "shaders/texturesparseresidency/sparseresidency.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+        shaderStages[0] = loadShader(getAssetPath() + "shaders/texturesparseresidency/sparseresidency.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        shaderStages[1] = loadShader(getAssetPath() + "shaders/texturesparseresidency/sparseresidency.frag.spv", vk::ShaderStageFlagBits::eFragment);
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo =
-			vks::initializers::pipelineCreateInfo(
-				pipelineLayout,
-				renderPass,
-				0);
+        vk::GraphicsPipelineCreateInfo pipelineCreateInfo = vk::pipelineCreateInfo{pipelineLayout, renderPass, 0};
 
-		pipelineCreateInfo.pVertexInputState = &vertices.inputState;
-		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-		pipelineCreateInfo.pRasterizationState = &rasterizationState;
-		pipelineCreateInfo.pColorBlendState = &colorBlendState;
-		pipelineCreateInfo.pMultisampleState = &multisampleState;
-		pipelineCreateInfo.pViewportState = &viewportState;
-		pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-		pipelineCreateInfo.pDynamicState = &dynamicState;
-		pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
-		pipelineCreateInfo.pStages = shaderStages.data();
+        pipelineCreateInfo.pVertexInputState = &vertices.inputState;
+        pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
+        pipelineCreateInfo.pRasterizationState = &rasterizationState;
+        pipelineCreateInfo.pColorBlendState = &colorBlendState;
+        pipelineCreateInfo.pMultisampleState = &multisampleState;
+        pipelineCreateInfo.pViewportState = &viewportState;
+        pipelineCreateInfo.pDepthStencilState = &depthStencilState;
+        pipelineCreateInfo.pDynamicState = &dynamicState;
+        pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+        pipelineCreateInfo.pStages = shaderStages.data();
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.solid));
-	}
+        VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.solid));
+    }
 
-	// Prepare and initialize uniform buffer containing shader uniforms
-	void prepareUniformBuffers()
-	{
-		// Vertex shader uniform buffer block
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&uniformBufferVS,
-			sizeof(uboVS),
-			&uboVS));
+    // Prepare and initialize uniform buffer containing shader uniforms
+    void prepareUniformBuffers() {
+        // Vertex shader uniform buffer block
+        VK_CHECK_RESULT(vulkanDevice->createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBufferVS, sizeof(uboVS),
+                                                   &uboVS));
 
-		updateUniformBuffers();
-	}
+        updateUniformBuffers();
+    }
 
-	void updateUniformBuffers()
-	{
-		uboVS.projection = camera.matrices.perspective;
-		uboVS.model = camera.matrices.view;
-		uboVS.viewPos = glm::vec4(0.0f, 0.0f, -zoom, 0.0f);
+    void updateUniformBuffers() {
+        uboVS.projection = camera.matrices.perspective;
+        uboVS.model = camera.matrices.view;
+        uboVS.viewPos = glm::vec4(0.0f, 0.0f, -zoom, 0.0f);
 
-		VK_CHECK_RESULT(uniformBufferVS.map());
-		memcpy(uniformBufferVS.mapped, &uboVS, sizeof(uboVS));
-		uniformBufferVS.unmap();
-	}
+        VK_CHECK_RESULT(uniformBufferVS.map());
+        memcpy(uniformBufferVS.mapped, &uboVS, sizeof(uboVS));
+        uniformBufferVS.unmap();
+    }
 
-	void prepare()
-	{
-		VulkanExampleBase::prepare();
-		// Check if the GPU supports sparse residency for 2D images
-		if (!vulkanDevice->features.sparseResidencyImage2D) {
-			vks::tools::exitFatal("Device does not support sparse residency for 2D images!", VK_ERROR_FEATURE_NOT_PRESENT);
-		}
-		loadAssets();
-		generateTerrain();
-		setupVertexDescriptions();
-		prepareUniformBuffers();
-		// Create a virtual texture with max. possible dimension (does not take up any VRAM yet)
-		prepareSparseTexture(8192, 8192, 1, VK_FORMAT_R8G8B8A8_UNORM);
-		setupDescriptorSetLayout();
-		preparePipelines();
-		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
-		prepared = true;
-	}
+    void prepare() {
+        VulkanExampleBase::prepare();
+        // Check if the GPU supports sparse residency for 2D images
+        if (!vulkanDevice->features.sparseResidencyImage2D) {
+            vks::tools::exitFatal("Device does not support sparse residency for 2D images!", VK_ERROR_FEATURE_NOT_PRESENT);
+        }
 
-	virtual void render()
-	{
-		if (!prepared)
-			return;
-		draw();
-	}
+        generateTerrain();
+        setupVertexDescriptions();
+        prepareUniformBuffers();
+        // Create a virtual texture with max. possible dimension (does not take up any VRAM yet)
+        prepareSparseTexture(8192, 8192, 1, vk::Format::eR8G8B8A8Unorm);
+        setupDescriptorSetLayout();
+        preparePipelines();
+        setupDescriptorPool();
+        setupDescriptorSet();
+        buildCommandBuffers();
+        prepared = true;
+    }
 
-	virtual void viewChanged()
-	{
-		updateUniformBuffers();
-	}
+    virtual void render() {
+        if (!prepared)
+            return;
+        draw();
+    }
 
-	// Clear all pages of the virtual texture
-	// todo: just for testing
-	void flushVirtualTexture()
-	{
-		vkDeviceWaitIdle(device);
-		for (auto& page : texture.pages)
-		{
-			page.release(device);
-		}
-		texture.updateSparseBindInfo();
-		vkQueueBindSparse(queue, 1, &texture.bindSparseInfo, VK_NULL_HANDLE);
-		//todo: use sparse bind semaphore
-		vkQueueWaitIdle(queue);
-		lastFilledMip = texture.mipTailStart - 1;
-	}
+    virtual void viewChanged() {
+        updateUniformBuffers();
+    }
 
-	// Fill a complete mip level
-	void fillVirtualTexture(int32_t &mipLevel)
-	{
-		vkDeviceWaitIdle(device);
-		std::vector<VkImageBlit> imageBlits;
-		for (auto& page : texture.pages)
-		{
-			if ((page.mipLevel == mipLevel) && /*(rndDist(rndEngine) < 0.5f) &&*/ (page.imageMemoryBind.memory == VK_NULL_HANDLE))
-			{
-				// Allocate page memory
-				page.allocate(device, memoryTypeIndex);
+    // Clear all pages of the virtual texture
+    // todo: just for testing
+    void flushVirtualTexture() {
+        vkDeviceWaitIdle(device);
+        for (auto& page : texture.pages) {
+            page.release(device);
+        }
+        texture.updateSparseBindInfo();
+        vkQueueBindSparse(queue, 1, &texture.bindSparseInfo, VK_NULL_HANDLE);
+        //todo: use sparse bind semaphore
+        vkQueueWaitIdle(queue);
+        lastFilledMip = texture.mipTailStart - 1;
+    }
 
-				// Current mip level scaling
-				uint32_t scale = texture.width / (texture.width >> page.mipLevel);
+    // Fill a complete mip level
+    void fillVirtualTexture(int32_t& mipLevel) {
+        vkDeviceWaitIdle(device);
+        std::vector<vk::ImageBlit> imageBlits;
+        for (auto& page : texture.pages) {
+            if ((page.mipLevel == mipLevel) && /*(rndDist(rndEngine) < 0.5f) &&*/ (page.imageMemoryBind.memory == VK_NULL_HANDLE)) {
+                // Allocate page memory
+                page.allocate(device, memoryTypeIndex);
 
-				for (uint32_t x = 0; x < scale; x++)
-				{
-					for (uint32_t y = 0; y < scale; y++)
-					{
-						// Image blit
-						VkImageBlit blit{};
-						// Source
-						blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-						blit.srcSubresource.baseArrayLayer = 0;
-						blit.srcSubresource.layerCount = 1;
-						blit.srcSubresource.mipLevel = 0;
-						blit.srcOffsets[0] = { 0, 0, 0 };
-						blit.srcOffsets[1] = { static_cast<int32_t>(textures.source.width), static_cast<int32_t>(textures.source.height), 1 };
-						// Dest
-						blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-						blit.dstSubresource.baseArrayLayer = 0;
-						blit.dstSubresource.layerCount = 1;
-						blit.dstSubresource.mipLevel = page.mipLevel;
-						blit.dstOffsets[0].x = static_cast<int32_t>(page.offset.x + x * 128 / scale);
-						blit.dstOffsets[0].y = static_cast<int32_t>(page.offset.y + y * 128 / scale);
-						blit.dstOffsets[0].z = 0;
-						blit.dstOffsets[1].x = static_cast<int32_t>(blit.dstOffsets[0].x + page.extent.width / scale);
-						blit.dstOffsets[1].y = static_cast<int32_t>(blit.dstOffsets[0].y + page.extent.height / scale);
-						blit.dstOffsets[1].z = 1;
+                // Current mip level scaling
+                uint32_t scale = texture.width / (texture.width >> page.mipLevel);
 
-						imageBlits.push_back(blit);
-					}
-				}
-			}
-		}
+                for (uint32_t x = 0; x < scale; x++) {
+                    for (uint32_t y = 0; y < scale; y++) {
+                        // Image blit
+                        vk::ImageBlit blit{};
+                        // Source
+                        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                        blit.srcSubresource.baseArrayLayer = 0;
+                        blit.srcSubresource.layerCount = 1;
+                        blit.srcSubresource.mipLevel = 0;
+                        blit.srcOffsets[0] = { 0, 0, 0 };
+                        blit.srcOffsets[1] = { static_cast<int32_t>(textures.source.width), static_cast<int32_t>(textures.source.height), 1 };
+                        // Dest
+                        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                        blit.dstSubresource.baseArrayLayer = 0;
+                        blit.dstSubresource.layerCount = 1;
+                        blit.dstSubresource.mipLevel = page.mipLevel;
+                        blit.dstOffsets[0].x = static_cast<int32_t>(page.offset.x + x * 128 / scale);
+                        blit.dstOffsets[0].y = static_cast<int32_t>(page.offset.y + y * 128 / scale);
+                        blit.dstOffsets[0].z = 0;
+                        blit.dstOffsets[1].x = static_cast<int32_t>(blit.dstOffsets[0].x + page.extent.width / scale);
+                        blit.dstOffsets[1].y = static_cast<int32_t>(blit.dstOffsets[0].y + page.extent.height / scale);
+                        blit.dstOffsets[1].z = 1;
 
-		// Update sparse queue binding
-		texture.updateSparseBindInfo();
-		vkQueueBindSparse(queue, 1, &texture.bindSparseInfo, VK_NULL_HANDLE);
-		//todo: use sparse bind semaphore
-		vkQueueWaitIdle(queue);
+                        imageBlits.push_back(blit);
+                    }
+                }
+            }
+        }
 
-		// Issue blit commands
-		if (imageBlits.size() > 0)
-		{
-			auto tStart = std::chrono::high_resolution_clock::now();
+        // Update sparse queue binding
+        texture.updateSparseBindInfo();
+        vkQueueBindSparse(queue, 1, &texture.bindSparseInfo, VK_NULL_HANDLE);
+        //todo: use sparse bind semaphore
+        vkQueueWaitIdle(queue);
 
-			VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+        // Issue blit commands
+        if (imageBlits.size() > 0) {
+            auto tStart = std::chrono::high_resolution_clock::now();
 
-			vkCmdBlitImage(
-				copyCmd,
-				textures.source.image,
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				texture.image,
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				static_cast<uint32_t>(imageBlits.size()),
-				imageBlits.data(),
-				VK_FILTER_LINEAR
-			);
+            vk::CommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 
-			vulkanDevice->flushCommandBuffer(copyCmd, queue);
+            vkCmdBlitImage(copyCmd, textures.source.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           static_cast<uint32_t>(imageBlits.size()), imageBlits.data(), VK_FILTER_LINEAR);
 
-			auto tEnd = std::chrono::high_resolution_clock::now();
-			auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-			std::cout << "Image blits took " << tDiff << " ms" << std::endl;
-		}
+            vulkanDevice->flushCommandBuffer(copyCmd, queue);
 
-		vkQueueWaitIdle(queue);
+            auto tEnd = std::chrono::high_resolution_clock::now();
+            auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+            std::cout << "Image blits took " << tDiff << " ms" << std::endl;
+        }
 
-		mipLevel--;
-	}
+        vkQueueWaitIdle(queue);
 
-	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay)
-	{
-		if (overlay->header("Settings")) {
-			if (overlay->sliderFloat("LOD bias", &uboVS.lodBias, 0.0f, (float)texture.mipLevels)) {
-				updateUniformBuffers();
-			}
-			overlay->text("Last filled mip level: %d", lastFilledMip);
-			if (overlay->button("Fill next mip level")) {
-				if (lastFilledMip >= 0) {
-					fillVirtualTexture(lastFilledMip);
-				}
-			}
-			if (overlay->button("Flush virtual texture")) {
-				flushVirtualTexture();
-			}
-		}
-		if (overlay->header("Statistics")) {
-			uint32_t respages = 0;
-			std::for_each(texture.pages.begin(), texture.pages.end(), [&respages](VirtualTexturePage page) { respages += (page.imageMemoryBind.memory != VK_NULL_HANDLE) ? 1 : 0; });
-			overlay->text("Resident pages: %d of %d", respages, static_cast<uint32_t>(texture.pages.size()));
-		}
+        mipLevel--;
+    }
 
-	}
+    virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {
+        if (overlay->header("Settings")) {
+            if (overlay->sliderFloat("LOD bias", &uboVS.lodBias, 0.0f, (float)texture.mipLevels)) {
+                updateUniformBuffers();
+            }
+            overlay->text("Last filled mip level: %d", lastFilledMip);
+            if (overlay->button("Fill next mip level")) {
+                if (lastFilledMip >= 0) {
+                    fillVirtualTexture(lastFilledMip);
+                }
+            }
+            if (overlay->button("Flush virtual texture")) {
+                flushVirtualTexture();
+            }
+        }
+        if (overlay->header("Statistics")) {
+            uint32_t respages = 0;
+            std::for_each(texture.pages.begin(), texture.pages.end(),
+                          [&respages](VirtualTexturePage page) { respages += (page.imageMemoryBind.memory != VK_NULL_HANDLE) ? 1 : 0; });
+            overlay->text("Resident pages: %d of %d", respages, static_cast<uint32_t>(texture.pages.size()));
+        }
+    }
 };
 
 VULKAN_EXAMPLE_MAIN()

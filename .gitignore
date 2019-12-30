@@ -227,3 +227,25 @@ data/models/cerberus/*.*
 
 # Ignore macOS .DS_Store
 .DS_Store
+data/models/oak_leafs.dae
+data/models/reflection_test.dae
+data/models/terrain_simple.dae
+data/models/oak_trunk.dae
+data/models/gltf/README.md
+data/models/gltf/glTF-Embedded/Buggy.gltf
+data/models/gltf/screenshot/screenshot.png
+data/models/voyager/copyright.txt
+data/models/voyager/voyager_rgba_unorm.ktx
+data/models/voyager/voyager.dae
+data/textures/oak_bark.ktx
+data/textures/oak_leafs.ktx
+data/textures/gridlines.ktx
+data/textures/crate02_color_height_rgba.ktx
+data/textures/crate01_color_height_rgba.ktx
+data/textures/rocks_color_bc3_unorm.ktx
+data/textures/rocks_normal_height_rgba.ktx
+data/textures/texture_orientation_ccw_rgba.ktx
+data/textures/texture_orientation_cw_rgba.ktx
+data/textures/vulkan_11_rgba.ktx
+data/textures/vulkan_cloth_rgba.ktx
+readme.txt
