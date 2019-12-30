@@ -1,119 +1,39 @@
-# Function for building single example
-function(buildExample EXAMPLE_NAME)
-	SET(EXAMPLE_FOLDER ${CMAKE_CURRENT_SOURCE_DIR}/${EXAMPLE_NAME})
-	message(STATUS "Generating project file for example in ${EXAMPLE_FOLDER}")
-	# Main
-	file(GLOB SOURCE *.cpp ${BASE_HEADERS} ${EXAMPLE_FOLDER}/*.cpp)
-	SET(MAIN_CPP ${EXAMPLE_FOLDER}/${EXAMPLE_NAME}.cpp)
-	if(EXISTS ${EXAMPLE_FOLDER}/main.cpp)
-		SET(MAIN_CPP ${EXAMPLE_FOLDER}/main.cpp)
-	ENDIF()
-	# imgui example requires additional source files
-	IF(${EXAMPLE_NAME} STREQUAL "imgui")
-		file(GLOB ADD_SOURCE "../external/imgui/*.cpp")
-		SET(SOURCE ${SOURCE} ${ADD_SOURCE})
-	ENDIF()
-	# wayland requires additional source files
-	IF(USE_WAYLAND_WSI)
-		SET(SOURCE ${SOURCE} ${CMAKE_BINARY_DIR}/xdg-shell-client-protocol.h ${CMAKE_BINARY_DIR}/xdg-shell-protocol.c)
-	ENDIF()
-	# Add shaders
-	set(SHADER_DIR "../data/shaders/${EXAMPLE_NAME}")
-	file(GLOB SHADERS "${SHADER_DIR}/*.vert" "${SHADER_DIR}/*.frag" "${SHADER_DIR}/*.comp" "${SHADER_DIR}/*.geom" "${SHADER_DIR}/*.tesc" "${SHADER_DIR}/*.tese" "${SHADER_DIR}/*.mesh" "${SHADER_DIR}/*.task" "${SHADER_DIR}/*.rgen" "${SHADER_DIR}/*.rchit" "${SHADER_DIR}/*.rmiss")
-	source_group("Shaders" FILES ${SHADERS})
-	if(WIN32)
-		add_executable(${EXAMPLE_NAME} WIN32 ${MAIN_CPP} ${SOURCE} ${SHADERS})
-		target_link_libraries(${EXAMPLE_NAME} base ${Vulkan_LIBRARY} ${ASSIMP_LIBRARIES} ${WINLIBS})
-	else(WIN32)
-		add_executable(${EXAMPLE_NAME} ${MAIN_CPP} ${SOURCE} ${SHADERS})
-		target_link_libraries(${EXAMPLE_NAME} base )
-	endif(WIN32)
+macro(ADD_EXAMPLE_BINARY) 
+    if (ANDROID)
+        add_library(${TARGET_NAME} SHARED)
+        add_dependencies(${TARGET_NAME} app-glue)
+        target_link_libraries(${TARGET_NAME} app-glue)
+    else()
+    endif()
+endmacro()
 
-	set_target_properties(${EXAMPLE_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+macro(BUILD_EXAMPLES)
+    foreach(_FOLDER_NAME ${ARGN})
+		file(GLOB EXAMPLE_SOURCES ${_FOLDER_NAME}/*.cpp)
+		#message("Folder ${_FOLDER_NAME}")
+		#message("Sources ${EXAMPLE_SOURCES}")
+		
+		set(TARGET_NAME ${_FOLDER_NAME})
+		add_executable(${TARGET_NAME})
+        target_compile_definitions(${TARGET_NAME} PRIVATE VMA_IMPLEMENTATION)
+		set_target_properties(${TARGET_NAME} PROPERTIES FOLDER "examples")
+		target_sources(${TARGET_NAME} PRIVATE ${EXAMPLE_SOURCES})
+		target_link_libraries(${TARGET_NAME} base)
+    endforeach()
+endmacro()
 
-	if(RESOURCE_INSTALL_DIR)
-		install(TARGETS ${EXAMPLE_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
-	endif()
-endfunction(buildExample)
 
-# Build all examples
-function(buildExamples)
-	foreach(EXAMPLE ${EXAMPLES})
-		buildExample(${EXAMPLE})
-	endforeach(EXAMPLE)
-endfunction(buildExamples)
+MACRO(SUBDIRLIST result curdir)
+  FILE(GLOB children RELATIVE ${curdir} ${curdir}/*)
+  SET(dirlist "")
+  FOREACH(child ${children})
+    IF(IS_DIRECTORY ${curdir}/${child})
+        LIST(APPEND dirlist ${child})
+    ENDIF()
+  ENDFOREACH()
+  SET(${result} ${dirlist})
+ENDMACRO()
 
-set(EXAMPLES
-	bloom
-	computecloth
-	computecullandlod
-	computeheadless
-	computenbody
-	computeparticles
-	computeraytracing
-	computeshader
-	conditionalrender
-	conservativeraster
-	debugmarker
-	deferred
-	deferredmultisampling
-	deferredshadows
-	descriptorsets
-	displacement
-	distancefieldfonts
-	dynamicuniformbuffer
-	gears
-	geometryshader
-	hdr
-	imgui
-	indirectdraw
-	inlineuniformblocks
-	inputattachments
-	instancing
-	mesh
-	multisampling
-	multithreading
-	multiview
-	negativeviewportheight
-	nv_ray_tracing_basic
-	nv_ray_tracing_shadows
-	nv_ray_tracing_reflections
-	occlusionquery
-	offscreen
-	parallaxmapping
-	particlefire
-	pbrbasic
-	pbribl
-	pbrtexture
-	pipelines
-	pipelinestatistics
-	pushconstants
-	pushdescriptors
-	radialblur
-	renderheadless
-	scenerendering
-	screenshot
-	shadowmapping
-	shadowmappingomni
-	shadowmappingcascade
-	skeletalanimation
-	specializationconstants
-	sphericalenvmapping
-	ssao
-	stencilbuffer
-	subpasses
-	terraintessellation
-	tessellation
-	textoverlay
-	texture
-	texture3d
-	texturearray
-	texturecubemap
-	texturemipmapgen
-	texturesparseresidency
-	triangle
-	viewportarray
-	vulkanscene
-)
+subdirlist(SUBDIRS ${CMAKE_CURRENT_SOURCE_DIR})
+build_examples(${SUBDIRS})
 
-buildExamples()
