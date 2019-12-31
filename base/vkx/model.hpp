@@ -10,11 +10,10 @@
 
 #include <vector>
 #include <glm/glm.hpp>
-#include <vulkan/vulkan.hpp>
 
 #include "vertex.hpp"
-#include "vks/buffer.hpp"
-#include "vks/context.hpp"
+#include <vks/buffer.hpp>
+#include <vks/context.hpp>
 
 
 struct aiScene;
@@ -44,8 +43,8 @@ struct ModelCreateInfo {
 
 struct Model {
     vk::Device device;
-    Buffer vertices;
-    Buffer indices;
+    vks::Buffer vertices;
+    vks::Buffer indices;
     uint32_t indexCount = 0;
     uint32_t vertexCount = 0;
     VertexLayout layout;
@@ -87,7 +86,7 @@ struct Model {
     * @param copyQueue Queue used for the memory staging copy commands (must support transfer)
     * @param (Optional) flags ASSIMP model loading flags
     */
-    void loadFromFile(const Context& context,
+    void loadFromFile(const vks::Context& context,
                       const std::string& filename,
                       const VertexLayout& layout,
                       const ModelCreateInfo& createInfo,
@@ -103,11 +102,15 @@ struct Model {
     * @param copyQueue Queue used for the memory staging copy commands (must support transfer)
     * @param (Optional) flags ASSIMP model loading flags
     */
-    void loadFromFile(const Context& context, const std::string& filename, const VertexLayout& layout, float scale = 1.0f, const int flags = defaultFlags) {
+    void loadFromFile(const vks::Context& context,
+                      const std::string& filename,
+                      const VertexLayout& layout,
+                      float scale = 1.0f,
+                      const int flags = defaultFlags) {
         loadFromFile(context, filename, layout, ModelCreateInfo{ scale, { 1.0f }, 0.0f }, flags);
     }
 
-    virtual void onLoad(const Context& context, Assimp::Importer& importer, const aiScene* pScene) {}
+    virtual void onLoad(const vks::Context& context, Assimp::Importer& importer, const aiScene* pScene) {}
 
     virtual void appendVertex(std::vector<uint8_t>& outputBuffer, const aiScene* pScene, uint32_t meshIndex, uint32_t vertexIndex);
 

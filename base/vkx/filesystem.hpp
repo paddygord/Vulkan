@@ -1,3 +1,4 @@
+#if 0 
 #pragma once
 
 #include <cstdint>
@@ -61,3 +62,4 @@ std::string readTextFile(const std::string& fileName) {
 }
 
 }}  // namespace vks::file
+#endif

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <filesystem>
 
 namespace vkx {
 const std::string& getAssetPath();
@@ -15,8 +16,6 @@ enum class LogLevel
 
 void logMessage(LogLevel level, const char* format, ...);
 }  // namespace vkx
-
-#include "utils.hpp"
 
 #include <mutex>
 #include <algorithm>
@@ -76,11 +75,10 @@ const std::string& vkx::getAssetPath() {
     static std::string path;
     static std::once_flag once;
     std::call_once(once, [] {
-        std::string file(__FILE__);
-        std::replace(file.begin(), file.end(), '\\', '/');
-        std::string::size_type lastSlash = file.rfind("/");
-        file = file.substr(0, lastSlash);
-        path = file + "/../data/";
+        std::filesystem::path p{ __FILE__ };
+        p = p.parent_path().parent_path().parent_path();
+        p = p / "data";
+        path = p.string() + "/";
     });
     return path;
 #endif

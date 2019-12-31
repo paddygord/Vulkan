@@ -15,23 +15,24 @@
 
 namespace vkx { namespace ui {
 
-struct UIOverlayCreateInfo {
-    vk::Queue copyQueue;
-    vk::RenderPass renderPass;
-    std::vector<vk::Framebuffer> framebuffers;
-    vk::Format colorformat;
-    vk::Format depthformat;
-    vk::Extent2D size;
-    std::vector<vk::PipelineShaderStageCreateInfo> shaders;
-    vk::SampleCountFlagBits rasterizationSamples{ vk::SampleCountFlagBits::e1 };
-    uint32_t subpassCount{ 1 };
-    std::vector<vk::ClearValue> clearValues = {};
-    uint32_t attachmentCount = 1;
-};
-
 class UIOverlay {
+public:
+    struct CreateInfo {
+        vk::Queue copyQueue;
+        vk::RenderPass renderPass;
+        std::vector<vk::Framebuffer> framebuffers;
+        vk::Format colorformat;
+        vk::Format depthformat;
+        vk::Extent2D size;
+        std::vector<vk::PipelineShaderStageCreateInfo> shaders;
+        vk::SampleCountFlagBits rasterizationSamples{ vk::SampleCountFlagBits::e1 };
+        uint32_t subpassCount{ 1 };
+        std::vector<vk::ClearValue> clearValues = {};
+        uint32_t attachmentCount = 1;
+    };
+
 private:
-    UIOverlayCreateInfo createInfo;
+    CreateInfo createInfo;
     const vks::Context& context;
     vks::Buffer vertexBuffer;
     vks::Buffer indexBuffer;
@@ -70,7 +71,7 @@ public:
         : context(context) {}
     ~UIOverlay();
 
-    void create(const UIOverlayCreateInfo& createInfo);
+    void create(const UIOverlay::CreateInfo& createInfo);
     void destroy();
 
     void update();
@@ -105,13 +106,13 @@ public:
 #include <vks/helpers.hpp>
 #include <vks/pipelines.hpp>
 
-#include <utils.hpp>
+#include "utils.hpp"
 //#include <android.hpp>
 
 using namespace vkx;
 using namespace vkx::ui;
 
-void UIOverlay::create(const UIOverlayCreateInfo& createInfo) {
+void UIOverlay::create(const UIOverlay::CreateInfo& createInfo) {
     this->createInfo = createInfo;
 #if defined(__ANDROID__)
     // Screen density
@@ -293,7 +294,7 @@ void UIOverlay::preparePipeline() {
     if (!createInfo.shaders.empty()) {
         pipelineBuilder.shaderStages = createInfo.shaders;
     } else {
-        pipelineBuilder.loadShader(vkx::getAssetPath() + "shaders/base/uioverlay.vert.spv", vk::ShaderStageFlagBits::eVertex);
+        pipelineBuilder.loadShader(getAssetPath() + "shaders/base/uioverlay.vert.spv", vk::ShaderStageFlagBits::eVertex);
         pipelineBuilder.loadShader(getAssetPath() + "shaders/base/uioverlay.frag.spv", vk::ShaderStageFlagBits::eFragment);
     }
 
@@ -309,7 +310,7 @@ void UIOverlay::preparePipeline() {
 
 /** Prepare a separate render pass for rendering the UI as an overlay */
 void UIOverlay::prepareRenderPass() {
-    vk::AttachmentDescription attachments[2] = {};
+    vk::AttachmentDescription attachments[2];
 
     // Color attachment
     attachments[0].format = createInfo.colorformat;
@@ -385,6 +386,7 @@ void UIOverlay::updateCommandBuffers() {
     if (cmdBuffers.size()) {
         context.trashAll<vk::CommandBuffer>(cmdBuffers,
                                             [&](const std::vector<vk::CommandBuffer>& buffers) { context.device.freeCommandBuffers(commandPool, buffers); });
+        context.emptyTrash();
         cmdBuffers.clear();
     }
 
@@ -470,14 +472,14 @@ void UIOverlay::update() {
         vertexCount = imDrawData->TotalVtxCount;
         if (vertexBuffer) {
             vertexBuffer.unmap();
-            context.trash<vks::Buffer>(vertexBuffer);
-            vertexBuffer = vks::Buffer();
+            context.trash(vertexBuffer);
+            vertexBuffer = {};
         }
-		if (vertexCount) {
-			vertexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eHostVisible, vertexBufferSize);
-			vertexBuffer.map();
-			updateCmdBuffers = true;
-		}
+        if (vertexCount) {
+            vertexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eHostVisible, vertexBufferSize);
+            vertexBuffer.map();
+            updateCmdBuffers = true;
+        }
     }
 
     // Index buffer
@@ -486,13 +488,14 @@ void UIOverlay::update() {
         indexCount = imDrawData->TotalIdxCount;
         if (indexBuffer) {
             indexBuffer.unmap();
-            indexBuffer.destroy();
+            context.trash(indexBuffer);
+            indexBuffer = {};
         }
-		if (indexCount) {
-			indexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eHostVisible, indexBufferSize);
-			indexBuffer.map();
-			updateCmdBuffers = true;
-		}
+        if (indexCount) {
+            indexBuffer = context.createBuffer(vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eHostVisible, indexBufferSize);
+            indexBuffer.map();
+            updateCmdBuffers = true;
+        }
     }
 
     // Upload data
@@ -508,12 +511,12 @@ void UIOverlay::update() {
     }
 
     // Flush to make writes visible to GPU
-	if (vertexBuffer) {
-		vertexBuffer.flush();
+    if (vertexBuffer) {
+        vertexBuffer.flush();
     }
-	if (indexBuffer) {
-		indexBuffer.flush();
-	}
+    if (indexBuffer) {
+        indexBuffer.flush();
+    }
 
     if (updateCmdBuffers) {
         updateCommandBuffers();

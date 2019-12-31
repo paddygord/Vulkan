@@ -1,14 +1,19 @@
 set(TARGET_NAME base)
-add_library(${TARGET_NAME} SHARED)
+add_library(${TARGET_NAME} STATIC)
 set_target_properties(${TARGET_NAME} PROPERTIES FOLDER "common")
 add_dependencies(${TARGET_NAME} shaders)
 
 # Common functionality
-target_include_directories(${TARGET_NAME} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${TARGET_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${TARGET_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/khrpp/include)
 
 # Source files
+file(GLOB_RECURSE KHRPP_SOURCE ${CMAKE_SOURCE_DIR}/khrpp/include/*.hpp)
+GroupSources(${CMAKE_SOURCE_DIR}/khrpp/include "${KHRPP_SOURCE}")
 file(GLOB_RECURSE COMMON_SOURCE *.cpp *.hpp)
-target_sources(${TARGET_NAME} PRIVATE ${COMMON_SOURCE})
+GroupSources(${CMAKE_CURRENT_SOURCE_DIR} "${COMMON_SOURCE}")
+target_sources(${TARGET_NAME} PRIVATE ${COMMON_SOURCE} ${KHRPP_SOURCE})
+target_compile_definitions(base PUBLIC USE_VMA)
 
 # Dependencies
 target_link_libraries(base PUBLIC Vulkan::Vulkan)

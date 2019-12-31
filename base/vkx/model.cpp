@@ -7,7 +7,7 @@
 */
 
 #include "model.hpp"
-#include "filesystem.hpp"
+#include <khrpp/storage.hpp>
 #include "vertex.hpp"
 #include "vks/context.hpp"
 #include "vks/helpers.hpp"
@@ -37,7 +37,7 @@ void Model::loadFromFile(const vks::Context& context, const std::string& filenam
     const aiScene* pScene;
 
     // Load file
-    vks::file::withBinaryFileContents(filename, [&](const char* filename, size_t size, const void* data) {
+    khrpp::utils::FileStorage::withBinaryFileContents<void>(filename, [&](const char* filename, size_t size, const void* data) {
         pScene = importer.ReadFileFromMemory(data, size, flags, filename);
     });
 

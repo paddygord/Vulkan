@@ -33,6 +33,7 @@ set_target_properties(SetupRelease PROPERTIES FOLDER "CMakeTargets")
 add_custom_target(SetupDebug ALL ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin_debug)
 set_target_properties(SetupDebug PROPERTIES FOLDER "CMakeTargets")
 
+
 add_subdirectory(data/shaders)
 
 add_subdirectory(base)

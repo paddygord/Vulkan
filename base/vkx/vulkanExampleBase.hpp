@@ -8,19 +8,22 @@
 
 #pragma once
 
-#include <common.hpp>
+#include "common.hpp"
 
 #include <vks/helpers.hpp>
 #include <vks/shaders.hpp>
 #include <vks/pipelines.hpp>
-#include <vks/texture.hpp>
 #include <vks/swapchain.hpp>
+#include <vks/renderpass.hpp>
 
-#include <ui.hpp>
-#include <utils.hpp>
-#include <camera.hpp>
-#include <compute.hpp>
-
+#include "ui.hpp"
+#include "utils.hpp"
+#include "camera.hpp"
+#include "compute.hpp"
+#include "keycodes.hpp"
+#include "storage.hpp"
+#include "filesystem.hpp"
+#include "texture.hpp"
 
 #if defined(__ANDROID__)
 #include "AndroidNativeApp.hpp"
@@ -33,6 +36,20 @@
 #define GAMEPAD_BUTTON_L1 0x1004
 #define GAMEPAD_BUTTON_R1 0x1005
 #define GAMEPAD_BUTTON_START 0x1006
+
+namespace vks {
+
+using UIOverlay = vkx::ui::UIOverlay;
+
+}
+
+namespace vks { namespace tools {
+
+void exitFatal(const char* message, VkResult error) {
+    throw std::runtime_error(message);
+}
+
+}}  // namespace vks::tools
 
 namespace vkx {
 
@@ -55,7 +72,7 @@ struct UpdateOperation {
 
 class ExampleBase {
 protected:
-    ExampleBase();
+    ExampleBase(bool enableValidation = true);
     ~ExampleBase();
 
     using vAF = vk::AccessFlagBits;
@@ -99,7 +116,9 @@ protected:
     virtual void buildCommandBuffers() final;
 
 protected:
-    VmaAllocator allocator{ nullptr };
+#ifdef USE_VMA
+    VmaAllocator& allocator{ context.allocator };
+#endif
     float zoom;
     vec3 cameraPos;
     vec3 rotation;
@@ -129,9 +148,11 @@ protected:
 
     void addRenderWaitSemaphore(const vk::Semaphore& semaphore, const vk::PipelineStageFlags& waitStages = vk::PipelineStageFlagBits::eBottomOfPipe);
 
-    std::vector<vk::Semaphore> renderWaitSemaphores;
-    std::vector<vk::PipelineStageFlags> renderWaitStages;
-    std::vector<vk::Semaphore> renderSignalSemaphores;
+    struct Synchronization {
+        std::vector<vk::Semaphore> renderWaitSemaphores;
+        std::vector<vk::PipelineStageFlags> renderWaitStages;
+        std::vector<vk::Semaphore> renderSignalSemaphores;
+    } synchronization;
 
     vks::Context context;
     const vk::PhysicalDevice& physicalDevice{ context.physicalDevice };
@@ -140,7 +161,7 @@ protected:
     const vk::PhysicalDeviceFeatures& deviceFeatures{ context.deviceFeatures };
     vk::PhysicalDeviceFeatures& enabledFeatures{ context.enabledFeatures };
     vkx::ui::UIOverlay ui{ context };
-    vk::PipelineCache pipelineCache;
+    const vk::PipelineCache& pipelineCache{ context.pipelineCache };
 
     vk::SurfaceKHR surface;
     // Wraps the swap chain to present images (framebuffers) to the windowing system
@@ -227,8 +248,9 @@ protected:
 
     void updateOverlay();
 
-    virtual void OnUpdateUIOverlay() {}
-    virtual void OnSetupUIOverlay(vkx::ui::UIOverlayCreateInfo& uiCreateInfo) {}
+    virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay) {}
+    virtual void OnUpdateUIOverlay() { this->OnUpdateUIOverlay(&ui); }
+    virtual void OnSetupUIOverlay(vkx::ui::UIOverlay::CreateInfo& uiCreateInfo) {}
 
     // Setup the vulkan instance, enable required extensions and connect to the physical device (GPU)
     virtual void initVulkan();
@@ -306,7 +328,7 @@ private:
     // OS specific
 #if defined(__ANDROID__)
     // true if application has focused, false if moved to background
-    ANativeWindow* window{ nullptr};
+    ANativeWindow* window{ nullptr };
     bool focused = false;
     static int32_t handle_input_event(android_app* app, AInputEvent* event);
     int32_t onInput(AInputEvent* event);
@@ -326,25 +348,12 @@ private:
 };
 }  // namespace vkx
 
-/*
-* Vulkan Example base class
-*
-* Copyright (C) 2016 by Sascha Willems - www.saschawillems.de
-*
-* This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
-*/
 #include <imgui.h>
-
-#include <ui.hpp>
-#include <keycodes.hpp>
-#include <storage.hpp>
-#include <filesystem.hpp>
-
-using namespace vkx;
 
 // Avoid doing work in the ctor as it can't make use of overridden virtual functions
 // Instead, use the `prepare` and `run` methods
-ExampleBase::ExampleBase() {
+vkx::ExampleBase::ExampleBase(bool enableValidation) {
+    context.setValidationEnabled(enableValidation);
 #if defined(__ANDROID__)
     vks::storage::setAssetManager(vkx::android::androidApp->activity->assetManager);
     vkx::android::androidApp->userData = this;
@@ -354,7 +363,7 @@ ExampleBase::ExampleBase() {
     camera.setPerspective(60.0f, size, 0.1f, 256.0f);
 }
 
-ExampleBase::~ExampleBase() {
+vkx::ExampleBase::~ExampleBase() {
     context.queue.waitIdle();
     context.device.waitIdle();
 
@@ -391,7 +400,7 @@ ExampleBase::~ExampleBase() {
 #endif
 }
 
-void ExampleBase::run() {
+void vkx::ExampleBase::run() {
     try {
 // Android initialization is handled in APP_CMD_INIT_WINDOW event
 #if !defined(__ANDROID__)
@@ -407,17 +416,17 @@ void ExampleBase::run() {
         // Once we exit the render loop, wait for everything to become idle before proceeding to the descructor.
         context.queue.waitIdle();
         context.device.waitIdle();
-    } catch(const std::system_error& err) {
+    } catch (const std::system_error& err) {
         std::cerr << err.what() << std::endl;
     }
 }
 
-void ExampleBase::getEnabledFeatures() {
+void vkx::ExampleBase::getEnabledFeatures() {
 }
 
-void ExampleBase::initVulkan() {
+void vkx::ExampleBase::initVulkan() {
     // TODO make this less stupid
-    context.setDeviceFeaturesPicker([this](const vk::PhysicalDevice& device, vk::PhysicalDeviceFeatures2& features){
+    context.setDeviceFeaturesPicker([this](const vk::PhysicalDevice& device, vk::PhysicalDeviceFeatures2& features) {
         if (deviceFeatures.textureCompressionBC) {
             enabledFeatures.textureCompressionBC = VK_TRUE;
         } else if (context.deviceFeatures.textureCompressionASTC_LDR) {
@@ -447,13 +456,6 @@ void ExampleBase::initVulkan() {
 
     context.createDevice(surface);
 
-    {
-        VmaAllocatorCreateInfo allocatorInfo = {};
-        allocatorInfo.physicalDevice = physicalDevice;
-        allocatorInfo.device = device;
-        vmaCreateAllocator(&allocatorInfo, &allocator);
-    }
-
     // Find a suitable depth format
     depthFormat = context.getSupportedDepthFormat();
 
@@ -468,17 +470,17 @@ void ExampleBase::initVulkan() {
 
     semaphores.overlayComplete = device.createSemaphore({});
 
-    renderWaitSemaphores.push_back(semaphores.acquireComplete);
-    renderWaitStages.push_back(vk::PipelineStageFlagBits::eBottomOfPipe);
-    renderSignalSemaphores.push_back(semaphores.renderComplete);
+    synchronization.renderWaitSemaphores.push_back(semaphores.acquireComplete);
+    synchronization.renderWaitStages.push_back(vk::PipelineStageFlagBits::eBottomOfPipe);
+    synchronization.renderSignalSemaphores.push_back(semaphores.renderComplete);
 }
 
-void ExampleBase::setupSwapchain() {
+void vkx::ExampleBase::setupSwapchain() {
     swapChain.setup(context.physicalDevice, context.device, context.queue, context.queueIndices.graphics);
     swapChain.setSurface(surface);
 }
 
-bool ExampleBase::platformLoopCondition() {
+bool vkx::ExampleBase::platformLoopCondition() {
 #if defined(__ANDROID__)
     bool destroy = false;
     focused = true;
@@ -556,7 +558,7 @@ bool ExampleBase::platformLoopCondition() {
 #endif
 }
 
-void ExampleBase::renderLoop() {
+void vkx::ExampleBase::renderLoop() {
     auto tStart = std::chrono::high_resolution_clock::now();
 
     while (platformLoopCondition()) {
@@ -573,20 +575,20 @@ void ExampleBase::renderLoop() {
     }
 }
 
-std::string ExampleBase::getWindowTitle() {
+std::string vkx::ExampleBase::getWindowTitle() {
     std::string device(context.deviceProperties.deviceName);
     std::string windowTitle;
     windowTitle = title + " - " + device + " - " + std::to_string(frameCounter) + " fps";
     return windowTitle;
 }
 
-void ExampleBase::setupUi() {
+void vkx::ExampleBase::setupUi() {
     settings.overlay = settings.overlay && (!benchmark.active);
     if (!settings.overlay) {
         return;
     }
 
-    struct vkx::ui::UIOverlayCreateInfo overlayCreateInfo;
+    struct vkx::ui::UIOverlay::CreateInfo overlayCreateInfo;
     // Setup default overlay creation info
     overlayCreateInfo.copyQueue = queue;
     overlayCreateInfo.framebuffers = frameBuffers;
@@ -601,13 +603,13 @@ void ExampleBase::setupUi() {
     ui.create(overlayCreateInfo);
 
     for (auto& shader : overlayCreateInfo.shaders) {
-        context.device.destroyShaderModule(shader.module);
+        device.destroyShaderModule(shader.module);
         shader.module = vk::ShaderModule{};
     }
     updateOverlay();
 }
 
-void ExampleBase::prepare() {
+void vkx::ExampleBase::prepare() {
     cmdPool = context.getCommandPool();
 
     swapChain.create(size, enableVsync);
@@ -619,7 +621,7 @@ void ExampleBase::prepare() {
     loadAssets();
 }
 
-void ExampleBase::setupRenderPassBeginInfo() {
+void vkx::ExampleBase::setupRenderPassBeginInfo() {
     clearValues.clear();
     clearValues.push_back(vks::util::clearColor(glm::vec4(0.1, 0.1, 0.1, 1.0)));
     clearValues.push_back(vk::ClearDepthStencilValue{ 1.0f, 0 });
@@ -631,7 +633,7 @@ void ExampleBase::setupRenderPassBeginInfo() {
     renderPassBeginInfo.pClearValues = clearValues.data();
 }
 
-void ExampleBase::allocateCommandBuffers() {
+void vkx::ExampleBase::allocateCommandBuffers() {
     clearCommandBuffers();
     // Create one command buffer per image in the swap chain
 
@@ -642,7 +644,7 @@ void ExampleBase::allocateCommandBuffers() {
     drawCmdBuffers = device.allocateCommandBuffers({ cmdPool, vk::CommandBufferLevel::ePrimary, swapChain.imageCount });
 }
 
-void ExampleBase::clearCommandBuffers() {
+void vkx::ExampleBase::clearCommandBuffers() {
     if (!drawCmdBuffers.empty()) {
         context.trashCommandBuffers(cmdPool, drawCmdBuffers);
         // FIXME find a better way to ensure that the draw and text buffers are no longer in use before
@@ -653,7 +655,7 @@ void ExampleBase::clearCommandBuffers() {
     }
 }
 
-void ExampleBase::buildCommandBuffers() {
+void vkx::ExampleBase::buildCommandBuffers() {
     // Destroy and recreate command buffers if already present
     allocateCommandBuffers();
 
@@ -673,7 +675,7 @@ void ExampleBase::buildCommandBuffers() {
     }
 }
 
-void ExampleBase::prepareFrame() {
+void vkx::ExampleBase::prepareFrame() {
     // Acquire the next image from the swap chaing
     auto resultValue = swapChain.acquireNextImage(semaphores.acquireComplete);
     if (resultValue.result == vk::Result::eSuboptimalKHR) {
@@ -687,7 +689,7 @@ void ExampleBase::prepareFrame() {
     currentBuffer = resultValue.value;
 }
 
-void ExampleBase::submitFrame() {
+void vkx::ExampleBase::submitFrame() {
     bool submitOverlay = settings.overlay && ui.visible && (ui.cmdBuffers.size() > currentBuffer);
     if (submitOverlay) {
         vk::SubmitInfo submitInfo;
@@ -709,7 +711,7 @@ void ExampleBase::submitFrame() {
     swapChain.queuePresent(submitOverlay ? semaphores.overlayComplete : semaphores.renderComplete);
 }
 
-void ExampleBase::setupDepthStencil() {
+void vkx::ExampleBase::setupDepthStencil() {
     depthStencil.destroy();
 
     vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
@@ -760,90 +762,20 @@ void ExampleBase::setupFrameBuffer() {
     frameBuffers = swapChain.createFramebuffers(framebufferCreateInfo);
 }
 
-void ExampleBase::setupRenderPass() {
+void vkx::ExampleBase::setupRenderPass() {
     if (renderPass) {
         device.destroyRenderPass(renderPass);
     }
 
-    std::vector<vk::AttachmentDescription> attachments;
-    attachments.resize(2);
-
-    // Color attachment
-    attachments[0].format = colorformat;
-    attachments[0].loadOp = vk::AttachmentLoadOp::eClear;
-    attachments[0].storeOp = vk::AttachmentStoreOp::eStore;
-    attachments[0].initialLayout = vk::ImageLayout::eUndefined;
-    attachments[0].finalLayout = vk::ImageLayout::ePresentSrcKHR;
-
-    // Depth attachment
-    attachments[1].format = depthFormat;
-    attachments[1].loadOp = vk::AttachmentLoadOp::eClear;
-    attachments[1].storeOp = vk::AttachmentStoreOp::eDontCare;
-    attachments[1].stencilLoadOp = vk::AttachmentLoadOp::eClear;
-    attachments[1].stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    attachments[1].initialLayout = vk::ImageLayout::eUndefined;
-    attachments[1].finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-
-    // Only one depth attachment, so put it first in the references
-    vk::AttachmentReference depthReference;
-    depthReference.attachment = 1;
-    depthReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-
-    std::vector<vk::AttachmentReference> colorAttachmentReferences;
-    {
-        vk::AttachmentReference colorReference;
-        colorReference.attachment = 0;
-        colorReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
-        colorAttachmentReferences.push_back(colorReference);
-    }
-
-
-    using vPSFB = vk::PipelineStageFlagBits;
-    using vAFB = vk::AccessFlagBits;
-    std::vector<vk::SubpassDependency> subpassDependencies{
-        {
-            0, VK_SUBPASS_EXTERNAL,
-            vPSFB::eColorAttachmentOutput, vPSFB::eBottomOfPipe,
-            vAFB::eColorAttachmentRead | vAFB::eColorAttachmentWrite, vAFB::eMemoryRead,
-            vk::DependencyFlagBits::eByRegion
-        },
-        {
-            VK_SUBPASS_EXTERNAL, 0,
-            vPSFB::eBottomOfPipe, vPSFB::eColorAttachmentOutput,
-            vAFB::eMemoryRead, vAFB::eColorAttachmentRead | vAFB::eColorAttachmentWrite,
-            vk::DependencyFlagBits::eByRegion
-        },
-    };
-    std::vector<vk::SubpassDescription> subpasses{
-        {
-            {}, vk::PipelineBindPoint::eGraphics,
-            // Input attachment references
-            0, nullptr,
-            // Color / resolve attachment references
-            (uint32_t)colorAttachmentReferences.size(), colorAttachmentReferences.data(), nullptr,
-            // Depth stecil attachment reference,
-            &depthReference,
-            // Preserve attachments
-            0, nullptr
-        },
-    };
-
-    vk::RenderPassCreateInfo renderPassInfo;
-    renderPassInfo.attachmentCount = (uint32_t)attachments.size();
-    renderPassInfo.pAttachments = attachments.data();
-    renderPassInfo.subpassCount = (uint32_t)subpasses.size();
-    renderPassInfo.pSubpasses = subpasses.data();
-    renderPassInfo.dependencyCount = (uint32_t)subpassDependencies.size();
-    renderPassInfo.pDependencies = subpassDependencies.data();
-    renderPass = device.createRenderPass(renderPassInfo);
+    renderPass = vks::renderpass::Builder{}.simple(colorformat, depthFormat).create(device);
 }
 
-void ExampleBase::addRenderWaitSemaphore(const vk::Semaphore& semaphore, const vk::PipelineStageFlags& waitStages) {
-    renderWaitSemaphores.push_back(semaphore);
-    renderWaitStages.push_back(waitStages);
+void vkx::ExampleBase::addRenderWaitSemaphore(const vk::Semaphore& semaphore, const vk::PipelineStageFlags& waitStages) {
+    synchronization.renderWaitSemaphores.push_back(semaphore);
+    synchronization.renderWaitStages.push_back(waitStages);
 }
 
-void ExampleBase::drawCurrentCommandBuffer() {
+void vkx::ExampleBase::drawCurrentCommandBuffer() {
     vk::Fence fence = swapChain.getSubmitFence();
     {
         uint32_t fenceIndex = currentBuffer;
@@ -854,12 +786,12 @@ void ExampleBase::drawCurrentCommandBuffer() {
     context.emptyDumpster(fence);
     {
         vk::SubmitInfo submitInfo;
-        submitInfo.waitSemaphoreCount = (uint32_t)renderWaitSemaphores.size();
-        submitInfo.pWaitSemaphores = renderWaitSemaphores.data();
-        submitInfo.pWaitDstStageMask = renderWaitStages.data();
+        submitInfo.waitSemaphoreCount = (uint32_t)synchronization.renderWaitSemaphores.size();
+        submitInfo.pWaitSemaphores = synchronization.renderWaitSemaphores.data();
+        submitInfo.pWaitDstStageMask = synchronization.renderWaitStages.data();
 
-        submitInfo.signalSemaphoreCount = (uint32_t)renderSignalSemaphores.size();
-        submitInfo.pSignalSemaphores = renderSignalSemaphores.data();
+        submitInfo.signalSemaphoreCount = (uint32_t)synchronization.renderSignalSemaphores.size();
+        submitInfo.pSignalSemaphores = synchronization.renderSignalSemaphores.data();
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = drawCmdBuffers.data() + currentBuffer;
         // Submit to queue
@@ -869,7 +801,7 @@ void ExampleBase::drawCurrentCommandBuffer() {
     context.recycle();
 }
 
-void ExampleBase::draw() {
+void vkx::ExampleBase::draw() {
     // Get next image in the swap chain (back/front buffer)
     prepareFrame();
     // Execute the compiled command buffer for the current swap chain image
@@ -878,14 +810,14 @@ void ExampleBase::draw() {
     submitFrame();
 }
 
-void ExampleBase::render() {
+void vkx::ExampleBase::render() {
     if (!prepared) {
         return;
     }
     draw();
 }
 
-void ExampleBase::update(float deltaTime) {
+void vkx::ExampleBase::update(float deltaTime) {
     frameTimer = deltaTime;
     ++frameCounter;
 
@@ -939,11 +871,12 @@ void ExampleBase::update(float deltaTime) {
 
     if (viewUpdated) {
         viewUpdated = false;
+        rotation = camera.rotation;
         viewChanged();
     }
 }
 
-void ExampleBase::windowResize(const glm::uvec2& newSize) {
+void vkx::ExampleBase::windowResize(const glm::uvec2& newSize) {
     if (!prepared) {
         return;
     }
@@ -977,7 +910,7 @@ void ExampleBase::windowResize(const glm::uvec2& newSize) {
     prepared = true;
 }
 
-void ExampleBase::updateOverlay() {
+void vkx::ExampleBase::updateOverlay() {
     if (!settings.overlay) {
         return;
     }
@@ -1024,7 +957,7 @@ void ExampleBase::updateOverlay() {
 #endif
 }
 
-void ExampleBase::mouseMoved(const glm::vec2& newPos) {
+void vkx::ExampleBase::mouseMoved(const glm::vec2& newPos) {
     auto imgui = ImGui::GetIO();
     if (imgui.WantCaptureMouse) {
         mousePos = newPos;
@@ -1059,12 +992,12 @@ void ExampleBase::mouseMoved(const glm::vec2& newPos) {
     mousePos = newPos;
 }
 
-void ExampleBase::mouseScrolled(float delta) {
+void vkx::ExampleBase::mouseScrolled(float delta) {
     camera.translate(glm::vec3(0.0f, 0.0f, (float)delta * 0.005f * zoomSpeed));
     viewUpdated = true;
 }
 
-void ExampleBase::keyPressed(uint32_t key) {
+void vkx::ExampleBase::keyPressed(uint32_t key) {
     if (camera.firstperson) {
         switch (key) {
             case KEY_W:
@@ -1103,7 +1036,7 @@ void ExampleBase::keyPressed(uint32_t key) {
     }
 }
 
-void ExampleBase::keyReleased(uint32_t key) {
+void vkx::ExampleBase::keyReleased(uint32_t key) {
     if (camera.firstperson) {
         switch (key) {
             case KEY_W:
@@ -1234,7 +1167,7 @@ void ExampleBase::setupWindow() {
 
 #else
 
-void ExampleBase::setupWindow() {
+void vkx::ExampleBase::setupWindow() {
     bool fullscreen = false;
 
 #ifdef _WIN32
@@ -1272,7 +1205,7 @@ void ExampleBase::setupWindow() {
     }
 }
 
-void ExampleBase::mouseAction(int button, int action, int mods) {
+void vkx::ExampleBase::mouseAction(int button, int action, int mods) {
     switch (button) {
         case GLFW_MOUSE_BUTTON_LEFT:
             mouseButtons.left = action == GLFW_PRESS;
@@ -1286,7 +1219,7 @@ void ExampleBase::mouseAction(int button, int action, int mods) {
     }
 }
 
-void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods) {
+void vkx::ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int action, int mods) {
     auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     switch (action) {
         case GLFW_PRESS:
@@ -1302,30 +1235,31 @@ void ExampleBase::KeyboardHandler(GLFWwindow* window, int key, int scancode, int
     }
 }
 
-void ExampleBase::MouseHandler(GLFWwindow* window, int button, int action, int mods) {
+void vkx::ExampleBase::MouseHandler(GLFWwindow* window, int button, int action, int mods) {
     auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->mouseAction(button, action, mods);
 }
 
-void ExampleBase::MouseMoveHandler(GLFWwindow* window, double posx, double posy) {
+void vkx::ExampleBase::MouseMoveHandler(GLFWwindow* window, double posx, double posy) {
     auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->mouseMoved(glm::vec2(posx, posy));
 }
 
-void ExampleBase::MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset) {
+void vkx::ExampleBase::MouseScrollHandler(GLFWwindow* window, double xoffset, double yoffset) {
     auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->mouseScrolled((float)yoffset);
 }
 
-void ExampleBase::CloseHandler(GLFWwindow* window) {
+void vkx::ExampleBase::CloseHandler(GLFWwindow* window) {
     auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->prepared = false;
     glfwSetWindowShouldClose(window, 1);
 }
 
-void ExampleBase::FramebufferSizeHandler(GLFWwindow* window, int width, int height) {
+void vkx::ExampleBase::FramebufferSizeHandler(GLFWwindow* window, int width, int height) {
     auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
     example->windowResize(glm::uvec2(width, height));
 }
 
+using VulkanExampleBase = vkx::ExampleBase;
 #endif

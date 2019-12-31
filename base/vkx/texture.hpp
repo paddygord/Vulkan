@@ -12,26 +12,22 @@
 #include <fstream>
 #include <vector>
 
-#include <vulkan/vulkan.hpp>
+#include <vks/buffer.hpp>
+#include <vks/image.hpp>
 
 #include <gli/gli.hpp>
 
-#include "buffer.hpp"
-#include "image.hpp"
-#include "filesystem.hpp"
-
-namespace vks { namespace texture {
+namespace vkx { namespace texture {
 
 /** @brief Vulkan texture base class */
 class Texture : public vks::Image {
     using Parent = vks::Image;
 
 public:
-    vk::Device device;
-    vk::ImageLayout imageLayout;
     uint32_t mipLevels;
     uint32_t layerCount{ 1 };
     vk::DescriptorImageInfo descriptor;
+    vk::ImageLayout imageLayout;
 
     Texture& operator=(const vks::Image& image) {
         destroy();
@@ -76,8 +72,8 @@ public:
         this->imageLayout = imageLayout;
         descriptor.imageLayout = imageLayout;
         std::shared_ptr<gli::texture2d> tex2Dptr;
-        vks::file::withBinaryFileContents(filename, [&](size_t size, const void* data) {
-            tex2Dptr = std::make_shared<gli::texture2d>(gli::load((const char*)data, size));
+        khrpp::utils::FileStorage::withBinaryFileContents<char>(filename, [&](const char* filename, size_t size, const char* data) {
+            tex2Dptr = std::make_shared<gli::texture2d>(gli::load(data, size));
         });
         const auto& tex2D = *tex2Dptr;
         assert(!tex2D.empty());
@@ -90,15 +86,27 @@ public:
         layerCount = 1;
 
         // Create optimal tiled target image
-        vk::ImageCreateInfo imageCreateInfo;
-        imageCreateInfo.imageType = vk::ImageType::e2D;
-        imageCreateInfo.format = format;
-        imageCreateInfo.mipLevels = mipLevels;
-        imageCreateInfo.arrayLayers = 1;
-        imageCreateInfo.extent = extent;
-        imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
+        {
+            vk::ImageCreateInfo imageCreateInfo;
+            imageCreateInfo.imageType = vk::ImageType::e2D;
+            imageCreateInfo.format = format;
+            imageCreateInfo.mipLevels = mipLevels;
+            imageCreateInfo.arrayLayers = 1;
+            imageCreateInfo.extent = extent;
+            imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
 
-        static_cast<vks::Image&>(*this) = context.stageToDeviceImage(imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, tex2D, imageLayout);
+            std::vector<vks::MipData> mips;
+            for (size_t i = 0; i < imageCreateInfo.mipLevels; ++i) {
+                const auto& mip = tex2D[i];
+                const auto dims = mip.extent();
+                mips.push_back({ vk::Extent3D{ (uint32_t)dims.x, (uint32_t)dims.y, 1 }, (uint32_t)mip.size() });
+            }
+            constexpr auto memoryPropertyFlags = vk::MemoryPropertyFlagBits::eDeviceLocal;
+            vks::Image& self = static_cast<vks::Image&>(*this);
+            vk::DeviceSize size = tex2D.size();
+            auto data = tex2D.data();
+            self = context.stageToDeviceImage(imageCreateInfo, memoryPropertyFlags, size, data, mips, imageLayout);
+        }
 
         // Create sampler
         vk::SamplerCreateInfo samplerCreateInfo;
@@ -114,12 +122,9 @@ public:
         sampler = device.createSampler(samplerCreateInfo);
 
         // Create image view
-        static const vk::ImageUsageFlags VIEW_USAGE_FLAGS =
-            vk::ImageUsageFlagBits::eSampled |
-            vk::ImageUsageFlagBits::eStorage |
-            vk::ImageUsageFlagBits::eColorAttachment |
-            vk::ImageUsageFlagBits::eDepthStencilAttachment |
-            vk::ImageUsageFlagBits::eInputAttachment;
+        static const vk::ImageUsageFlags VIEW_USAGE_FLAGS = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage |
+                                                            vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eDepthStencilAttachment |
+                                                            vk::ImageUsageFlagBits::eInputAttachment;
 
         if (imageUsageFlags & VIEW_USAGE_FLAGS) {
             vk::ImageViewCreateInfo viewCreateInfo;
@@ -243,8 +248,8 @@ public:
         descriptor.imageLayout = imageLayout;
 
         std::shared_ptr<gli::texture2d_array> texPtr;
-        vks::file::withBinaryFileContents(filename, [&](size_t size, const void* data) {
-            texPtr = std::make_shared<gli::texture2d_array>(gli::load((const char*)data, size));
+        khrpp::utils::FileStorage::withBinaryFileContents<char>(filename, [&](size_t size, const char* data) {
+            texPtr = std::make_shared<gli::texture2d_array>(gli::load(data, size));
         });
 
         const gli::texture2d_array& tex2DArray = *texPtr;
@@ -358,8 +363,8 @@ public:
         descriptor.imageLayout = imageLayout;
 
         std::shared_ptr<const gli::texture_cube> texPtr;
-        vks::file::withBinaryFileContents(filename, [&](size_t size, const void* data) {
-            texPtr = std::make_shared<const gli::texture_cube>(gli::load(static_cast<const char*>(data), size));
+        khrpp::utils::FileStorage::withBinaryFileContents<char>(filename, [&](size_t size, const char* data) {
+            texPtr = std::make_shared<const gli::texture_cube>(gli::load(data, size));
         });
         const auto& texCube = *texPtr;
         assert(!texCube.empty());
@@ -439,16 +444,12 @@ public:
         // Textures are not directly accessed by the shaders and
         // are abstracted by image views containing additional
         // information and sub resource ranges
-        view = device.createImageView(vk::ImageViewCreateInfo{ {},
-                                                               image,
-                                                               vk::ImageViewType::eCube,
-                                                               format,
-                                                               {},
-                                                               vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 6 } });
+        view = device.createImageView(vk::ImageViewCreateInfo{
+            {}, image, vk::ImageViewType::eCube, format, {}, vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 6 } });
         stagingBuffer.destroy();
 
         // Update descriptor image info member that can be used for setting up descriptor sets
         updateDescriptor();
     }
 };
-}}  // namespace vks::texture
+}}  // namespace vkx::texture

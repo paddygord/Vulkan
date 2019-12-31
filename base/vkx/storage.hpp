@@ -6,6 +6,7 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#if 0 
 #pragma once
 
 #include <stdint.h>
@@ -225,3 +226,4 @@ StoragePointer Storage::readFile(const std::string& filename) {
 }
 
 }}  // namespace vks::storage
+#endif

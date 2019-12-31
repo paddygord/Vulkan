@@ -23,26 +23,26 @@ class VulkanExample : public vkx::ExampleBase {
 public:
     // Vertex layout used in this example
     struct Vertex {
-        float position[3];
-        float color[3];
+        glm::vec3 position;
+        glm::vec3 color;
     };
 
     // Vertex buffer and attributes
     struct {
-        vk::DeviceMemory memory;  // Handle to the device memory for this buffer
-        vk::Buffer buffer;        // Handle to the Vulkan buffer object that the memory is bound to
+        VmaAllocation allocation;  // Handle to the device memory for this buffer
+        vk::Buffer buffer;         // Handle to the Vulkan buffer object that the memory is bound to
     } vertices;
 
     // Index buffer
     struct {
-        vk::DeviceMemory memory;
+        VmaAllocation allocation;
         vk::Buffer buffer;
         uint32_t count;
     } indices;
 
     // Uniform buffer block object
     struct {
-        vk::DeviceMemory memory;
+        VmaAllocation allocation;
         vk::Buffer buffer;
         vk::DescriptorBufferInfo descriptor;
     } uniformBufferVS;
@@ -98,7 +98,7 @@ public:
     VulkanExample() {
         zoom = -2.5f;
         title = "Vulkan Example - Basic indexed triangle";
-        // Values not set here are initialized in the base class constructor
+        defaultClearColor = vks::util::clearColor({ 0.0f, 0.0f, 0.2f, 1.0f });
     }
 
     ~VulkanExample() {
@@ -108,14 +108,9 @@ public:
         device.destroy(pipelineLayout);
         device.destroy(descriptorSetLayout);
 
-        device.destroy(vertices.buffer);
-        device.freeMemory(vertices.memory);
-
-        device.destroy(indices.buffer);
-        device.freeMemory(indices.memory);
-
-        device.destroy(uniformBufferVS.buffer);
-        device.freeMemory(uniformBufferVS.memory);
+        vmaDestroyBuffer(allocator, vertices.buffer, vertices.allocation);
+        vmaDestroyBuffer(allocator, indices.buffer, indices.allocation);
+        vmaDestroyBuffer(allocator, uniformBufferVS.buffer, uniformBufferVS.allocation);
 
         device.destroy(presentCompleteSemaphore);
         device.destroy(renderCompleteSemaphore);
@@ -295,139 +290,41 @@ public:
 
         void* data;
 
-        if (useStagingBuffers) {
-            // Static data like vertex and index buffer should be stored on the device memory
-            // for optimal (and fastest) access by the GPU
-            //
-            // To achieve this we use so-called "staging buffers" :
-            // - Create a buffer that's visible to the host (and can be mapped)
-            // - Copy the data to this buffer
-            // - Create another buffer that's local on the device (VRAM) with the same size
-            // - Copy the data from the host to the device using a command buffer
-            // - Delete the host visible (staging) buffer
-            // - Use the device local buffers for rendering
-            const auto stagingMemoryPropertyFlags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
-
-            struct StagingBuffer {
-                vk::DeviceMemory memory;
-                vk::Buffer buffer;
-            };
-
-            struct {
-                StagingBuffer vertices;
-                StagingBuffer indices;
-            } stagingBuffers;
-
-            // Vertex buffer
-            vk::BufferCreateInfo vertexBufferInfo;
-            vertexBufferInfo.size = vertexBufferSize;
-            // Buffer is used as the copy source
-            vertexBufferInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
-            // Create a host-visible buffer to copy the vertex data to (staging buffer)
-            stagingBuffers.vertices.buffer = device.createBuffer(vertexBufferInfo);
-            memReqs = device.getBufferMemoryRequirements(stagingBuffers.vertices.buffer);
-
-            memAlloc.allocationSize = memReqs.size;
-            // Request a host visible memory type that can be used to copy our data do
-            // Also request it to be coherent, so that writes are visible to the GPU right after unmapping the buffer
-            memAlloc.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, stagingMemoryPropertyFlags);
-            stagingBuffers.vertices.memory = device.allocateMemory(memAlloc);
-            // Map and copy
-            data = device.mapMemory(stagingBuffers.vertices.memory, 0, VK_WHOLE_SIZE);
-            memcpy(data, vertexBuffer.data(), vertexBufferSize);
-            device.unmapMemory(stagingBuffers.vertices.memory);
-            device.bindBufferMemory(stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
-
-            // Create a device local buffer to which the (host local) vertex data will be copied and which will be used for rendering
-            vertexBufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst;
-            vertices.buffer = device.createBuffer(vertexBufferInfo);
-            memReqs = device.getBufferMemoryRequirements(vertices.buffer);
-            memAlloc.allocationSize = memReqs.size;
-            memAlloc.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-            vertices.memory = device.allocateMemory(memAlloc);
-            device.bindBufferMemory(vertices.buffer, vertices.memory, 0);
-
-            // Index buffer
-            vk::BufferCreateInfo indexbufferInfo;
-            indexbufferInfo.size = indexBufferSize;
-            indexbufferInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
-            // Copy index data to a buffer visible to the host (staging buffer)
-            stagingBuffers.indices.buffer = device.createBuffer(indexbufferInfo);
-            memReqs = device.getBufferMemoryRequirements(stagingBuffers.indices.buffer);
-            memAlloc.allocationSize = memReqs.size;
-            memAlloc.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, stagingMemoryPropertyFlags);
-            stagingBuffers.indices.memory = device.allocateMemory(memAlloc);
-            data = device.mapMemory(stagingBuffers.indices.memory, 0, VK_WHOLE_SIZE);
-            memcpy(data, indexBuffer.data(), indexBufferSize);
-            device.unmapMemory(stagingBuffers.indices.memory);
-            device.bindBufferMemory(stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);
-
-            // Create destination buffer with device only visibility
-            indexbufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst;
-            indices.buffer = device.createBuffer(indexbufferInfo);
-            memReqs = device.getBufferMemoryRequirements(indices.buffer);
-            memAlloc.allocationSize = memReqs.size;
-            memAlloc.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal);
-            indices.memory = device.allocateMemory(memAlloc);
-            device.bindBufferMemory(indices.buffer, indices.memory, 0);
-
-            // Buffer copies have to be submitted to a queue, so we need a command buffer for them
-            // Note: Some devices offer a dedicated transfer queue (with only the transfer bit set) that may be faster when doing lots of copies
-            withCommanbBuffer([&](const vk::CommandBuffer& copyCmd) {
-                // Put buffer region copies into command buffer
-                vk::BufferCopy copyRegion;
-                // Vertex buffer
-                copyRegion.size = vertexBufferSize;
-                copyCmd.copyBuffer(stagingBuffers.vertices.buffer, vertices.buffer, copyRegion);
-                // Index buffer
-                copyRegion.size = indexBufferSize;
-                copyCmd.copyBuffer(stagingBuffers.indices.buffer, indices.buffer, copyRegion);
-            });
-            // Flushing the command buffer will also submit it to the queue and uses a fence to ensure that all commands have been executed before returning
-
-            // Destroy staging buffers
-            // Note: Staging buffer must not be deleted before the copies have been submitted and executed
-            device.destroy(stagingBuffers.vertices.buffer);
-            device.freeMemory(stagingBuffers.vertices.memory);
-            device.destroy(stagingBuffers.indices.buffer);
-            device.freeMemory(stagingBuffers.indices.memory);
-        } else {
-            const auto memoryPropertyFlags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
-            // Don't use staging
-            // Create host-visible buffers only and use these for rendering. This is not advised and will usually result in lower rendering performance
-
-            // Vertex buffer
+        // Vertex buffer
+        {
             vk::BufferCreateInfo vertexBufferInfo;
             vertexBufferInfo.size = vertexBufferSize;
             vertexBufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
 
-            // Copy vertex data to a buffer visible to the host
-            vertices.buffer = device.createBuffer(vertexBufferInfo);
-            memReqs = device.getBufferMemoryRequirements(vertices.buffer);
-            memAlloc.allocationSize = memReqs.size;
-            // VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is host visible memory, and VK_MEMORY_PROPERTY_HOST_COHERENT_BIT makes sure writes are directly visible
-            memAlloc.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, memoryPropertyFlags);
-            vertices.memory = device.allocateMemory(memAlloc);
-            data = device.mapMemory(vertices.memory, 0, VK_WHOLE_SIZE);
-            memcpy(data, vertexBuffer.data(), vertexBufferSize);
-            device.unmapMemory(vertices.memory);
-            device.bindBufferMemory(vertices.buffer, vertices.memory, 0);
+            VmaAllocationCreateInfo allocInfo = {};
+            allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+            const auto& rawVertexBufferInfo = vertexBufferInfo.operator const VkBufferCreateInfo&();
+            VkBuffer rawBuffer;
+            vmaCreateBuffer(allocator, &rawVertexBufferInfo, &allocInfo, &rawBuffer, &vertices.allocation, nullptr);
+            vertices.buffer = rawBuffer;
 
-            // Index buffer
+            vmaMapMemory(allocator, vertices.allocation, &data);
+            memcpy(data, vertexBuffer.data(), vertexBufferSize);
+            vmaUnmapMemory(allocator, vertices.allocation);
+        }
+
+        // Index buffer
+        {
             vk::BufferCreateInfo indexbufferInfo;
             indexbufferInfo.size = indexBufferSize;
             indexbufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer;
 
+            VmaAllocationCreateInfo allocInfo = {};
+            allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+            const auto& rawVertexBufferInfo = indexbufferInfo.operator const VkBufferCreateInfo&();
+            VkBuffer rawBuffer;
+            vmaCreateBuffer(allocator, &rawVertexBufferInfo, &allocInfo, &rawBuffer, &indices.allocation, nullptr);
+            indices.buffer = rawBuffer;
+
             // Copy index data to a buffer visible to the host
-            indices.buffer = device.createBuffer(indexbufferInfo);
-            memReqs = device.getBufferMemoryRequirements(indices.buffer);
-            memAlloc.allocationSize = memReqs.size;
-            memAlloc.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, memoryPropertyFlags);
-            indices.memory = device.allocateMemory(memAlloc);
-            data = device.mapMemory(indices.memory, 0, VK_WHOLE_SIZE);
+            vmaMapMemory(allocator, indices.allocation, &data);
             memcpy(data, indexBuffer.data(), indexBufferSize);
-            device.unmapMemory(indices.memory);
-            device.bindBufferMemory(indices.buffer, indices.memory, 0);
+            vmaUnmapMemory(allocator, indices.allocation);
         }
     }
 
@@ -844,34 +741,19 @@ public:
     }
 
     void prepareUniformBuffers() {
-        // Prepare and initialize a uniform buffer block containing shader uniforms
-        // Single uniforms like in OpenGL are no longer present in Vulkan. All Shader uniforms are passed via uniform buffer blocks
-        vk::MemoryRequirements memReqs;
-
         // Vertex shader uniform buffer block
-        vk::BufferCreateInfo bufferInfo = {};
-        vk::MemoryAllocateInfo allocInfo = {};
-
+        vk::BufferCreateInfo bufferInfo;
         bufferInfo.size = sizeof(uboVS);
         // This buffer will be used as a uniform buffer
         bufferInfo.usage = vk::BufferUsageFlagBits::eUniformBuffer;
 
-        // Create a new buffer
-        uniformBufferVS.buffer = device.createBuffer(bufferInfo);
-        // Get memory requirements including size, alignment and memory type
-        memReqs = device.getBufferMemoryRequirements(uniformBufferVS.buffer);
 
-        allocInfo.allocationSize = memReqs.size;
-        // Get the memory type index that supports host visibile memory access
-        // Most implementations offer multiple memory types and selecting the correct one to allocate memory from is crucial
-        // We also want the buffer to be host coherent so we don't have to flush (or sync after every update.
-        // Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular base
-        allocInfo.memoryTypeIndex =
-            getMemoryTypeIndex(memReqs.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
-        // Allocate memory for the uniform buffer
-        uniformBufferVS.memory = device.allocateMemory(allocInfo);
-        // Bind memory to buffer
-        device.bindBufferMemory(uniformBufferVS.buffer, uniformBufferVS.memory, 0);
+        VmaAllocationCreateInfo allocInfo = {};
+        allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        const auto& rawVertexBufferInfo = bufferInfo.operator const VkBufferCreateInfo&();
+        VkBuffer rawBuffer;
+        vmaCreateBuffer(allocator, &rawVertexBufferInfo, &allocInfo, &rawBuffer, &uniformBufferVS.allocation, nullptr);
+        uniformBufferVS.buffer = rawBuffer;
 
         // Store information in the uniform's descriptor that is used by the descriptor set
         uniformBufferVS.descriptor.buffer = uniformBufferVS.buffer;
@@ -893,19 +775,14 @@ public:
         uboVS.modelMatrix = glm::rotate(uboVS.modelMatrix, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
 
         // Map uniform buffer and update it
-        uint8_t* pData = (uint8_t*)device.mapMemory(uniformBufferVS.memory, 0, VK_WHOLE_SIZE);
-        memcpy(pData, &uboVS, sizeof(uboVS));
-        // Unmap after data has been copied
-        // Note: Since we requested a host coherent memory type for the uniform buffer, the write is instantly visible to the GPU
-        device.unmapMemory(uniformBufferVS.memory);
+        void* data;
+        vmaMapMemory(allocator, uniformBufferVS.allocation, &data);
+        memcpy(data, &uboVS, sizeof(uboVS));
+        vmaUnmapMemory(allocator, uniformBufferVS.allocation);
     }
 
     void prepare() {
         Parent::prepare();
-        // Set clear values for all framebuffer attachments with loadOp set to clear
-        // We use two attachments (color and depth) that are cleared at the start of the subpass and as such we need to set clear values for both
-        clearValues[0].color = vks::util::clearColor({ 0.0f, 0.0f, 0.2f, 1.0f });
-        clearValues[1].depthStencil = { 1.0f, 0 };
         prepareSynchronizationPrimitives();
         prepareVertices(USE_STAGING);
         prepareUniformBuffers();
@@ -917,13 +794,13 @@ public:
         prepared = true;
     }
 
-    virtual void render() {
+    void render() override {
         if (!prepared)
             return;
         draw();
     }
 
-    virtual void viewChanged() {
+    void viewChanged() override {
         // This function is called by the base example class each time the view is changed by user input
         updateUniformBuffers();
     }

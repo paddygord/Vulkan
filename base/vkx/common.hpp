@@ -101,8 +101,8 @@ namespace Vectors {
     constexpr vec3 ZERO4;
 };
 
-#include <keycodes.hpp>
-#include <glfw.hpp>
+#include "keycodes.hpp"
+#include "glfw.hpp"
 
 // Boilerplate for running an example
 #if defined(__ANDROID__)
