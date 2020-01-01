@@ -122,7 +122,7 @@ protected:
     float zoom;
     vec3 cameraPos;
     vec3 rotation;
-    vk::SubmitInfo submitInfo;
+    //vk::SubmitInfo submitInfo;
 
     // Last frame time, measured using a high performance timer (if available)
     float frameTimer{ 0.0015f };
@@ -153,7 +153,7 @@ protected:
         std::vector<vk::PipelineStageFlags> renderWaitStages;
         std::vector<vk::Semaphore> renderSignalSemaphores;
     } synchronization;
-
+    void submitWithSynchronization(const vk::ArrayProxy<const vk::CommandBuffer>& commands, vk::Fence fence = nullptr);
     vks::Context context;
     const vk::PhysicalDevice& physicalDevice{ context.physicalDevice };
     const vk::Device& device{ context.device };
@@ -775,6 +775,19 @@ void vkx::ExampleBase::addRenderWaitSemaphore(const vk::Semaphore& semaphore, co
     synchronization.renderWaitStages.push_back(waitStages);
 }
 
+void vkx::ExampleBase::submitWithSynchronization(const vk::ArrayProxy<const vk::CommandBuffer>& commands, vk::Fence fence) {
+    vk::SubmitInfo submitInfo;
+    submitInfo.waitSemaphoreCount = (uint32_t)synchronization.renderWaitSemaphores.size();
+    submitInfo.pWaitSemaphores = synchronization.renderWaitSemaphores.data();
+    submitInfo.pWaitDstStageMask = synchronization.renderWaitStages.data();
+
+    submitInfo.signalSemaphoreCount = (uint32_t)synchronization.renderSignalSemaphores.size();
+    submitInfo.pSignalSemaphores = synchronization.renderSignalSemaphores.data();
+    submitInfo.pCommandBuffers = commands.data();
+    submitInfo.commandBufferCount = commands.size();
+    queue.submit(submitInfo, fence);
+}
+
 void vkx::ExampleBase::drawCurrentCommandBuffer() {
     vk::Fence fence = swapChain.getSubmitFence();
     {
@@ -784,20 +797,7 @@ void vkx::ExampleBase::drawCurrentCommandBuffer() {
 
     // Command buffer(s) to be sumitted to the queue
     context.emptyDumpster(fence);
-    {
-        vk::SubmitInfo submitInfo;
-        submitInfo.waitSemaphoreCount = (uint32_t)synchronization.renderWaitSemaphores.size();
-        submitInfo.pWaitSemaphores = synchronization.renderWaitSemaphores.data();
-        submitInfo.pWaitDstStageMask = synchronization.renderWaitStages.data();
-
-        submitInfo.signalSemaphoreCount = (uint32_t)synchronization.renderSignalSemaphores.size();
-        submitInfo.pSignalSemaphores = synchronization.renderSignalSemaphores.data();
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = drawCmdBuffers.data() + currentBuffer;
-        // Submit to queue
-        context.queue.submit(submitInfo, fence);
-    }
-
+    submitWithSynchronization(drawCmdBuffers[currentBuffer], fence);
     context.recycle();
 }
 

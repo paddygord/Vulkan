@@ -113,19 +113,6 @@ public:
 	VkDescriptorSetLayout descriptorSetLayout;
 
 	// Framebuffer for offscreen rendering
-	struct FrameBufferAttachment {
-		VkImage image;
-		VkDeviceMemory mem;
-		VkImageView view;
-		VkFormat format;
-	};
-	struct FrameBuffer {
-		int32_t width, height;
-		VkFramebuffer frameBuffer;		
-		FrameBufferAttachment position, normal, albedo;
-		FrameBufferAttachment depth;
-		VkRenderPass renderPass;
-	} offScreenFrameBuf;
 	
 	// One sampler for the frame buffer color attachments
 	VkSampler colorSampler;

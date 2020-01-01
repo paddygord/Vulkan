@@ -6,7 +6,7 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include <vkx/vulkanExampleBase.hpp>
+#include <vkx/vulkanOffscreenExampleBase.hpp>
 #include <vkx/texture.hpp>
 #include <vkx/model.hpp>
 
@@ -33,6 +33,8 @@ public:
             vkx::texture::Texture2D normalMap;
         } floor;
     } textures;
+
+    vkx::Offscreen offscreen;
 
     // Vertex layout for the models
     vkx::vertex::Layout vertexLayout{ {
@@ -98,25 +100,6 @@ public:
     vk::DescriptorSet descriptorSet;
     vk::DescriptorSetLayout descriptorSetLayout;
 
-    // Framebuffer for offscreen rendering
-    using FrameBufferAttachment = vks::Image;
-
-    struct FrameBuffer {
-        vk::Extent2D extent;
-        vk::Framebuffer frameBuffer;
-        FrameBufferAttachment position, normal, albedo;
-        FrameBufferAttachment depth;
-        vk::RenderPass renderPass;
-    } offScreenFrameBuf;
-
-    // One sampler for the frame buffer color attachments
-    vk::Sampler colorSampler;
-
-    vk::CommandBuffer offScreenCmdBuffer;
-
-    // Semaphore used to synchronize between offscreen and final scene rendering
-    vk::Semaphore offscreenSemaphore;
-
     VulkanExample()
         : VulkanExampleBase() {
         title = "Deferred shading (2016 by Sascha Willems)";
@@ -129,30 +112,25 @@ public:
         camera.setRotation(glm::vec3(-0.75f, 12.5f, 0.0f));
         camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
         settings.overlay = true;
+        offscreen.colorFormats = {
+            vk::Format::eR16G16B16A16Sfloat,
+            vk::Format::eR16G16B16A16Sfloat,
+            vk::Format::eR8G8B8A8Unorm,
+        };
+        offscreen.depthFormat = vk::Format::eD32SfloatS8Uint;
+        offscreen.size = { FB_DIM, FB_DIM };
     }
 
     ~VulkanExample() {
         // Clean up used Vulkan resources
         // Note : Inherited destructor cleans up resources stored in base class
-        device.destroy(colorSampler);
+        offscreen.destroy();
 
-        // Frame buffer
-
-        // Color attachments
-        offScreenFrameBuf.position.destroy();
-        offScreenFrameBuf.normal.destroy();
-        offScreenFrameBuf.albedo.destroy();
-        // Depth attachment
-        offScreenFrameBuf.depth.destroy();
-
-        device.destroy(offScreenFrameBuf.frameBuffer);
         device.destroy(pipelines.deferred);
         device.destroy(pipelines.offscreen);
         device.destroy(pipelines.debug);
-
         device.destroy(pipelineLayouts.deferred);
         device.destroy(pipelineLayouts.offscreen);
-
         device.destroy(descriptorSetLayout);
 
         // Meshes
@@ -165,16 +143,10 @@ public:
         uniformBuffers.vsFullScreen.destroy();
         uniformBuffers.fsLights.destroy();
 
-        device.freeCommandBuffers(cmdPool, offScreenCmdBuffer);
-
-        device.destroy(offScreenFrameBuf.renderPass);
-
         textures.model.colorMap.destroy();
         textures.model.normalMap.destroy();
         textures.floor.colorMap.destroy();
         textures.floor.normalMap.destroy();
-
-        device.destroy(offscreenSemaphore);
     }
 
     // Enable physical device features required for this example
@@ -193,123 +165,10 @@ public:
         }
     };
 
-    // Create a frame buffer attachment
-    void createAttachment(vk::Format format, vk::ImageUsageFlagBits usage, FrameBufferAttachment* attachment) {
-        vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor;
-        vk::ImageLayout imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
-
-        attachment->format = format;
-
-        if (usage & vk::ImageUsageFlagBits::eDepthStencilAttachment) {
-            aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
-            imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-        }
-
-        vk::ImageCreateInfo image;
-        image.imageType = vk::ImageType::e2D;
-        image.format = format;
-        image.extent.width = offScreenFrameBuf.extent.width;
-        image.extent.height = offScreenFrameBuf.extent.height;
-        image.extent.depth = 1;
-        image.mipLevels = 1;
-        image.arrayLayers = 1;
-        image.usage = usage | vk::ImageUsageFlagBits::eSampled;
-        *attachment = context.createImage(image);
-
-        vk::ImageViewCreateInfo imageView;
-        imageView.viewType = vk::ImageViewType::e2D;
-        imageView.format = format;
-        imageView.subresourceRange.aspectMask = aspectMask;
-        imageView.subresourceRange.levelCount = image.mipLevels;
-        imageView.subresourceRange.layerCount = image.arrayLayers;
-        imageView.image = attachment->image;
-        attachment->view = device.createImageView(imageView);
-    }
-
     // Prepare a new framebuffer and attachments for offscreen rendering (G-Buffer)
-    void prepareOffscreenFramebuffer() {
-        offScreenFrameBuf.extent.width = FB_DIM;
-        offScreenFrameBuf.extent.height = FB_DIM;
-
-        // Color attachments
-
-        // (World space) Positions
-        createAttachment(vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eColorAttachment, &offScreenFrameBuf.position);
-
-        // (World space) Normals
-        createAttachment(vk::Format::eR16G16B16A16Sfloat, vk::ImageUsageFlagBits::eColorAttachment, &offScreenFrameBuf.normal);
-
-        // Albedo (color)
-        createAttachment(vk::Format::eR8G8B8A8Unorm, vk::ImageUsageFlagBits::eColorAttachment, &offScreenFrameBuf.albedo);
-
-        // Depth attachment
-
-        // Find a suitable depth format
-        vk::Format attDepthFormat = depthFormat;
-        assert(attDepthFormat != vk::Format::eUndefined);
-
-        createAttachment(attDepthFormat, vk::ImageUsageFlagBits::eDepthStencilAttachment, &offScreenFrameBuf.depth);
-
-        // Set up separate renderpass with references to the color and depth attachments
-        std::array<VkAttachmentDescription, 4> attachmentDescs = {};
-
-        // Init attachment properties
-        for (uint32_t i = 0; i < 4; ++i) {
-            attachmentDescs[i].samples = VK_SAMPLE_COUNT_1_BIT;
-            attachmentDescs[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            attachmentDescs[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            attachmentDescs[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachmentDescs[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            if (i == 3) {
-                attachmentDescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-                attachmentDescs[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-            } else {
-                attachmentDescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-                attachmentDescs[i].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            }
-        }
-
-        // Formats
-        vk::ArrayProxy<const vk::Format> colorFormats = { offScreenFrameBuf.position.format, offScreenFrameBuf.normal.format, offScreenFrameBuf.albedo.format };
-
-        offScreenFrameBuf.renderPass = vks::renderpass::Builder().multiColor(colorFormats, offScreenFrameBuf.depth.format).create(device);
-
-        std::array<vk::ImageView, 4> attachments;
-        attachments[0] = offScreenFrameBuf.position.view;
-        attachments[1] = offScreenFrameBuf.normal.view;
-        attachments[2] = offScreenFrameBuf.albedo.view;
-        attachments[3] = offScreenFrameBuf.depth.view;
-
-        vk::FramebufferCreateInfo fbufCreateInfo = {};
-        fbufCreateInfo.renderPass = offScreenFrameBuf.renderPass;
-        fbufCreateInfo.pAttachments = attachments.data();
-        fbufCreateInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-        fbufCreateInfo.width = offScreenFrameBuf.extent.width;
-        fbufCreateInfo.height = offScreenFrameBuf.extent.height;
-        fbufCreateInfo.layers = 1;
-        offScreenFrameBuf.frameBuffer = device.createFramebuffer(fbufCreateInfo);
-
-        // Create sampler to sample from the color attachments
-        vk::SamplerCreateInfo sampler;
-        sampler.mipmapMode = vk::SamplerMipmapMode::eLinear;
-        sampler.addressModeU = vk::SamplerAddressMode::eClampToEdge;
-        sampler.addressModeV = sampler.addressModeU;
-        sampler.addressModeW = sampler.addressModeU;
-        sampler.maxAnisotropy = 1.0f;
-        sampler.maxLod = 1.0f;
-        sampler.borderColor = vk::BorderColor::eFloatOpaqueWhite;
-        colorSampler = device.createSampler(sampler);
-    }
 
     // Build command buffer for rendering the scene to the offscreen frame buffer attachments
     void buildDeferredCommandBuffer() {
-        if (!offScreenCmdBuffer) {
-            offScreenCmdBuffer = context.allocateCommandBuffers(1, vk::CommandBufferLevel::ePrimary)[0];
-        }
-
-        // Create a semaphore used to synchronize offscreen rendering and usage
-        offscreenSemaphore = device.createSemaphore({});
-
         // Clear values for all attachments written in the fragment sahder
         std::array<vk::ClearValue, 4> clearValues;
         clearValues[0].color = vks::util::clearColor({ 0.0f, 0.0f, 0.0f, 0.0f });
@@ -318,32 +177,31 @@ public:
         clearValues[3].depthStencil = { 1.0f, 0 };
 
         vk::RenderPassBeginInfo renderPassBeginInfo;
-        renderPassBeginInfo.renderPass = offScreenFrameBuf.renderPass;
-        renderPassBeginInfo.framebuffer = offScreenFrameBuf.frameBuffer;
-        renderPassBeginInfo.renderArea.extent.width = offScreenFrameBuf.extent.width;
-        renderPassBeginInfo.renderArea.extent.height = offScreenFrameBuf.extent.height;
+        renderPassBeginInfo.renderPass = offscreen.renderPass;
+        renderPassBeginInfo.framebuffer = offscreen.framebuffers[0].framebuffer;
+        renderPassBeginInfo.renderArea.extent = offscreen.size;
         renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassBeginInfo.pClearValues = clearValues.data();
 
-        offScreenCmdBuffer.begin(vk::CommandBufferBeginInfo{});
-        offScreenCmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-        offScreenCmdBuffer.setViewport(0, vks::util::viewport(offScreenFrameBuf.extent));
-        offScreenCmdBuffer.setScissor(0, vks::util::rect2D(offScreenFrameBuf.extent));
-        offScreenCmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
+        offscreen.cmdBuffer.begin(vk::CommandBufferBeginInfo{ vk::CommandBufferUsageFlagBits::eSimultaneousUse });
+        offscreen.cmdBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        offscreen.cmdBuffer.setViewport(0, vks::util::viewport(offscreen.size));
+        offscreen.cmdBuffer.setScissor(0, vks::util::rect2D(offscreen.size));
+        offscreen.cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipelines.offscreen);
 
         // Background
-        offScreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.floor, nullptr);
-        offScreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, 1, &models.floor.vertices.buffer, { 0 });
-        offScreenCmdBuffer.bindIndexBuffer(models.floor.indices.buffer, 0, vk::IndexType::eUint32);
-        offScreenCmdBuffer.drawIndexed(models.floor.indexCount, 1, 0, 0, 0);
+        //offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.floor, nullptr);
+        //offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, models.floor.vertices.buffer, { 0 });
+        //offscreen.cmdBuffer.bindIndexBuffer(models.floor.indices.buffer, 0, vk::IndexType::eUint32);
+        //offscreen.cmdBuffer.drawIndexed(models.floor.indexCount, 1, 0, 0, 0);
 
         // Object
-        offScreenCmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.model, nullptr);
-        offScreenCmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, models.model.vertices.buffer, { 0 });
-        offScreenCmdBuffer.bindIndexBuffer(models.model.indices.buffer, 0, vk::IndexType::eUint32);
-        offScreenCmdBuffer.drawIndexed(models.model.indexCount, 3, 0, 0, 0);
-        offScreenCmdBuffer.endRenderPass();
-        offScreenCmdBuffer.end();
+        offscreen.cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayouts.offscreen, 0, descriptorSets.model, nullptr);
+        offscreen.cmdBuffer.bindVertexBuffers(VERTEX_BUFFER_BIND_ID, models.model.vertices.buffer, { 0 });
+        offscreen.cmdBuffer.bindIndexBuffer(models.model.indices.buffer, 0, vk::IndexType::eUint32);
+        offscreen.cmdBuffer.drawIndexed(models.model.indexCount, 3, 0, 0, 0);
+        offscreen.cmdBuffer.endRenderPass();
+        offscreen.cmdBuffer.end();
     }
 
     void loadAssets() override {
@@ -409,16 +267,17 @@ public:
         //drawUI(drawCmdBuffers[i]);
     }
 
+    struct Vertex {
+        vec3 pos;
+        vec2 uv;
+        vec3 col;
+        vec3 normal;
+        vec3 tangent;
+    };
+
     void generateQuads() {
         // Setup vertices for multiple screen aligned quads
         // Used for displaying final result and debug
-        struct Vertex {
-            vec3 pos;
-            vec2 uv;
-            vec3 col;
-            vec3 normal;
-            vec3 tangent;
-        };
 
         std::vector<Vertex> vertexBuffer;
 
@@ -483,14 +342,17 @@ public:
     }
 
     void setupDescriptorSet() {
-        descriptorSet = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout })[0];
-        descriptorSets.model = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout })[0];
-        descriptorSets.floor = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout })[0];
+        {
+            descriptorSet = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout })[0];
+            descriptorSets.model = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout })[0];
+            descriptorSets.floor = device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo{ descriptorPool, 1, &descriptorSetLayout })[0];
+        }
 
+        const auto& colors = offscreen.framebuffers[0].colors;
         // Image descriptors for the offscreen color attachments
-        vk::DescriptorImageInfo texDescriptorPosition{ colorSampler, offScreenFrameBuf.position.view, vk::ImageLayout::eShaderReadOnlyOptimal };
-        vk::DescriptorImageInfo texDescriptorNormal{ colorSampler, offScreenFrameBuf.normal.view, vk::ImageLayout::eShaderReadOnlyOptimal };
-        vk::DescriptorImageInfo texDescriptorAlbedo{ colorSampler, offScreenFrameBuf.albedo.view, vk::ImageLayout::eShaderReadOnlyOptimal };
+        vk::DescriptorImageInfo texDescriptorPosition{ offscreen.sampler, colors[0].view, vk::ImageLayout::eShaderReadOnlyOptimal };
+        vk::DescriptorImageInfo texDescriptorNormal{ offscreen.sampler, colors[1].view, vk::ImageLayout::eShaderReadOnlyOptimal };
+        vk::DescriptorImageInfo texDescriptorAlbedo{ offscreen.sampler, colors[2].view, vk::ImageLayout::eShaderReadOnlyOptimal };
 
         std::vector<vk::WriteDescriptorSet> writeDescriptorSets;
         writeDescriptorSets = {
@@ -509,20 +371,18 @@ public:
             // Binding 0: Vertex shader uniform buffer
             vk::WriteDescriptorSet{ descriptorSets.model, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.vsOffscreen.descriptor },
             // Binding 1: Color map
-            vk::WriteDescriptorSet{ descriptorSets.model, 1, 0, 1, vk::DescriptorType::eUniformBuffer, &textures.model.colorMap.descriptor },
+            vk::WriteDescriptorSet{ descriptorSets.model, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &textures.model.colorMap.descriptor },
             // Binding 2: Normal map
-            vk::WriteDescriptorSet{ descriptorSets.model, 2, 0, 1, vk::DescriptorType::eUniformBuffer, &textures.model.normalMap.descriptor },
+            vk::WriteDescriptorSet{ descriptorSets.model, 2, 0, 1, vk::DescriptorType::eCombinedImageSampler, &textures.model.normalMap.descriptor },
             // Background
             // Binding 0: Vertex shader uniform buffer
             vk::WriteDescriptorSet{ descriptorSets.floor, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uniformBuffers.vsOffscreen.descriptor },
             // Binding 1: Color map
-            vk::WriteDescriptorSet{ descriptorSets.model, 1, 0, 1, vk::DescriptorType::eUniformBuffer, &textures.floor.colorMap.descriptor },
+            vk::WriteDescriptorSet{ descriptorSets.model, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &textures.floor.colorMap.descriptor },
             // Binding 2: Normal map
-            vk::WriteDescriptorSet{ descriptorSets.model, 2, 0, 1, vk::DescriptorType::eUniformBuffer, &textures.floor.normalMap.descriptor },
+            vk::WriteDescriptorSet{ descriptorSets.model, 2, 0, 1, vk::DescriptorType::eCombinedImageSampler, &textures.floor.normalMap.descriptor },
         };
         device.updateDescriptorSets(writeDescriptorSets, nullptr);
-
-
     }
 
     void preparePipelines() {
@@ -543,15 +403,15 @@ public:
         // Attribute descriptions
         std::vector<vk::VertexInputAttributeDescription> attributeDescriptions{
             // Location 0: Position
-            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32A32Sfloat, 0 },
+            vk::VertexInputAttributeDescription{ 0, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos) },
             // Location 1: Texture coordinates
-            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, sizeof(float) * 3 },
+            vk::VertexInputAttributeDescription{ 1, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32Sfloat, offsetof(Vertex, uv) },
             // Location 2: Color
-            vk::VertexInputAttributeDescription{ 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, sizeof(float) * 5 },
+            vk::VertexInputAttributeDescription{ 2, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, col) },
             // Location 3: Normal
-            vk::VertexInputAttributeDescription{ 3, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32A32Sfloat, sizeof(float) * 8 },
+            vk::VertexInputAttributeDescription{ 3, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal) },
             // Location 4: Tangent
-            vk::VertexInputAttributeDescription{ 4, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32A32Sfloat, sizeof(float) * 11 },
+            vk::VertexInputAttributeDescription{ 4, VERTEX_BUFFER_BIND_ID, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, tangent) },
         };
 
         // Debug display pipeline
@@ -567,7 +427,7 @@ public:
 
         // Offscreen pipeline
         {
-            vks::pipelines::GraphicsPipelineBuilder builder{ device, pipelineLayouts.offscreen, offScreenFrameBuf.renderPass };
+            vks::pipelines::GraphicsPipelineBuilder builder{ device, pipelineLayouts.offscreen, offscreen.renderPass };
             builder.rasterizationState.frontFace = vk::FrontFace::eClockwise;
             builder.loadShader(getAssetPath() + "shaders/deferred/mrt.vert.spv", vk::ShaderStageFlagBits::eVertex);
             builder.loadShader(getAssetPath() + "shaders/deferred/mrt.frag.spv", vk::ShaderStageFlagBits::eFragment);
@@ -680,34 +540,29 @@ public:
         // have been submitted by the application
 
         // Offscreen rendering
-
         // Wait for swap chain presentation to finish
-        submitInfo.pWaitSemaphores = &semaphores.acquireComplete;
-        // Signal ready with offscreen semaphore
-        submitInfo.pSignalSemaphores = &offscreenSemaphore;
-        // Submit work
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &offScreenCmdBuffer;
-        queue.submit(submitInfo, nullptr);
+        synchronization.renderWaitSemaphores = { semaphores.acquireComplete };
+        synchronization.renderWaitStages = { vk::PipelineStageFlagBits::eBottomOfPipe };
+        synchronization.renderSignalSemaphores = { offscreen.renderComplete };
+
+        submitWithSynchronization(offscreen.cmdBuffer);
 
         // Scene rendering
-
         // Wait for offscreen semaphore
-        submitInfo.pWaitSemaphores = &offscreenSemaphore;
-        // Signal ready with render complete semaphpre
-        submitInfo.pSignalSemaphores = &semaphores.renderComplete;
-
+        synchronization.renderWaitSemaphores = { offscreen.renderComplete };
+        synchronization.renderWaitStages = { vk::PipelineStageFlagBits::eBottomOfPipe };
+        synchronization.renderSignalSemaphores = { semaphores.renderComplete };
         // Submit work
-        submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-        queue.submit(submitInfo, nullptr);
+        drawCurrentCommandBuffer();
 
         VulkanExampleBase::submitFrame();
     }
 
     void prepare() {
         VulkanExampleBase::prepare();
+        offscreen.prepare(context);
+
         generateQuads();
-        prepareOffscreenFramebuffer();
         prepareUniformBuffers();
         setupDescriptorSetLayout();
         preparePipelines();
