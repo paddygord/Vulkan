@@ -48,7 +48,7 @@ inline int logLevelToAndroidPriority(vkx::LogLevel level) {
 }
 #endif
 
-void vkx::logMessage(vkx::LogLevel level, const char* format, ...) {
+inline void vkx::logMessage(vkx::LogLevel level, const char* format, ...) {
     va_list arglist;
     va_start(arglist, format);
 
@@ -67,7 +67,7 @@ void vkx::logMessage(vkx::LogLevel level, const char* format, ...) {
     va_end(arglist);
 }
 
-const std::string& vkx::getAssetPath() {
+inline const std::string& vkx::getAssetPath() {
 #if defined(__ANDROID__)
     static const std::string NOTHING;
     return NOTHING;

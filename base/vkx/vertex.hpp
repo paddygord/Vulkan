@@ -93,6 +93,23 @@ public:
         }
         return res;
     }
+
+    vk::VertexInputBindingDescription generateBindingDescripton(uint32_t binding = 0, vk::VertexInputRate rate = vk::VertexInputRate::eVertex) {
+        return vk::VertexInputBindingDescription{ binding, stride(), rate };
+    }
+
+    std::vector<vk::VertexInputAttributeDescription> genrerateAttributeDescriptions(uint32_t binding = 0, uint32_t attributeIndexOffset = 0) {
+        std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
+        auto componentsSize = components.size();
+        attributeDescriptions.reserve(componentsSize);
+        for (uint32_t i = 0; i < componentsSize; ++i) {
+            const auto& component = components[i];
+            const auto format = componentFormat(component);
+            const auto offset = this->offset(i);
+            attributeDescriptions.emplace_back(attributeIndexOffset + i, binding, format, offset);
+        }
+        return attributeDescriptions;
+    }
 };
 
 }}  // namespace vkx::vertex

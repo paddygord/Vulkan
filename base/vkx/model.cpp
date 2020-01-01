@@ -7,10 +7,10 @@
 */
 
 #include "model.hpp"
+
 #include <khrpp/storage.hpp>
-#include "vertex.hpp"
-#include "vks/context.hpp"
-#include "vks/helpers.hpp"
+#include <khrpp/vks/context.hpp>
+#include <khrpp/vks/helpers.hpp>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>

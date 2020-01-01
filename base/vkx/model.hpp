@@ -12,8 +12,8 @@
 #include <glm/glm.hpp>
 
 #include "vertex.hpp"
-#include <vks/buffer.hpp>
-#include <vks/context.hpp>
+#include <khrpp/vks/buffer.hpp>
+#include <khrpp/vks/context.hpp>
 
 
 struct aiScene;

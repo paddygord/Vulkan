@@ -10,11 +10,11 @@
 
 #include "common.hpp"
 
-#include <vks/helpers.hpp>
-#include <vks/shaders.hpp>
-#include <vks/pipelines.hpp>
-#include <vks/swapchain.hpp>
-#include <vks/renderpass.hpp>
+#include <khrpp/vks/helpers.hpp>
+#include <khrpp/vks/shaders.hpp>
+#include <khrpp/vks/pipelines.hpp>
+#include <khrpp/vks/swapchain.hpp>
+#include <khrpp/vks/renderpass.hpp>
 
 #include "ui.hpp"
 #include "utils.hpp"
@@ -22,7 +22,6 @@
 #include "compute.hpp"
 #include "keycodes.hpp"
 #include "storage.hpp"
-#include "filesystem.hpp"
 #include "texture.hpp"
 
 #if defined(__ANDROID__)
@@ -736,7 +735,7 @@ void vkx::ExampleBase::setupDepthStencil() {
     depthStencil.view = device.createImageView(depthStencilView);
 }
 
-void ExampleBase::setupFrameBuffer() {
+void vkx::ExampleBase::setupFrameBuffer() {
     // Recreate the frame buffers
     if (!frameBuffers.empty()) {
         for (const auto& framebuffer : frameBuffers) {
