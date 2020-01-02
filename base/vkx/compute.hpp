@@ -1,14 +1,12 @@
+#pragma once
+
 #include <khrpp/vks/context.hpp>
 
 namespace vkx {
 
 // Resources for the compute part of the example
 struct Compute {
-    Compute(const vks::Context& context)
-        : context(context) {}
-
-    const vks::Context& context;
-    const vk::Device& device{ context.device };
+    vk::Device device;
     vk::Queue queue;
     vk::CommandPool commandPool;
 
@@ -17,7 +15,8 @@ struct Compute {
         vk::Semaphore complete;
     } semaphores;
 
-    virtual void prepare() {
+    virtual void prepare(const vks::Context& context) {
+        device = context.device;
         // Create a compute capable device queue
         queue = context.device.getQueue(context.queueIndices.compute, 0);
         semaphores.ready = device.createSemaphore({});
@@ -27,9 +26,9 @@ struct Compute {
     }
 
     virtual void destroy() {
-        context.device.destroy(semaphores.complete);
-        context.device.destroy(semaphores.ready);
-        context.device.destroy(commandPool);
+        device.destroy(semaphores.complete);
+        device.destroy(semaphores.ready);
+        device.destroy(commandPool);
     }
 
     void submit(const vk::ArrayProxy<const vk::CommandBuffer>& commandBuffers) {

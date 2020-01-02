@@ -155,7 +155,7 @@ public:
     }
 
     void setupDescriptorSetLayout() {
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings = {
+        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings {
             // Binding 0 : Vertex shader uniform buffer
             vk::DescriptorSetLayoutBinding{ 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex },
             // Binding 1 : Fragment shader image sampler (texture array)

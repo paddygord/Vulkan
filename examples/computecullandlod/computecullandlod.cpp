@@ -7,6 +7,8 @@
 *
 */
 
+#include <vkx/vulkanExampleBase.hpp>
+#include <vkx/compute.hpp>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
