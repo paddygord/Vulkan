@@ -218,7 +218,7 @@ bool ExampleBase::platformLoopCondition() {
         }
         oldButtons = newButtons;
     } else {
-        memset(&gamePadState, 0, sizeof(gamePadState));
+        gamePadState = {};
     }
     return true;
 #endif
