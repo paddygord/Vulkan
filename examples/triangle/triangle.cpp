@@ -11,7 +11,6 @@
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
 
-#include <glad/glad.h>
 #include <glfw/glfw.hpp>
 #include <common.hpp>
 #include <vks/context.hpp>
