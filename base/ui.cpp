@@ -466,7 +466,7 @@ bool UIOverlay::checkBox(const char* caption, int32_t* value) const {
 }
 
 bool UIOverlay::inputFloat(const char* caption, float* value, float step, uint32_t precision) const {
-    return ImGui::InputFloat(caption, value, step, step * 10.0f, precision);
+    return ImGui::InputFloat(caption, value, step, step * 10.0f, "%f");
 }
 
 bool UIOverlay::sliderFloat(const char* caption, float* value, float min, float max) const {
