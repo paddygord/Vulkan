@@ -1,0 +1,6 @@
+[submodule "gli"]
+	path = gli
+	url = git@github.com:g-truc/gli.git
+[submodule "imgui"]
+	path = imgui
+	url = git@github.com:ocornut/imgui.git
