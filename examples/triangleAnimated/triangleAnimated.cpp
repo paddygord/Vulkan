@@ -40,7 +40,6 @@ public:
     VulkanExample() {
         size.width = 1280;
         size.height = 720;
-        title = "Vulkan Example - Basic indexed triangle";
     }
 
     // As before
