@@ -654,7 +654,7 @@ public:
         pipelineCreateInfo.pDynamicState = &dynamicState;
 
         // Create rendering pipeline
-        pipeline = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr)[0];
+        pipeline = device.createGraphicsPipelines(context.pipelineCache, pipelineCreateInfo, nullptr).value[0];
 
         for (const auto& shaderStage : shaderStages) {
             device.destroyShaderModule(shaderStage.module);
@@ -683,7 +683,7 @@ public:
         renderPassBeginInfo.renderArea.extent = size;
         renderPassBeginInfo.clearValueCount = 1;
         renderPassBeginInfo.pClearValues = clearValues;
-        glm::vec2 offset;
+        glm::vec2 offset {};
         float minDepth = 0;
         float maxDepth = 1;
         vk::Viewport viewport = vk::Viewport{ offset.x, offset.y, (float)size.width, (float)size.height, minDepth, maxDepth };

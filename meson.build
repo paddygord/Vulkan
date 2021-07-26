@@ -12,6 +12,8 @@ add_project_arguments(
   '-Wno-non-virtual-dtor',
   '-Wno-unused-but-set-variable',
   '-Wno-sign-compare',
+  '-Wno-type-limits',
+  '-Wno-ignored-qualifiers',
   language: 'cpp',
 )
 

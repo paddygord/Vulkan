@@ -188,7 +188,7 @@ public:
 
     vk::Pipeline create(const vk::PipelineCache& cache) {
         update();
-        return device.createGraphicsPipeline(cache, pipelineCreateInfo);
+        return device.createGraphicsPipeline(cache, pipelineCreateInfo).value;
     }
 
     vk::Pipeline create() { return create(pipelineCache); }

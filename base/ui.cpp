@@ -368,12 +368,11 @@ void UIOverlay::update() {
     };
 
     // Note: Alignment is done inside buffer creation
-    vk::DeviceSize vertexBufferSize = imDrawData->TotalVtxCount * sizeof(ImDrawVert);
-    vk::DeviceSize indexBufferSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
 
     // Update buffers only if vertex or index count has been changed compared to current buffer size
 
     // Vertex buffer
+    vk::DeviceSize vertexBufferSize = imDrawData->TotalVtxCount * sizeof(ImDrawVert);
     if (!vertexBuffer || (vertexCount != imDrawData->TotalVtxCount)) {
         vertexCount = imDrawData->TotalVtxCount;
         if (vertexBuffer) {
@@ -389,7 +388,7 @@ void UIOverlay::update() {
     }
 
     // Index buffer
-    vk::DeviceSize indexSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
+    vk::DeviceSize indexBufferSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
     if (!indexBuffer || (indexCount < imDrawData->TotalIdxCount)) {
         indexCount = imDrawData->TotalIdxCount;
         if (indexBuffer) {
@@ -446,7 +445,10 @@ void UIOverlay::submit(const vk::Queue& queue, uint32_t bufferindex, vk::SubmitI
     submitInfo.commandBufferCount = 1;
 
     queue.submit(submitInfo, fence);
-    context.device.waitForFences(fence, VK_TRUE, UINT64_MAX);
+    auto r = context.device.waitForFences(fence, VK_TRUE, UINT64_MAX);
+    if (r != vk::Result::eSuccess) {
+        throw std::runtime_error("bad!");
+    }
     context.device.resetFences(fence);
 }
 
