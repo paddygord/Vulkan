@@ -99,7 +99,10 @@ inline vk::PipelineStageFlags pipelineStageForLayout(vk::ImageLayout layout) {
 
 inline vk::ClearColorValue clearColor(const glm::vec4& v = glm::vec4(0)) {
     vk::ClearColorValue result;
-    memcpy(&result.float32, &v, sizeof(result.float32));
+    result.float32[0] = v[0];
+    result.float32[1] = v[1];
+    result.float32[2] = v[2];
+    result.float32[3] = v[3];
     return result;
 }
 
