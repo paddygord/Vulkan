@@ -116,7 +116,7 @@ struct Compute : public vkx::Compute {
         computePipelineCreateInfo.layout = pipelineLayout;
         computePipelineCreateInfo.stage =
             vks::shaders::loadShader(context.device, vkx::getAssetPath() + "shaders/computecloth/cloth.comp.spv", vk::ShaderStageFlagBits::eCompute);
-        pipeline = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo);
+        pipeline = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo).value;
         device.destroyShaderModule(computePipelineCreateInfo.stage.module);
     }
 

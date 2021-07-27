@@ -107,7 +107,7 @@ public:
         computePipelineCreateInfo.stage =
             vks::shaders::loadShader(device, vkx::getAssetPath() + "shaders/computeparticles/particle.comp.spv", vk::ShaderStageFlagBits::eCompute);
 
-        pipeline = device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo)[0];
+        pipeline = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo).value;
         device.destroyShaderModule(computePipelineCreateInfo.stage.module);
     }
 

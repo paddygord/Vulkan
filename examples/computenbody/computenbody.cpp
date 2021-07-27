@@ -130,12 +130,12 @@ public:
         vk::SpecializationInfo specializationInfo{ static_cast<uint32_t>(specializationMapEntries.size()), specializationMapEntries.data(),
                                                    sizeof(specializationData), &specializationData };
         computePipelineCreateInfo.stage.pSpecializationInfo = &specializationInfo;
-        pipelineCalculate = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo);
+        pipelineCalculate = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo).value;
         device.destroyShaderModule(computePipelineCreateInfo.stage.module);
         // 2nd pass
         computePipelineCreateInfo.stage =
             vks::shaders::loadShader(device, vkx::getAssetPath() + "shaders/computenbody/particle_integrate.comp.spv", vk::ShaderStageFlagBits::eCompute);
-        pipelineIntegrate = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo);
+        pipelineIntegrate = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo).value;
         device.destroyShaderModule(computePipelineCreateInfo.stage.module);
 
         // Create a command buffer for compute operations

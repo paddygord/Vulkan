@@ -104,7 +104,7 @@ public:
         for (auto& shaderName : shaderNames) {
             std::string fileName = vkx::getAssetPath() + "shaders/computeshader/" + shaderName + ".comp.spv";
             computePipelineCreateInfo.stage = vks::shaders::loadShader(device, fileName.c_str(), vk::ShaderStageFlagBits::eCompute);
-            pipelines.push_back(device.createComputePipelines(context.pipelineCache, computePipelineCreateInfo, nullptr)[0]);
+            pipelines.push_back(device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo, nullptr).value);
             device.destroyShaderModule(computePipelineCreateInfo.stage.module);
         }
 

@@ -152,7 +152,7 @@ struct Compute : public vkx::Compute {
         specializationInfo.pData = &specializationData;
 
         computePipelineCreateInfo.stage.pSpecializationInfo = &specializationInfo;
-        pipeline = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo);
+        pipeline = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo).value;
         device.destroyShaderModule(computePipelineCreateInfo.stage.module);
     }
 

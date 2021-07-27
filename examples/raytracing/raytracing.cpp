@@ -277,7 +277,7 @@ public:
         computePipelineCreateInfo.layout = computePipelineLayout;
         computePipelineCreateInfo.stage =
             vks::shaders::loadShader(device, getAssetPath() + "shaders/raytracing/raytracing.comp.spv", vk::ShaderStageFlagBits::eCompute);
-        pipelines.compute = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo);
+        pipelines.compute = device.createComputePipeline(context.pipelineCache, computePipelineCreateInfo).value;
     }
 
     // Prepare and initialize uniform buffer containing shader uniforms
