@@ -1,9 +1,10 @@
 project('render', 'cpp',
   default_options: [
     'prefix=' + meson.source_root() / 'packaged',
-    'buildtype=debugoptimized',
+    'buildtype=debug',
     'warning_level=3',
     'cpp_std=c++17',
+    'optimization=0',
   ]
 )
 
