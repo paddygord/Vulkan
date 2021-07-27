@@ -994,8 +994,8 @@ void ExampleBase::CloseHandler(GLFWwindow* window) {
 }
 
 void ExampleBase::FramebufferSizeHandler(GLFWwindow* window, int width, int height) {
-    auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
-    example->windowResize(glm::uvec2(width, height));
+    //auto example = (ExampleBase*)glfwGetWindowUserPointer(window);
+    //example->windowResize(glm::uvec2(width, height));
 }
 
 #endif

@@ -314,6 +314,8 @@ void UIOverlay::updateCommandBuffers() {
         cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, descriptorSet, {});
         cmdBuffer.bindVertexBuffers(0, vertexBuffer.buffer, { 0 });
+        //FIXME
+        //indexBuffer.buffer is null when the window is resized before the first frame
         cmdBuffer.bindIndexBuffer(indexBuffer.buffer, 0, vk::IndexType::eUint16);
         cmdBuffer.setViewport(0, viewport);
         cmdBuffer.setScissor(0, scissor);
