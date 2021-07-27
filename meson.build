@@ -59,9 +59,7 @@ vulkan_deps = [
   dependency('xcb'),
 ]
 
-base_lib = static_library(
-  'base',
-  sources: [
+base_sources = [
     'base/android.cpp',
     'base/common.cpp',
     'base/glfw/glfw.cpp',
@@ -78,25 +76,92 @@ base_lib = static_library(
     'base/vks/vks.cpp',
     'base/vulkanExampleBase.cpp',
     'base/vulkanGear.cpp',
-  ],
-  dependencies: common_deps + vulkan_deps,
-)
-base_dep = declare_dependency(
-  link_with: base_lib,
-  include_directories: [
-    'base',
-  ],
-)
+]
 
-executable(
-  'render',
-  'examples/triangleAnimated/triangleAnimated.cpp',
-  dependencies: [
-    base_dep
-  ] + common_deps + vulkan_deps,
-  cpp_args: [
-    '-DVK_USE_PLATFORM_XCB_KHR',
-    '-DGLM_FORCE_DEPTH_ZERO_TO_ONE',
-  ],
-  install: true,
-)
+examples = [
+  #'bloom',
+  'computecloth',
+  'computecullandlod',
+  'computeheadless',
+  'computenbody',
+  'computeparticles',
+  'computeshader',
+  #'conservativeraster',
+  'context',
+  'debugmarker',
+  #'deferred',
+  #'deferredmultisampling',
+  #'deferredshadows',
+  'descriptorsets',
+  'displacement',
+  'distancefieldfonts',
+  'dynamicuniformbuffer',
+  'gears',
+  'geometryshader',
+  'glinterop',
+  #'hdr',
+  'indirect',
+  'indirectdraw',
+  'instancing',
+  'mesh',
+  'multisampling',
+  #'multiview',
+  'occlusionquery',
+  #'offscreen',
+  'parallaxmapping',
+  'particlefire',
+  'pbrbasic',
+  'pbribl',
+  'pbrtexture',
+  'pipelines',
+  'pipelinestatistics',
+  'pushconstants',
+  'pushdescriptors',
+  #'radialblur',
+  'raytracing',
+  'renderheadless',
+  'scenerendering',
+  'screenshot',
+  #'shadowmapping',
+  #'shadowmappingcascade',
+  #'shadowmappingomni',
+  'skeletalanimation',
+  'specializationconstants',
+  'sphericalenvmapping',
+  #'ssao',
+  'stencilbuffer',
+  'subpasses',
+  'swapchain',
+  'terraintessellation',
+  'tessellation',
+  'texture',
+  'texture3d',
+  'texturearray',
+  'texturecubemap',
+  'texturesparseresidency',
+  'triangle',
+  'triangleAnimated',
+  'triangleRevisited',
+  'viewportarray',
+  #'vr_oculus',
+  #'vr_openvr',
+  'vulkanscene',
+]
+
+foreach example: examples
+  executable(
+    example,
+    sources: [
+      'examples/' + example + '/' + example + '.cpp',
+    ] + base_sources,
+    include_directories: [
+      'base',
+    ],
+    dependencies: common_deps + vulkan_deps,
+    cpp_args: [
+      '-DVK_USE_PLATFORM_XCB_KHR',
+      '-DGLM_FORCE_DEPTH_ZERO_TO_ONE',
+    ],
+    install: true,
+  )
+endforeach
