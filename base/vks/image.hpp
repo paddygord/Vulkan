@@ -36,5 +36,9 @@ public:
         }
         Parent::destroy();
     }
+
+    virtual ~Image() {
+        this->destroy();
+    };
 };
 }  // namespace vks

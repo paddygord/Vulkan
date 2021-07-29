@@ -128,6 +128,10 @@ private:
     static void FramebufferSizeHandler(GLFWwindow* window, int width, int height);
 
     GLFWwindow* window{ nullptr };
+
+    virtual ~Window() {
+        this->destroyWindow();
+    };
 };
 }  // namespace glfw
 

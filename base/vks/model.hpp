@@ -214,6 +214,10 @@ struct Model {
         outputBuffer.resize(offset + copySize);
         memcpy(outputBuffer.data() + offset, v.data(), copySize);
     }
+
+    virtual ~Model() {
+        this->destroy();
+    };
 };
 
 }}  // namespace vks::model

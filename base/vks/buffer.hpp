@@ -73,5 +73,9 @@ public:
         }
         Parent::destroy();
     }
+
+    virtual ~Buffer() {
+        this->destroy();
+    };
 };
 }  // namespace vks

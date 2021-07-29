@@ -78,5 +78,9 @@ struct Allocation {
             memory = vk::DeviceMemory();
         }
     }
+
+    virtual ~Allocation() {
+        this->destroy();
+    };
 };
 }  // namespace vks

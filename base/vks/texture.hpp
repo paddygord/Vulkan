@@ -48,6 +48,10 @@ public:
 
     /** @brief Release all Vulkan resources held by this texture */
     void destroy() override { Parent::destroy(); }
+
+    virtual ~Texture() {
+        this->destroy();
+    };
 };
 
 /** @brief 2D texture */
@@ -217,6 +221,10 @@ public:
         // Update descriptor image info member that can be used for setting up descriptor sets
         updateDescriptor();
     }
+
+    virtual ~Texture2D() {
+        this->destroy();
+    };
 };
 
 /** @brief 2D array texture */
@@ -332,6 +340,10 @@ public:
         // Update descriptor image info member that can be used for setting up descriptor sets
         updateDescriptor();
     }
+
+    virtual ~Texture2DArray() {
+        this->destroy();
+    };
 };
 
 /** @brief Cube map texture */
@@ -450,5 +462,9 @@ public:
         // Update descriptor image info member that can be used for setting up descriptor sets
         updateDescriptor();
     }
+
+    virtual ~TextureCubeMap() {
+        this->destroy();
+    };
 };
 }}  // namespace vks::texture
