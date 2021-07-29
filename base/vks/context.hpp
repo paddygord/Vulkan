@@ -417,7 +417,9 @@ public:
 
     // Fixed sub resource on first mip level and layer
     void setImageLayout(vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout) const {
-        withPrimaryCommandBuffer([&](const auto& commandBuffer) { setImageLayout(commandBuffer, image, aspectMask, oldImageLayout, newImageLayout); });
+        withPrimaryCommandBuffer([&](const auto& commandBuffer) {
+            setImageLayout(commandBuffer, image, aspectMask, oldImageLayout, newImageLayout);
+        });
     }
 
 protected:
@@ -583,7 +585,7 @@ public:
 
     Image createImage(const vk::ImageCreateInfo& imageCreateInfo,
                       const vk::MemoryPropertyFlags& memoryPropertyFlags = vk::MemoryPropertyFlagBits::eDeviceLocal) const {
-        Image result;
+        Image result = {};
         result.device = device;
         result.image = device.createImage(imageCreateInfo);
         result.format = imageCreateInfo.format;

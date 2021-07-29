@@ -5,13 +5,16 @@ project('render', 'cpp',
     'warning_level=3',
     'cpp_std=c++17',
     'optimization=0',
+    #'b_lundef=false',
+    #'b_sanitize=address,undefined',
   ]
 )
 
 add_project_arguments(
   '-Wno-unused-parameter',
-  '-Wno-non-virtual-dtor',
-  '-Wno-unused-but-set-variable',
+  #'-Wno-unused-but-set-variable',
+  '-Wno-unused-variable',
+  '-Wno-unused-private-field',
   '-Wno-sign-compare',
   '-Wno-type-limits',
   '-Wno-ignored-qualifiers',
@@ -61,23 +64,33 @@ vulkan_deps = [
 ]
 
 base_sources = [
-    'base/android.cpp',
-    'base/common.cpp',
-    'base/glfw/glfw.cpp',
-    'base/pbr.cpp',
-    'base/shapes.cpp',
-    'base/ui.cpp',
-    'base/utils.cpp',
-    'base/vks/context.cpp',
-    'base/vks/debug.cpp',
-    'base/vks/filesystem.cpp',
-    'base/vks/model.cpp',
-    'base/vks/shaders.cpp',
-    'base/vks/storage.cpp',
-    'base/vks/vks.cpp',
-    'base/vulkanExampleBase.cpp',
-    'base/vulkanGear.cpp',
+  'base/android.cpp',
+  'base/common.cpp',
+  'base/glfw/glfw.cpp',
+  'base/pbr.cpp',
+  'base/shapes.cpp',
+  'base/ui.cpp',
+  'base/utils.cpp',
+  'base/vks/context.cpp',
+  'base/vks/debug.cpp',
+  'base/vks/filesystem.cpp',
+  'base/vks/model.cpp',
+  'base/vks/shaders.cpp',
+  'base/vks/storage.cpp',
+  'base/vks/vks.cpp',
+  'base/vulkanExampleBase.cpp',
+  'base/vulkanGear.cpp',
 ]
+base_lib = static_library(
+  'base',
+  sources: base_sources,
+  dependencies: common_deps + vulkan_deps,
+  install: true,
+)
+base_dep = declare_dependency(
+  link_whole: base_lib,
+  include_directories: 'base',
+)
 
 examples = [
   #'bloom',
@@ -148,6 +161,10 @@ examples = [
   #'vr_openvr',
   'vulkanscene',
 ]
+examples = [
+  'distancefieldfonts',
+  'triangleAnimated',
+]
 
 foreach example: examples
   executable(
@@ -155,9 +172,7 @@ foreach example: examples
     sources: [
       'examples/' + example + '/' + example + '.cpp',
     ] + base_sources,
-    include_directories: [
-      'base',
-    ],
+    include_directories: 'base',
     dependencies: common_deps + vulkan_deps,
     cpp_args: [
       '-DVK_USE_PLATFORM_XCB_KHR',
